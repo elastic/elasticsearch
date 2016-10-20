@@ -181,3 +181,50 @@ for indices of that start with `te*`, source will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
+
+[float]
+[[versioning-templates]]
+=== Template Versioning
+
+Templates can optionally add a `version` number, which can be any integer value,
+in order to simplify template management by external systems. The `version`
+field is completely optional and it is meant solely for external management of
+templates. To unset a `version`, simply replace the template without specifying
+one.
+
+[source,js]
+--------------------------------------------------
+PUT /_template/template_1
+{
+    "template" : "*",
+    "order" : 0,
+    "settings" : {
+        "number_of_shards" : 1
+    },
+    "version": 123
+}
+--------------------------------------------------
+// CONSOLE
+
+To check for the `version`, you can
+<<common-options-response-filtering, filter responses>>
+using `filter_path` to limit the response to just the `version`:
+
+[source,js]
+--------------------------------------------------
+GET /_template/template_1?filter_path=*.version
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+This should give a small response that makes it both easy and inexpensive to parse:
+
+[source,js]
+--------------------------------------------------
+{
+  "template_1" : {
+    "version" : 123
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

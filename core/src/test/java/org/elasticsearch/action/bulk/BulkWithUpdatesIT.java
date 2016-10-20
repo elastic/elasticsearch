@@ -583,7 +583,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
         assertThat(bulkResponse.getItems()[2].getFailure().getCause().getCause().getMessage(),
-                equalTo("script mode does not exist for lang [painless], type [inline], operation [update]"));
+            equalTo("script lang [painless] does not exist"));
 
         client().admin().indices().prepareRefresh("test").get();
 

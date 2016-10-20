@@ -34,7 +34,7 @@ dependencies {
   compile project(path: ':modules:transport-netty3', configuration: 'runtime')
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')
   compile 'dk.brics.automaton:automaton:1.11-8'
-  compile 'com.unboundid:unboundid-ldapsdk:3.1.1'
+  compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
   compile 'org.bouncycastle:bcprov-jdk15on:1.55'
   compile 'org.bouncycastle:bcpkix-jdk15on:1.55'
   testCompile 'com.google.jimfs:jimfs:1.1'

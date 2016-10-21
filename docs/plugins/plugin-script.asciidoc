@@ -142,25 +142,6 @@ You can also set the `CONF_DIR` environment variable to the custom config
 directory path.
 
 [float]
-=== Timeout settings
-
-By default, the `plugin` script will wait indefinitely when downloading before
-failing. The timeout parameter can be used to explicitly specify how long it
-waits. Here is some examples of setting it to different values:
-
-[source,shell]
------------------------------------
-# Wait for 30 seconds before failing
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 30s
-
-# Wait for 1 minute before failing
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 1m
-
-# Wait forever (default)
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 0
------------------------------------
-
-[float]
 === Proxy settings
 
 To install a plugin via a proxy, you can add the proxy details to the

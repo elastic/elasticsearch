@@ -372,6 +372,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                     validation((Boolean)entry.getValue());
                 } else if (entry.getValue() instanceof String) {
                     validation(Booleans.parseBoolean((String)entry.getValue(), DEFAULT_VALIDATION));
+                } else {
+                    throw new IllegalArgumentException("Malformed [validate] value, should be a boolean or a string");
                 }
             } else {
                 // maybe custom?

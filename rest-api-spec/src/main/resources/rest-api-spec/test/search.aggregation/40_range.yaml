@@ -143,6 +143,7 @@ setup:
 
   - length: { aggregations.ip_range.buckets: 3 }
 
+# ip_range does not automatically add keys to buckets, see #21045
 #  - match: { aggregations.ip_range.buckets.0.key: "*-192.168.0.0" }
 
   - is_false: aggregations.ip_range.buckets.0.from

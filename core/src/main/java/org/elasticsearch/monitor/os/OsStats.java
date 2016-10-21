@@ -51,7 +51,7 @@ public class OsStats implements Writeable, ToXContent {
         this.cpu = new Cpu(in);
         this.mem = new Mem(in);
         this.swap = new Swap(in);
-        this.cgroup = new Cgroup(in);
+        this.cgroup = in.readOptionalWriteable(Cgroup::new);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class OsStats implements Writeable, ToXContent {
         cpu.writeTo(out);
         mem.writeTo(out);
         swap.writeTo(out);
-        cgroup.writeTo(out);
+        out.writeOptionalWriteable(cgroup);
     }
 
     public long getTimestamp() {
@@ -111,7 +111,9 @@ public class OsStats implements Writeable, ToXContent {
         cpu.toXContent(builder, params);
         mem.toXContent(builder, params);
         swap.toXContent(builder, params);
-        cgroup.toXContent(builder, params);
+        if (cgroup != null) {
+            cgroup.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }

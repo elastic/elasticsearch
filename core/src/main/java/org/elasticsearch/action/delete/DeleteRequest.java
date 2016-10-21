@@ -25,6 +25,8 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 
@@ -53,6 +55,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
     private String parent;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(DeleteRequest.class));
 
     public DeleteRequest() {
     }
@@ -89,6 +92,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         }
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        }
+        if (versionType == VersionType.FORCE) {
+            deprecationLogger.deprecated("version type FORCE is deprecated and will be removed in the next major version");
         }
         return validationException;
     }

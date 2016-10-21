@@ -2,6 +2,8 @@
 "Force version":
 
  - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
       index:
           index:          test_1
           type:           test
@@ -13,6 +15,8 @@
  - match:   { _version: 5}
 
  - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
       index:
           index:          test_1
           type:           test
@@ -24,6 +28,8 @@
  - match:   { _version: 4}
 
  - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
       index:
           index:          test_1
           type:           test
@@ -35,6 +41,8 @@
  - match:   { _version: 5}
 
  - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
       index:
           index:          test_1
           type:           test

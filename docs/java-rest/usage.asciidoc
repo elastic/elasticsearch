@@ -51,8 +51,8 @@ https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/Ht
 [source,java]
 --------------------------------------------------
 RestClient restClient = RestClient.builder(
-        new HttpHost("http", "localhost", 9200),
-        new HttpHost("http", "localhost", 9201)).build();
+        new HttpHost("localhost", 9200, "http"),
+        new HttpHost("localhost", 9201, "http")).build();
 --------------------------------------------------
 
 The `RestClient` class is thread-safe and ideally has the same lifecycle as

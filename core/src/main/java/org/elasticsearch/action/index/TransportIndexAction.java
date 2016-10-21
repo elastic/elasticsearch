@@ -204,8 +204,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
         if (operation.hasFailure() == false) {
             primary.execute(operation);
             // update the version on request so it will happen on the replicas
-            final long version = operation.version();
-            request.version(version);
+            request.version(operation.version());
             request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
             assert request.versionType().validateVersionForWrites(request.version());
         }

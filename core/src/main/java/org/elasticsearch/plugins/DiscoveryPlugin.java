@@ -19,8 +19,14 @@
 
 package org.elasticsearch.plugins;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
+
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.transport.TransportService;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's discovery functionality. To add an additional
@@ -51,5 +57,21 @@ public interface DiscoveryPlugin {
      */
     default NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         return null;
+    }
+
+    /**
+     * Returns providers of unicast host lists for zen discovery.
+     *
+     * The key of the returned map is the name of the host provider
+     * (see {@link org.elasticsearch.discovery.DiscoveryModule#DISCOVERY_HOSTS_PROVIDER_SETTING}), and
+     * the value is a supplier to construct the host provider when it is selected for use.
+     *
+     * @param transportService Use to form the {@link org.elasticsearch.common.transport.TransportAddress} portion
+     *                         of a {@link org.elasticsearch.cluster.node.DiscoveryNode}
+     * @param networkService Use to find the publish host address of the current node
+     */
+    default Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
+                                                                             NetworkService networkService) {
+        return Collections.emptyMap();
     }
 }

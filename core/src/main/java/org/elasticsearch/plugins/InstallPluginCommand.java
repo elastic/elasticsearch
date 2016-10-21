@@ -269,6 +269,7 @@ class InstallPluginCommand extends SettingCommand {
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = url.openConnection();
+        urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
         int contentLength = urlConnection.getContentLength();
         try (InputStream in = new TerminalProgressInputStream(urlConnection.getInputStream(), contentLength, terminal)) {
             // must overwrite since creating the temp file above actually created the file
@@ -415,7 +416,7 @@ class InstallPluginCommand extends SettingCommand {
         PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
         terminal.println(VERBOSE, info.toString());
 
-        // don't let luser install plugin as a module...
+        // don't let user install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
             throw new UserException(

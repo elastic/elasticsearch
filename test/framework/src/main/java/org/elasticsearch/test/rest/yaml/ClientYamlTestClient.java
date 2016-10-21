@@ -143,10 +143,7 @@ public class ClientYamlTestClient {
             }
         }
 
-        //create doesn't exist in the spec but is supported in the clients (index with op_type=create)
-        boolean indexCreateApi = "create".equals(apiName);
-        String api = indexCreateApi ? "index" : apiName;
-        ClientYamlSuiteRestApi restApi = restApi(api);
+        ClientYamlSuiteRestApi restApi = restApi(apiName);
 
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();
@@ -162,10 +159,6 @@ public class ClientYamlTestClient {
                             + restApi.getName() + "] " + "api");
                 }
             }
-        }
-
-        if (indexCreateApi) {
-            queryStringParams.put("op_type", "create");
         }
 
         List<String> supportedMethods = restApi.getSupportedMethods(pathParts.keySet());

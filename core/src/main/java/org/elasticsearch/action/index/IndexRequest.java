@@ -160,6 +160,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
 
+        if (versionType == VersionType.FORCE) {
+            validationException = addValidationError("version type [force] may no longer be used", validationException);
+        }
+
         if (ttl != null) {
             if (ttl.millis() < 0) {
                 validationException = addValidationError("ttl must not be negative", validationException);

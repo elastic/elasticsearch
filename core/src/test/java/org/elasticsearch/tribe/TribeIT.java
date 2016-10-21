@@ -33,19 +33,15 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.elasticsearch.transport.Transport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -54,7 +50,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -66,6 +61,7 @@ import java.util.stream.StreamSupport;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -195,22 +191,12 @@ public class TribeIT extends ESIntegTestCase {
         settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), false);
         settings.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
-        settings.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local");
 
         doWithAllClusters(filter, c -> {
             String tribeSetting = "tribe." + c.getClusterName() + ".";
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), c.getClusterName());
             settings.put(tribeSetting + DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "100ms");
             settings.put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
-            settings.put(tribeSetting + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local");
-
-            Set<String> hosts = new HashSet<>();
-            for (Transport transport : c.getInstances(Transport.class)) {
-                TransportAddress address = transport.boundAddress().publishAddress();
-                hosts.add(address.getAddress() + ":" + address.getPort());
-            }
-            settings.putArray(tribeSetting + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
-                    hosts.toArray(new String[hosts.size()]));
         });
 
         return settings;
@@ -497,7 +483,7 @@ public class TribeIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setNodes(true).get().getState();
             Set<String> nodes = StreamSupport.stream(state.getNodes().spliterator(), false).map(DiscoveryNode::getName).collect(toSet());
-            assertThat(nodes.containsAll(expectedNodes), is(true));
+            assertThat(nodes, containsInAnyOrder(expectedNodes.toArray()));
         });
     }
 

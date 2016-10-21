@@ -226,12 +226,8 @@ public class UpdateRequestTests extends ESTestCase {
     // Related to issue #15822
     public void testInvalidBodyThrowsParseException() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
-        try {
-            request.fromXContent(new byte[] { (byte) '"' });
-            fail("Should have thrown a ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("Failed to derive xcontent"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> request.fromXContent(new byte[] { (byte) '"' }));
+        assertThat(e.getMessage(), equalTo("Failed to derive xcontent"));
     }
 
     // Related to issue 15338

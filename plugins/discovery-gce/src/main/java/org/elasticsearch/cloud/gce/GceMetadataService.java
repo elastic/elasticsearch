@@ -19,19 +19,6 @@
 
 package org.elasticsearch.cloud.gce;
 
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpHeaders;
-import com.google.api.client.http.HttpResponse;
-import com.google.api.client.http.HttpTransport;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.network.GceNameResolver;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -40,6 +27,16 @@ import java.security.GeneralSecurityException;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.function.Function;
+
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpHeaders;
+import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpTransport;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 
 public class GceMetadataService extends AbstractLifecycleComponent {
 
@@ -53,7 +50,6 @@ public class GceMetadataService extends AbstractLifecycleComponent {
     /** Global instance of the HTTP transport. */
     private HttpTransport gceHttpTransport;
 
-    @Inject
     public GceMetadataService(Settings settings) {
         super(settings);
     }

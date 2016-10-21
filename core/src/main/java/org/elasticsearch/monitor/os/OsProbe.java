@@ -19,9 +19,13 @@
 
 package org.elasticsearch.monitor.os;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.monitor.Probes;
 
 import java.io.IOException;
@@ -108,44 +112,68 @@ public class OsProbe {
     }
 
     /**
-     * Returns the system load averages
+     * The system load averages as an array.
+     *
+     * On Windows, this method returns {@code null}.
+     *
+     * On Linux, this method should return the 1, 5, and 15-minute load
+     * averages. If obtaining these values from {@code /proc/loadavg}
+     * fails, the method will fallback to obtaining the 1-minute load
+     * average.
+     *
+     * On macOS, this method should return the 1-minute load average.
+     *
+     * @return the available system load averages or {@code null}
      */
-    public double[] getSystemLoadAverage() {
-        if (Constants.LINUX || Constants.FREE_BSD) {
-            final String procLoadAvg = Constants.LINUX ? "/proc/loadavg" : "/compat/linux/proc/loadavg";
-            double[] loadAverage = readProcLoadavg(procLoadAvg);
-            if (loadAverage != null) {
-                return loadAverage;
+    final double[] getSystemLoadAverage() {
+        if (Constants.WINDOWS) {
+            return null;
+        } else if (Constants.LINUX) {
+            final String procLoadAvg = readProcLoadavg();
+            if (procLoadAvg != null) {
+                assert procLoadAvg.matches("(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+");
+                final String[] fields = procLoadAvg.split("\\s+");
+                try {
+                    return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};
+                } catch (final NumberFormatException e) {
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("error parsing /proc/loadavg [{}]", procLoadAvg), e);
+                }
             }
             // fallback
         }
-        if (Constants.WINDOWS) {
-            return null;
-        }
+
         if (getSystemLoadAverage == null) {
             return null;
         }
         try {
-            double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
+            final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
             return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
-        } catch (Exception e) {
+        } catch (final Exception e) {
+            logger.debug("error obtaining system load average", e);
             return null;
         }
     }
 
-    @SuppressForbidden(reason = "access /proc")
-    private static double[] readProcLoadavg(String procLoadavg) {
+    /**
+     * The line from {@code /proc/loadavg}. The first three fields are
+     * the load averages averaged over 1, 5, and 15 minutes. The fourth
+     * field is two numbers separated by a slash, the first is the
+     * number of currently runnable scheduling entities, the second is
+     * the number of scheduling entities on the system. The fifth field
+     * is the PID of the most recently created process.
+     *
+     * @return the line from {@code /proc/loadavg} or {@code null}
+     */
+    @SuppressForbidden(reason = "access /proc/loadavg")
+    String readProcLoadavg() {
         try {
-            List<String> lines = Files.readAllLines(PathUtils.get(procLoadavg));
-            if (!lines.isEmpty()) {
-                String[] fields = lines.get(0).split("\\s+");
-                return new double[] { Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2]) };
-            }
-        } catch (IOException e) {
-            // do not fail Elasticsearch if something unexpected
-            // happens here
+            final List<String> lines = Files.readAllLines(PathUtils.get("/proc/loadavg"));
+            assert lines != null && lines.size() == 1;
+            return lines.get(0);
+        } catch (final IOException e) {
+            logger.debug("error reading /proc/loadavg", e);
+            return null;
         }
-        return null;
     }
 
     public short getSystemCpuPercent() {
@@ -160,8 +188,10 @@ public class OsProbe {
         return OsProbeHolder.INSTANCE;
     }
 
-    private OsProbe() {
+    OsProbe() {
     }
+
+    private final Logger logger = ESLoggerFactory.getLogger(getClass());
 
     public OsInfo osInfo(long refreshInterval, int allocatedProcessors) {
         return new OsInfo(refreshInterval, Runtime.getRuntime().availableProcessors(),

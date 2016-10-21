@@ -280,7 +280,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(termQuery.getTerm().bytes(), equalTo(ids[0]));
         //check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(type)), booleanQuery.clauses().get(1).getQuery());
+        assertEquals(new TypeFieldMapper.TypesQuery(new BytesRef(type)), booleanQuery.clauses().get(1).getQuery());
     }
 
     @Override

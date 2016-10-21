@@ -291,4 +291,38 @@ public interface ScriptDocValues<T> extends List<T> {
             return geohashDistance(geohash);
         }
     }
+
+    final class Booleans extends AbstractList<Boolean> implements ScriptDocValues<Boolean> {
+
+        private final SortedNumericDocValues values;
+
+        public Booleans(SortedNumericDocValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public void setNextDocId(int docId) {
+            values.setDocument(docId);
+        }
+
+        @Override
+        public List<Boolean> getValues() {
+            return this;
+        }
+
+        public boolean getValue() {
+            return values.count() != 0 && values.valueAt(0) == 1;
+        }
+
+        @Override
+        public Boolean get(int index) {
+            return values.valueAt(index) == 1;
+        }
+
+        @Override
+        public int size() {
+            return values.count();
+        }
+
+    }
 }

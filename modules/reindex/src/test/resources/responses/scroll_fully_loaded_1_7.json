@@ -1,0 +1,31 @@
+{
+  "_scroll_id" : "DnF1ZXJ5VGhlbkZldGNoBQAAAfakescroll",
+  "took" : 3,
+  "timed_out" : false,
+  "terminated_early" : true,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 4,
+    "max_score" : null,
+    "hits" : [ {
+      "_index" : "test",
+      "_type" : "test",
+      "_id" : "AVToMiDL50DjIiBO3yKA",
+      "_version" : 1,
+      "_score" : null,
+      "_source" : {
+        "test" : "test3"
+      },
+      "sort" : [ 0 ],
+      "fields" : {
+        "_routing" : "testrouting",
+        "_ttl" : 1234,
+        "_parent" : "testparent"
+      }
+    } ]
+  }
+}

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision.WeightedDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.test.ESTestCase;
 
@@ -28,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Unit tests for the {@link ShardAllocationDecision} class.
@@ -37,7 +39,7 @@ public class ShardAllocationDecisionTests extends ESTestCase {
     public void testDecisionNotTaken() {
         ShardAllocationDecision shardAllocationDecision = ShardAllocationDecision.DECISION_NOT_TAKEN;
         assertFalse(shardAllocationDecision.isDecisionTaken());
-        assertNull(shardAllocationDecision.getFinalDecision());
+        assertNull(shardAllocationDecision.getFinalDecisionType());
         assertNull(shardAllocationDecision.getAllocationStatus());
         assertNull(shardAllocationDecision.getAllocationId());
         assertNull(shardAllocationDecision.getAssignedNodeId());
@@ -52,19 +54,21 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         );
         ShardAllocationDecision noDecision = ShardAllocationDecision.no(allocationStatus, "something is wrong");
         assertTrue(noDecision.isDecisionTaken());
-        assertEquals(Decision.Type.NO, noDecision.getFinalDecision());
+        assertEquals(Decision.Type.NO, noDecision.getFinalDecisionType());
         assertEquals(allocationStatus, noDecision.getAllocationStatus());
         assertEquals("something is wrong", noDecision.getFinalExplanation());
         assertNull(noDecision.getNodeDecisions());
         assertNull(noDecision.getAssignedNodeId());
         assertNull(noDecision.getAllocationId());
 
-        Map<String, Decision> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", Decision.NO);
-        nodeDecisions.put("node2", Decision.NO);
-        noDecision = ShardAllocationDecision.no(AllocationStatus.DECIDERS_NO, "something is wrong", nodeDecisions);
+        Map<String, ShardAllocationDecision.WeightedDecision> nodeDecisions = new HashMap<>();
+        nodeDecisions.put("node1", new ShardAllocationDecision.WeightedDecision(Decision.NO));
+        nodeDecisions.put("node2", new ShardAllocationDecision.WeightedDecision(Decision.NO));
+        noDecision = ShardAllocationDecision.no(AllocationStatus.DECIDERS_NO, "something is wrong",
+            nodeDecisions.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getDecision()))
+        );
         assertTrue(noDecision.isDecisionTaken());
-        assertEquals(Decision.Type.NO, noDecision.getFinalDecision());
+        assertEquals(Decision.Type.NO, noDecision.getFinalDecisionType());
         assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
         assertEquals("something is wrong", noDecision.getFinalExplanation());
         assertEquals(nodeDecisions, noDecision.getNodeDecisions());
@@ -72,16 +76,18 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         assertNull(noDecision.getAllocationId());
 
         // test bad values
-        expectThrows(NullPointerException.class, () -> ShardAllocationDecision.no(null, "a"));
+        expectThrows(NullPointerException.class, () -> ShardAllocationDecision.no((AllocationStatus)null, "a"));
     }
 
     public void testThrottleDecision() {
-        Map<String, Decision> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", Decision.NO);
-        nodeDecisions.put("node2", Decision.THROTTLE);
-        ShardAllocationDecision throttleDecision = ShardAllocationDecision.throttle("too much happening", nodeDecisions);
+        Map<String, WeightedDecision> nodeDecisions = new HashMap<>();
+        nodeDecisions.put("node1", new ShardAllocationDecision.WeightedDecision(Decision.NO));
+        nodeDecisions.put("node2", new ShardAllocationDecision.WeightedDecision(Decision.THROTTLE));
+        ShardAllocationDecision throttleDecision = ShardAllocationDecision.throttle("too much happening",
+            nodeDecisions.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getDecision()))
+        );
         assertTrue(throttleDecision.isDecisionTaken());
-        assertEquals(Decision.Type.THROTTLE, throttleDecision.getFinalDecision());
+        assertEquals(Decision.Type.THROTTLE, throttleDecision.getFinalDecisionType());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertEquals("too much happening", throttleDecision.getFinalExplanation());
         assertEquals(nodeDecisions, throttleDecision.getNodeDecisions());
@@ -90,15 +96,17 @@ public class ShardAllocationDecisionTests extends ESTestCase {
     }
 
     public void testYesDecision() {
-        Map<String, Decision> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", Decision.YES);
-        nodeDecisions.put("node2", Decision.NO);
+        Map<String, ShardAllocationDecision.WeightedDecision> nodeDecisions = new HashMap<>();
+        nodeDecisions.put("node1", new ShardAllocationDecision.WeightedDecision(Decision.YES));
+        nodeDecisions.put("node2", new ShardAllocationDecision.WeightedDecision(Decision.NO));
         String allocId = randomBoolean() ? "allocId" : null;
         ShardAllocationDecision yesDecision = ShardAllocationDecision.yes(
-            "node1", "node was very kind", allocId, nodeDecisions
+            "node1", "node was very kind", allocId, nodeDecisions.entrySet().stream().collect(
+                Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getDecision())
+            )
         );
         assertTrue(yesDecision.isDecisionTaken());
-        assertEquals(Decision.Type.YES, yesDecision.getFinalDecision());
+        assertEquals(Decision.Type.YES, yesDecision.getFinalDecisionType());
         assertNull(yesDecision.getAllocationStatus());
         assertEquals("node was very kind", yesDecision.getFinalExplanation());
         assertEquals(nodeDecisions, yesDecision.getNodeDecisions());

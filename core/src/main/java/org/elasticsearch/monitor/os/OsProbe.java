@@ -271,9 +271,8 @@ public class OsProbe {
                 // note that Matcher#matches must be invoked as
                 // matching is lazy; this can not happen in an assert
                 // as assertions might not be enabled
-                if (!matcher.matches()) {
-                    assert false : line;
-                }
+                final boolean matches = matcher.matches();
+                assert matches : line;
                 // at this point we have captured the subsystems and the
                 // control group
                 final String[] controllers = matcher.group(1).split(",");

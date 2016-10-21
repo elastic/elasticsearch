@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -58,6 +59,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -70,7 +73,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -116,6 +127,8 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  */
 public class RestoreService extends AbstractComponent implements ClusterStateListener {
 
+    public static final String UPDATE_RESTORE_ACTION_NAME = "internal:cluster/snapshot/update_restore";
+
     private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
             SETTING_NUMBER_OF_SHARDS,
             SETTING_VERSION_CREATED,
@@ -139,6 +152,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     private final RepositoriesService repositoriesService;
 
+    private final TransportService transportService;
+
     private final AllocationService allocationService;
 
     private final MetaDataCreateIndexService createIndexService;
@@ -150,15 +165,17 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     private final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor;
 
     @Inject
-    public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService,
+    public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService,
                           AllocationService allocationService, MetaDataCreateIndexService createIndexService,
                           MetaDataIndexUpgradeService metaDataIndexUpgradeService, ClusterSettings clusterSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
+        this.transportService = transportService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
+        transportService.registerRequestHandler(UPDATE_RESTORE_ACTION_NAME, UpdateIndexShardRestoreStatusRequest::new, ThreadPool.Names.SAME, new UpdateRestoreStateRequestHandler());
         clusterService.add(this);
         this.clusterSettings = clusterSettings;
         this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor(logger);
@@ -761,6 +778,38 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
     }
 
+    /**
+     * This method is used by {@link IndexShard} to notify
+     * {@code RestoreService} about shard restore completion.
+     *
+     * @param snapshot   snapshot
+     * @param shardId    shard id
+     */
+    public void indexShardRestoreCompleted(Snapshot snapshot, ShardId shardId) {
+        logger.trace("[{}] successfully restored shard  [{}]", snapshot, shardId);
+        DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
+        if (masterNode != null && masterNode.getVersion().before(Version.V_5_1_0)) {
+            // just here for backward compatibility with versions before 5.1.0
+            UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshot, shardId,
+                new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.SUCCESS));
+            transportService.sendRequest(masterNode, UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+        }
+    }
+
+    /**
+     * Fails the given snapshot restore operation for the given shard
+     */
+    public void failRestore(Snapshot snapshot, ShardId shardId) {
+        logger.debug("[{}] failed to restore shard  [{}]", snapshot, shardId);
+        DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
+        if (masterNode != null && masterNode.getVersion().before(Version.V_5_1_0)) {
+            // just here for backward compatibility with versions before 5.1.0
+            UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshot, shardId,
+                new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.FAILURE));
+            transportService.sendRequest(masterNode, UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+        }
+    }
+
     private boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
             if (index.equals(failure.index())) {
@@ -1024,5 +1073,71 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             return masterNodeTimeout;
         }
 
+    }
+
+    /**
+     * Internal class that is used to send notifications about finished shard restore operations to master node
+     */
+    public static class UpdateIndexShardRestoreStatusRequest extends TransportRequest {
+        private Snapshot snapshot;
+        private ShardId shardId;
+        private ShardRestoreStatus status;
+
+        volatile boolean processed; // state field, no need to serialize
+
+        public UpdateIndexShardRestoreStatusRequest() {
+
+        }
+
+        private UpdateIndexShardRestoreStatusRequest(Snapshot snapshot, ShardId shardId, ShardRestoreStatus status) {
+            this.snapshot = snapshot;
+            this.shardId = shardId;
+            this.status = status;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            snapshot = new Snapshot(in);
+            shardId = ShardId.readShardId(in);
+            status = ShardRestoreStatus.readShardRestoreStatus(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            snapshot.writeTo(out);
+            shardId.writeTo(out);
+            status.writeTo(out);
+        }
+
+        public Snapshot snapshot() {
+            return snapshot;
+        }
+
+        public ShardId shardId() {
+            return shardId;
+        }
+
+        public ShardRestoreStatus status() {
+            return status;
+        }
+
+        @Override
+        public String toString() {
+            return "" + snapshot + ", shardId [" + shardId + "], status [" + status.state() + "]";
+        }
+    }
+
+    /**
+     * Internal class that is used to send notifications about finished shard restore operations to master node
+     */
+    class UpdateRestoreStateRequestHandler implements TransportRequestHandler<UpdateIndexShardRestoreStatusRequest> {
+        @Override
+        public void messageReceived(UpdateIndexShardRestoreStatusRequest request, final TransportChannel channel) throws Exception {
+            // just here for backward compatibility, no need to do anything, there is already a parallel shard started / failed request
+            // that contains all relevant information needed.
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
     }
 }

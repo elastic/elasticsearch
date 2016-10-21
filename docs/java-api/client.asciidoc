@@ -51,7 +51,9 @@ Note that you have to set the cluster name if you use one different than
 
 [source,java]
 --------------------------------------------------
-Settings settings = Settings.builder()
+import org.elasticsearch.common.settings.ImmutableSettings
+
+Settings settings = ImmutableSettings.builder()
         .put("cluster.name", "myClusterName").build();
 TransportClient client = new PreBuiltTransportClient(settings);
 //Add transport addresses and do something with the client...
@@ -77,7 +79,9 @@ In order to enable sniffing, set `client.transport.sniff` to `true`:
 
 [source,java]
 --------------------------------------------------
-Settings settings = Settings.settingsBuilder()
+import org.elasticsearch.common.settings.ImmutableSettings
+
+Settings settings = ImmutableSettings.settingsBuilder()
         .put("client.transport.sniff", true).build();
 TransportClient client = new PreBuiltTransportClient(settings);
 --------------------------------------------------

@@ -101,7 +101,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected WritePrimaryResult onPrimaryShard(BulkShardRequest request, IndexShard primary) throws Exception {
+    protected WritePrimaryResult shardOperationOnPrimary(BulkShardRequest request, IndexShard primary) throws Exception {
         final IndexMetaData metaData = primary.indexSettings().getIndexMetaData();
 
         long[] preVersions = new long[request.items().length];
@@ -321,7 +321,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected WriteReplicaResult onReplicaShard(BulkShardRequest request, IndexShard replica) throws Exception {
+    protected WriteReplicaResult shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];

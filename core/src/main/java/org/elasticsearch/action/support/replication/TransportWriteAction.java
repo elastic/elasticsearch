@@ -44,6 +44,7 @@ import java.util.function.Supplier;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
+ * Allows performing async actions (e.g. refresh) after performing write operations on primary and replica shards
  */
 public abstract class TransportWriteAction<
             Request extends ReplicatedWriteRequest<Request>,
@@ -61,26 +62,21 @@ public abstract class TransportWriteAction<
 
     /**
      * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
+     *
+     * @return the result of the operation on primary, including current translog location and operation response and failure
+     * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
-    protected abstract WritePrimaryResult onPrimaryShard(Request request, IndexShard primary) throws Exception;
+    @Override
+    protected abstract WritePrimaryResult shardOperationOnPrimary(Request request, IndexShard primary) throws Exception;
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
      *
-     * @return the result of the replication operation containing either the translog location of the {@linkplain IndexShard}
-     * after the write was completed or a failure if the operation failed
+     * @return the result of the operation on replica, including current translog location and operation response and failure
+     * async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code> refresh policy
      */
-    protected abstract WriteReplicaResult onReplicaShard(ReplicaRequest request, IndexShard replica) throws Exception;
-
     @Override
-    protected final WritePrimaryResult shardOperationOnPrimary(Request request, IndexShard primary) throws Exception {
-        return onPrimaryShard(request, primary);
-    }
-
-    @Override
-    protected final WriteReplicaResult shardOperationOnReplica(ReplicaRequest request, IndexShard replica) throws Exception {
-        return onReplicaShard(request, replica);
-    }
+    protected abstract WriteReplicaResult shardOperationOnReplica(ReplicaRequest request, IndexShard replica) throws Exception;
 
     /**
      * Result of taking the action on the primary.

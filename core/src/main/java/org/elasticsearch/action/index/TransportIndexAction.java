@@ -139,16 +139,16 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
     }
 
     @Override
-    protected WritePrimaryResult onPrimaryShard(IndexRequest request, IndexShard primary) throws Exception {
+    protected WritePrimaryResult shardOperationOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
         final Engine.Operation operation = executeIndexRequestOnPrimary(request, primary, mappingUpdatedAction);
         final IndexResponse response = operation.hasFailure() ? null :
                 new IndexResponse(primary.shardId(), request.type(), request.id(), operation.version(),
-                    ((Engine.Index) operation).isCreated());
+                        ((Engine.Index) operation).isCreated());
         return new WritePrimaryResult(request, response, operation.getTranslogLocation(), operation.getFailure(), primary);
     }
 
     @Override
-    protected WriteReplicaResult onReplicaShard(IndexRequest request, IndexShard replica) {
+    protected WriteReplicaResult shardOperationOnReplica(IndexRequest request, IndexShard replica) throws Exception {
         final Engine.Operation operation = executeIndexRequestOnReplica(request, replica);
         return new WriteReplicaResult(request, operation.getTranslogLocation(), operation.getFailure(), replica);
     }

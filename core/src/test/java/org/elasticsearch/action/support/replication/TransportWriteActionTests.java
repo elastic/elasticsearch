@@ -136,18 +136,18 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        protected WritePrimaryResult onPrimaryShard(TestRequest request, IndexShard primary) throws Exception {
+        protected TestResponse newResponseInstance() {
+            return new TestResponse();
+        }
+
+        @Override
+        protected WritePrimaryResult shardOperationOnPrimary(TestRequest request, IndexShard primary) throws Exception {
             return new WritePrimaryResult(request, new TestResponse(), location, null, primary);
         }
 
         @Override
-        protected WriteReplicaResult onReplicaShard(TestRequest request, IndexShard replica) {
+        protected WriteReplicaResult shardOperationOnReplica(TestRequest request, IndexShard replica) throws Exception {
             return new WriteReplicaResult(request, location, null, replica);
-        }
-
-        @Override
-        protected TestResponse newResponseInstance() {
-            return new TestResponse();
         }
     }
 

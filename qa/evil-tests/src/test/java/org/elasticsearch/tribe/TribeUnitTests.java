@@ -69,14 +69,14 @@ public class TribeUnitTests extends ESTestCase {
             .build();
 
         final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class);
-        tribe1 = new TribeClientNode(
+        tribe1 = new MockNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
                 .build(), mockPlugins).start();
-        tribe2 = new TribeClientNode(
+        tribe2 = new MockNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")

@@ -185,7 +185,7 @@ public class TribeService extends AbstractLifecycleComponent {
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
     public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
-                        Collection<Class<? extends Plugin>> classpathPlugins) {
+                        Function<Settings, Node> clientNodeBuilder) {
         super(settings);
         this.clusterService = clusterService;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
@@ -193,7 +193,7 @@ public class TribeService extends AbstractLifecycleComponent {
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings clientSettings = buildClientSettings(entry.getKey(), tribeNodeId, settings, entry.getValue());
-            nodes.add(new TribeClientNode(clientSettings, classpathPlugins));
+            nodes.add(clientNodeBuilder.apply(clientSettings));
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);

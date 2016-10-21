@@ -110,6 +110,11 @@ public class MockNode extends Node {
     }
 
     @Override
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        return new MockNode(settings, classpathPlugins);
+    }
+
+    @Override
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
         if (false == getPluginsService().filterPlugins(RecoverySettingsChunkSizePlugin.class).isEmpty()) {
             clusterSettings.addSettingsUpdateConsumer(RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING, recoverySettings::setChunkSize);

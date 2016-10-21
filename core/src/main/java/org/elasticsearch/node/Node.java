@@ -322,7 +322,8 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId(), classpathPlugins);
+            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId(),
+                s -> newTribeClientNode(s, classpathPlugins));
             resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
@@ -889,8 +890,16 @@ public class Node implements Closeable {
         return customNameResolvers;
     }
 
+    /** Create a new ZenPing instance for use in zen discovery. */
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
+        Logger logger = Loggers.getLogger(getClass(), settings);
+        logger.info("Creating unicast zen ping");
         return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
+    }
+
+    /** Constructs an internal node used as a client into a cluster fronted by this tribe node. */
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        return new Node(new Environment(settings), classpathPlugins);
     }
 }

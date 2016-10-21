@@ -57,21 +57,26 @@ public class DiscoveryModule extends AbstractModule {
         addDiscoveryType("none", NoneDiscovery.class);
         addDiscoveryType("zen", ZenDiscovery.class);
 
-        Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
-        hostProviders.put("zen", () -> Collections::emptyList);
-        for (DiscoveryPlugin plugin : plugins) {
-            plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
-                if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Cannot specify zen hosts provider [" + entry.getKey() + "] twice");
-                }
-            });
+        String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
+        if (discoveryType.equals("none") == false) {
+            Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
+            hostProviders.put("zen", () -> Collections::emptyList);
+            for (DiscoveryPlugin plugin : plugins) {
+                plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
+                    if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {
+                        throw new IllegalArgumentException("Cannot specify zen hosts provider [" + entry.getKey() + "] twice");
+                    }
+                });
+            }
+            String hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+            Supplier<UnicastHostsProvider> hostsProviderSupplier = hostProviders.get(hostsProviderName);
+            if (hostsProviderSupplier == null) {
+                throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName + "]");
+            }
+            hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
+        } else {
+            hostsProvider = null;
         }
-        String hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
-        Supplier<UnicastHostsProvider> hostsProviderSupplier = hostProviders.get(hostsProviderName);
-        if (hostsProviderSupplier == null) {
-            throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName + "]");
-        }
-        hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
     }
 
     public UnicastHostsProvider getHostsProvider() {

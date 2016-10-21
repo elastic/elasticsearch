@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.InternalAwsS3Service;
@@ -42,8 +43,6 @@ import org.elasticsearch.repositories.s3.S3Repository;
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
 
-    // ClientConfiguration clinit has some classloader problems
-    // TODO: fix that
     static {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -53,6 +52,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
             @Override
             public Void run() {
                 try {
+                    // kick jackson to do some static caching of declared members info
+                    Jackson.jsonNodeOf("{}");
+                    // ClientConfiguration clinit has some classloader problems
+                    // TODO: fix that
                     Class.forName("com.amazonaws.ClientConfiguration");
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);

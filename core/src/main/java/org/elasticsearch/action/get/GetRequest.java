@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -61,6 +63,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(GetRequest.class));
 
     public GetRequest() {
         type = "_all";
@@ -100,6 +103,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         if (!versionType.validateVersionForReads(version)) {
             validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]",
                     validationException);
+        }
+        if (versionType == VersionType.FORCE) {
+            deprecationLogger.deprecated("version type FORCE is deprecated and will be removed in the next major version");
         }
         return validationException;
     }

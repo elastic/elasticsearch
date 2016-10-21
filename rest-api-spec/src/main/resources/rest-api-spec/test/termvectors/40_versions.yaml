@@ -88,6 +88,8 @@
           version_type: external_gte
 
  - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
       get:
           index:  test_1
           type:   test
@@ -97,6 +99,8 @@
  - match:   { _id: "1" }
 
  - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
       get:
           index:  test_1
           type:   test
@@ -106,6 +110,8 @@
  - match:   { _id: "1" }
 
  - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
       get:
           index:  test_1
           type:   test

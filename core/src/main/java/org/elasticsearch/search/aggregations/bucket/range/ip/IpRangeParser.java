@@ -82,9 +82,9 @@ public class IpRangeParser extends BytesValuesSourceParser {
             if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.KEY_FIELD)) {
                 key = parser.text();
             } else if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.FROM_FIELD)) {
-                from = parser.text();
+                from = parser.textOrNull();
             } else if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.TO_FIELD)) {
-                to = parser.text();
+                to = parser.textOrNull();
             } else if (parseFieldMatcher.match(parser.currentName(), MASK_FIELD)) {
                 mask = parser.text();
             } else {

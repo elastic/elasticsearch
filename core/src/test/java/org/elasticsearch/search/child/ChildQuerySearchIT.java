@@ -852,7 +852,6 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                         new HighlightBuilder.Field("c_field").highlightQuery(QueryBuilders.matchQuery("c_field", "bar")))
                         )).get();
         assertNoFailures(searchResponse);
-        System.out.println(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
         SearchHit[] searchHits = searchResponse.getHits().hits()[0].getInnerHits().get("child").hits();

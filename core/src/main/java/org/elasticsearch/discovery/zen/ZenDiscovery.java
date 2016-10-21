@@ -147,7 +147,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.pinger = pinger;
-        pinger.setPingContextProvider(this);
         this.electMaster = new ElectMasterService(settings);
         this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -199,6 +198,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     protected void doStart() {
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
+        pinger.start(this);
         this.nodeJoinController = new NodeJoinController(clusterService, allocationService, electMaster, discoverySettings, settings);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::rejoin, logger);
     }

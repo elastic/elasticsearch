@@ -76,8 +76,9 @@ public class DiscoveryModuleTests extends ModuleTestCase {
 
     public void testUnknownHostsProvider() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "dne").build();
-        DiscoveryModule module = new DiscoveryModule(settings, null, null, Collections.emptyList());
-        assertBindingFailure(module, "Unknown zen hosts provider");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new DiscoveryModule(settings, null, null, Collections.emptyList()));
+        assertEquals("Unknown zen hosts provider [dne]", e.getMessage());
     }
 
     public void testDuplicateHostsProvider() {

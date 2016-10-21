@@ -40,7 +40,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 
 public interface ZenPing extends Closeable {
 
-    void setPingContextProvider(PingContextProvider contextProvider);
+    void start(PingContextProvider contextProvider);
 
     void ping(PingListener listener, TimeValue timeout);
 

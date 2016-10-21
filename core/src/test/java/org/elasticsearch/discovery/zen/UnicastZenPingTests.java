@@ -34,10 +34,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.PingContextProvider;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -99,7 +95,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         Settings hostsSettingsMismatch = Settings.builder().put(hostsSettings).put(settingsMismatch).build();
         UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
-        zenPingA.setPingContextProvider(new PingContextProvider() {
+        zenPingA.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().add(handleA.node).localNodeId("UZP_A").build();
@@ -112,7 +108,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
 
         UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, EMPTY_HOSTS_PROVIDER);
-        zenPingB.setPingContextProvider(new PingContextProvider() {
+        zenPingB.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().add(handleB.node).localNodeId("UZP_B").build();
@@ -130,7 +126,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 return versionD;
             }
         };
-        zenPingC.setPingContextProvider(new PingContextProvider() {
+        zenPingC.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C").build();
@@ -143,7 +139,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
 
         UnicastZenPing zenPingD = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, EMPTY_HOSTS_PROVIDER);
-        zenPingD.setPingContextProvider(new PingContextProvider() {
+        zenPingD.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().add(handleD.node).localNodeId("UZP_D").build();

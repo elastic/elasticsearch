@@ -193,7 +193,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
     @Override
-    public void setPingContextProvider(PingContextProvider contextProvider) {
+    public void start(PingContextProvider contextProvider) {
         this.contextProvider = contextProvider;
     }
 

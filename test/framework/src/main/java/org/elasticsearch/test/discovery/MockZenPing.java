@@ -20,6 +20,7 @@ package org.elasticsearch.test.discovery;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +41,7 @@ import java.util.stream.Collectors;
  * A {@link ZenPing} implementation which returns results based on an static in-memory map. This allows pinging
  * to be immediate and can be used to speed up tests.
  */
-public final class MockZenPing extends AbstractLifecycleComponent implements ZenPing {
+public final class MockZenPing extends AbstractComponent implements ZenPing {
 
     public static class TestPlugin extends Plugin {}
 
@@ -54,8 +55,11 @@ public final class MockZenPing extends AbstractLifecycleComponent implements Zen
     }
 
     @Override
-    public void setPingContextProvider(PingContextProvider contextProvider) {
+    public void start(PingContextProvider contextProvider) {
         this.contextProvider = contextProvider;
+        assert contextProvider != null;
+        boolean added = getActiveNodesForCurrentCluster().add(this);
+        assert added;
     }
 
     @Override
@@ -77,26 +81,14 @@ public final class MockZenPing extends AbstractLifecycleComponent implements Zen
         return new PingResponse(clusterState.nodes().getLocalNode(), clusterState.nodes().getMasterNode(), clusterState);
     }
 
-    @Override
-    protected void doStart() {
-        assert contextProvider != null;
-        boolean added = getActiveNodesForCurrentCluster().add(this);
-        assert added;
-    }
-
     private Set<MockZenPing> getActiveNodesForCurrentCluster() {
         return activeNodesPerCluster.computeIfAbsent(getClusterName(),
             clusterName -> ConcurrentCollections.newConcurrentSet());
     }
 
     @Override
-    protected void doStop() {
+    public void close() {
         boolean found = getActiveNodesForCurrentCluster().remove(this);
         assert found;
-    }
-
-    @Override
-    protected void doClose() {
-
     }
 }

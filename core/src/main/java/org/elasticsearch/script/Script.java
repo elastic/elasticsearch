@@ -139,7 +139,7 @@ public final class Script {
             CONSTRUCTOR.declareString(constructorArg(), ScriptField.CODE);
         }
 
-        public static StoredScriptSource parse(XContentParser parser) throws IOException {
+        public static StoredScriptSource parse(XContentParser parser, boolean allowShortFormTemplate) throws IOException {
             if (parser.currentToken() == null) {
                 parser.nextToken();
             }
@@ -183,10 +183,23 @@ public final class Script {
                     throw new ParsingException(parser.getTokenLocation(),
                         "unexpected token [" + parser.currentToken() + "], expected [<template>]");
                 }
+            } else if (allowShortFormTemplate) {
+                if (parser.contentType() != XContentType.JSON) {
+                    throw new IllegalArgumentException("unexpected content type [" + parser.contentType().mediaType() + "]" +
+                        " for template, expected content type [" + XContentType.JSON.mediaType() + "]");
+                }
+
+                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                builder.startObject();
+                builder.copyCurrentStructure(parser);
+                builder.endObject();
+
+                source = new StoredScriptSource(true, DEFAULT_TEMPLATE_LANG, builder.bytes().utf8ToString(),
+                    Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
             } else {
-                String text = parser.textOrNull();
+                String text = parser.currentToken().isValue() ? " [" + parser.text() + "]" : "";
                 throw new ParsingException(parser.getTokenLocation(),
-                    "unexpected token [" + parser.currentToken() + "]" + (text == null ? "" : " [" + text + "]") + ", " +
+                    "unexpected token [" + parser.currentToken() + "]" + text + ", " +
                         "expected [" + ScriptField.SCRIPT.getPreferredName() + ", " + ScriptField.TEMPLATE.getPreferredName() + "]");
             }
 

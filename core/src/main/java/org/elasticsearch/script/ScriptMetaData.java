@@ -184,7 +184,7 @@ public final class ScriptMetaData implements MetaData.Custom {
                             "unexpected token [" + token + "], no stored script id specified");
                     }
 
-                    scripts.put(id, StoredScriptSource.parse(parser));
+                    scripts.put(id, StoredScriptSource.parse(parser, false));
 
                     id = null;
 

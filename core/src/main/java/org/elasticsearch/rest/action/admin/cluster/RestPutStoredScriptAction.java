@@ -48,7 +48,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         XContentParser parser = XContentHelper.createParser(request.content());
-        StoredScriptSource source = StoredScriptSource.parse(parser);
+        StoredScriptSource source = StoredScriptSource.parse(parser, false);
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(request.param("id"), source);
 
         return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));

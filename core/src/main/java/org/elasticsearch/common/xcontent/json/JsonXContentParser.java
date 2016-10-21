@@ -82,7 +82,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (currentToken().isValue()) {
             return parser.getText();
         }
-        throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        throw new IllegalStateException("Can't get text on a " + parser.getText() + " " + currentToken() + " at " + getTokenLocation());
     }
 
     @Override

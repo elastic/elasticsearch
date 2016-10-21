@@ -143,7 +143,6 @@ public class TopHitsAggregator extends MetricsAggregator {
             topHits = buildEmptyAggregation();
         } else {
             TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
-            subSearchContext.queryResult().topDocs(topDocs, subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
             if (subSearchContext.sort() == null) {
                 for (RescoreSearchContext ctx : context().searchContext().rescore()) {
                     try {
@@ -153,7 +152,8 @@ public class TopHitsAggregator extends MetricsAggregator {
                     }
                 }
             }
-
+            subSearchContext.queryResult().topDocs(topDocs,
+                subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 docIdsToLoad[i] = topDocs.scoreDocs[i].doc;

@@ -62,7 +62,7 @@ public abstract class TransportWriteAction<
     /**
      * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
      */
-    protected abstract PrimaryOperationResult<Response> onPrimaryShard(Request request, IndexShard primary) throws Exception;
+    protected abstract WritePrimaryResult onPrimaryShard(Request request, IndexShard primary) throws Exception;
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
@@ -70,107 +70,39 @@ public abstract class TransportWriteAction<
      * @return the result of the replication operation containing either the translog location of the {@linkplain IndexShard}
      * after the write was completed or a failure if the operation failed
      */
-    protected abstract ReplicaOperationResult onReplicaShard(ReplicaRequest request, IndexShard replica) throws Exception;
+    protected abstract WriteReplicaResult onReplicaShard(ReplicaRequest request, IndexShard replica) throws Exception;
 
     @Override
     protected final WritePrimaryResult shardOperationOnPrimary(Request request, IndexShard primary) throws Exception {
-        final PrimaryOperationResult<Response> result = onPrimaryShard(request, primary);
-        return result.success()
-                ? new WritePrimaryResult((ReplicaRequest) request, result.getResponse(), result.getLocation(), primary)
-                : new WritePrimaryResult(result.getFailure());
+        return onPrimaryShard(request, primary);
     }
 
     @Override
     protected final WriteReplicaResult shardOperationOnReplica(ReplicaRequest request, IndexShard replica) throws Exception {
-        final ReplicaOperationResult result = onReplicaShard(request, replica);
-        return result.success()
-                ? new WriteReplicaResult(request, result.getLocation(), replica)
-                : new WriteReplicaResult(result.getFailure());
-    }
-
-    abstract static class OperationWriteResult {
-        private final Translog.Location location;
-        private final Exception failure;
-
-        protected OperationWriteResult(@Nullable Location location) {
-            this.location = location;
-            this.failure = null;
-        }
-
-        protected OperationWriteResult(Exception failure) {
-            this.location = null;
-            this.failure = failure;
-        }
-
-        public Translog.Location getLocation() {
-            return location;
-        }
-
-        public Exception getFailure() {
-            return failure;
-        }
-
-        public boolean success() {
-            return failure == null;
-        }
-    }
-
-    /**
-     * Simple result from a primary write action (includes response).
-     * Write actions have static method to return these so they can integrate with bulk.
-     */
-    public static class PrimaryOperationResult<Response extends ReplicationResponse> extends OperationWriteResult {
-        private final Response response;
-
-        public PrimaryOperationResult(Response response, @Nullable Location location) {
-            super(location);
-            this.response = response;
-        }
-
-        public PrimaryOperationResult(Exception failure) {
-            super(failure);
-            this.response = null;
-        }
-
-        public Response getResponse() {
-            return response;
-        }
-    }
-
-    /**
-     * Simple result from a replica write action. Write actions have static method to return these so they can integrate with bulk.
-     */
-    public static class ReplicaOperationResult extends OperationWriteResult {
-
-        public ReplicaOperationResult(@Nullable Location location) {
-            super(location);
-        }
-
-        public ReplicaOperationResult(Exception failure) {
-            super(failure);
-        }
+        return onReplicaShard(request, replica);
     }
 
     /**
      * Result of taking the action on the primary.
      */
-    class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult {
+    protected class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult {
         boolean finishedAsyncActions;
         ActionListener<Response> listener = null;
 
-        public WritePrimaryResult(ReplicaRequest request, Response finalResponse,
-                                  @Nullable Location location, IndexShard primary) {
-            super(request, finalResponse);
-            /*
-             * We call this before replication because this might wait for a refresh and that can take a while. This way we wait for the
-             * refresh in parallel on the primary and on the replica.
-             */
-            new AsyncAfterWriteAction(primary, request, location, this, logger).run();
-        }
-
-        public WritePrimaryResult(Exception failure) {
-            super(failure);
-            this.finishedAsyncActions = true;
+        public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
+                                  @Nullable Location location, @Nullable Exception operationFailure,
+                                  IndexShard primary) {
+            super(request, finalResponse, operationFailure);
+            assert operationFailure != null ^ finalResponse != null;
+            if (operationFailure != null) {
+                this.finishedAsyncActions = true;
+            } else {
+                /*
+                 * We call this before replication because this might wait for a refresh and that can take a while.
+                 * This way we wait for the refresh in parallel on the primary and on the replica.
+                 */
+                new AsyncAfterWriteAction(primary, request, location, this, logger).run();
+            }
         }
 
         @Override
@@ -210,17 +142,18 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the replica.
      */
-    class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult {
+    protected class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult {
         boolean finishedAsyncActions;
         private ActionListener<TransportResponse.Empty> listener;
 
-        public WriteReplicaResult(ReplicaRequest request, Location location, IndexShard replica) {
-            new AsyncAfterWriteAction(replica, request, location, this, logger).run();
-        }
-
-        public WriteReplicaResult(Exception finalFailure) {
-            super(finalFailure);
-            this.finishedAsyncActions = true;
+        public WriteReplicaResult(ReplicaRequest request, @Nullable Location location,
+                                  @Nullable Exception operationFailure, IndexShard replica) {
+            super(operationFailure);
+            if (operationFailure != null) {
+                this.finishedAsyncActions = true;
+            } else {
+                new AsyncAfterWriteAction(replica, request, location, this, logger).run();
+            }
         }
 
         @Override

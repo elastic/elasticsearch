@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -365,17 +366,19 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, IndexRequest request) throws Exception {
-            TransportWriteAction.PrimaryOperationResult<IndexResponse> result = executeIndexRequestOnPrimary(request, primary,
-                null);
+            final Engine.Operation operation = executeIndexRequestOnPrimary(request, primary,
+                    null);
             request.primaryTerm(primary.getPrimaryTerm());
-            TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.getLocation(), logger);
-            return new PrimaryResult(request, result.getResponse());
+            TransportWriteActionTestHelper.performPostWriteActions(primary, request, operation.getTranslogLocation(), logger);
+            IndexResponse response = new IndexResponse(primary.shardId(), request.type(), request.id(), operation.version(),
+                    ((Engine.Index) operation).isCreated());
+            return new PrimaryResult(request, response);
         }
 
         @Override
         protected void performOnReplica(IndexRequest request, IndexShard replica) {
-            TransportWriteAction.ReplicaOperationResult index = executeIndexRequestOnReplica(request, replica);
-            TransportWriteActionTestHelper.performPostWriteActions(replica, request, index.getLocation(), logger);
+            final Engine.Operation operation = executeIndexRequestOnReplica(request, replica);
+            TransportWriteActionTestHelper.performPostWriteActions(replica, request, operation.getTranslogLocation(), logger);
         }
     }
 }

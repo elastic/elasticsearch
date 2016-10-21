@@ -69,7 +69,11 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     protected void doExecute(Task task, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
-            createIndexAction.execute(task, new CreateIndexRequest().index(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest()
+                    .index(request.index())
+                    .cause("auto(delete api)")
+                    .masterNodeTimeout(request.timeout());
+            createIndexAction.execute(task, createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(task, request, listener);
@@ -118,36 +122,34 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     }
 
     @Override
-    protected PrimaryOperationResult<DeleteResponse> onPrimaryShard(DeleteRequest request, IndexShard primary) {
-        return executeDeleteRequestOnPrimary(request, primary);
+    protected WritePrimaryResult onPrimaryShard(DeleteRequest request, IndexShard primary) {
+        final Engine.Delete operation = executeDeleteRequestOnPrimary(request, primary);
+        final DeleteResponse response = operation.hasFailure() ? null :
+                new DeleteResponse(primary.shardId(), request.type(), request.id(), operation.version(), operation.found());
+        return new WritePrimaryResult(request, response, operation.getTranslogLocation(), operation.getFailure(), primary);
     }
 
     @Override
-    protected ReplicaOperationResult onReplicaShard(DeleteRequest request, IndexShard replica) {
-        return executeDeleteRequestOnReplica(request, replica);
+    protected WriteReplicaResult onReplicaShard(DeleteRequest request, IndexShard replica) {
+        final Engine.Operation operation = executeDeleteRequestOnReplica(request, replica);
+        return new WriteReplicaResult(request, operation.getTranslogLocation(), operation.getFailure(), replica);
     }
 
-    public static PrimaryOperationResult<DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) {
+    public static Engine.Delete executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) {
         Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         primary.execute(delete);
-        if (delete.hasFailure()) {
-            return new PrimaryOperationResult<>(delete.getFailure());
-        } else {
+        if (delete.hasFailure() == false) {
             // update the request with the version so it will go to the replicas
             request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
             request.version(delete.version());
-
             assert request.versionType().validateVersionForWrites(request.version());
-            DeleteResponse response = new DeleteResponse(primary.shardId(), request.type(), request.id(), delete.version(), delete.found());
-            return new PrimaryOperationResult<>(response, delete.getTranslogLocation());
         }
+        return delete;
     }
 
-    public static ReplicaOperationResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
+    public static Engine.Delete executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
         Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType());
         replica.execute(delete);
-        return delete.hasFailure()
-                ? new ReplicaOperationResult(delete.getFailure())
-                : new ReplicaOperationResult(delete.getTranslogLocation());
+        return delete;
     }
 }

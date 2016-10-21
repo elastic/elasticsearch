@@ -377,15 +377,9 @@ public abstract class TransportReplicationAction<
         final Response finalResponseIfSuccessful;
         final Exception finalFailure;
 
-        public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponseIfSuccessful) {
+        public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponseIfSuccessful, Exception finalFailure) {
             this.replicaRequest = replicaRequest;
             this.finalResponseIfSuccessful = finalResponseIfSuccessful;
-            this.finalFailure = null;
-        }
-
-        public PrimaryResult(Exception finalFailure) {
-            this.replicaRequest = null;
-            this.finalResponseIfSuccessful = null;
             this.finalFailure = finalFailure;
         }
 
@@ -412,10 +406,6 @@ public abstract class TransportReplicationAction<
 
     protected class ReplicaResult {
         final Exception finalFailure;
-
-        public ReplicaResult() {
-            this.finalFailure = null;
-        }
 
         public ReplicaResult(Exception finalFailure) {
             this.finalFailure = finalFailure;

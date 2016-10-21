@@ -771,7 +771,7 @@ public abstract class Engine implements Closeable {
 
         /** type of operation (index, delete), subclasses use static types */
         public enum TYPE {
-            INDEX, DELETE;
+            INDEX, DELETE, FAILURE;
 
             private final String lowercase;
 
@@ -1051,7 +1051,50 @@ public abstract class Engine implements Closeable {
         protected int estimatedSizeInBytes() {
             return (uid().field().length() + uid().text().length()) * 2 + 20;
         }
+    }
 
+    public static class Failure extends Operation {
+
+        private final String type;
+        private final String id;
+
+        public Failure(String type, String id, long version, VersionType versionType, Origin origin,
+                       long startTime, Exception failure) {
+            super(null, version, versionType, origin, startTime);
+            this.type = type;
+            this.id = id;
+            setFailure(failure);
+        }
+
+        @Override
+        public Term uid() {
+            throw new UnsupportedOperationException("failure operation doesn't have uid");
+        }
+
+        @Override
+        protected int estimatedSizeInBytes() {
+            return 0;
+        }
+
+        @Override
+        public String type() {
+            return type;
+        }
+
+        @Override
+        protected String id() {
+            return id;
+        }
+
+        @Override
+        public TYPE operationType() {
+            return TYPE.FAILURE;
+        }
+
+        @Override
+        public String toString() {
+            return "failure [{" + type() + "}][{" + id()+ "}]";
+        }
     }
 
     public static class Get {

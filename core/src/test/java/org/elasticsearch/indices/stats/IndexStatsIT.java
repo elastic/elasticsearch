@@ -493,7 +493,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getIndex("test2").getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(1L));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(1L));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2").getIndexFailedCount(), equalTo(1L));
-        assertThat(stats.getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(3L));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(3L));
     }
 
     public void testMergeStats() {

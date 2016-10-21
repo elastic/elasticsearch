@@ -36,19 +36,16 @@ public class DecisionTests extends ESTestCase {
      */
     public void testHigherThan() {
         // test YES type
-        assertTrue(YES.higherThan(null));
         assertTrue(YES.higherThan(NO));
         assertTrue(YES.higherThan(THROTTLE));
         assertFalse(YES.higherThan(YES));
 
         // test THROTTLE type
-        assertTrue(THROTTLE.higherThan(null));
         assertTrue(THROTTLE.higherThan(NO));
         assertFalse(THROTTLE.higherThan(THROTTLE));
         assertFalse(THROTTLE.higherThan(YES));
 
         // test NO type
-        assertTrue(NO.higherThan(null));
         assertFalse(NO.higherThan(NO));
         assertFalse(NO.higherThan(THROTTLE));
         assertFalse(NO.higherThan(YES));

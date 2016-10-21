@@ -140,9 +140,7 @@ public abstract class Decision implements ToXContent {
         }
 
         public boolean higherThan(Type other) {
-            if (other == null) {
-                return true;
-            } else if (this == NO) {
+            if (this == NO) {
                 return false;
             } else if (other == NO) {
                 return true;

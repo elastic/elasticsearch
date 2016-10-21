@@ -397,7 +397,11 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
             result.append("searchType=[").append(searchType()).append("]");
         }
         if (scrollContext() != null) {
-            result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+            if (scrollContext().scroll != null) {
+                result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+            } else {
+                result.append("scroll=[null]");
+            }
         }
         result.append(" query=[").append(query()).append("]");
         return result.toString();

@@ -767,9 +767,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              * iteration order is different for each run and makes testing hard */
             Map<String, WeightedDecision> nodeExplanationMap = explain ? new HashMap<>() : null;
             for (ModelNode node : nodes.values()) {
-                if ((throttledNodes.contains(node) // node is throttled OR
-                        || node.containsShard(shard)) // node already contains a copy of the shard
-                       && explain == false) { // not in explain mode
+                if ((throttledNodes.contains(node) || node.containsShard(shard)) && explain == false) {
                     // decision is NO without needing to check anything further, so short circuit
                     continue;
                 }

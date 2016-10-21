@@ -190,7 +190,13 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
             if (update != null) {
                 // can throw timeout exception when updating mappings or ISE for attempting to update default mappings
                 // which are bubbled up
-                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
+                try {
+                    mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
+                } catch (IllegalArgumentException e) {
+                    // throws IAE on conflicts merging dynamic mappings
+                    return new Engine.Failure(request.type(), request.id(), request.version(),
+                            request.versionType(), Engine.Operation.Origin.PRIMARY, operation.startTime(), e);
+                }
                 operation = prepareIndexOperationOnPrimary(request, primary);
                 if (operation.hasFailure() == false) {
                     update = ((Engine.Index) operation).parsedDoc().dynamicMappingsUpdate();
@@ -203,8 +209,11 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
         }
         if (operation.hasFailure() == false) {
             primary.execute(operation);
+        }
+        if (operation.hasFailure() == false) {
             // update the version on request so it will happen on the replicas
-            request.version(operation.version());
+            final long version = operation.version();
+            request.version(version);
             request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
             assert request.versionType().validateVersionForWrites(request.version());
         }

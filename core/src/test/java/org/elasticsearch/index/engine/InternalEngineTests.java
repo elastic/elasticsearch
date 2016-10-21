@@ -1111,12 +1111,10 @@ public class InternalEngineTests extends ESTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(newUid("1"), doc, 42, VersionType.FORCE, PRIMARY, 0, -1, false);
 
-        try {
-            engine.index(index);
-            fail("should have failed due to using VersionType.FORCE");
-        } catch (IllegalArgumentException iae) {
-            assertThat(iae.getMessage(), containsString("version type [FORCE] may not be used for indices created after 6.0"));
-        }
+        engine.index(index);
+        assertTrue(index.hasFailure());
+        assertThat(index.getFailure(), instanceOf(IllegalArgumentException.class));
+        assertThat(index.getFailure().getMessage(), containsString("version type [FORCE] may not be used for indices created after 6.0"));
 
         IndexSettings oldIndexSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0_beta1)
@@ -1124,12 +1122,10 @@ public class InternalEngineTests extends ESTestCase {
         try (Store store = createStore();
                 Engine engine = createEngine(oldIndexSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
             index = new Engine.Index(newUid("1"), doc, 84, VersionType.FORCE, PRIMARY, 0, -1, false);
-            try {
-                engine.index(index);
-                fail("should have failed due to using VersionType.FORCE");
-            } catch (IllegalArgumentException iae) {
-                assertThat(iae.getMessage(), containsString("version type [FORCE] may not be used for non-translog operations"));
-            }
+            engine.index(index);
+            assertTrue(index.hasFailure());
+            assertThat(index.getFailure(), instanceOf(IllegalArgumentException.class));
+            assertThat(index.getFailure().getMessage(), containsString("version type [FORCE] may not be used for non-translog operations"));
 
             index = new Engine.Index(newUid("1"), doc, 84, VersionType.FORCE,
                     Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY, 0, -1, false);

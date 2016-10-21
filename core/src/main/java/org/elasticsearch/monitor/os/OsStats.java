@@ -358,7 +358,7 @@ public class OsStats implements Writeable, ToXContent {
             this.cpuControlGroup = cpuControlGroup;
             this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
             this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
-            this.cpuStat = cpuStat;
+            this.cpuStat = Objects.requireNonNull(cpuStat);
         }
 
         Cgroup(final StreamInput in) throws IOException {
@@ -367,11 +367,7 @@ public class OsStats implements Writeable, ToXContent {
             cpuControlGroup = in.readString();
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
-            if (!in.readBoolean()) {
-                cpuStat = null;
-            } else {
-                cpuStat = new CpuStat(in);
-            }
+            cpuStat = new CpuStat(in);
         }
 
         @Override
@@ -381,12 +377,7 @@ public class OsStats implements Writeable, ToXContent {
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
-            if (cpuStat == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                cpuStat.writeTo(out);
-            }
+            cpuStat.writeTo(out);
         }
 
         @Override

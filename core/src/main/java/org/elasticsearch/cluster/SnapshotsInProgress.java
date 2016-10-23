@@ -210,12 +210,9 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
 
 
     public static class ShardSnapshotStatus {
-        private State state;
-        private String nodeId;
-        private String reason;
-
-        private ShardSnapshotStatus() {
-        }
+        private final State state;
+        private final String nodeId;
+        private final String reason;
 
         public ShardSnapshotStatus(String nodeId) {
             this(nodeId, State.INIT);
@@ -231,6 +228,12 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             this.reason = reason;
         }
 
+        public ShardSnapshotStatus(StreamInput in) throws IOException {
+            nodeId = in.readOptionalString();
+            state = State.fromValue(in.readByte());
+            reason = in.readOptionalString();
+        }
+
         public State state() {
             return state;
         }
@@ -241,18 +244,6 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
 
         public String reason() {
             return reason;
-        }
-
-        public static ShardSnapshotStatus readShardSnapshotStatus(StreamInput in) throws IOException {
-            ShardSnapshotStatus shardSnapshotStatus = new ShardSnapshotStatus();
-            shardSnapshotStatus.readFrom(in);
-            return shardSnapshotStatus;
-        }
-
-        public void readFrom(StreamInput in) throws IOException {
-            nodeId = in.readOptionalString();
-            state = State.fromValue(in.readByte());
-            reason = in.readOptionalString();
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -281,6 +272,11 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
             result = 31 * result + (reason != null ? reason.hashCode() : 0);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "ShardSnapshotStatus[state=" + state + ", nodeId=" + nodeId + ", reason=" + reason + "]";
         }
     }
 

@@ -83,6 +83,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.cluster.SnapshotsInProgress.PROTO;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -793,12 +794,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private boolean removedNodesCleanupNeeded(ClusterChangedEvent event) {
-        // Check if we just became the master
-        boolean newMaster = !event.previousState().nodes().isLocalNodeElectedMaster();
         SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
         if (snapshotsInProgress == null) {
             return false;
         }
+        // Check if we just became the master
+        boolean newMaster = !event.previousState().nodes().isLocalNodeElectedMaster();
         for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
             if (newMaster && (snapshot.state() == State.SUCCESS || snapshot.state() == State.INIT)) {
                 // We just replaced old master and snapshots in intermediate states needs to be cleaned

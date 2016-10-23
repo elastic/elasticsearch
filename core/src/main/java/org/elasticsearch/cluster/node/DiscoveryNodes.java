@@ -402,6 +402,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         for (DiscoveryNode node : this) {
             sb.append(node).append(',');
         }
+        if (sb.length() > 1) {
+            // trim off last comma
+            sb.setLength(sb.length() - 1);
+        }
         sb.append("}");
         return sb.toString();
     }

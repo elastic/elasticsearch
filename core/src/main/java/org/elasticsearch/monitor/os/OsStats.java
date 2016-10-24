@@ -374,7 +374,7 @@ public class OsStats implements Writeable, ToXContent {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeOptionalString(cpuAcctControlGroup);
+            out.writeString(cpuAcctControlGroup);
             out.writeLong(cpuAcctUsageNanos);
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);

@@ -26,7 +26,7 @@
           "description" : "Should the request should block until the reindex is complete."
         },
         "requests_per_second": {
-          "type": "float",
+          "type": "number",
           "default": 0,
           "description": "The throttle to set on this request in sub-requests per second. -1 means set no throttle as does \"unlimited\" which is the only non-float this accepts."
         }

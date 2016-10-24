@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action;
 
-/**
- *
- */
 public class ValidateActions {
 
     public static ActionRequestValidationException addValidationError(String error, ActionRequestValidationException validationException) {

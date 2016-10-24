@@ -52,8 +52,8 @@
         },
         "level": {
           "type" : "enum",
-          "description": "Return indices stats aggregated at node, index or shard level",
-          "options" : ["node", "indices", "shards"],
+          "description": "Return indices stats aggregated at index, node or shard level",
+          "options" : ["indices", "node", "shards"],
           "default" : "node"
         },
         "types" : {

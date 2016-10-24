@@ -55,9 +55,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
-/**
- *
- */
 public class RestSearchAction extends BaseRestHandler {
 
     private final SearchRequestParsers searchRequestParsers;

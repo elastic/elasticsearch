@@ -38,9 +38,6 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class StoredNumericValuesTests extends ESSingleNodeTestCase {
     public void testBytesAndNumericRepresentation() throws Exception {
         IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));

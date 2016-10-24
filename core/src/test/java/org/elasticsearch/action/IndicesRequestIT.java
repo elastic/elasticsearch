@@ -753,7 +753,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Override
-        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                                                                                         TransportRequestHandler<T> actualHandler) {
             return new InterceptingRequestHandler<>(action, actualHandler);
         }

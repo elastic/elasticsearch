@@ -28,9 +28,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -77,6 +79,28 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             assertThat(e.getMessage(), containsString("connect_timeout"));
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
+    }
+
+    public void testBindUnavailableAddress() {
+        // this is on a lower level since it needs access to the TransportService before it's started
+        int port = serviceA.boundAddress().publishAddress().getPort();
+        Settings settings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
+            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+            .put("transport.tcp.port", port)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
+            MockTransportService transportService = nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings);
+            try {
+                transportService.start();
+            } finally {
+                transportService.stop();
+                transportService.close();
+            }
+        });
+        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
     }
 
 }

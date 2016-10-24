@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -311,7 +312,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(response.getItems()[i].getVersion(), equalTo(1L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
-            assertThat(response.getItems()[i].getOpType(), equalTo("update"));
+            assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(1L));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue(), equalTo(1));
@@ -349,7 +350,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(response.getItems()[i].getVersion(), equalTo(2L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
-            assertThat(response.getItems()[i].getOpType(), equalTo("update"));
+            assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(2L));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue(), equalTo(2));
@@ -373,7 +374,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 assertThat(response.getItems()[i].getVersion(), equalTo(3L));
                 assertThat(response.getItems()[i].getIndex(), equalTo("test"));
                 assertThat(response.getItems()[i].getType(), equalTo("type1"));
-                assertThat(response.getItems()[i].getOpType(), equalTo("update"));
+                assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             }
         }
 
@@ -390,7 +391,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
-            assertThat(response.getItems()[i].getOpType(), equalTo("update"));
+            assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
         }
 
         builder = client().prepareBulk();
@@ -406,7 +407,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
-            assertThat(response.getItems()[i].getOpType(), equalTo("update"));
+            assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).get();
                 assertThat(getResponse.isExists(), equalTo(false));
@@ -749,12 +750,12 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         assertNoFailures(indexBulkItemResponse);
         assertThat(bulkItemResponse.getItems().length, is(6));
-        assertThat(bulkItemResponse.getItems()[0].getOpType(), is("index"));
-        assertThat(bulkItemResponse.getItems()[1].getOpType(), is("index"));
-        assertThat(bulkItemResponse.getItems()[2].getOpType(), is("update"));
-        assertThat(bulkItemResponse.getItems()[3].getOpType(), is("update"));
-        assertThat(bulkItemResponse.getItems()[4].getOpType(), is("delete"));
-        assertThat(bulkItemResponse.getItems()[5].getOpType(), is("delete"));
+        assertThat(bulkItemResponse.getItems()[0].getOpType(), is(OpType.INDEX));
+        assertThat(bulkItemResponse.getItems()[1].getOpType(), is(OpType.INDEX));
+        assertThat(bulkItemResponse.getItems()[2].getOpType(), is(OpType.UPDATE));
+        assertThat(bulkItemResponse.getItems()[3].getOpType(), is(OpType.UPDATE));
+        assertThat(bulkItemResponse.getItems()[4].getOpType(), is(OpType.DELETE));
+        assertThat(bulkItemResponse.getItems()[5].getOpType(), is(OpType.DELETE));
     }
 
     private static String indexOrAlias() {
@@ -799,9 +800,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.hasFailures(), is(true));
         BulkItemResponse[] responseItems = bulkResponse.getItems();
         assertThat(responseItems.length, is(3));
-        assertThat(responseItems[0].getOpType(), is("index"));
-        assertThat(responseItems[1].getOpType(), is("update"));
-        assertThat(responseItems[2].getOpType(), is("delete"));
+        assertThat(responseItems[0].getOpType(), is(OpType.INDEX));
+        assertThat(responseItems[1].getOpType(), is(OpType.UPDATE));
+        assertThat(responseItems[2].getOpType(), is(OpType.DELETE));
     }
 
     // issue 9821
@@ -811,9 +812,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 .add(client().prepareUpdate().setIndex("INVALID.NAME").setType("type1").setId("1").setDoc("field", randomInt()))
                 .add(client().prepareDelete().setIndex("INVALID.NAME").setType("type1").setId("1")).get();
         assertThat(bulkResponse.getItems().length, is(3));
-        assertThat(bulkResponse.getItems()[0].getOpType(), is("index"));
-        assertThat(bulkResponse.getItems()[1].getOpType(), is("update"));
-        assertThat(bulkResponse.getItems()[2].getOpType(), is("delete"));
+        assertThat(bulkResponse.getItems()[0].getOpType(), is(OpType.INDEX));
+        assertThat(bulkResponse.getItems()[1].getOpType(), is(OpType.UPDATE));
+        assertThat(bulkResponse.getItems()[2].getOpType(), is(OpType.DELETE));
     }
 }
 

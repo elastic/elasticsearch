@@ -45,8 +45,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-/**
- */
 public final class IndexWarmer extends AbstractComponent {
 
     private final List<Listener> listeners;

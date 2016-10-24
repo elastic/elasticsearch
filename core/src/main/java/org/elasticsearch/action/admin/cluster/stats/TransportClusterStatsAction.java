@@ -47,9 +47,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class TransportClusterStatsAction extends TransportNodesAction<ClusterStatsRequest, ClusterStatsResponse,
         TransportClusterStatsAction.ClusterStatsNodeRequest, ClusterStatsNodeResponse> {
 
@@ -75,8 +72,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Override
     protected ClusterStatsResponse newResponse(ClusterStatsRequest request,
                                                List<ClusterStatsNodeResponse> responses, List<FailedNodeException> failures) {
-        return new ClusterStatsResponse(System.currentTimeMillis(), clusterService.getClusterName(),
-            clusterService.state().metaData().clusterUUID(), responses, failures);
+        return new ClusterStatsResponse(
+            System.currentTimeMillis(),
+            clusterService.getClusterName(),
+            responses,
+            failures);
     }
 
     @Override

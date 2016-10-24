@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -48,6 +47,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -64,7 +64,6 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -74,6 +73,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -227,7 +227,12 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         // initialize the filtering alias based on the provided filters
-        aliasFilter = indexService.aliasFilter(queryShardContext, request.filteringAliases());
+        try {
+            final QueryBuilder queryBuilder = request.filteringAliases();
+            aliasFilter = queryBuilder == null ? null : queryBuilder.toFilter(queryShardContext);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
 
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
@@ -288,7 +293,7 @@ final class DefaultSearchContext extends SearchContext {
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
+            typesFilter = new TypeFieldMapper.TypesQuery(typesBytes);
         }
 
         if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {

@@ -25,9 +25,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class InvalidTypeNameException extends MapperException {
 
     public InvalidTypeNameException(StreamInput in) throws IOException {

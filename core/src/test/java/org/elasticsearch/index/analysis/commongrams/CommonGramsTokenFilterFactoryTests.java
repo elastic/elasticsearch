@@ -36,6 +36,7 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
 public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
         Settings settings = Settings.builder()

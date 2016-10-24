@@ -32,9 +32,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
     protected CompletionSuggestionContext(QueryShardContext shardContext) {

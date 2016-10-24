@@ -37,9 +37,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntB
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- *
- */
 public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testEnglishFilterFactory() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);

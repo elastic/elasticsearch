@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.Script;
@@ -69,6 +70,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
     protected NamedWriteableRegistry namedWriteableRegistry;
     protected SearchRequestParsers searchRequestParsers;
     private TestSearchExtPlugin searchExtPlugin;
+    protected IndicesQueriesRegistry queriesRegistry;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -80,6 +82,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
         searchRequestParsers = searchModule.getSearchRequestParsers();
+        queriesRegistry = searchModule.getQueryParserRegistry();
     }
 
     protected SearchSourceBuilder createSearchSourceBuilder() throws IOException {
@@ -154,19 +157,20 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                     fetchSourceContext = new FetchSourceContext(randomBoolean());
                     break;
                 case 1:
-                    fetchSourceContext = new FetchSourceContext(includes, excludes);
+                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
                     break;
                 case 2:
-                    fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
+                    fetchSourceContext = new FetchSourceContext(true, new String[]{randomAsciiOfLengthBetween(5, 20)},
+                        new String[]{randomAsciiOfLengthBetween(5, 20)});
                     break;
                 case 3:
                     fetchSourceContext = new FetchSourceContext(true, includes, excludes);
                     break;
                 case 4:
-                    fetchSourceContext = new FetchSourceContext(includes);
+                    fetchSourceContext = new FetchSourceContext(true, includes, null);
                     break;
                 case 5:
-                    fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20));
+                    fetchSourceContext = new FetchSourceContext(true, new String[] {randomAsciiOfLengthBetween(5, 20)}, null);
                     break;
                 default:
                     throw new IllegalStateException();

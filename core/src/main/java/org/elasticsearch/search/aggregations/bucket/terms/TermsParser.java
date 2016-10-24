@@ -36,9 +36,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class TermsParser extends AbstractTermsParser {
     @Override
     protected TermsAggregationBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,

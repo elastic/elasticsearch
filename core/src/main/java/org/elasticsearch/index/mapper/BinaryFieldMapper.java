@@ -43,9 +43,6 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
-/**
- *
- */
 public class BinaryFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "binary";

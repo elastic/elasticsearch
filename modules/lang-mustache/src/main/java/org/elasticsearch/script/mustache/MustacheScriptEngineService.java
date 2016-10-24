@@ -56,9 +56,6 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
 
     public static final String NAME = "mustache";
 
-    public static final String JSON_CONTENT_TYPE = "application/json";
-    public static final String PLAIN_TEXT_CONTENT_TYPE = "text/plain";
-
     /** Thread local UTF8StreamWriter to store template execution results in, thread local to save object creation.*/
     private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
 
@@ -91,13 +88,16 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
      * */
     @Override
     public Object compile(String templateName, String templateSource, Map<String, String> params) {
-        final MustacheFactory factory = new CustomMustacheFactory(isJsonEscapingEnabled(params));
+        final MustacheFactory factory = createMustacheFactory(params);
         Reader reader = new FastStringReader(templateSource);
         return factory.compile(reader, "query-template");
     }
 
-    private boolean isJsonEscapingEnabled(Map<String, String> params) {
-        return JSON_CONTENT_TYPE.equals(params.getOrDefault(Script.CONTENT_TYPE_OPTION, JSON_CONTENT_TYPE));
+    private CustomMustacheFactory createMustacheFactory(Map<String, String> params) {
+        if (params == null || params.isEmpty() || params.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
+            return new CustomMustacheFactory();
+        }
+        return new CustomMustacheFactory(params.get(Script.CONTENT_TYPE_OPTION));
     }
 
     @Override

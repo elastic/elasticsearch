@@ -50,9 +50,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- *
- */
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     public static final Setting<Integer> EXPECTED_NODES_SETTING =

@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -75,15 +74,13 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
+    protected boolean addMockZenPings() {
+        return false;
     }
 
     public void testSimpleMinimumMasterNodes() throws Exception {
 
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
@@ -195,7 +192,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     public void testMultipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "1s")
                 .put("discovery.initial_state_timeout", "500ms")
@@ -271,7 +267,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     public void testDynamicUpdateMinimumMasterNodes() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
@@ -329,7 +324,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void testCanNotBringClusterDown() throws ExecutionException, InterruptedException {
         int nodeCount = scaledRandomIntBetween(1, 5);
         Settings.Builder settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms");
 
@@ -368,7 +362,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     public void testCanNotPublishWithoutMinMastNodes() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up

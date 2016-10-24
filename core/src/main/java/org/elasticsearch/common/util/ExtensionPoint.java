@@ -200,6 +200,10 @@ public abstract class ExtensionPoint {
                 allocationMultibinder.addBinding().to(clazz);
             }
         }
+
+        public boolean isEmpty() {
+            return extensions.isEmpty();
+        }
     }
 
     /**

@@ -981,7 +981,8 @@ public class InnerHitsIT extends ESIntegTestCase {
         // other features (like in the query dsl or aggs) in order for consistency:
         SearchResponse response = client().prepareSearch()
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None)
-                .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext("comments.message"))))
+                .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true,
+                    new String[]{"comments.message"}, null))))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);

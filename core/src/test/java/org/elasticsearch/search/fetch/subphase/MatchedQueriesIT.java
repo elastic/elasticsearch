@@ -39,9 +39,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 
-/**
- *
- */
 public class MatchedQueriesIT extends ESIntegTestCase {
     public void testSimpleMatchedQueryFromFilteredQuery() throws Exception {
         createIndex("test");

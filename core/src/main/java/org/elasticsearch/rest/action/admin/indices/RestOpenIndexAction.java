@@ -33,9 +33,6 @@ import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RestOpenIndexAction extends BaseRestHandler {
 
     @Inject

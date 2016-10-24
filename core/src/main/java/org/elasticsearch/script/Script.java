@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -339,6 +340,10 @@ public final class Script {
 
         public static ScriptInput file(String id, Map<String, Object> params) {
             return new ScriptInput(FILE, new FileScriptLookup(id), params);
+        }
+
+        public static ScriptInput parse(XContentParser parser, QueryParseContext context) throws IOException {
+            return parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
         }
 
         public static ScriptInput parse(XContentParser parser, ParseFieldMatcher matcher, String lang) throws IOException {

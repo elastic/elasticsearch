@@ -31,9 +31,6 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.util.Set;
 
-/**
- *
- */
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet stopWords;

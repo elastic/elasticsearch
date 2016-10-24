@@ -370,7 +370,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             long version = Versions.MATCH_ANY;
             VersionType versionType = VersionType.INTERNAL;
 
-            FetchSourceContext fetchSourceContext = null;
+            FetchSourceContext fetchSourceContext = FetchSourceContext.FETCH_SOURCE;
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -401,9 +401,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                         versionType = VersionType.fromString(parser.text());
                     } else if ("_source".equals(currentFieldName)) {
                         if (parser.isBooleanValue()) {
-                            fetchSourceContext = new FetchSourceContext(parser.booleanValue());
+                            fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
+                                fetchSourceContext.excludes());
                         } else if (token == XContentParser.Token.VALUE_STRING) {
-                            fetchSourceContext = new FetchSourceContext(new String[]{parser.text()});
+                            fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(),
+                                new String[]{parser.text()}, fetchSourceContext.excludes());
                         } else {
                             throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
                         }
@@ -422,7 +424,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             includes.add(parser.text());
                         }
-                        fetchSourceContext = new FetchSourceContext(includes.toArray(Strings.EMPTY_ARRAY));
+                        fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(), includes.toArray(Strings.EMPTY_ARRAY)
+                            , fetchSourceContext.excludes());
                     }
 
                 } else if (token == XContentParser.Token.START_OBJECT) {
@@ -450,7 +453,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                             }
                         }
 
-                        fetchSourceContext = new FetchSourceContext(
+                        fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(),
                                 includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
                                 excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()]));
                     }
@@ -463,7 +466,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                 aFields = defaultFields;
             }
             items.add(new Item(index, type, id).routing(routing).storedFields(aFields).parent(parent).version(version).versionType(versionType)
-                    .fetchSourceContext(fetchSourceContext == null ? defaultFetchSource : fetchSourceContext));
+                    .fetchSourceContext(fetchSourceContext == FetchSourceContext.FETCH_SOURCE ? defaultFetchSource : fetchSourceContext));
         }
     }
 

@@ -19,27 +19,7 @@
 
 package org.elasticsearch.cloud.gce;
 
-import com.google.api.client.googleapis.compute.ComputeCredential;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.Instance;
-import com.google.api.services.compute.model.InstanceList;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
-
+import java.io.Closeable;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
@@ -51,7 +31,26 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class GceInstancesServiceImpl extends AbstractLifecycleComponent implements GceInstancesService {
+import com.google.api.client.googleapis.compute.ComputeCredential;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.InstanceList;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
+
+public class GceInstancesServiceImpl extends AbstractComponent implements GceInstancesService, Closeable {
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
@@ -113,7 +112,6 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
 
     private final boolean validateCerts;
 
-    @Inject
     public GceInstancesServiceImpl(Settings settings) {
         super(settings);
         this.project = PROJECT_SETTING.get(settings);
@@ -204,22 +202,9 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
+    public void close() throws IOException {
         if (gceHttpTransport != null) {
-            try {
-                gceHttpTransport.shutdown();
-            } catch (IOException e) {
-                logger.warn("unable to shutdown GCE Http Transport", e);
-            }
-            gceHttpTransport = null;
+            gceHttpTransport.shutdown();
         }
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 }

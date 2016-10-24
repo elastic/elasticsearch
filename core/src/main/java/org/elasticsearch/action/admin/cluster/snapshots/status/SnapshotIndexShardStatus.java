@@ -29,8 +29,6 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 
-/**
- */
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContent {
 
     private SnapshotIndexShardStage stage = SnapshotIndexShardStage.INIT;

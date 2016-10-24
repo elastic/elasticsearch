@@ -30,15 +30,7 @@ import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import java.io.IOException;
 import java.util.Base64;
 
-/**
- *
- */
 final class TransportSearchHelper {
-
-    static ShardSearchTransportRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request,
-                                                             String[] filteringAliases, long nowInMillis) {
-        return new ShardSearchTransportRequest(request, shardRouting, numberOfShards, filteringAliases, nowInMillis);
-    }
 
     static InternalScrollSearchRequest internalScrollSearchRequest(long id, SearchScrollRequest request) {
         return new InternalScrollSearchRequest(request, id);

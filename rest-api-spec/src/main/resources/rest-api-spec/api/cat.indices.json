@@ -49,6 +49,10 @@
           "description": "Set to true to return stats only for primary shards",
           "default": false
         },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
+        },
         "v": {
           "type": "boolean",
           "description": "Verbose mode. Display column headers",

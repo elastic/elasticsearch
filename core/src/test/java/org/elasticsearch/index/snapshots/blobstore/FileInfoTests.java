@@ -37,8 +37,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class FileInfoTests extends ESTestCase {
     public void testToFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);

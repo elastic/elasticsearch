@@ -35,8 +35,6 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class StartRecoveryRequestTests extends ESTestCase {
     public void testSerialization() throws Exception {
         Version targetNodeVersion = randomVersion(random());

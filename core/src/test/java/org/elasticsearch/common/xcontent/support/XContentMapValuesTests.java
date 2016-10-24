@@ -44,8 +44,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-/**
- */
 public class XContentMapValuesTests extends ESTestCase {
     public void testFilter() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()

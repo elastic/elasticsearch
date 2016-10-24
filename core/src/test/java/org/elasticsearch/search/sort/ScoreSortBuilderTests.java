@@ -22,13 +22,10 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 
@@ -50,16 +47,12 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         return result;
     }
 
-    @Rule
-    public ExpectedException exceptionRule = ExpectedException.none();
-
     /**
      * test passing null to {@link ScoreSortBuilder#order(SortOrder)} is illegal
      */
     public void testIllegalOrder() {
-            exceptionRule.expect(NullPointerException.class);
-            exceptionRule.expectMessage("sort order cannot be null.");
-            new ScoreSortBuilder().order(null);
+        Exception e = expectThrows(NullPointerException.class, () -> new ScoreSortBuilder().order(null));
+        assertEquals("sort order cannot be null.", e.getMessage());
     }
 
     /**
@@ -93,7 +86,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         try {
           ScoreSortBuilder.fromXContent(context, "_score");
           fail("adding reverse sorting option should fail with an exception");
-        } catch (ParsingException e) {
+        } catch (IllegalArgumentException e) {
             // all good
         }
     }

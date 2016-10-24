@@ -24,9 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class GatewayException extends ElasticsearchException {
 
     public GatewayException(String msg) {

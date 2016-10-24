@@ -37,8 +37,6 @@ import java.nio.file.Path;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
-/**
- */
 public class IcuTokenizerFactoryTests extends ESTestCase {
 
     public void testSimpleIcuTokenizer() throws IOException {

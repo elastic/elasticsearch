@@ -390,7 +390,7 @@ public final class ShardRouting implements Writeable, ToXContent {
         assert primary : this;
         return new ShardRouting(shardId, currentNodeId, null, primary, ShardRoutingState.INITIALIZING,
             StoreRecoverySource.EXISTING_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
-            AllocationId.newInitializing(), UNAVAILABLE_EXPECTED_SHARD_SIZE);
+            allocationId, UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
     /**

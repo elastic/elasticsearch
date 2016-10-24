@@ -55,9 +55,6 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseNumberField;
 
-/**
- *
- */
 public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
 
     public static final String CONTENT_TYPE = "ip";

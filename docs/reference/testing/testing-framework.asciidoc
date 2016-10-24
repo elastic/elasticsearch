@@ -253,7 +253,7 @@ Usually, you would combine assertions and matchers in your test like this
 
 [source,java]
 ----------------------------
-SearchResponse seearchResponse = client().prepareSearch() ...;
+SearchResponse searchResponse = client().prepareSearch() ...;
 assertHitCount(searchResponse, 4);
 assertFirstHit(searchResponse, hasId("4"));
 assertSearchHits(searchResponse, "1", "2", "3", "4");

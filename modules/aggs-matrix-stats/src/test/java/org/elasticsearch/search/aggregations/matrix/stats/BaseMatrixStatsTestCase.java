@@ -26,9 +26,6 @@ import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public abstract class BaseMatrixStatsTestCase extends ESTestCase {
     protected final int numObs = atLeast(10000);
     protected final ArrayList<Double> fieldA = new ArrayList<>(numObs);

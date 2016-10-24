@@ -298,8 +298,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         if (cacheExpire.getNanos() != 0) {
-            storedCacheBuilder.setExpireAfterAccess(cacheExpire.nanos());
-            inlineCacheBuilder.setExpireAfterAccess(cacheExpire.nanos());
+            storedCacheBuilder.setExpireAfterAccess(cacheExpire);
+            inlineCacheBuilder.setExpireAfterAccess(cacheExpire);
         }
 
         this.storedCache = storedCacheBuilder.removalListener(new StoredCacheRemovalListener()).build();

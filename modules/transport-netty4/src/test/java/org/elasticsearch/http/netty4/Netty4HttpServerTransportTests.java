@@ -34,6 +34,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -123,7 +124,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             transport.httpServerAdapter((request, channel, context) ->
                     channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))));
             transport.start();
-            TransportAddress remoteAddress = (TransportAddress) randomFrom(transport.boundAddress().boundAddresses());
+            TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
@@ -137,6 +138,19 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 response = client.post(remoteAddress.address(), request);
                 assertThat(response.status(), is(HttpResponseStatus.OK));
                 assertThat(new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8), is("done"));
+            }
+        }
+    }
+
+    public void testBindUnavailableAddress() {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool)) {
+            transport.start();
+            TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
+            try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays,
+                threadPool)) {
+                BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
+                assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }
         }
     }

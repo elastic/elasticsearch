@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 
@@ -79,7 +78,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
 
     private int applyHardSizeLimit(final Settings settings, final String name) {
         if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
-            return 1 + EsExecutors.boundedNumberOfProcessors(settings);
+            return 1 + EsExecutors.numberOfProcessors(settings);
         } else {
             return Integer.MAX_VALUE;
         }

@@ -47,9 +47,6 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
-/**
- *
- */
 public class DocumentMapper implements ToXContent {
 
     public static class Builder {

@@ -39,9 +39,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- *
- */
 public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Inject

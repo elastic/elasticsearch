@@ -48,8 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- */
 public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     public ReplicaShardAllocator(Settings settings) {
@@ -67,7 +65,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         List<Runnable> shardCancellationActions = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shard : routingNode) {
-                if (shard.primary() == true) {
+                if (shard.primary()) {
                     continue;
                 }
                 if (shard.initializing() == false) {
@@ -111,7 +109,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     }
                     if (currentNode.equals(nodeWithHighestMatch) == false
                             && Objects.equals(currentSyncId, primaryStore.syncId()) == false
-                            && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch) == true) {
+                            && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch)) {
                         // we found a better match that has a full sync id match, the existing allocation is not fully synced
                         // so we found a better one, cancel this one
                         logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
@@ -155,7 +153,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         Tuple<Decision, Map<String, Decision>> allocateDecision = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation, explain);
         if (allocateDecision.v1().type() != Decision.Type.YES) {
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
-            return ShardAllocationDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.v1()),
+            return ShardAllocationDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.v1().type()),
                 explain ? "all nodes returned a " + allocateDecision.v1().type() + " decision for allocating the replica shard" : null,
                 allocateDecision.v2());
         }

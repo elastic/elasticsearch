@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public class SizeValue implements Writeable {
+public class SizeValue implements Writeable, Comparable<SizeValue> {
 
     private final long size;
     private final SizeUnit sizeUnit;
@@ -201,18 +201,18 @@ public class SizeValue implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SizeValue sizeValue = (SizeValue) o;
-
-        if (size != sizeValue.size) return false;
-        if (sizeUnit != sizeValue.sizeUnit) return false;
-
-        return true;
+        return compareTo((SizeValue) o) == 0;
     }
 
     @Override
     public int hashCode() {
-        int result = Long.hashCode(size);
-        result = 31 * result + (sizeUnit != null ? sizeUnit.hashCode() : 0);
-        return result;
+        return Double.hashCode(((double) size) * sizeUnit.toSingles(1));
+    }
+
+    @Override
+    public int compareTo(SizeValue other) {
+        double thisValue = ((double) size) * sizeUnit.toSingles(1);
+        double otherValue = ((double) other.size) * other.sizeUnit.toSingles(1);
+        return Double.compare(thisValue, otherValue);
     }
 }

@@ -33,9 +33,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- *
- */
 public class CommitPoints implements Iterable<CommitPoint> {
 
     private final List<CommitPoint> commitPoints;

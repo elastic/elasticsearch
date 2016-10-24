@@ -50,7 +50,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     @Before
     public void setup() {
         qe = new MustacheScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        factory = new CustomMustacheFactory(true);
+        factory = new CustomMustacheFactory();
     }
 
     public void testSimpleParameterReplace() {

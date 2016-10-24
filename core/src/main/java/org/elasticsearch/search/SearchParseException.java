@@ -29,9 +29,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SearchParseException extends SearchContextException {
 
     public static final int UNKNOWN_POSITION = -1;

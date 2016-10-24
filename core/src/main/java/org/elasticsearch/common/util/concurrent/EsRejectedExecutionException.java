@@ -26,8 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- */
 public class EsRejectedExecutionException extends ElasticsearchException {
     private final boolean isExecutorShutdown;
 

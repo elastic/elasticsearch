@@ -44,9 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class VectorHighlighterTests extends ESTestCase {
     public void testVectorHighlighter() throws Exception {
         Directory dir = new RAMDirectory();

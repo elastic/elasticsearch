@@ -29,8 +29,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
 public class DiscoveryNodeFilters {
 
     public enum OpType {

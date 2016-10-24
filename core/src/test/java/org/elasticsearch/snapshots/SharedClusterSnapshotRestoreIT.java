@@ -57,9 +57,9 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -684,6 +684,47 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         SearchResponse countResponse = client.prepareSearch("test-idx").setSize(0).get();
         assertThat(countResponse.getHits().totalHits(), equalTo(100L));
         logger.info("--> total number of simulated failures during restore: [{}]", getFailureCount("test-repo"));
+    }
+
+    public void testDataFileCorruptionDuringRestore() throws Exception {
+        Path repositoryLocation = randomRepoPath();
+        Client client = client();
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation)));
+
+        createIndex("test-idx");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
+
+        logger.info("-->  update repository with mock version");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(
+                Settings.builder()
+                    .put("location", repositoryLocation)
+                    .put("random", randomAsciiOfLength(10))
+                    .put("use_lucene_corruption", true)
+                    .put("max_failure_number", 10000000L)
+                    .put("random_data_file_io_exception_rate", 1.0)));
+
+        // Test restore after index deletion
+        logger.info("--> delete index");
+        cluster().wipeIndices("test-idx");
+        logger.info("--> restore corrupt index");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards()));
     }
 
     public void testDeletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {
@@ -2199,32 +2240,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertFalse(snapshotListener.timedOut());
         // Check that cluster state update task was called only once
         assertEquals(1, snapshotListener.count());
-
-        logger.info("--> close indices");
-        client.admin().indices().prepareClose("test-idx").get();
-
-        BlockingClusterStateListener restoreListener = new BlockingClusterStateListener(clusterService, "restore_snapshot[", "update snapshot state", Priority.HIGH);
-
-        try {
-            clusterService.addFirst(restoreListener);
-            logger.info("--> restore snapshot");
-            ListenableActionFuture<RestoreSnapshotResponse> futureRestore = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
-
-            // Await until shard updates are in pending state.
-            assertBusyPendingTasks("update snapshot state", numberOfShards);
-            restoreListener.unblock();
-
-            RestoreSnapshotResponse restoreSnapshotResponse = futureRestore.actionGet();
-            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(numberOfShards));
-
-        } finally {
-            clusterService.remove(restoreListener);
-        }
-
-        // Check that we didn't timeout
-        assertFalse(restoreListener.timedOut());
-        // Check that cluster state update task was called only once
-        assertEquals(1, restoreListener.count());
     }
 
     public void testSnapshotName() throws Exception {

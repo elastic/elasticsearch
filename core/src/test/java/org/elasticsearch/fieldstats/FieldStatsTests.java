@@ -48,8 +48,6 @@ import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class FieldStatsTests extends ESSingleNodeTestCase {
     public void testByte() {
         testNumberRange("field1", "byte", 12, 18);

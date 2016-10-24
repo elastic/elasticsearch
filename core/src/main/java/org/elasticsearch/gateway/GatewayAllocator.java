@@ -42,9 +42,6 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
-/**
- *
- */
 public class GatewayAllocator extends AbstractComponent {
 
     private RoutingService routingService;
@@ -88,7 +85,7 @@ public class GatewayAllocator extends AbstractComponent {
                 boolean cleanCache = false;
                 DiscoveryNode localNode = event.state().nodes().getLocalNode();
                 if (localNode != null) {
-                    if (localNode.isMasterNode() == true && event.localNodeMaster() == false) {
+                    if (localNode.isMasterNode() && event.localNodeMaster() == false) {
                         cleanCache = true;
                     }
                 } else {
@@ -177,7 +174,7 @@ public class GatewayAllocator extends AbstractComponent {
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
-            if (shardState.hasData() == true) {
+            if (shardState.hasData()) {
                 shardState.processAllocation(allocation);
             }
             return shardState;
@@ -202,7 +199,7 @@ public class GatewayAllocator extends AbstractComponent {
             }
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
-            if (shardStores.hasData() == true) {
+            if (shardStores.hasData()) {
                 shardStores.processAllocation(allocation);
             }
             return shardStores;

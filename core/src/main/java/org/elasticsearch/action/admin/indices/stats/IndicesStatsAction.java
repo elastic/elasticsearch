@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class IndicesStatsAction extends Action<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
 
     public static final IndicesStatsAction INSTANCE = new IndicesStatsAction();

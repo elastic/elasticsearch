@@ -249,26 +249,26 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!params.param("node_info_format", "default").equals("none")) {
-            builder.field("name", getNode().getName());
-            builder.field("transport_address", getNode().getAddress().toString());
-            builder.field("host", getNode().getHostName());
-            builder.field("ip", getNode().getAddress());
 
-            builder.startArray("roles");
-            for (DiscoveryNode.Role role : getNode().getRoles()) {
-                builder.value(role.getRoleName());
-            }
-            builder.endArray();
+        builder.field("name", getNode().getName());
+        builder.field("transport_address", getNode().getAddress().toString());
+        builder.field("host", getNode().getHostName());
+        builder.field("ip", getNode().getAddress());
 
-            if (!getNode().getAttributes().isEmpty()) {
-                builder.startObject("attributes");
-                for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
-                    builder.field(attrEntry.getKey(), attrEntry.getValue());
-                }
-                builder.endObject();
-            }
+        builder.startArray("roles");
+        for (DiscoveryNode.Role role : getNode().getRoles()) {
+            builder.value(role.getRoleName());
         }
+        builder.endArray();
+
+        if (!getNode().getAttributes().isEmpty()) {
+            builder.startObject("attributes");
+            for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
+                builder.field(attrEntry.getKey(), attrEntry.getValue());
+            }
+            builder.endObject();
+        }
+
         if (getIndices() != null) {
             getIndices().toXContent(builder, params);
         }

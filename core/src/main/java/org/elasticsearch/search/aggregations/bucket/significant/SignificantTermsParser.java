@@ -40,9 +40,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- *
- */
 public class SignificantTermsParser extends AbstractTermsParser {
     private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry;
     private final IndicesQueriesRegistry queriesRegistry;

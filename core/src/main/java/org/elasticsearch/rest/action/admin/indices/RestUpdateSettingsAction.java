@@ -38,9 +38,6 @@ import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
-/**
- *
- */
 public class RestUpdateSettingsAction extends BaseRestHandler {
     private static final Set<String> VALUES_TO_EXCLUDE = unmodifiableSet(newHashSet(
             "pretty",

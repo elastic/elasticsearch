@@ -60,6 +60,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -89,6 +90,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -282,7 +284,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         @Override
         protected void onAfterInLifecycle() {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
+            try {
+                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
+            } catch (EsRejectedExecutionException ex) {
+                if (ex.isExecutorShutdown()) {
+                    logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
+                } else {
+                    throw ex;
+                }
+            }
         }
 
         @Override
@@ -914,6 +924,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         byte status = 0;
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+        // we wrap this in a release once since if the onRequestSent callback throws an exception
+        // we might release things twice and this should be prevented
+        final Releasable toRelease = Releasables.releaseOnce(() -> Releasables.close(bStream.bytes()));
         boolean addedReleaseListener = false;
         StreamOutput stream = bStream;
         try {
@@ -934,9 +947,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             stream.writeString(action);
             BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream, bStream);
             final TransportRequestOptions finalOptions = options;
-            Runnable onRequestSent = () -> {
+            Runnable onRequestSent = () -> { // this might be called in a different thread
                 try {
-                    Releasables.close(bStream.bytes());
+                    toRelease.close();
                 } finally {
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
@@ -945,7 +958,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } finally {
             IOUtils.close(stream);
             if (!addedReleaseListener) {
-                Releasables.close(bStream.bytes());
+                toRelease.close();
             }
         }
     }
@@ -1008,6 +1021,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         byte status = 0;
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+        // we wrap this in a release once since if the onRequestSent callback throws an exception
+        // we might release things twice and this should be prevented
+        final Releasable toRelease = Releasables.releaseOnce(() -> Releasables.close(bStream.bytes()));
         boolean addedReleaseListener = false;
         StreamOutput stream = bStream;
         try {
@@ -1020,9 +1036,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             BytesReference reference = buildMessage(requestId, status, nodeVersion, response, stream, bStream);
 
             final TransportResponseOptions finalOptions = options;
-            Runnable onRequestSent = () -> {
+            Runnable onRequestSent = () -> { // this might be called in a different thread
                 try {
-                    Releasables.close(bStream.bytes());
+                    toRelease.close();
                 } finally {
                     transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
                 }
@@ -1033,7 +1049,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 IOUtils.close(stream);
             } finally {
                 if (!addedReleaseListener) {
-                    Releasables.close(bStream.bytes());
+
+                    toRelease.close();
                 }
             }
 

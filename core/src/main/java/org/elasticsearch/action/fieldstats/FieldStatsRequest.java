@@ -35,8 +35,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- */
 public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
 
     public static final String DEFAULT_LEVEL = "cluster";

@@ -94,6 +94,11 @@ setup() {
     run_elasticsearch_tests
 }
 
+@test "[DEB] verify package installation after start" {
+    # Checks that the startup scripts didn't change the permissions
+    verify_package_installation
+}
+
 ##################################
 # Uninstall DEB package
 ##################################

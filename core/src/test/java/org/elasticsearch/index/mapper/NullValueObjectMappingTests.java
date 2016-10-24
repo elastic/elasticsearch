@@ -29,9 +29,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
     public void testNullValueObject() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

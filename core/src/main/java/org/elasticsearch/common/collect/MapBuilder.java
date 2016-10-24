@@ -24,9 +24,6 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class MapBuilder<K, V> {
 
     public static <K, V> MapBuilder<K, V> newMapBuilder() {

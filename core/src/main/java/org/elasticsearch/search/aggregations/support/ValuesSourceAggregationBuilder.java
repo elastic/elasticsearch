@@ -42,9 +42,6 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
         extends AbstractAggregationBuilder<AB> {
 

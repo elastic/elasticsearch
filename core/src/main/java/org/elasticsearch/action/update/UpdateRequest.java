@@ -20,7 +20,7 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
@@ -57,10 +57,8 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- */
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
-        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
+        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(UpdateRequest.class));
 
@@ -427,7 +425,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      *            the returned _source
      */
     public UpdateRequest fetchSource(@Nullable String include, @Nullable String exclude) {
-        this.fetchSourceContext = new FetchSourceContext(include, exclude);
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), new String[] {include}, new String[]{exclude});
         return this;
     }
 
@@ -444,7 +443,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      *            filter the returned _source
      */
     public UpdateRequest fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        this.fetchSourceContext = new FetchSourceContext(includes, excludes);
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -452,7 +452,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Indicates whether the response should contain the updated _source.
      */
     public UpdateRequest fetchSource(boolean fetchSource) {
-        this.fetchSourceContext = new FetchSourceContext(fetchSource);
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(fetchSource, context.includes(), context.excludes());
         return this;
     }
 
@@ -495,29 +496,31 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this.retryOnConflict;
     }
 
-    /**
-     * Sets the version, which will cause the index operation to only be performed if a matching
-     * version exists and no changes happened on the doc since then.
-     */
+    @Override
     public UpdateRequest version(long version) {
         this.version = version;
         return this;
     }
 
+    @Override
     public long version() {
         return this.version;
     }
 
-    /**
-     * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
-     */
+    @Override
     public UpdateRequest versionType(VersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
+    @Override
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    @Override
+    public OpType opType() {
+        return OpType.UPDATE;
     }
 
     @Override

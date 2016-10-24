@@ -65,8 +65,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- */
 public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     private final ShardId shardId = new ShardId("test", "_na_", 0);

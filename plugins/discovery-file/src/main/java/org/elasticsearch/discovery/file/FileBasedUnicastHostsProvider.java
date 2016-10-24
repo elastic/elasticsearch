@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing.resolveDiscoveryNodes;
+import static org.elasticsearch.discovery.zen.UnicastZenPing.resolveDiscoveryNodes;
 
 /**
  * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
@@ -55,7 +55,7 @@ import static org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing.resolv
  * 67.81.244.11:9305
  * 67.81.244.15:9400
  */
-public class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
     static final String UNICAST_HOST_PREFIX = "#zen_file_unicast_host_";
@@ -66,8 +66,7 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
 
     private final AtomicLong nodeIdGenerator = new AtomicLong(); // generates unique ids for the node
 
-    @Inject
-    public FileBasedUnicastHostsProvider(Settings settings, TransportService transportService) {
+    FileBasedUnicastHostsProvider(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
         this.unicastHostsFilePath = new Environment(settings).configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);

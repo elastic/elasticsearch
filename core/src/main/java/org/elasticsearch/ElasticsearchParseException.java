@@ -24,9 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ElasticsearchParseException extends ElasticsearchException {
 
     public ElasticsearchParseException(String msg, Object... args) {

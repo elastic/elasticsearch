@@ -66,9 +66,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- *
- */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
 
     // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService there is no need for a separate public service

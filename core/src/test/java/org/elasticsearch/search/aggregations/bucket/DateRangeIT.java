@@ -54,9 +54,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class DateRangeIT extends ESIntegTestCase {
 

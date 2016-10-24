@@ -41,7 +41,7 @@ public class OsService extends AbstractComponent {
         super(settings);
         this.probe = OsProbe.getInstance();
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.boundedNumberOfProcessors(settings));
+        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.numberOfProcessors(settings));
         this.osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }

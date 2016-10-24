@@ -28,8 +28,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
 
-/**
- */
 public class CharFilterTests extends ESTokenStreamTestCase {
     public void testMappingCharFilter() throws Exception {
         Settings settings = Settings.builder()

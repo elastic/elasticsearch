@@ -31,9 +31,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
 public final class DocumentFieldMappers implements Iterable<FieldMapper> {
 
     /** Full field name to mapper */

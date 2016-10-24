@@ -38,9 +38,6 @@ import java.util.List;
 import java.util.Map;
 
 
-/**
- *
- */
 public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_index";

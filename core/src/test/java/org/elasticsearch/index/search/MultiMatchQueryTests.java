@@ -101,7 +101,8 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {2, 3};
         Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
-        Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+        Query actual = MultiMatchQuery.blendTerm(indexService.newQueryShardContext(), new BytesRef("baz"), null, 1f,
+                new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
     }
 
@@ -115,7 +116,8 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {200, 30};
         Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
-        Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+        Query actual = MultiMatchQuery.blendTerm(indexService.newQueryShardContext(), new BytesRef("baz"), null, 1f,
+                new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
     }
 
@@ -132,7 +134,8 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] {2};
         Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
-        Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+        Query actual = MultiMatchQuery.blendTerm(indexService.newQueryShardContext(), new BytesRef("baz"), null, 1f,
+                new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
     }
 
@@ -154,7 +157,8 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 .add(expectedClause1, Occur.SHOULD)
                 .add(expectedClause2, Occur.SHOULD)
                 .build();
-        Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+        Query actual = MultiMatchQuery.blendTerm(indexService.newQueryShardContext(), new BytesRef("baz"), null, 1f,
+                new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
     }
 

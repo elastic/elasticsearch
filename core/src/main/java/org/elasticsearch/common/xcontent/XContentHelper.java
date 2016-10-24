@@ -38,9 +38,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
-/**
- *
- */
 @SuppressWarnings("unchecked")
 public class XContentHelper {
 

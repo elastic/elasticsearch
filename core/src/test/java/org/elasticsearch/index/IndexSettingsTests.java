@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -29,17 +29,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.core.StringContains.containsString;
+import static org.hamcrest.object.HasToString.hasToString;
 
 public class IndexSettingsTests extends ESTestCase {
 
@@ -348,26 +350,48 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
     }
 
-
     public void testArchiveBrokenIndexSettings() {
-        Settings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrBrokenSettings(Settings.EMPTY);
+        Settings settings =
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
+                Settings.EMPTY,
+                e -> { assert false : "should not have been invoked, no unknown settings"; },
+                (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
         assertSame(settings, Settings.EMPTY);
-        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrBrokenSettings(Settings.builder()
-            .put("index.refresh_interval", "-200").build());
+        settings =
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
+                Settings.builder().put("index.refresh_interval", "-200").build(),
+                e -> { assert false : "should not have been invoked, no invalid settings"; },
+                (e, ex) -> {
+                    assertThat(e.getKey(), equalTo("index.refresh_interval"));
+                    assertThat(e.getValue(), equalTo("-200"));
+                    assertThat(ex, hasToString(containsString("failed to parse setting [index.refresh_interval] with value [-200]")));
+                });
         assertEquals("-200", settings.get("archived.index.refresh_interval"));
         assertNull(settings.get("index.refresh_interval"));
 
         Settings prevSettings = settings; // no double archive
-        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrBrokenSettings(prevSettings);
+        settings =
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
+                prevSettings,
+                e -> { assert false : "should not have been invoked, no unknown settings"; },
+                (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
         assertSame(prevSettings, settings);
 
-        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrBrokenSettings(Settings.builder()
-            .put("index.version.created", Version.CURRENT.id) // private setting
-            .put("index.unknown", "foo")
-            .put("index.refresh_interval", "2s").build());
+        settings =
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT.id) // private setting
+                    .put("index.unknown", "foo")
+                    .put("index.refresh_interval", "2s").build(),
+                e -> {
+                    assertThat(e.getKey(), equalTo("index.unknown"));
+                    assertThat(e.getValue(), equalTo("foo"));
+                },
+                (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
 
         assertEquals("foo", settings.get("archived.index.unknown"));
         assertEquals(Integer.toString(Version.CURRENT.id), settings.get("index.version.created"));
         assertEquals("2s", settings.get("index.refresh_interval"));
     }
+
 }

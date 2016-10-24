@@ -13,10 +13,10 @@ GET /_cat/health?v
 
 [source,js]
 --------------------------------------------------
-epoch      timestamp cluster        status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-1475871424 16:17:04  docs_integTest green           1         1      5   5    0    0        0             0                  -                100.0%
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1475871424 16:17:04  elasticsearch green           1         1      5   5    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/ s/elasticsearch/[^ ]+/ _cat]
+// TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/ s/elasticsearch/[^ ]+/ s/0                  -/\\d+ -/ _cat]
 
 It has one option `ts` to disable the timestamping:
 
@@ -31,10 +31,10 @@ which looks like:
 
 [source,js]
 --------------------------------------------------
-cluster        status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
 elasticsearch green           1         1      5   5    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/elasticsearch/[^ ]+/ _cat]
+// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ -/ _cat]
 
 A common use of this command is to verify the health is consistent
 across nodes:

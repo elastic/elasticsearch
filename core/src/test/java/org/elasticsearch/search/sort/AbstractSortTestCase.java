@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -247,8 +248,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
+    @SuppressWarnings("unchecked")
     private T copy(T original) throws IOException {
         return copyWriteable(original, namedWriteableRegistry,
-                namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
+                (Writeable.Reader<T>) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
     }
 }

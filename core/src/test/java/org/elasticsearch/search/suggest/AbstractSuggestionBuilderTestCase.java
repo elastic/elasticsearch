@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -184,9 +185,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     protected abstract void mutateSpecificParameters(SB firstBuilder) throws IOException;
 
+    @SuppressWarnings("unchecked")
     protected SB copy(SB original) throws IOException {
         return copyWriteable(original, namedWriteableRegistry,
-                namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getWriteableName()));
+                (Writeable.Reader<SB>) namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getWriteableName()));
     }
 
     protected static QueryParseContext newParseContext(final String xcontent) throws IOException {

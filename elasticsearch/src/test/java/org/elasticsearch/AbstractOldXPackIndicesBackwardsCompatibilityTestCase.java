@@ -10,7 +10,12 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.PutLicenseAction;
+import org.elasticsearch.license.PutLicenseRequest;
+import org.elasticsearch.license.PutLicenseResponse;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -29,6 +34,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.OldIndexUtils.copyIndex;
 import static org.elasticsearch.test.OldIndexUtils.loadDataFilesList;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
  * Base class for tests against clusters coming from old versions of xpack and Elasticsearch.
@@ -182,5 +188,8 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         okToStartNode = false;
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, importingNodeName).nodeDataPaths();
         assertEquals(1, nodePaths.length);
+        PutLicenseResponse putLicenseResponse = client().execute(PutLicenseAction.INSTANCE,
+                new PutLicenseRequest().license(TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(24L)))).get();
+        assertAcked(putLicenseResponse);
     }
 }

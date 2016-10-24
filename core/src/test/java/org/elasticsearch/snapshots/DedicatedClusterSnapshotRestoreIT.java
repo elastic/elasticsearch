@@ -288,7 +288,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testSnapshotDuringNodeShutdown() throws Exception {
         logger.info("--> start 2 nodes");
-
         Client client = client();
 
         assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 0)));

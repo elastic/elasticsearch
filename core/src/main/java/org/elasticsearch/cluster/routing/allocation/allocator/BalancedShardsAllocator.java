@@ -127,6 +127,17 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     }
 
     /**
+     * Returns a decision on rebalancing a single shard to form a more optimal cluster balance.  This
+     * method is not used in itself for cluster rebalancing because all shards from all indices are
+     * taken into account when making rebalancing decisions.  This method is only intended to be used
+     * from the cluster allocation explain API to explain possible rebalancing decisions for a single
+     * shard.
+     */
+    public RebalanceDecision rebalanceShard(final ShardRouting shard, final RoutingAllocation allocation) {
+        return new Balancer(logger, allocation, weightFunction, threshold).balanceShard(shard);
+    }
+
+    /**
      * Returns the currently configured delta threshold
      */
     public float getThreshold() {
@@ -307,6 +318,90 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 return;
             }
             balanceByWeights();
+        }
+
+        /**
+         * Makes a decision about moving a single shard to a different node to form a more
+         * optimally balanced cluster.  This method is invoked from the cluster allocation
+         * explain API only.
+         */
+        private RebalanceDecision balanceShard(final ShardRouting shard) {
+            if (shard.started() == false) {
+                // cannot rebalance a shard that isn't started
+                return RebalanceDecision.NOT_TAKEN;
+            }
+
+            Decision canRebalance = allocation.deciders().canRebalance(shard, allocation);
+            if (canRebalance.type() != Type.YES) {
+                return new RebalanceDecision(canRebalance, Type.NO, "rebalancing is not allowed");
+            }
+
+            if (allocation.hasPendingAsyncFetch()) {
+                return new RebalanceDecision(canRebalance, Type.NO, "cannot rebalance due to in-flight shard store fetches");
+            }
+
+            sorter.reset(shard.getIndexName());
+            ModelNode[] modelNodes = sorter.modelNodes;
+            final String currentNodeId = shard.currentNodeId();
+            // find currently assigned node
+            ModelNode currentNode = null;
+            for (ModelNode node : modelNodes) {
+                if (node.getNodeId().equals(currentNodeId)) {
+                    currentNode = node;
+                    break;
+                }
+            }
+            assert currentNode != null : "currently assigned node could not be found";
+
+            // balance the shard, if a better node can be found
+            final float currentWeight = sorter.weight(currentNode);
+            final AllocationDeciders deciders = allocation.deciders();
+            final String idxName = shard.getIndexName();
+            Map<String, NodeRebalanceDecision> nodeDecisions = new HashMap<>();
+            Type rebalanceDecisionType = Type.NO;
+            String assignedNodeId = null;
+            for (ModelNode node : modelNodes) {
+                if (node == currentNode) {
+                    continue; // skip over node we're currently allocated to it
+                }
+                final Decision canAllocate = deciders.canAllocate(shard, node.getRoutingNode(), allocation);
+                final float nodeWeight = sorter.weight(node);
+                final boolean betterWeightThanCurrent = nodeWeight <= currentWeight;
+                final float currentDelta = absDelta(nodeWeight, currentWeight);
+                final boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
+                final float weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
+                final float proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
+                final boolean rebalanceConditionsMet = betterWeightThanCurrent && deltaAboveThreshold && proposedDelta < currentDelta;
+                if (rebalanceConditionsMet && canAllocate.type().higherThan(rebalanceDecisionType)) {
+                    // rebalance to the node, only will get overwritten if the decision here is to
+                    // THROTTLE and we get a decision with YES on another node
+                    rebalanceDecisionType = canAllocate.type();
+                    assignedNodeId = node.getNodeId();
+                }
+                nodeDecisions.put(node.getNodeId(), new NodeRebalanceDecision(
+                    rebalanceConditionsMet ? canAllocate.type() : Type.NO,
+                    canAllocate,
+                    betterWeightThanCurrent,
+                    deltaAboveThreshold,
+                    nodeWeight,
+                    weightWithShardAdded)
+                );
+            }
+
+            final String finalExplanation;
+            if (assignedNodeId != null) {
+                if (rebalanceDecisionType == Type.THROTTLE) {
+                    finalExplanation = "throttle moving shard to node [" + assignedNodeId + "], as it is " +
+                                           "currently busy with other shard relocations";
+                } else {
+                    finalExplanation = "moving shard to node [" + assignedNodeId + "] to form a more balanced cluster";
+                }
+            } else {
+                finalExplanation = "cannot rebalance shard, no other node exists that would form a more balanced " +
+                                       "cluster within the defined threshold [" + threshold + "]";
+            }
+            return new RebalanceDecision(canRebalance, rebalanceDecisionType, finalExplanation,
+                                            assignedNodeId, nodeDecisions, currentWeight);
         }
 
         public Map<DiscoveryNode, Float> weighShard(ShardRouting shard) {
@@ -539,7 +634,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         public MoveDecision makeMoveDecision(final ShardRouting shardRouting) {
             if (shardRouting.started() == false) {
                 // we can only move started shards
-                return MoveDecision.DECISION_NOT_TAKEN;
+                return MoveDecision.NOT_TAKEN;
             }
 
             final boolean explain = allocation.debugDecision();
@@ -1110,15 +1205,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final String finalExplanation;
         @Nullable
         private final String assignedNodeId;
-        @Nullable
-        private final Map<String, WeightedDecision> nodeDecisions;
 
-        protected RelocationDecision(Type finalDecision, String finalExplanation, String assignedNodeId,
-                                     Map<String, WeightedDecision> nodeDecisions) {
+        protected RelocationDecision(Type finalDecision, String finalExplanation, String assignedNodeId) {
             this.finalDecision = finalDecision;
             this.finalExplanation = finalExplanation;
             this.assignedNodeId = assignedNodeId;
-            this.nodeDecisions = nodeDecisions;
         }
 
         /**
@@ -1153,15 +1244,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         public String getAssignedNodeId() {
             return assignedNodeId;
         }
-
-        /**
-         * Gets the individual node-level decisions that went into making the final decision as represented by
-         * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link WeightedDecision}.
-         */
-        @Nullable
-        public Map<String, WeightedDecision> getNodeDecisions() {
-            return nodeDecisions;
-        }
     }
 
     /**
@@ -1169,18 +1251,21 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      */
     public static final class MoveDecision extends RelocationDecision {
         /** a constant representing no decision taken */
-        public static final MoveDecision DECISION_NOT_TAKEN = new MoveDecision(null, null, null, null, null);
+        public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, null, null, null);
         /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
         private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(Decision.YES, Type.NO, null, null, null);
         private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(Decision.NO, Type.NO, null, null, null);
 
         @Nullable
         private final Decision canRemainDecision;
+        @Nullable
+        private final Map<String, WeightedDecision> nodeDecisions;
 
         private MoveDecision(Decision canRemainDecision, Type finalDecision, String finalExplanation,
                              String assignedNodeId, Map<String, WeightedDecision> nodeDecisions) {
-            super(finalDecision, finalExplanation, assignedNodeId, nodeDecisions);
+            super(finalDecision, finalExplanation, assignedNodeId);
             this.canRemainDecision = canRemainDecision;
+            this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
         }
 
         /**
@@ -1249,6 +1334,121 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          */
         public boolean cannotRemain() {
             return isDecisionTaken() && canRemainDecision.type() == Type.NO;
+        }
+
+        /**
+         * Gets the individual node-level decisions that went into making the final decision as represented by
+         * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link WeightedDecision}.
+         */
+        @Nullable
+        public Map<String, WeightedDecision> getNodeDecisions() {
+            return nodeDecisions;
+        }
+    }
+
+    /**
+     * Represents a decision to move a started shard to form a more optimally balanced cluster.
+     */
+    public static final class RebalanceDecision extends RelocationDecision {
+        /** a constant representing no decision taken */
+        public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, null, null, Float.POSITIVE_INFINITY);
+
+        @Nullable
+        private final Decision canRebalanceDecision;
+        @Nullable
+        private final Map<String, NodeRebalanceDecision> nodeDecisions;
+        private float currentWeight;
+
+        protected RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String finalExplanation) {
+            this(canRebalanceDecision, finalDecision, finalExplanation, null, null, Float.POSITIVE_INFINITY);
+        }
+
+        protected RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String finalExplanation,
+                                    String assignedNodeId, Map<String, NodeRebalanceDecision> nodeDecisions, float currentWeight) {
+            super(finalDecision, finalExplanation, assignedNodeId);
+            this.canRebalanceDecision = canRebalanceDecision;
+            this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
+            this.currentWeight = currentWeight;
+        }
+
+        /**
+         * Returns the decision for being allowed to rebalance the shard.
+         */
+        public Decision getCanRebalanceDecision() {
+            return canRebalanceDecision;
+        }
+
+        /**
+         * Gets the individual node-level decisions that went into making the final decision as represented by
+         * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link NodeRebalanceDecision}.
+         */
+        @Nullable
+        public Map<String, NodeRebalanceDecision> getNodeDecisions() {
+            return nodeDecisions;
+        }
+    }
+
+    /**
+     * A node-level explanation for the decision to rebalance a shard.
+     */
+    public static final class NodeRebalanceDecision {
+        private final Type nodeDecisionType;
+        private final Decision canAllocate;
+        private final boolean betterWeightThanCurrent;
+        private final boolean deltaAboveThreshold;
+        private final float currentWeight;
+        private final float weightWithShardAdded;
+
+        NodeRebalanceDecision(Type nodeDecisionType, Decision canAllocate, boolean betterWeightThanCurrent,
+                              boolean deltaAboveThreshold, float currentWeight, float weightWithShardAdded) {
+            this.nodeDecisionType = Objects.requireNonNull(nodeDecisionType);
+            this.canAllocate = Objects.requireNonNull(canAllocate);
+            this.betterWeightThanCurrent = betterWeightThanCurrent;
+            this.deltaAboveThreshold = deltaAboveThreshold;
+            this.currentWeight = currentWeight;
+            this.weightWithShardAdded = weightWithShardAdded;
+        }
+
+        /**
+         * Returns the decision to rebalance to the node.
+         */
+        public Type getNodeDecisionType() {
+            return nodeDecisionType;
+        }
+
+        /**
+         * Returns whether the shard is allowed to be allocated to the node.
+         */
+        public Decision getCanAllocateDecision() {
+            return canAllocate;
+        }
+
+        /**
+         * Returns whether the weight of the node is better than the weight of the node where the shard currently resides.
+         */
+        public boolean isBetterWeightThanCurrent() {
+            return betterWeightThanCurrent;
+        }
+
+        /**
+         * Returns if the weight delta by assigning to this node was above the threshold to warrant a rebalance.
+         */
+        public boolean isDeltaAboveThreshold() {
+            return deltaAboveThreshold;
+        }
+
+        /**
+         * Returns the current weight of the node if the shard is not added to the node.
+         */
+        public float getCurrentWeight() {
+            return currentWeight;
+        }
+
+        /**
+         * Returns the weight of the node if the shard is added to the node.
+         */
+        public float getWeightWithShardAdded() {
+            return weightWithShardAdded;
         }
     }
 

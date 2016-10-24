@@ -355,21 +355,21 @@ public class OsStats implements Writeable, ToXContent {
             final long cpuCfsPeriodMicros,
             final long cpuCfsQuotaMicros,
             final CpuStat cpuStat) {
-            this.cpuAcctControlGroup = cpuAcctControlGroup;
+            this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
             this.cpuAcctUsageNanos = cpuAcctUsageNanos;
-            this.cpuControlGroup = cpuControlGroup;
+            this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);
             this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
             this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
-            this.cpuStat = cpuStat;
+            this.cpuStat = Objects.requireNonNull(cpuStat);
         }
 
         Cgroup(final StreamInput in) throws IOException {
-            cpuAcctControlGroup = in.readOptionalString();
+            cpuAcctControlGroup = in.readString();
             cpuAcctUsageNanos = in.readLong();
             cpuControlGroup = in.readString();
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
-            cpuStat = in.readOptionalWriteable(CpuStat::new);
+            cpuStat = new CpuStat(in);
         }
 
         @Override
@@ -379,7 +379,7 @@ public class OsStats implements Writeable, ToXContent {
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
-            out.writeOptionalWriteable(cpuStat);
+            cpuStat.writeTo(out);
         }
 
         @Override
@@ -397,11 +397,7 @@ public class OsStats implements Writeable, ToXContent {
                     builder.field("control_group", cpuControlGroup);
                     builder.field("cfs_period_micros", cpuCfsPeriodMicros);
                     builder.field("cfs_quota_micros", cpuCfsQuotaMicros);
-                    if (cpuStat == null) {
-                        builder.field("stat", (Object) null);
-                    } else {
-                        cpuStat.toXContent(builder, params);
-                    }
+                    cpuStat.toXContent(builder, params);
                 }
                 builder.endObject();
             }

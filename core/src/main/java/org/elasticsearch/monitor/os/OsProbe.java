@@ -259,7 +259,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
-        assert lines != null;
+        assert lines != null && !lines.isEmpty();
         return lines;
     }
 
@@ -431,6 +431,19 @@ public class OsProbe {
         return lines;
     }
 
+    private boolean areCgroupStatsAvailable() {
+        if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
+            return false;
+        }
+        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpu"))) {
+            return false;
+        }
+        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Basic cgroup stats.
      *
@@ -440,43 +453,30 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
     private OsStats.Cgroup getCgroup() {
         try {
-            if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
+            if (!areCgroupStatsAvailable()) {
                 return null;
-            }
-            final Map<String, String> controllerMap = getControlGroups();
-            if (controllerMap.isEmpty()) {
-                return null;
-            }
-
-            final String cpuAcctControlGroup = controllerMap.get("cpuacct");
-            final long cgroupCpuAcctUsageNanos;
-            if (cpuAcctControlGroup == null || !Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
-                cgroupCpuAcctUsageNanos = -1;
             } else {
-                cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
-            }
+                final Map<String, String> controllerMap = getControlGroups();
+                assert !controllerMap.isEmpty();
 
-            final String cpuControlGroup = controllerMap.get("cpu");
-            final long cgroupCpuAcctCpuCfsPeriodMicros;
-            final long cgroupCpuAcctCpuCfsQuotaMicros;
-            final OsStats.Cgroup.CpuStat cpuStat;
-            if (cpuControlGroup == null || !Files.exists(PathUtils.get("/sys/fs/cgroup/cpu"))) {
-                cgroupCpuAcctCpuCfsPeriodMicros = -1;
-                cgroupCpuAcctCpuCfsQuotaMicros = -1;
-                cpuStat = null;
-            } else {
-                cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);
-                cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
-                cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);
-            }
+                final String cpuAcctControlGroup = controllerMap.get("cpuacct");
+                assert cpuAcctControlGroup != null;
+                final long cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
 
-            return new OsStats.Cgroup(
-                cpuAcctControlGroup,
-                cgroupCpuAcctUsageNanos,
-                cpuControlGroup,
-                cgroupCpuAcctCpuCfsPeriodMicros,
-                cgroupCpuAcctCpuCfsQuotaMicros,
-                cpuStat);
+                final String cpuControlGroup = controllerMap.get("cpu");
+                assert cpuControlGroup != null;
+                final long cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);
+                final long cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
+                final OsStats.Cgroup.CpuStat cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);
+
+                return new OsStats.Cgroup(
+                    cpuAcctControlGroup,
+                    cgroupCpuAcctUsageNanos,
+                    cpuControlGroup,
+                    cgroupCpuAcctCpuCfsPeriodMicros,
+                    cgroupCpuAcctCpuCfsQuotaMicros,
+                    cpuStat);
+            }
         } catch (final IOException e) {
             if (logger.isDebugEnabled()) {
                 logger.debug("error reading control group stats", e);

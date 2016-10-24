@@ -431,6 +431,14 @@ public class OsProbe {
         return lines;
     }
 
+    /**
+     * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup},
+     * {@code /sys/fs/cgroup/cpu}, and {@code /sys/fs/cgroup/cpuacct}.
+     *
+     * @return {@code true} if the stats are available, otherwise
+     * {@code false}
+     */
+    @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
     private boolean areCgroupStatsAvailable() {
         if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
             return false;
@@ -450,7 +458,6 @@ public class OsProbe {
      * @return basic cgroup stats, or {@code null} if an I/O exception
      * occurred reading the cgroup stats
      */
-    @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
     private OsStats.Cgroup getCgroup() {
         try {
             if (!areCgroupStatsAvailable()) {

@@ -69,6 +69,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -113,10 +114,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
                                       RepositoriesService repositoriesService, RestoreService restoreService,
                                       SearchService searchService, SyncedFlushService syncedFlushService,
-                                      PeerRecoverySourceService peerRecoverySourceService) {
+                                      PeerRecoverySourceService peerRecoverySourceService, SnapshotShardsService snapshotShardsService) {
         this(settings, (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
             clusterService, threadPool, recoveryTargetService, shardStateAction,
-            nodeMappingRefreshAction, repositoriesService, restoreService, searchService, syncedFlushService, peerRecoverySourceService);
+            nodeMappingRefreshAction, repositoriesService, restoreService, searchService, syncedFlushService, peerRecoverySourceService,
+            snapshotShardsService);
     }
 
     // for tests
@@ -128,9 +130,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                NodeMappingRefreshAction nodeMappingRefreshAction,
                                RepositoriesService repositoriesService, RestoreService restoreService,
                                SearchService searchService, SyncedFlushService syncedFlushService,
-                               PeerRecoverySourceService peerRecoverySourceService) {
+                               PeerRecoverySourceService peerRecoverySourceService, SnapshotShardsService snapshotShardsService) {
         super(settings);
-        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, syncedFlushService);
+        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, syncedFlushService,
+                                                  snapshotShardsService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.SnapshotFailedEngineException;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -82,7 +84,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * This service runs on data and master nodes and controls currently snapshotted shards on these nodes. It is responsible for
  * starting and stopping shard level snapshots
  */
-public class SnapshotShardsService extends AbstractLifecycleComponent implements ClusterStateListener {
+public class SnapshotShardsService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
 
     public static final String UPDATE_SNAPSHOT_ACTION_NAME = "internal:cluster/snapshot/update_snapshot";
 
@@ -171,6 +173,18 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        // abort any snapshots occurring on the soon-to-be closed shard
+        Map<Snapshot, SnapshotShards> snapshotShardsMap = shardSnapshots;
+        for (Map.Entry<Snapshot, SnapshotShards> snapshotShards : snapshotShardsMap.entrySet()) {
+            Map<ShardId, IndexShardSnapshotStatus> shards = snapshotShards.getValue().shards;
+            if (shards.containsKey(shardId)) {
+                logger.debug("[{}] shard closing, abort snapshotting for snapshot [{}]", shardId, snapshotShards.getKey().getSnapshotId());
+                shards.get(shardId).abort();
+            }
+        }
+    }
 
     /**
      * Returns status of shards that are snapshotted on the node and belong to the given snapshot
@@ -235,12 +249,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             if (shard.value.state() == SnapshotsInProgress.State.INIT && (snapshotShards == null || !snapshotShards.shards.containsKey(shard.key))) {
                                 logger.trace("[{}] - Adding shard to the queue", shard.key);
                                 startedShards.put(shard.key, new IndexShardSnapshotStatus());
-                            } else if (shard.value.state().failed() && snapshotShards != null) {
-                                IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.key);
-                                if (snapshotStatus != null) {
-                                    logger.trace("[{}] shard snapshot failed, abort snapshotting on the local node", shard.key);
-                                    snapshotStatus.abort();
-                                }
                             }
                         }
                     }
@@ -286,20 +294,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                         break;
                                     default:
                                         throw new IllegalStateException("Unknown snapshot shard stage " + snapshotStatus.stage());
-                                }
-                            }
-                        }
-                    }
-                } else if (entry.state() == SnapshotsInProgress.State.SUCCESS) {
-                    // for any failed snapshots, make sure the local snapshotting is aborted
-                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshot());
-                    if (snapshotShards != null) {
-                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
-                            if (localNodeId.equals(shard.value.nodeId()) && shard.value.state().failed()) {
-                                IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.key);
-                                if (snapshotStatus != null) {
-                                    logger.trace("[{}] shard snapshot failed, abort snapshotting on the local node", shard.key);
-                                    snapshotStatus.abort();
                                 }
                             }
                         }

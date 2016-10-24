@@ -613,7 +613,7 @@ public class TransportService extends AbstractLifecycleComponent {
      */
     public final <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory,
                                                     String executor, TransportRequestHandler<Request> handler) {
-        handler = interceptor.interceptHandler(action, handler);
+        handler = interceptor.interceptHandler(action, executor, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, requestFactory, taskManager, handler, executor, false, true);
         registerRequestHandler(reg);
@@ -633,7 +633,7 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                           String executor, boolean forceExecution,
                                                                           boolean canTripCircuitBreaker,
                                                                           TransportRequestHandler<Request> handler) {
-        handler = interceptor.interceptHandler(action, handler);
+        handler = interceptor.interceptHandler(action, executor, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, request, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
         registerRequestHandler(reg);

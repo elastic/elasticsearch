@@ -684,10 +684,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
        return Collections.singletonList(new TransportInterceptor() {
             @Override
-            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
+            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                                                                                             TransportRequestHandler<T> actualHandler) {
                 assert securityIntercepter.get() != null;
-                return securityIntercepter.get().interceptHandler(action, actualHandler);
+                return securityIntercepter.get().interceptHandler(action, executor, actualHandler);
             }
 
             @Override

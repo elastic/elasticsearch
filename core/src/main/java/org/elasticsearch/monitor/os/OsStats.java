@@ -360,26 +360,26 @@ public class OsStats implements Writeable, ToXContent {
             this.cpuControlGroup = cpuControlGroup;
             this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
             this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
-            this.cpuStat = Objects.requireNonNull(cpuStat);
+            this.cpuStat = cpuStat;
         }
 
         Cgroup(final StreamInput in) throws IOException {
-            cpuAcctControlGroup = in.readString();
+            cpuAcctControlGroup = in.readOptionalString();
             cpuAcctUsageNanos = in.readLong();
             cpuControlGroup = in.readString();
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
-            cpuStat = new CpuStat(in);
+            cpuStat = in.readOptionalWriteable(CpuStat::new);
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeString(cpuAcctControlGroup);
+            out.writeOptionalString(cpuAcctControlGroup);
             out.writeLong(cpuAcctUsageNanos);
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
-            cpuStat.writeTo(out);
+            out.writeOptionalWriteable(cpuStat);
         }
 
         @Override
@@ -397,7 +397,11 @@ public class OsStats implements Writeable, ToXContent {
                     builder.field("control_group", cpuControlGroup);
                     builder.field("cfs_period_micros", cpuCfsPeriodMicros);
                     builder.field("cfs_quota_micros", cpuCfsQuotaMicros);
-                    cpuStat.toXContent(builder, params);
+                    if (cpuStat == null) {
+                        builder.field("stat", (Object) null);
+                    } else {
+                        cpuStat.toXContent(builder, params);
+                    }
                 }
                 builder.endObject();
             }

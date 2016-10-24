@@ -162,8 +162,8 @@ public final class NetworkModule {
      * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because
      *        it is the name under which the command's reader is registered.
      */
-    private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader, AllocationCommand.Parser<T> parser,
-            ParseField commandName) {
+    private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader,
+                                                                            AllocationCommand.Parser<T> parser, ParseField commandName) {
         allocationCommandRegistry.register(parser, commandName);
         namedWriteables.add(new Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
     }
@@ -234,9 +234,10 @@ public final class NetworkModule {
         }
 
         @Override
-        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, TransportRequestHandler<T> actualHandler) {
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                        TransportRequestHandler<T> actualHandler) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
-                actualHandler = interceptor.interceptHandler(action, actualHandler);
+                actualHandler = interceptor.interceptHandler(action, executor, actualHandler);
             }
             return actualHandler;
         }

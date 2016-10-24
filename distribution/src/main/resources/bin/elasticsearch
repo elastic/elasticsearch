@@ -47,7 +47,7 @@
 
 if echo '${project.name}' | grep project.name > /dev/null ; then
     cat >&2 << EOF
-Error: You must build the project with Maven or download a pre-built package
+Error: You must build the project with Gradle or download a pre-built package
 before you can run Elasticsearch. See 'Building from Source' in README.textile
 or visit https://www.elastic.co/download to get a pre-built package.
 EOF

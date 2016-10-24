@@ -216,27 +216,22 @@ public class OsProbe {
      */
     private Map<String, String> getControlGroups() throws IOException {
         final List<String> lines = readProcSelfCgroup();
-        if (lines.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        else {
-            final Map<String, String> controllerMap = new HashMap<>();
-            for (final String line : lines) {
-                final Matcher matcher = CONTROL_GROUP_PATTERN.matcher(line);
-                // note that Matcher#matches must be invoked as
-                // matching is lazy; this can not happen in an assert
-                // as assertions might not be enabled
-                final boolean matches = matcher.matches();
-                assert matches : line;
-                // at this point we have captured the subsystems and the
-                // control group
-                final String[] controllers = matcher.group(1).split(",");
-                for (final String controller : controllers) {
-                    controllerMap.put(controller, matcher.group(2));
-                }
+        final Map<String, String> controllerMap = new HashMap<>();
+        for (final String line : lines) {
+            final Matcher matcher = CONTROL_GROUP_PATTERN.matcher(line);
+            // note that Matcher#matches must be invoked as
+            // matching is lazy; this can not happen in an assert
+            // as assertions might not be enabled
+            final boolean matches = matcher.matches();
+            assert matches : line;
+            // at this point we have captured the subsystems and the
+            // control group
+            final String[] controllers = matcher.group(1).split(",");
+            for (final String controller : controllers) {
+                controllerMap.put(controller, matcher.group(2));
             }
-            return controllerMap;
         }
+        return controllerMap;
     }
 
     /**

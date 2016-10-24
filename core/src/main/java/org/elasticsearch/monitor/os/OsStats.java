@@ -36,12 +36,14 @@ public class OsStats implements Writeable, ToXContent {
     private final Cpu cpu;
     private final Mem mem;
     private final Swap swap;
+    private final Cgroup cgroup;
 
-    public OsStats(long timestamp, Cpu cpu, Mem mem, Swap swap) {
+    public OsStats(final long timestamp, final Cpu cpu, final Mem mem, final Swap swap, final Cgroup cgroup) {
         this.timestamp = timestamp;
-        this.cpu = Objects.requireNonNull(cpu, "cpu must not be null");
-        this.mem = Objects.requireNonNull(mem, "mem must not be null");;
-        this.swap = Objects.requireNonNull(swap, "swap must not be null");;
+        this.cpu = Objects.requireNonNull(cpu);
+        this.mem = Objects.requireNonNull(mem);
+        this.swap = Objects.requireNonNull(swap);
+        this.cgroup = cgroup;
     }
 
     public OsStats(StreamInput in) throws IOException {
@@ -49,6 +51,7 @@ public class OsStats implements Writeable, ToXContent {
         this.cpu = new Cpu(in);
         this.mem = new Mem(in);
         this.swap = new Swap(in);
+        this.cgroup = in.readOptionalWriteable(Cgroup::new);
     }
 
     @Override
@@ -57,6 +60,7 @@ public class OsStats implements Writeable, ToXContent {
         cpu.writeTo(out);
         mem.writeTo(out);
         swap.writeTo(out);
+        out.writeOptionalWriteable(cgroup);
     }
 
     public long getTimestamp() {
@@ -71,6 +75,10 @@ public class OsStats implements Writeable, ToXContent {
 
     public Swap getSwap() {
         return swap;
+    }
+
+    public Cgroup getCgroup() {
+        return cgroup;
     }
 
     static final class Fields {
@@ -103,6 +111,9 @@ public class OsStats implements Writeable, ToXContent {
         cpu.toXContent(builder, params);
         mem.toXContent(builder, params);
         swap.toXContent(builder, params);
+        if (cgroup != null) {
+            cgroup.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }
@@ -265,7 +276,211 @@ public class OsStats implements Writeable, ToXContent {
         }
     }
 
+    /**
+     * Encapsulates basic cgroup statistics.
+     */
+    public static class Cgroup implements Writeable, ToXContent {
+
+        private final String cpuAcctControlGroup;
+        private final long cpuAcctUsageNanos;
+        private final String cpuControlGroup;
+        private final long cpuCfsPeriodMicros;
+        private final long cpuCfsQuotaMicros;
+        private final CpuStat cpuStat;
+
+        /**
+         * The control group for the {@code cpuacct} subsystem.
+         *
+         * @return the control group
+         */
+        public String getCpuAcctControlGroup() {
+            return cpuAcctControlGroup;
+        }
+
+        /**
+         * The total CPU time consumed by all tasks in the
+         * {@code cpuacct} control group from
+         * {@link Cgroup#cpuAcctControlGroup}.
+         *
+         * @return the total CPU time in nanoseconds
+         */
+        public long getCpuAcctUsageNanos() {
+            return cpuAcctUsageNanos;
+        }
+
+        /**
+         * The control group for the {@code cpu} subsystem.
+         *
+         * @return the control group
+         */
+        public String getCpuControlGroup() {
+            return cpuControlGroup;
+        }
+
+        /**
+         * The period of time for how frequently the control group from
+         * {@link Cgroup#cpuControlGroup} has its access to CPU
+         * resources reallocated.
+         *
+         * @return the period of time in microseconds
+         */
+        public long getCpuCfsPeriodMicros() {
+            return cpuCfsPeriodMicros;
+        }
+
+        /**
+         * The total amount of time for which all tasks in the control
+         * group from {@link Cgroup#cpuControlGroup} can run in one
+         * period as represented by {@link Cgroup#cpuCfsPeriodMicros}.
+         *
+         * @return the total amount of time in microseconds
+         */
+        public long getCpuCfsQuotaMicros() {
+            return cpuCfsQuotaMicros;
+        }
+
+        /**
+         * The CPU time statistics. See {@link CpuStat}.
+         *
+         * @return the CPU time statistics.
+         */
+        public CpuStat getCpuStat() {
+            return cpuStat;
+        }
+
+        public Cgroup(
+            final String cpuAcctControlGroup,
+            final long cpuAcctUsageNanos,
+            final String cpuControlGroup,
+            final long cpuCfsPeriodMicros,
+            final long cpuCfsQuotaMicros,
+            final CpuStat cpuStat) {
+            this.cpuAcctControlGroup = cpuAcctControlGroup;
+            this.cpuAcctUsageNanos = cpuAcctUsageNanos;
+            this.cpuControlGroup = cpuControlGroup;
+            this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
+            this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
+            this.cpuStat = Objects.requireNonNull(cpuStat);
+        }
+
+        Cgroup(final StreamInput in) throws IOException {
+            cpuAcctControlGroup = in.readString();
+            cpuAcctUsageNanos = in.readLong();
+            cpuControlGroup = in.readString();
+            cpuCfsPeriodMicros = in.readLong();
+            cpuCfsQuotaMicros = in.readLong();
+            cpuStat = new CpuStat(in);
+        }
+
+        @Override
+        public void writeTo(final StreamOutput out) throws IOException {
+            out.writeString(cpuAcctControlGroup);
+            out.writeLong(cpuAcctUsageNanos);
+            out.writeString(cpuControlGroup);
+            out.writeLong(cpuCfsPeriodMicros);
+            out.writeLong(cpuCfsQuotaMicros);
+            cpuStat.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startObject("cgroup");
+            {
+                builder.startObject("cpuacct");
+                {
+                    builder.field("control_group", cpuAcctControlGroup);
+                    builder.field("usage_nanos", cpuAcctUsageNanos);
+                }
+                builder.endObject();
+                builder.startObject("cpu");
+                {
+                    builder.field("control_group", cpuControlGroup);
+                    builder.field("cfs_period_micros", cpuCfsPeriodMicros);
+                    builder.field("cfs_quota_micros", cpuCfsQuotaMicros);
+                    cpuStat.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        /**
+         * Encapsulates CPU time statistics.
+         */
+        public static class CpuStat implements Writeable, ToXContent {
+
+            private final long numberOfElapsedPeriods;
+            private final long numberOfTimesThrottled;
+            private final long timeThrottledNanos;
+
+            /**
+             * The number of elapsed periods.
+             *
+             * @return the number of elapsed periods as measured by
+             * {@code cpu.cfs_period_us}
+             */
+            public long getNumberOfElapsedPeriods() {
+                return numberOfElapsedPeriods;
+            }
+
+            /**
+             * The number of times tasks in the control group have been
+             * throttled.
+             *
+             * @return the number of times
+             */
+            public long getNumberOfTimesThrottled() {
+                return numberOfTimesThrottled;
+            }
+
+            /**
+             * The total time duration for which tasks in the control
+             * group have been throttled.
+             *
+             * @return the total time in nanoseconds
+             */
+            public long getTimeThrottledNanos() {
+                return timeThrottledNanos;
+            }
+
+            public CpuStat(final long numberOfElapsedPeriods, final long numberOfTimesThrottled, final long timeThrottledNanos) {
+                this.numberOfElapsedPeriods = numberOfElapsedPeriods;
+                this.numberOfTimesThrottled = numberOfTimesThrottled;
+                this.timeThrottledNanos = timeThrottledNanos;
+            }
+
+            CpuStat(final StreamInput in) throws IOException {
+                numberOfElapsedPeriods = in.readLong();
+                numberOfTimesThrottled = in.readLong();
+                timeThrottledNanos = in.readLong();
+            }
+
+            @Override
+            public void writeTo(final StreamOutput out) throws IOException {
+                out.writeLong(numberOfElapsedPeriods);
+                out.writeLong(numberOfTimesThrottled);
+                out.writeLong(timeThrottledNanos);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject("stat");
+                {
+                    builder.field("number_of_elapsed_periods", numberOfElapsedPeriods);
+                    builder.field("number_of_times_throttled", numberOfTimesThrottled);
+                    builder.field("time_throttled_nanos", timeThrottledNanos);
+                }
+                builder.endObject();
+                return builder;
+            }
+
+        }
+
+    }
+
     public static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }
+
 }

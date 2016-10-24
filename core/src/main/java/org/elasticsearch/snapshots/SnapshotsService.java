@@ -83,7 +83,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.SnapshotsInProgress.PROTO;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**

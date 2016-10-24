@@ -73,6 +73,26 @@ setup() {
     run date +%s
     epoch="$output"
 
+    # The OpenJDK packaged for CentOS and OEL both override the default value (false) for the JVM option "AssumeMP".
+    #
+    # Because it is forced to "true" by default for these packages, the following warning message is printed to the
+    # standard output when the Vagrant box has only 1 CPU:
+    #       OpenJDK 64-Bit Server VM warning: If the number of processors is expected to increase from one, then you should configure
+    #       the number of parallel GC threads appropriately using -XX:ParallelGCThreads=N
+    #
+    # This message will then fail the next test where we check if no entries have been added to the journal.
+    #
+    # This message appears since with java-1.8.0-openjdk-1.8.0.111-1.b15.el7_2.x86_64 because of the commit:
+    #       2016-10-10  - Andrew Hughes <gnu.andrew@redhat.com> - 1:1.8.0.111-1.b15 - Turn debug builds on for all JIT architectures.
+    #                     Always AssumeMP on RHEL.
+    #                   - Resolves: rhbz#1381990
+    #
+    # Here we set the "-XX:-AssumeMP" option to false again:
+    lsb_release=$(lsb_release -i)
+    if [[ "$lsb_release" =~ "CentOS" ]] || [[ "$lsb_release" =~ "OracleServer" ]]; then
+        echo "-XX:-AssumeMP" >> $ESCONFIG/jvm.options
+    fi
+
     systemctl start elasticsearch.service
     wait_for_elasticsearch_status
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
@@ -85,10 +105,11 @@ setup() {
     # Verifies that no new entries in journald have been added
     # since the last start
     result="$(journalctl _SYSTEMD_UNIT=elasticsearch.service --since "$since" --output cat | wc -l)"
-    # This check is muted because OpenJDK jdk8u111-b15 now prints a warning message at startup:
-    #       OpenJDK 64-Bit Server VM warning: If the number of processors is expected to increase from one, then you should configure
-    #       the number of parallel GC threads appropriately using -XX:ParallelGCThreads=N
-    #[ "$result" -eq "0" ]
+    [ "$result" -eq "0" ] || {
+            echo "Expected no entries in journalctl for the Elasticsearch service but found:"
+            journalctl _SYSTEMD_UNIT=elasticsearch.service --since "$since"
+            false
+        }
 }
 
 @test "[SYSTEMD] start (running)" {

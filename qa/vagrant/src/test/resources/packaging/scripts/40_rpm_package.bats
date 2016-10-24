@@ -94,6 +94,11 @@ setup() {
     run_elasticsearch_tests
 }
 
+@test "[RPM] verify package installation after start" {
+    # Checks that the startup scripts didn't change the permissions
+    verify_package_installation
+}
+
 @test "[RPM] remove package" {
     # User installed scripts aren't removed so we'll just get them ourselves
     rm -rf $ESSCRIPTS
@@ -148,6 +153,10 @@ setup() {
 
 @test "[RPM] package is installed by reinstall" {
     rpm -qe 'elasticsearch'
+}
+
+@test "[RPM] verify package reinstallation" {
+    verify_package_installation
 }
 
 @test "[RPM] reremove package" {

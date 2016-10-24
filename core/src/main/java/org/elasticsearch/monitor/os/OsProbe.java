@@ -433,7 +433,7 @@ public class OsProbe {
      * {@code false}
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
-    private boolean areCgroupStatsAvailable() {
+    protected boolean areCgroupStatsAvailable() {
         if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
             return false;
         }

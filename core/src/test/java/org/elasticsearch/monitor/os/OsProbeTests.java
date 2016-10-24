@@ -147,6 +147,7 @@ public class OsProbeTests extends ESTestCase {
     public void testCgroupProbe() {
         assumeTrue("test runs on Linux only", Constants.LINUX);
 
+        final boolean areCgroupStatsAvailable = randomBoolean();
         final String hierarchy = randomAsciiOfLength(16);
 
         final OsProbe probe = new OsProbe() {
@@ -193,17 +194,28 @@ public class OsProbeTests extends ESTestCase {
                     "throttled_time 139298645489");
             }
 
+            @Override
+            protected boolean areCgroupStatsAvailable() {
+                return areCgroupStatsAvailable;
+            }
+
         };
 
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
-        assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-        assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
-        assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
-        assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
-        assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
-        assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
-        assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
-        assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
+
+        if (areCgroupStatsAvailable) {
+            assertNotNull(cgroup);
+            assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+            assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
+            assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+            assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+            assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+            assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
+            assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
+            assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
+        } else {
+            assertNull(cgroup);
+        }
     }
 
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.common.ContextPreservingActionListener;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
@@ -57,15 +58,23 @@ public class InternalClient extends FilterClient {
             return;
         }
 
-        try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
-            try {
-                Authentication authentication = new Authentication(XPackUser.INSTANCE,
+        final ThreadContext threadContext = threadPool().getThreadContext();
+        final ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
+        // we need to preserve the context here otherwise we execute the response with the XPack user which we can cause problems
+        // since we expect the callback to run wiht the authenticated user calling the doExecute method
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            processContext(threadContext);
+            super.doExecute(action, request, new ContextPreservingActionListener<>(storedContext, listener));
+        }
+    }
+
+    protected void processContext(ThreadContext threadContext) {
+        try {
+            Authentication authentication = new Authentication(XPackUser.INSTANCE,
                     new Authentication.RealmRef("__attach", "__attach", nodeName), null);
-                authentication.writeToContext(threadPool().getThreadContext(), cryptoService, signUserHeader);
-            } catch (IOException ioe) {
-                throw new ElasticsearchException("failed to attach internal user to request", ioe);
-            }
-            super.doExecute(action, request, listener);
+            authentication.writeToContext(threadContext, cryptoService, signUserHeader);
+        } catch (IOException ioe) {
+            throw new ElasticsearchException("failed to attach internal user to request", ioe);
         }
     }
 }

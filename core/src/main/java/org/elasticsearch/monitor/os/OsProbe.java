@@ -212,11 +212,11 @@ public class OsProbe {
      * @return a map from subsystems to the control group for the
      * Elasticsearch process.
      * @throws IOException if an I/O exception occurs reading
-     * {@code /proc/self/cgroup}
+     *                     {@code /proc/self/cgroup}
      */
     private Map<String, String> getControlGroups() throws IOException {
         final List<String> lines = readProcSelfCgroup();
-        if (lines == null || lines.isEmpty()) {
+        if (lines.isEmpty()) {
             return Collections.emptyMap();
         }
         else {
@@ -252,21 +252,15 @@ public class OsProbe {
      * bound to the hierarchy, and the last field representing the
      * control group.
      *
-     * @return the lines from {@code /proc/self/cgroup} or {@code null}
-     * if this file does not exist
+     * @return the lines from {@code /proc/self/cgroup}
      * @throws IOException if an I/O exception occurs reading
      *                     {@code /proc/self/cgroup}
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
-        final Path path = PathUtils.get("/proc/self/cgroup");
-        if (!Files.exists(path)) {
-            return null;
-        } else {
-            final List<String> lines = Files.readAllLines(path);
-            assert lines != null;
-            return lines;
-        }
+        final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
+        assert lines != null;
+        return lines;
     }
 
     /**
@@ -276,17 +270,12 @@ public class OsProbe {
      *
      * @param controlGroup the control group for the Elasticsearch
      *                     process for the {@code cpuacct} subsystem
-     * @return the total CPU time in nanoseconds or -1 if unavailable
+     * @return the total CPU time in nanoseconds
      * @throws IOException if an I/O exception occurs reading
      *                     {@code cpuacct.usage} for the control group
      */
     private long getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
-        final String line = readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup);
-        if (line == null) {
-            return -1;
-        } else {
-            return Long.parseLong(line);
-        }
+        return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));
     }
 
     /**
@@ -299,19 +288,13 @@ public class OsProbe {
      * @param controlGroup the control group to which the Elasticsearch
      *                     process belongs for the {@code cpuacct}
      *                     subsystem
-     * @return the line from {@code cpuacct.usage} or {@code null} if
-     * this file does not exist
+     * @return the line from {@code cpuacct.usage}
      * @throws IOException if an I/O exception occurs reading
      *                     {@code cpuacct.usage} for the control group
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpuacct")
     String readSysFsCgroupCpuAcctCpuAcctUsage(final String controlGroup) throws IOException {
-        final Path path = PathUtils.get("/sys/fs/cgroup/cpuacct", controlGroup, "cpuacct.usage");
-        if (!Files.exists(path)) {
-            return null;
-        } else {
-            return readSingleLine(path);
-        }
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpuacct", controlGroup, "cpuacct.usage"));
     }
 
     /**
@@ -321,17 +304,12 @@ public class OsProbe {
      *
      * @param controlGroup the control group for the Elasticsearch
      *                     process for the {@code cpuacct} subsystem
-     * @return the CFS quota period in microsecondsor -1 if unavailable
+     * @return the CFS quota period in microseconds
      * @throws IOException if an I/O exception occurs reading
      *                     {@code cpu.cfs_period_us} for the control group
      */
     private long getCgroupCpuAcctCpuCfsPeriodMicros(final String controlGroup) throws IOException {
-        final String line = readSysFsCgroupCpuAcctCpuCfsPeriod(controlGroup);
-        if (line == null) {
-            return -1;
-        } else {
-            return Long.parseLong(line);
-        }
+        return Long.parseLong(readSysFsCgroupCpuAcctCpuCfsPeriod(controlGroup));
     }
 
     /**
@@ -344,19 +322,13 @@ public class OsProbe {
      * @param controlGroup the control group to which the Elasticsearch
      *                     process belongs for the {@code cpu}
      *                     subsystem
-     * @return the line from {@code cpu.cfs_period_us} or {@code null}
-     * if this file does not exist
+     * @return the line from {@code cpu.cfs_period_us}
      * @throws IOException if an I/O exception occurs reading
      *                     {@code cpu.cfs_period_us} for the control group
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     String readSysFsCgroupCpuAcctCpuCfsPeriod(final String controlGroup) throws IOException {
-        final Path path = PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.cfs_period_us");
-        if (!Files.exists(path)) {
-            return null;
-        } else {
-            return readSingleLine(path);
-        }
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.cfs_period_us"));
     }
 
     /**
@@ -366,17 +338,12 @@ public class OsProbe {
      *
      * @param controlGroup the control group for the Elasticsearch
      *                     process for the {@code cpuacct} subsystem
-     * @return the CFS quota in microseconds or -1 if unavailable
+     * @return the CFS quota in microseconds
      * @throws IOException if an I/O exception occurs reading
      *                     {@code cpu.cfs_quota_us} for the control group
      */
-    private long getCGroupCpuAcctCpuCfsQuotaMicros(final String controlGroup) throws IOException {
-        final String line = readSysFsCgroupCpuAcctCpuAcctCfsQuota(controlGroup);
-        if (line == null) {
-            return -1;
-        } else {
-            return Long.parseLong(line);
-        }
+    private long getCgroupCpuAcctCpuCfsQuotaMicros(final String controlGroup) throws IOException {
+        return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctCfsQuota(controlGroup));
     }
 
     /**
@@ -389,19 +356,13 @@ public class OsProbe {
      * @param controlGroup the control group to which the Elasticsearch
      *                     process belongs for the {@code cpu}
      *                     subsystem
-     * @return the line from {@code cpu.cfs_quota_us} or {@code null}
-     * if this file does not exist
+     * @return the line from {@code cpu.cfs_quota_us}
      * @throws IOException if an I/O exception occurs reading
      *                     {@code cpu.cfs_quota_us} for the control group
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     String readSysFsCgroupCpuAcctCpuAcctCfsQuota(final String controlGroup) throws IOException {
-        final Path path = PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.cfs_quota_us");
-        if (!Files.exists(path)) {
-            return null;
-        } else {
-            return readSingleLine(path);
-        }
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.cfs_quota_us"));
     }
 
     /**
@@ -410,37 +371,33 @@ public class OsProbe {
      *
      * @param controlGroup the control group for the Elasticsearch
      *                     process for the {@code cpuacct} subsystem
-     * @return the CPU time statistics or {@code null} if unavailable
+     * @return the CPU time statistics
      * @throws IOException if an I/O exception occurs reading
      *                     {@code cpu.stat} for the control group
      */
     private OsStats.Cgroup.CpuStat getCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = readSysFsCgroupCpuAcctCpuStat(controlGroup);
-        if (lines == null) {
-            return null;
-        } else {
-            long numberOfPeriods = -1;
-            long numberOfTimesThrottled = -1;
-            long timeThrottledNanos = -1;
-            for (final String line : lines) {
-                final String[] fields = line.split("\\s+");
-                switch (fields[0]) {
-                    case "nr_periods":
-                        numberOfPeriods = Long.parseLong(fields[1]);
-                        break;
-                    case "nr_throttled":
-                        numberOfTimesThrottled = Long.parseLong(fields[1]);
-                        break;
-                    case "throttled_time":
-                        timeThrottledNanos = Long.parseLong(fields[1]);
-                        break;
-                }
+        long numberOfPeriods = -1;
+        long numberOfTimesThrottled = -1;
+        long timeThrottledNanos = -1;
+        for (final String line : lines) {
+            final String[] fields = line.split("\\s+");
+            switch (fields[0]) {
+                case "nr_periods":
+                    numberOfPeriods = Long.parseLong(fields[1]);
+                    break;
+                case "nr_throttled":
+                    numberOfTimesThrottled = Long.parseLong(fields[1]);
+                    break;
+                case "throttled_time":
+                    timeThrottledNanos = Long.parseLong(fields[1]);
+                    break;
             }
-            assert numberOfPeriods != -1;
-            assert numberOfTimesThrottled != -1;
-            assert timeThrottledNanos != -1;
-            return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
         }
+        assert numberOfPeriods != -1;
+        assert numberOfTimesThrottled != -1;
+        assert timeThrottledNanos != -1;
+        return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
     }
 
     /**
@@ -463,21 +420,15 @@ public class OsProbe {
      * @param controlGroup the control group to which the Elasticsearch
      *                     process belongs for the {@code cpu}
      *                     subsystem
-     * @return the lines from {@code cpu.stat} or {@code null} if this
-     * file does not exist
+     * @return the lines from {@code cpu.stat}
      * @throws IOException if an I/O exception occurs reading
      *                     {@code cpu.stat} for the control group
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
-        final Path path = PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat");
-        if (!Files.exists(path)) {
-            return null;
-        } else {
-            final List<String> lines = Files.readAllLines(path);
-            assert lines != null && lines.size() == 3;
-            return lines;
-        }
+        final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
+        assert lines != null && lines.size() == 3;
+        return lines;
     }
 
     /**
@@ -486,21 +437,46 @@ public class OsProbe {
      * @return basic cgroup stats, or {@code null} if an I/O exception
      * occurred reading the cgroup stats
      */
+    @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
     private OsStats.Cgroup getCgroup() {
         try {
+            if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
+                return null;
+            }
             final Map<String, String> controllerMap = getControlGroups();
             if (controllerMap.isEmpty()) {
                 return null;
             }
-            final String cpuControlGroup = controllerMap.get("cpu");
+
             final String cpuAcctControlGroup = controllerMap.get("cpuacct");
+            final long cgroupCpuAcctUsageNanos;
+            if (cpuAcctControlGroup == null || !Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
+                cgroupCpuAcctUsageNanos = -1;
+            } else {
+                cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
+            }
+
+            final String cpuControlGroup = controllerMap.get("cpu");
+            final long cgroupCpuAcctCpuCfsPeriodMicros;
+            final long cgroupCpuAcctCpuCfsQuotaMicros;
+            final OsStats.Cgroup.CpuStat cpuStat;
+            if (cpuControlGroup == null || !Files.exists(PathUtils.get("/sys/fs/cgroup/cpu"))) {
+                cgroupCpuAcctCpuCfsPeriodMicros = -1;
+                cgroupCpuAcctCpuCfsQuotaMicros = -1;
+                cpuStat = null;
+            } else {
+                cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);
+                cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
+                cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);
+            }
+
             return new OsStats.Cgroup(
                 cpuAcctControlGroup,
-                cpuAcctControlGroup == null ? -1 : getCgroupCpuAcctUsageNanos(cpuAcctControlGroup),
+                cgroupCpuAcctUsageNanos,
                 cpuControlGroup,
-                cpuControlGroup == null ? -1 : getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup),
-                cpuControlGroup == null ? -1 : getCGroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup),
-                cpuControlGroup == null ? null : getCgroupCpuAcctCpuStat(cpuControlGroup));
+                cgroupCpuAcctCpuCfsPeriodMicros,
+                cgroupCpuAcctCpuCfsQuotaMicros,
+                cpuStat);
         } catch (final IOException e) {
             if (logger.isDebugEnabled()) {
                 logger.debug("error reading control group stats", e);

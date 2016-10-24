@@ -355,9 +355,9 @@ public class OsStats implements Writeable, ToXContent {
             final long cpuCfsPeriodMicros,
             final long cpuCfsQuotaMicros,
             final CpuStat cpuStat) {
-            this.cpuAcctControlGroup = cpuAcctControlGroup;
+            this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
             this.cpuAcctUsageNanos = cpuAcctUsageNanos;
-            this.cpuControlGroup = cpuControlGroup;
+            this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);
             this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
             this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
             this.cpuStat = Objects.requireNonNull(cpuStat);

@@ -33,7 +33,7 @@ public interface TransportInterceptor {
      * {@link TransportService#registerRequestHandler(String, Supplier, String, TransportRequestHandler)}. The returned handler is
      * used instead of the passed in handler. By default the provided handler is returned.
      */
-    default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
+    default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                                                                                      TransportRequestHandler<T> actualHandler) {
         return actualHandler;
     }

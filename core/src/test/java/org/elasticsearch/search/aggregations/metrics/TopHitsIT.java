@@ -35,6 +35,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -1027,7 +1028,7 @@ public class TopHitsIT extends ESIntegTestCase {
         // Test that a request using a script sort does not get cached
         r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").sort(
-                        SortBuilders.scriptSort(new Script("5", ScriptType.INLINE, CustomScriptPlugin.NAME, null), ScriptSortType.STRING)))
+                        SortBuilders.scriptSort(ScriptInput.inline(CustomScriptPlugin.NAME, "5", emptyMap()), ScriptSortType.STRING)))
                 .get();
         assertSearchResponse(r);
 

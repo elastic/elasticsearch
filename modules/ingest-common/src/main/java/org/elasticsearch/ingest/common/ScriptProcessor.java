@@ -71,7 +71,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    Script getScript() {
+    ScriptInput getScript() {
         return script;
     }
 

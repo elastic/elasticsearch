@@ -21,6 +21,8 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.InlineScriptLookup;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -52,12 +54,17 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
     public void testFactoryValidationWithDefaultLang() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
-        String randomType = randomFrom("id", "inline", "file");
+        String randomType = randomFrom("stored", "inline", "file");
         configMap.put(randomType, "foo");
         ScriptProcessor processor = factory.create(null, randomAsciiOfLength(10), configMap);
-        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-        assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
-        assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
+
+        assertThat(processor.getScript().type.name, equalTo(ingestScriptParamToType.get(randomType)));
+
+        if (randomType.equals(ScriptType.INLINE.name)) {
+            assertThat(((InlineScriptLookup)processor.getScript().lookup).lang, equalTo(Script.DEFAULT_SCRIPT_LANG));
+        }
+
+        assertThat(processor.getScript().params, equalTo(Collections.emptyMap()));
     }
 
     public void testFactoryValidationWithParams() throws Exception {
@@ -67,9 +74,14 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put(randomType, "foo");
         configMap.put("params", randomParams);
         ScriptProcessor processor = factory.create(null, randomAsciiOfLength(10), configMap);
-        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-        assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
-        assertThat(processor.getScript().getParams(), equalTo(randomParams));
+
+        assertThat(processor.getScript().type.name, equalTo(ingestScriptParamToType.get(randomType)));
+
+        if (randomType.equals(ScriptType.INLINE.name)) {
+            assertThat(((InlineScriptLookup)processor.getScript().lookup).lang, equalTo(Script.DEFAULT_SCRIPT_LANG));
+        }
+
+        assertThat(processor.getScript().params, equalTo(randomParams));
     }
 
     public void testFactoryValidationForMultipleScriptingTypes() throws Exception {

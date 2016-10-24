@@ -47,7 +47,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 import static org.elasticsearch.script.Script.ScriptType.INLINE;
-import static org.elasticsearch.script.mustache.MustacheScriptEngineService.PLAIN_TEXT_CONTENT_TYPE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -158,7 +157,7 @@ public class MustacheTests extends ESTestCase {
 
         // json string escaping disabled:
         mustache = (Mustache) engine.compile(null, "{ \"field1\": \"{{value}}\"}",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_CONTENT_TYPE));
+                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE));
         compiledScript = new CompiledScript(INLINE, "name", engine, mustache);
         executableScript = engine.executable(compiledScript, Collections.singletonMap("value", "a \"value\""));
         rawResult = (BytesReference) executableScript.run();

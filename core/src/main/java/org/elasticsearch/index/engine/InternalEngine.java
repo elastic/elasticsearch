@@ -549,7 +549,7 @@ public class InternalEngine extends Engine {
                 }
                 versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
                 indexResult.setLocation(location);
-                indexResult.setTook(index.startTime() - System.nanoTime());
+                indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
             }
@@ -632,7 +632,7 @@ public class InternalEngine extends Engine {
                 versionMap.putUnderLock(delete.uid().bytes(),
                         new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
                 deleteResult.setLocation(location);
-                deleteResult.setTook(delete.startTime() - System.nanoTime());
+                deleteResult.setTook(System.nanoTime() - delete.startTime());
                 deleteResult.freeze();
                 return deleteResult;
             }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -60,6 +59,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.IndicesService;
@@ -2494,11 +2494,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     /**
-     * This test ensures that if a node that holds a primary that is being snapshotted leaves the cluster,
-     * when it returns, the node aborts the snapshotting on the now removed shard.
-     * Before, the node would continue snapshotting, which means it would continue to hold a reference to
-     * the Store for the shard.  Holding this reference would, for example, prevent a replica from being
-     * allocated to the same node, until the snapshot completes.
+     * This test ensures that when a shard is removed from a node (perhaps due to the node
+     * leaving the cluster, then returning), all snapshotting of that shard is aborted, so
+     * all Store references held onto by the snapshot are released.
      *
      * See https://github.com/elastic/elasticsearch/issues/20876
      */
@@ -2514,7 +2512,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             Settings.builder().put("number_of_shards", numPrimaries).put("number_of_replicas", numReplicas)));
 
         logger.info("--> indexing some data");
-        Client client = client();
         for (int i = 0; i < numDocs; i++) {
             index(index, "doc", Integer.toString(i), "foo", "bar" + i);
         }
@@ -2522,51 +2519,47 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> creating repository");
         PutRepositoryResponse putRepositoryResponse =
-            client.admin().cluster().preparePutRepository(repo).setType("fs").setSettings(Settings.builder()
+            client().admin().cluster().preparePutRepository(repo).setType("mock").setSettings(Settings.builder()
                 .put("location", randomRepoPath())
-                // very slow snapshotting, so the node has time to leave the cluster and rejoin while still snapshotting
-                .put("max_snapshot_bytes_per_sec", "100b")
+                .put("random", randomAsciiOfLength(10))
+                .put("wait_after_unblock", 200)
             ).get();
         assertTrue(putRepositoryResponse.isAcknowledged());
 
+        String blockedNode = blockNodeWithIndex(repo, index);
+
         logger.info("--> snapshot");
-        client.admin().cluster().prepareCreateSnapshot(repo, snapshot)
+        client().admin().cluster().prepareCreateSnapshot(repo, snapshot)
             .setWaitForCompletion(false)
             .execute();
 
-        logger.info("--> waiting for snapshot to be in progress on all nodes");
-        assertBusy(() -> {
-            for (String node : internalCluster().nodesInclude(index)) {
-                final Client nodeClient = client(node);
-                SnapshotsInProgress snapshotsInProgress = nodeClient.admin().cluster().prepareState().get()
-                                                              .getState().custom(SnapshotsInProgress.TYPE);
-                assertNotNull(snapshotsInProgress);
-                assertEquals(1, snapshotsInProgress.entries().size());
-                assertEquals(snapshot, snapshotsInProgress.entries().get(0).snapshot().getSnapshotId().getName());
-                ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = snapshotsInProgress.entries().get(0).shards();
-                assertEquals(numPrimaries, shards.size());
-                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> cursor : shards) {
-                    assertEquals(SnapshotsInProgress.State.INIT, cursor.value.state());
-                }
-            }
-        }, 10, TimeUnit.SECONDS);
+        logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
+        waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 
-        // Pick a node with a primary shard and remove the shard from the node
+        // Pick the node with the primary shard and remove the shard from the node
         ClusterState clusterState = internalCluster().clusterService(internalCluster().getMasterName()).state();
         IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
         String nodeWithPrimary = clusterState.nodes().get(indexRoutingTable.shard(0).primaryShard().currentNodeId()).getName();
         assertNotNull("should be at least one node with a primary shard", nodeWithPrimary);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeWithPrimary);
-        indicesService.deleteIndex(resolveIndex(index), "trigger shard removal");
+        IndexService indexService = indicesService.indexService(resolveIndex(index));
+        indexService.removeShard(0, "simulate node removal");
 
-        // make sure snapshot is aborted
+        logger.info("--> unblocking blocked node [{}]", blockedNode);
+        unblockNode(repo, blockedNode);
+
+        logger.info("--> waiting for snapshot to complete");
+        waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(10));
+
+        // make sure snapshot is aborted and the aborted shard was marked as failed
         assertBusy(() -> {
-            SnapshotsInProgress snapshotsInProgress =
-                client.admin().cluster().prepareState().get().getState().custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress != null && snapshotsInProgress.entries().size() > 0) {
-                assertEquals(State.SUCCESS, snapshotsInProgress.entries().get(0).state());
-            }
-        }, 10, TimeUnit.SECONDS);
+            List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repo).setSnapshots(snapshot).get().getSnapshots();
+            assertEquals(1, snapshotInfos.size());
+            assertTrue(snapshotInfos.get(0).state().completed());
+            assertEquals(1, snapshotInfos.get(0).shardFailures().size());
+            assertEquals(0, snapshotInfos.get(0).shardFailures().get(0).shardId());
+            assertEquals("IndexShardSnapshotFailedException[Aborted]", snapshotInfos.get(0).shardFailures().get(0).reason());
+        });
     }
 
 }

@@ -58,6 +58,14 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         this.networkLinkDisruptionType = networkLinkDisruptionType;
     }
 
+    public DisruptedLinks getDisruptedLinks() {
+        return disruptedLinks;
+    }
+
+    public NetworkLinkDisruptionType getNetworkLinkDisruptionType() {
+        return networkLinkDisruptionType;
+    }
+
     @Override
     public void applyToCluster(InternalTestCluster cluster) {
         this.cluster = cluster;
@@ -141,6 +149,11 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
 
     private MockTransportService transport(String node) {
         return (MockTransportService) cluster.getInstance(TransportService.class, node);
+    }
+
+    @Override
+    public String toString() {
+        return "network disruption (disruption type: " + networkLinkDisruptionType + ", disrupted links: " + disruptedLinks + ")";
     }
 
     /**

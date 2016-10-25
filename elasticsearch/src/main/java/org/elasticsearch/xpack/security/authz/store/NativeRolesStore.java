@@ -85,17 +85,6 @@ import static org.elasticsearch.xpack.security.SecurityTemplateService.securityI
  */
 public class NativeRolesStore extends AbstractComponent implements ClusterStateListener {
 
-    public static final Setting<Integer> SCROLL_SIZE_SETTING =
-            Setting.intSetting(setting("authz.store.roles.index.scroll.size"), 1000, Property.NodeScope);
-
-    public static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
-            Setting.timeSetting(setting("authz.store.roles.index.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
-
-    private static final Setting<Integer> CACHE_SIZE_SETTING =
-            Setting.intSetting(setting("authz.store.roles.index.cache.max_size"), 10000, Property.NodeScope);
-    private static final Setting<TimeValue> CACHE_TTL_SETTING =
-            Setting.timeSetting(setting("authz.store.roles.index.cache.ttl"), TimeValue.timeValueMinutes(20), Property.NodeScope);
-
     public enum State {
         INITIALIZED,
         STARTING,
@@ -105,7 +94,18 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         FAILED
     }
 
-    public static final String ROLE_DOC_TYPE = "role";
+    private static final Setting<Integer> SCROLL_SIZE_SETTING =
+            Setting.intSetting(setting("authz.store.roles.index.scroll.size"), 1000, Property.NodeScope);
+
+    private static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
+            Setting.timeSetting(setting("authz.store.roles.index.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
+
+    private static final Setting<Integer> CACHE_SIZE_SETTING =
+            Setting.intSetting(setting("authz.store.roles.index.cache.max_size"), 10000, Property.NodeScope);
+    private static final Setting<TimeValue> CACHE_TTL_SETTING =
+            Setting.timeSetting(setting("authz.store.roles.index.cache.ttl"), TimeValue.timeValueMinutes(20), Property.NodeScope);
+
+    private static final String ROLE_DOC_TYPE = "role";
 
     private final InternalClient client;
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
@@ -342,11 +342,7 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
                     .execute(new ActionListener<IndexResponse>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {
-                            boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                            if (created) {
-                                listener.onResponse(true);
-                                return;
-                            }
+                            final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                             clearRoleCache(role.getName(), listener, created);
                         }
 
@@ -360,7 +356,6 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
             logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to put role [{}]", request.name()), e);
             listener.onFailure(e);
         }
-
     }
 
     public void role(String roleName, ActionListener<Role> listener) {
@@ -397,16 +392,18 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
             return usageStats;
         }
 
-        long count = roleCache.count();
+        long count = 0L;
         try (final ReleasableLock ignored = writeLock.acquire()) {
             for (RoleAndVersion rv : roleCache.values()) {
+                if (rv == RoleAndVersion.NON_EXISTENT) {
+                    continue;
+                }
+
+                count++;
                 Role role = rv.getRole();
                 for (Group group : role.indices()) {
                     fls = fls || group.getFieldPermissions().hasFieldLevelSecurity();
                     dls = dls || group.hasQuery();
-                }
-                if (fls && dls) {
-                    break;
                 }
             }
         }
@@ -475,29 +472,27 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
                 executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                     @Override
                     public void onResponse(GetResponse response) {
+                        final RoleAndVersion roleAndVersion;
                         RoleDescriptor descriptor = transformRole(response);
-                        RoleAndVersion roleAndVersion = null;
                         if (descriptor != null) {
                             logger.debug("loaded role [{}] from index with version [{}]", roleId, response.getVersion());
-                            RoleAndVersion fetchedRoleAndVersion = new RoleAndVersion(descriptor, response.getVersion());
-                            roleAndVersion = fetchedRoleAndVersion;
-                            if (fetchedRoleAndVersion != null) {
-                                /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold the write
-                                 * lock (fetching stats for instance - which is kinda overkill?) but since we fetching stuff in an async
-                                 * fashion we need to make sure that if the cacht got invalidated since we started the request we don't
-                                 * put a potential stale result in the cache, hence the numInvalidation.get() comparison to the number of
-                                 * invalidation when we started. we just try to be on the safe side and don't cache potentially stale
-                                 * results*/
-                                try (final ReleasableLock ignored = readLock.acquire()) {
-                                    if (invalidationCounter == numInvalidation.get()) {
-                                        roleCache.computeIfAbsent(roleId, (k) -> fetchedRoleAndVersion);
-                                    }
-                                } catch (ExecutionException e) {
-                                    throw new AssertionError("failed to load constant non-null value", e);
-                                }
-                            } else {
-                                logger.trace("role [{}] was not found", roleId);
+                            roleAndVersion = new RoleAndVersion(descriptor, response.getVersion());
+                        } else {
+                            roleAndVersion = RoleAndVersion.NON_EXISTENT;
+                        }
+
+                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold the write
+                         * lock (fetching stats for instance - which is kinda overkill?) but since we fetching stuff in an async
+                         * fashion we need to make sure that if the cacht got invalidated since we started the request we don't
+                         * put a potential stale result in the cache, hence the numInvalidation.get() comparison to the number of
+                         * invalidation when we started. we just try to be on the safe side and don't cache potentially stale
+                         * results*/
+                        try (final ReleasableLock ignored = readLock.acquire()) {
+                            if (invalidationCounter == numInvalidation.get()) {
+                                roleCache.computeIfAbsent(roleId, (k) -> roleAndVersion);
                             }
+                        } catch (ExecutionException e) {
+                            throw new AssertionError("failed to load constant non-null value", e);
                         }
                         roleActionListener.onResponse(roleAndVersion);
                     }
@@ -514,7 +509,8 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         }
     }
 
-    private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
+    // pkg-private for testing
+    void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         try {
             GetRequest request = client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role).request();
             // TODO we use a threaded listener here to make sure we don't execute on a transport thread. This can be removed once
@@ -635,9 +631,17 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
 
     private static class RoleAndVersion {
 
+        private static final RoleAndVersion NON_EXISTENT = new RoleAndVersion();
+
         private final RoleDescriptor roleDescriptor;
         private final Role role;
         private final long version;
+
+        private RoleAndVersion() {
+            roleDescriptor = null;
+            role = null;
+            version = Long.MIN_VALUE;
+        }
 
         RoleAndVersion(RoleDescriptor roleDescriptor, long version) {
             this.roleDescriptor = roleDescriptor;

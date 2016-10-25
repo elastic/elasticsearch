@@ -1149,7 +1149,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         return new AuthorizedIndices(user, rolesListener.actionGet(), action, metaData);
     }
 
-    private static IndexMetaData.Builder indexBuilder(String index) {
+    public static IndexMetaData.Builder indexBuilder(String index) {
         return IndexMetaData.builder(index).settings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));

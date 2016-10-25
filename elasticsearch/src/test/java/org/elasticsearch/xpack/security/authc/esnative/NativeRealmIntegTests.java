@@ -667,4 +667,33 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 () -> securityClient(client()).prepareSetEnabled("not_a_real_user", false).get());
         assertThat(e.getMessage(), containsString("only existing users can be disabled"));
     }
+
+    public void testNegativeLookupsThenCreateRole() throws Exception {
+        SecurityClient securityClient = new SecurityClient(client());
+        securityClient.preparePutUser("joe", "s3krit".toCharArray(), "unknown_role").get();
+
+        final int negativeLookups = scaledRandomIntBetween(1, 10);
+        for (int i = 0; i < negativeLookups; i++) {
+            if (anonymousEnabled && roleExists) {
+                ClusterHealthResponse response = client()
+                        .filterWithHeader(Collections.singletonMap("Authorization",
+                                basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()))))
+                        .admin().cluster().prepareHealth().get();
+                assertNoTimeout(response);
+            } else {
+                ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                        .filterWithHeader(Collections.singletonMap("Authorization",
+                                basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()))))
+                        .admin().cluster().prepareHealth().get());
+                assertThat(e.status(), is(RestStatus.FORBIDDEN));
+            }
+        }
+
+        securityClient.preparePutRole("unknown_role").cluster("all").get();
+        ClusterHealthResponse response = client()
+                .filterWithHeader(Collections.singletonMap("Authorization",
+                        basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()))))
+                .admin().cluster().prepareHealth().get();
+        assertNoTimeout(response);
+    }
 }

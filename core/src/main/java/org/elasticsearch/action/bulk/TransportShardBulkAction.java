@@ -57,7 +57,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 
-import static org.elasticsearch.action.delete.TransportDeleteAction.*;
+import static org.elasticsearch.action.delete.TransportDeleteAction.executeDeleteRequestOnPrimary;
+import static org.elasticsearch.action.delete.TransportDeleteAction.executeDeleteRequestOnReplica;
 import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnPrimary;
 import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnReplica;
 import static org.elasticsearch.action.support.replication.ReplicationOperation.ignoreReplicaException;

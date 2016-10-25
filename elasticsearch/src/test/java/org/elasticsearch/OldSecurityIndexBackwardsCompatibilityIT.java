@@ -5,11 +5,15 @@
  */
 package org.elasticsearch;
 
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.action.XPackUsageResponse;
@@ -34,11 +38,13 @@ import java.util.List;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTokenTests.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Backwards compatibility test that loads some data from a pre-Version.CURRENT cluster and attempts to do some basic security stuff with
@@ -65,6 +71,13 @@ import static org.hamcrest.Matchers.equalTo;
  * </ul>
  **/
 public class OldSecurityIndexBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
+    private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
+
+    public void testUnreleasedVersion() {
+        assertFalse("Version " + VERSION_5_1_0_UNRELEASED + " has been releaed don't use a new instance of this version",
+                VersionUtils.allVersions().contains(VERSION_5_1_0_UNRELEASED));
+    }
+
     @Override
     protected boolean shouldTestVersion(Version version) {
         return version.onOrAfter(Version.V_2_3_0); // native realm only supported from 2.3.0 on
@@ -129,6 +142,18 @@ public class OldSecurityIndexBackwardsCompatibilityIT extends AbstractOldXPackIn
 
         // check that documents are there
         assertHitCount(client().prepareSearch("index1", "index2", "index3").get(), 5);
+
+        /* check that a search that misses all documents doesn't hit any alias starting with `-`. We have one in the backwards compatibility
+         * indices for versions before 5.1.0 because we can't create them any more. */
+        if (version.before(VERSION_5_1_0_UNRELEASED)) {
+            GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases().get();
+            List<AliasMetaData> aliases = aliasesResponse.getAliases().get("index3");
+            assertThat("alias doesn't exist", aliases, hasSize(1));
+            assertEquals("-index3", aliases.get(0).getAlias());
+            SearchResponse searchResponse = client().prepareSearch("does_not_exist_*")
+                    .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean())).get();
+            assertNoSearchHits(searchResponse);
+        }
 
         Client bwcTestUserClient = client().filterWithHeader(
                 singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("bwc_test_user", "9876543210")));

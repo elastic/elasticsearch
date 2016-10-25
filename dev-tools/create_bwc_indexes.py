@@ -185,6 +185,10 @@ def generate_security_index(client, version):
 
   client.index(index="index3", doc_type="doc", body={"title": "bwc_test_user should not see this index"})
 
+  if parse_version(version) < parse_version('5.1.0'):
+    logging.info("Adding a alias that starts with - so we can test against it")
+    client.indices.put_alias(index='index3', name='-index3')
+
   wait_for_yellow(version, client, '.security')
 
 # this adds a couple of watches and waits for the the watch_history to accumulate some results

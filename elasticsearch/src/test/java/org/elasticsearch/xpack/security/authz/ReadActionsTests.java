@@ -27,7 +27,6 @@ import java.util.List;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.core.IsCollectionContaining.hasItems;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -409,16 +408,6 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[3].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
         assertTrue(response.getResponses()[4].isFailed());
         assertThat(response.getResponses()[4].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
-    }
-
-    public void testDashStarDoesntMatchDashAliases() {
-        createIndicesWithRandomAliases("test1", "test2", "test3");
-        //use legacy aliases that start with "-" so we test this edge case that clashes with exclusion patterns
-        //we have to make sure that the special index pattern that identifies no indices doesn't end up matching such aliases
-        assertAcked(client().admin().indices().prepareAliases().addAlias("test1", "-alias-test1").addAlias("test2", "-alias-test2"));
-        SearchResponse searchResponse = client().prepareSearch("does_not_exist_*")
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean())).get();
-        assertNoSearchHits(searchResponse);
     }
 
     private static void assertReturnedIndices(SearchResponse searchResponse, String... indices) {

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.common;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -50,7 +50,7 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
                 delegate.onFailure(failure.get());
             } else {
                 List<T> collect = this.roles.asList().stream().map((e)
-                        -> e.value).filter(r -> r != null).collect(Collectors.toList());
+                        -> e.value).filter(Objects::nonNull).collect(Collectors.toList());
                 collect.addAll(defaults);
                 delegate.onResponse(Collections.unmodifiableList(collect));
             }

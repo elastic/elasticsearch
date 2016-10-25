@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
@@ -138,8 +140,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
     public void testReservedUsersOnly() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         when(usersStore.started()).thenReturn(true);
+        ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
-        final Collection<User> allReservedUsers = reservedRealm.users();
+        PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
+        reservedRealm.users(userFuture);
+        final Collection<User> allReservedUsers = userFuture.actionGet();
         final int size = randomIntBetween(1, allReservedUsers.size());
         final List<User> reservedUsers = randomSubsetOf(size, allReservedUsers);
         final List<String> names = reservedUsers.stream().map(User::principal).collect(Collectors.toList());
@@ -176,6 +181,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
                 Arrays.asList(new User("jane"), new User("fred")), randomUsers());
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         when(usersStore.started()).thenReturn(true);
+        ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
@@ -208,7 +214,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
         });
 
         final List<User> expectedList = new ArrayList<>();
-        expectedList.addAll(reservedRealm.users());
+        PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
+        reservedRealm.users(userFuture);
+        expectedList.addAll(userFuture.actionGet());
         expectedList.addAll(storeUsers);
 
         assertThat(throwableRef.get(), is(nullValue()));
@@ -229,28 +237,13 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);
-        if (storeUsernames.length > 1) {
-            doAnswer(new Answer() {
-                public Void answer(InvocationOnMock invocation) {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
-                    listener.onResponse(storeUsers);
-                    return null;
-                }
-            }).when(usersStore).getUsers(aryEq(storeUsernames), any(ActionListener.class));
-        } else {
-            assertThat(storeUsernames.length, is(1));
-            doAnswer(new Answer() {
-                public Void answer(InvocationOnMock invocation) {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    ActionListener<User> listener = (ActionListener<User>) args[1];
-                    listener.onResponse(storeUsers.get(0));
-                    return null;
-                }
-            }).when(usersStore).getUser(eq(storeUsernames[0]), any(ActionListener.class));
-        }
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
+            listener.onResponse(storeUsers);
+            return null;
+        }).when(usersStore).getUsers(aryEq(storeUsernames), any(ActionListener.class));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -275,7 +268,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         if (storeUsers.size() > 1) {
             verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), any(ActionListener.class));
         } else {
-            verify(usersStore, times(1)).getUser(eq(storeUsernames[0]), any(ActionListener.class));
+            verify(usersStore, times(1)).getUsers(aryEq(new String[] {storeUsernames[0]}), any(ActionListener.class));
         }
     }
 
@@ -292,28 +285,13 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);
-        if (storeUsernames.length > 1) {
-            doAnswer(new Answer() {
-                public Void answer(InvocationOnMock invocation) {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
-                    listener.onFailure(e);
-                    return null;
-                }
-            }).when(usersStore).getUsers(aryEq(storeUsernames), any(ActionListener.class));
-        } else {
-            assertThat(storeUsernames.length, is(1));
-            doAnswer(new Answer() {
-                public Void answer(InvocationOnMock invocation) {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    ActionListener<User> listener = (ActionListener<User>) args[1];
-                    listener.onFailure(e);
-                    return null;
-                }
-            }).when(usersStore).getUser(eq(storeUsernames[0]), any(ActionListener.class));
-        }
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
+            listener.onFailure(e);
+            return null;
+        }).when(usersStore).getUsers(aryEq(storeUsernames), any(ActionListener.class));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -332,11 +310,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), is(sameInstance(e)));
         assertThat(responseRef.get(), is(nullValue()));
-        if (request.usernames().length == 1) {
-            verify(usersStore, times(1)).getUser(eq(request.usernames()[0]), any(ActionListener.class));
-        } else {
-            verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), any(ActionListener.class));
-        }
+        verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), any(ActionListener.class));
     }
 
     private List<User> randomUsers() {

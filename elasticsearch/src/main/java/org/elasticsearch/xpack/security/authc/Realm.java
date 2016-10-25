@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -86,6 +87,10 @@ public abstract class Realm implements Comparable<Realm> {
      * @return         the {@link User} or {@code null} if lookup failed
      */
     public abstract User lookupUser(String username);
+
+    public void lookupUser(String username, ActionListener<User> listener) {
+        listener.onResponse(lookupUser(username));
+    }
 
     public Map<String, Object> usageStats() {
         Map<String, Object> stats = new HashMap<>();

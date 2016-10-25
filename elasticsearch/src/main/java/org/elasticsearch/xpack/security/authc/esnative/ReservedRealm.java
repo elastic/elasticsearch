@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
@@ -133,27 +134,26 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    public Collection<User> users() {
+
+    public void users(ActionListener<Collection<User>> listener) {
         if (nativeUsersStore.started() == false || enabled == false) {
-            return anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList();
+            listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
+        } else {
+            nativeUsersStore.getAllReservedUserInfo(ActionListener.wrap((reservedUserInfos) -> {
+                List<User> users = new ArrayList<>(3);
+                ReservedUserInfo userInfo = reservedUserInfos.get(ElasticUser.NAME);
+                users.add(new ElasticUser(userInfo == null || userInfo.enabled));
+                userInfo = reservedUserInfos.get(KibanaUser.NAME);
+                users.add(new KibanaUser(userInfo == null || userInfo.enabled));
+                if (anonymousEnabled) {
+                    users.add(anonymousUser);
+                }
+                listener.onResponse(users);
+            }, (e) -> {
+                logger.error("failed to retrieve reserved users", e);
+                listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
+            }));
         }
-
-        List<User> users = new ArrayList<>(3);
-        try {
-            Map<String, ReservedUserInfo> reservedUserInfos = nativeUsersStore.getAllReservedUserInfo();
-            ReservedUserInfo userInfo = reservedUserInfos.get(ElasticUser.NAME);
-            users.add(new ElasticUser(userInfo == null || userInfo.enabled));
-            userInfo = reservedUserInfos.get(KibanaUser.NAME);
-            users.add(new KibanaUser(userInfo == null || userInfo.enabled));
-            if (anonymousEnabled) {
-                users.add(anonymousUser);
-            }
-        } catch (Exception e) {
-            logger.error("failed to retrieve reserved users", e);
-            return anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList();
-        }
-
-        return users;
     }
 
     private ReservedUserInfo getUserInfo(final String username) {

@@ -57,9 +57,11 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.User.Fields;
 import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.xpack.watcher.actions.Action;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -68,6 +70,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
@@ -127,109 +130,87 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     }
 
     /**
-     * Retrieve a single user, calling the listener when retrieved
-     */
-    public void getUser(String username, final ActionListener<User> listener) {
-        if (state() != State.STARTED) {
-            logger.trace("attempted to get user [{}] before service was started", username);
-            listener.onFailure(new IllegalStateException("user cannot be retrieved as native user service has not been started"));
-            return;
-        }
-        getUserAndPassword(username, new ActionListener<UserAndPassword>() {
-            @Override
-            public void onResponse(UserAndPassword uap) {
-                listener.onResponse(uap == null ? null : uap.user());
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                if (t instanceof IndexNotFoundException) {
-                    logger.trace("failed to retrieve user [{}] since security index does not exist", username);
-                    // We don't invoke the onFailure listener here, instead
-                    // we call the response with a null user
-                    listener.onResponse(null);
-                } else {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve user [{}]", username), t);
-                    listener.onFailure(t);
-                }
-            }
-        });
-    }
-
-    /**
      * Retrieve a list of users, if usernames is null or empty, fetch all users
      */
-    public void getUsers(String[] usernames, final ActionListener<List<User>> listener) {
+    public void getUsers(String[] usernames, final ActionListener<Collection<User>> listener) {
         if (state() != State.STARTED) {
             logger.trace("attempted to get users before service was started");
             listener.onFailure(new IllegalStateException("users cannot be retrieved as native user service has not been started"));
             return;
         }
-        try {
-            final List<User> users = new ArrayList<>();
-            QueryBuilder query;
-            if (usernames == null || usernames.length == 0) {
-                query = QueryBuilders.matchAllQuery();
+        final Consumer<Exception> handleException = (t) -> {
+            if (t instanceof IndexNotFoundException) {
+                logger.trace("could not retrieve users because security index does not exist");
+                // We don't invoke the onFailure listener here, instead just pass an empty list
+                listener.onResponse(Collections.emptyList());
             } else {
-                query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(USER_DOC_TYPE).addIds(usernames));
+                listener.onFailure(t);
             }
-            SearchRequest request = client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
-                    .setScroll(scrollKeepAlive)
-                    .setTypes(USER_DOC_TYPE)
-                    .setQuery(query)
-                    .setSize(scrollSize)
-                    .setFetchSource(true)
-                    .request();
-            request.indicesOptions().ignoreUnavailable();
+        };
+        if (usernames.length == 1) { // optimization for single user lookup
+            final String username = usernames[0];
+            getUserAndPassword(username, ActionListener.wrap(
+                    (uap) -> listener.onResponse(uap == null ? Collections.emptyList() : Collections.singletonList(uap.user())),
+                    handleException::accept));
+        } else {
+            try {
+                final List<User> users = new ArrayList<>();
+                QueryBuilder query;
+                if (usernames == null || usernames.length == 0) {
+                    query = QueryBuilders.matchAllQuery();
+                } else {
+                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(USER_DOC_TYPE).addIds(usernames));
+                }
+                SearchRequest request = client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
+                        .setScroll(scrollKeepAlive)
+                        .setTypes(USER_DOC_TYPE)
+                        .setQuery(query)
+                        .setSize(scrollSize)
+                        .setFetchSource(true)
+                        .request();
+                request.indicesOptions().ignoreUnavailable();
 
-            // This function is MADNESS! But it works, don't think about it too hard...
-            client.search(request, new ActionListener<SearchResponse>() {
+                // This function is MADNESS! But it works, don't think about it too hard...
+                client.search(request, new ActionListener<SearchResponse>() {
 
-                private SearchResponse lastResponse = null;
+                    private SearchResponse lastResponse = null;
 
-                @Override
-                public void onResponse(final SearchResponse resp) {
-                    lastResponse = resp;
-                    boolean hasHits = resp.getHits().getHits().length > 0;
-                    if (hasHits) {
-                        for (SearchHit hit : resp.getHits().getHits()) {
-                            UserAndPassword u = transformUser(hit.getId(), hit.getSource());
-                            if (u != null) {
-                                users.add(u.user());
+                    @Override
+                    public void onResponse(final SearchResponse resp) {
+                        lastResponse = resp;
+                        boolean hasHits = resp.getHits().getHits().length > 0;
+                        if (hasHits) {
+                            for (SearchHit hit : resp.getHits().getHits()) {
+                                UserAndPassword u = transformUser(hit.getId(), hit.getSource());
+                                if (u != null) {
+                                    users.add(u.user());
+                                }
                             }
+                            SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
+                                    .setScroll(scrollKeepAlive).request();
+                            client.searchScroll(scrollRequest, this);
+                        } else {
+                            if (resp.getScrollId() != null) {
+                                clearScrollResponse(resp.getScrollId());
+                            }
+                            // Finally, return the list of users
+                            listener.onResponse(Collections.unmodifiableList(users));
                         }
-                        SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
-                                .setScroll(scrollKeepAlive).request();
-                        client.searchScroll(scrollRequest, this);
-                    } else {
-                        if (resp.getScrollId() != null) {
-                            clearScrollResponse(resp.getScrollId());
+                    }
+
+                    @Override
+                    public void onFailure(Exception t) {
+                        // attempt to clear scroll response
+                        if (lastResponse != null && lastResponse.getScrollId() != null) {
+                            clearScrollResponse(lastResponse.getScrollId());
                         }
-                        // Finally, return the list of users
-                        listener.onResponse(Collections.unmodifiableList(users));
+                        handleException.accept(t);
                     }
-                }
-
-                @Override
-                public void onFailure(Exception t) {
-                    // attempt to clear scroll response
-                    if (lastResponse != null && lastResponse.getScrollId() != null) {
-                        clearScrollResponse(lastResponse.getScrollId());
-                    }
-
-                    if (t instanceof IndexNotFoundException) {
-                        logger.trace("could not retrieve users because security index does not exist");
-                        // We don't invoke the onFailure listener here, instead just pass an empty list
-                        listener.onResponse(Collections.emptyList());
-                    } else {
-                        listener.onFailure(t);
-                    }
-
-                }
-            });
-        } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve users {}", Arrays.toString(usernames)), e);
-            listener.onFailure(e);
+                });
+            } catch (Exception e) {
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve users {}", Arrays.toString(usernames)), e);
+                listener.onFailure(e);
+            }
         }
     }
 
@@ -661,6 +642,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         final AtomicReference<ReservedUserInfo> userInfoRef = new AtomicReference<>();
         final AtomicReference<Exception> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
+
         client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
                 .execute(new LatchedActionListener<>(new ActionListener<GetResponse>() {
                     @Override
@@ -710,18 +692,16 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         return userInfoRef.get();
     }
 
-    Map<String, ReservedUserInfo> getAllReservedUserInfo() throws Exception {
+    void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
         assert started();
-        final Map<String, ReservedUserInfo> userInfos = new HashMap<>();
-        final AtomicReference<Exception> failure = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
         client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
                 .setTypes(RESERVED_USER_DOC_TYPE)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFetchSource(true)
-                .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
+                .execute(new ActionListener<SearchResponse>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
+                        Map<String, ReservedUserInfo> userInfos = new HashMap<>();
                         assert searchResponse.getHits().getTotalHits() <= 10 : "there are more than 10 reserved users we need to change " +
                                 "this to retrieve them all!";
                         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
@@ -729,43 +709,29 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                             String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
                             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
                             if (password == null || password.isEmpty()) {
-                                failure.set(new IllegalStateException("password hash must not be empty!"));
+                                listener.onFailure(new IllegalStateException("password hash must not be empty!"));
                                 break;
                             } else if (enabled == null) {
-                                failure.set(new IllegalStateException("enabled must not be null!"));
+                                listener.onFailure(new IllegalStateException("enabled must not be null!"));
                                 break;
                             } else {
                                 userInfos.put(searchHit.getId(), new ReservedUserInfo(password.toCharArray(), enabled));
                             }
                         }
+                        listener.onResponse(userInfos);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         if (e instanceof IndexNotFoundException) {
                             logger.trace("could not retrieve built in users since security index does not exist", e);
+                            listener.onResponse(Collections.emptyMap());
                         } else {
                             logger.error("failed to retrieve built in users", e);
-                            failure.set(e);
+                            listener.onFailure(e);
                         }
                     }
-                }, latch));
-
-        try {
-            final boolean responseReceived = latch.await(30, TimeUnit.SECONDS);
-            if (responseReceived == false) {
-                failure.set(new TimeoutException("timed out trying to get built in users"));
-            }
-        } catch (InterruptedException e) {
-            failure.set(e);
-        }
-
-        Exception failureCause = failure.get();
-        if (failureCause != null) {
-            // if there is any sort of failure we need to throw an exception to prevent the fallback to the default password...
-            throw failureCause;
-        }
-        return userInfos;
+                });
     }
 
     private void clearScrollResponse(String scrollId) {

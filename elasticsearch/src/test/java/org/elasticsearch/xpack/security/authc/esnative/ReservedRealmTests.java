@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
@@ -20,12 +22,18 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -45,6 +53,7 @@ public class ReservedRealmTests extends ESTestCase {
     public void setupMocks() {
         usersStore = mock(NativeUsersStore.class);
         when(usersStore.started()).thenReturn(true);
+        mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
     }
 
     public void testUserStoreNotStarted() {
@@ -190,7 +199,9 @@ public class ReservedRealmTests extends ESTestCase {
     public void testGetUsers() {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
-        assertThat(reservedRealm.users(), containsInAnyOrder(new ElasticUser(true), new KibanaUser(true)));
+        PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
+        reservedRealm.users(userFuture);
+        assertThat(userFuture.actionGet(), containsInAnyOrder(new ElasticUser(true), new KibanaUser(true)));
     }
 
     public void testGetUsersDisabled() {
@@ -201,10 +212,12 @@ public class ReservedRealmTests extends ESTestCase {
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser);
+        PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
+        reservedRealm.users(userFuture);
         if (anonymousEnabled) {
-            assertThat(reservedRealm.users(), contains(anonymousUser));
+            assertThat(userFuture.actionGet(), contains(anonymousUser));
         } else {
-            assertThat(reservedRealm.users(), empty());
+            assertThat(userFuture.actionGet(), empty());
         }
     }
 
@@ -224,5 +237,15 @@ public class ReservedRealmTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), containsString("failed to authenticate"));
         }
+    }
+
+    /*
+     * NativeUserStore#getAllReservedUserInfo is pkg private we can't mock it otherwise
+     */
+    public static void mockGetAllReservedUserInfo(NativeUsersStore usersStore, Map<String, ReservedUserInfo> collection) {
+        doAnswer((i) -> {
+            ((ActionListener) i.getArguments()[0]).onResponse(collection);
+            return null;
+        }).when(usersStore).getAllReservedUserInfo(any(ActionListener.class));
     }
 }

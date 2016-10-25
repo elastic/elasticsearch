@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
@@ -26,6 +28,8 @@ import org.elasticsearch.xpack.security.user.XPackUser;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -110,9 +114,12 @@ public class TransportPutUserActionTests extends ESTestCase {
     public void testReservedUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         when(usersStore.started()).thenReturn(true);
+        ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ReservedRealm reservedRealm = new ReservedRealm(new Environment(settings), settings, usersStore, new AnonymousUser(settings));
-        final User reserved = randomFrom(reservedRealm.users().toArray(new User[0]));
+        PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
+        reservedRealm.users(userFuture);
+        final User reserved = randomFrom(userFuture.actionGet().toArray(new User[0]));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),

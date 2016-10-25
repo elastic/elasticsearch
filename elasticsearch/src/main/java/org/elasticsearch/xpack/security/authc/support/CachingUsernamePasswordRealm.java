@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
@@ -140,6 +141,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }
     }
 
+
     @Override
     public final User lookupUser(final String username) {
         if (!userLookupSupported()) {
@@ -184,7 +186,35 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     protected abstract User doAuthenticate(UsernamePasswordToken token);
 
+    @Override
+    public void lookupUser(String username, ActionListener<User> listener) {
+        if (!userLookupSupported()) {
+            listener.onResponse(null);
+        } else {
+            UserWithHash withHash = cache.get(username);
+            if (withHash == null) {
+                doLookupUser(username, ActionListener.wrap((user) -> {
+                    try {
+                        if (user != null) {
+                            UserWithHash userWithHash = new UserWithHash(user, null, null);
+                            cache.computeIfAbsent(username, (n) -> userWithHash);
+                        }
+                        listener.onResponse(user);
+                    } catch (ExecutionException e) {
+                        listener.onFailure(e);
+                    }
+                }, listener::onFailure));
+            } else {
+                listener.onResponse(withHash.user);
+            }
+        }
+    }
+
     protected abstract User doLookupUser(String username);
+
+    protected void doLookupUser(String username, ActionListener<User> listener) {
+        listener.onResponse(doLookupUser(username));
+    }
 
     private static class UserWithHash {
         User user;

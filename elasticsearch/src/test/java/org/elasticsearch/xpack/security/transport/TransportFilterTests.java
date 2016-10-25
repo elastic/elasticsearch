@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import org.mockito.InOrder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -52,8 +53,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -113,9 +116,11 @@ public class TransportFilterTests extends ESIntegTestCase {
 
         InOrder inOrder = inOrder(sourceAuth, targetServerFilter, targetAuth, sourceServerFilter);
         inOrder.verify(sourceAuth).attachUserIfMissing(SystemUser.INSTANCE);
-        inOrder.verify(targetServerFilter).inbound(eq("_action"), eq(new Request("src_to_trgt")), isA(TransportChannel.class));
+        inOrder.verify(targetServerFilter).inbound(eq("_action"), eq(new Request("src_to_trgt")), isA(TransportChannel.class),
+                any(ActionListener.class));
         inOrder.verify(targetAuth).attachUserIfMissing(SystemUser.INSTANCE);
-        inOrder.verify(sourceServerFilter).inbound(eq("_action"), eq(new Request("trgt_to_src")), isA(TransportChannel.class));
+        inOrder.verify(sourceServerFilter).inbound(eq("_action"), eq(new Request("trgt_to_src")), isA(TransportChannel.class),
+                any(ActionListener.class));
     }
 
     public static class InternalPlugin extends Plugin {
@@ -288,6 +293,7 @@ public class TransportFilterTests extends ESIntegTestCase {
             public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                        ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                        SearchRequestParsers searchRequestParsers) {
+
                 interceptor = new InternalPluginServerTransportServiceInterceptor(clusterService.getSettings(), threadPool,
                         authenticationService, authorizationService);
                 return Collections.emptyList();
@@ -295,12 +301,9 @@ public class TransportFilterTests extends ESIntegTestCase {
 
             @Override
             public Collection<Module> createGuiceModules() {
-                return Collections.singleton(new Module() {
-                    @Override
-                    public void configure(Binder binder) {
-                        binder.bind(AuthenticationService.class).toInstance(authenticationService);
-                        binder.bind(AuthorizationService.class).toInstance(authorizationService);
-                    }
+                return Collections.singleton((Module) binder -> {
+                    binder.bind(AuthenticationService.class).toInstance(authenticationService);
+                    binder.bind(AuthorizationService.class).toInstance(authorizationService);
                 });
             }
 
@@ -327,12 +330,29 @@ public class TransportFilterTests extends ESIntegTestCase {
             super(settings, threadPool,authenticationService, authorizationService, mock(XPackLicenseState.class),
                     mock(SSLService.class));
             when(licenseState.isAuthAllowed()).thenReturn(true);
+            doAnswer((i) -> {
+                ActionListener callback =
+                        (ActionListener) i.getArguments()[3];
+                callback.onResponse(null);
+                return Void.TYPE;
+            }).when(authorizationService).roles(any(), any(ActionListener.class));
         }
 
         @Override
         protected Map<String, ServerTransportFilter> initializeProfileFilters() {
+            ServerTransportFilter.NodeProfile mock = mock(ServerTransportFilter.NodeProfile.class);
+            try {
+                doAnswer((i) -> {
+                    ActionListener callback =
+                            (ActionListener) i.getArguments()[3];
+                    callback.onResponse(null);
+                    return Void.TYPE;
+                }).when(mock).inbound(any(), any(), any(), any(ActionListener.class));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             return Collections.singletonMap(TransportSettings.DEFAULT_PROFILE,
-                    mock(ServerTransportFilter.NodeProfile.class));
+                    mock);
         }
     }
 }

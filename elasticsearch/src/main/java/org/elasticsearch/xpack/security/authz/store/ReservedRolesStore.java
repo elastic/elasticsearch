@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
-public class ReservedRolesStore implements RolesStore {
+public class ReservedRolesStore {
 
     private static final User DEFAULT_ENABLED_KIBANA_USER = new KibanaUser(true);
     private final SecurityContext securityContext;
@@ -36,7 +36,6 @@ public class ReservedRolesStore implements RolesStore {
         this.securityContext = securityContext;
     }
 
-    @Override
     public Role role(String role) {
         switch (role) {
             case SuperuserRole.NAME:
@@ -67,7 +66,6 @@ public class ReservedRolesStore implements RolesStore {
         }
     }
 
-    @Override
     public Map<String, Object> usageStats() {
         return Collections.emptyMap();
     }

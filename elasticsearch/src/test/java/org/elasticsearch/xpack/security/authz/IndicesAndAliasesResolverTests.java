@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -51,6 +53,8 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -58,6 +62,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -71,6 +77,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private AuthorizationService authzService;
     private IndicesAndAliasesResolver defaultIndicesResolver;
     private IndexNameExpressionResolver indexNameExpressionResolver;
+    private Map<String, Role> roleMap;
 
     @Before
     public void setup() {
@@ -105,10 +112,18 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         rolesStore = mock(CompositeRolesStore.class);
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed"};
         String[] dashIndices = new String[]{"-index10", "-index11", "-index20", "-index21"};
-        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
-        when(rolesStore.role("dash")).thenReturn(Role.builder("dash").add(IndexPrivilege.ALL, dashIndices).build());
-        when(rolesStore.role("test")).thenReturn(Role.builder("test").cluster(ClusterPrivilege.MONITOR).build());
-        when(rolesStore.role(SuperuserRole.NAME)).thenReturn(Role.builder(SuperuserRole.DESCRIPTOR).build());
+        roleMap = new HashMap<>();
+        roleMap.put("role", Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        roleMap.put("dash", Role.builder("dash").add(IndexPrivilege.ALL, dashIndices).build());
+        roleMap.put("test", Role.builder("test").cluster(ClusterPrivilege.MONITOR).build());
+        roleMap.put(SuperuserRole.NAME, Role.builder(SuperuserRole.DESCRIPTOR).build());
+        doAnswer((i) -> {
+                ActionListener callback =
+                        (ActionListener) i.getArguments()[1];
+                callback.onResponse(roleMap.get(i.getArguments()[0]));
+                return Void.TYPE;
+            }).when(rolesStore).roles(any(String.class), any(ActionListener.class));
+
         ClusterService clusterService = mock(ClusterService.class);
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
                 mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class),
@@ -1033,7 +1048,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testNonXPackUserAccessingSecurityIndex() {
         User allAccessUser = new User("all_access", "all_access");
-        when(rolesStore.role("all_access")).thenReturn(
+        roleMap.put("all_access",
                 Role.builder("all_access").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build());
 
         {
@@ -1078,7 +1093,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // make the user authorized
         String dateTimeIndex = indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>");
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed", dateTimeIndex};
-        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        roleMap.put("role", Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
 
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         if (randomBoolean()) {
@@ -1115,7 +1130,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // make the user authorized
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed",
                 indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")};
-        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        roleMap.put("role", Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
         GetAliasesRequest request = new GetAliasesRequest("<datetime-{now/M}>").indices("foo", "foofoo");
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, GetAliasesAction.NAME));
         //the union of all indices and aliases gets returned
@@ -1129,8 +1144,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
-        Collection<Role> roles = authzService.roles(user);
-        return new AuthorizedIndices(user, roles, action, metaData);
+        PlainActionFuture<Collection<Role>> rolesListener = new PlainActionFuture<>();
+        authzService.roles(user, rolesListener);
+        return new AuthorizedIndices(user, rolesListener.actionGet(), action, metaData);
     }
 
     private static IndexMetaData.Builder indexBuilder(String index) {

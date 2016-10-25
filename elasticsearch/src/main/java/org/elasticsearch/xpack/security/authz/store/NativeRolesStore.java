@@ -11,7 +11,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -25,6 +24,7 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -46,6 +46,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequest;
@@ -63,9 +64,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -83,7 +83,7 @@ import static org.elasticsearch.xpack.security.SecurityTemplateService.securityI
  *
  * No caching is done by this class, it is handled at a higher level
  */
-public class NativeRolesStore extends AbstractComponent implements RolesStore, ClusterStateListener {
+public class NativeRolesStore extends AbstractComponent implements ClusterStateListener {
 
     public static final Setting<Integer> SCROLL_SIZE_SETTING =
             Setting.intSetting(setting("authz.store.roles.index.scroll.size"), 1000, Property.NodeScope);
@@ -127,6 +127,8 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     private SecurityClient securityClient;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
+    // incremented each time the cache is invalidated
+    private final AtomicLong numInvalidation = new AtomicLong(0);
 
     private volatile boolean securityIndexExists = false;
 
@@ -277,8 +279,17 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             logger.trace("attempted to get role [{}] before service was started", role);
             listener.onResponse(null);
         }
-        RoleAndVersion roleAndVersion = getRoleAndVersion(role);
-        listener.onResponse(roleAndVersion == null ? null : roleAndVersion.getRoleDescriptor());
+        getRoleAndVersion(role, new ActionListener<RoleAndVersion>() {
+            @Override
+            public void onResponse(RoleAndVersion roleAndVersion) {
+                listener.onResponse(roleAndVersion == null ? null : roleAndVersion.getRoleDescriptor());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
@@ -352,16 +363,25 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
     }
 
-    @Override
-    public Role role(String roleName) {
+    public void role(String roleName, ActionListener<Role> listener) {
         if (state() != State.STARTED) {
-            return null;
+            listener.onResponse(null);
+        } else {
+            getRoleAndVersion(roleName, new ActionListener<RoleAndVersion>() {
+                @Override
+                public void onResponse(RoleAndVersion roleAndVersion) {
+                    listener.onResponse(roleAndVersion == null ? null : roleAndVersion.getRole());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+
+                }
+            });
         }
-        RoleAndVersion roleAndVersion = getRoleAndVersion(roleName);
-        return roleAndVersion == null ? null : roleAndVersion.getRole();
     }
 
-    @Override
     public Map<String, Object> usageStats() {
         if (state() != State.STARTED) {
             return Collections.emptyMap();
@@ -445,70 +465,61 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         return usageStats;
     }
 
-    private RoleAndVersion getRoleAndVersion(final String roleId) {
+    private void getRoleAndVersion(final String roleId, ActionListener<RoleAndVersion> roleActionListener) {
         if (securityIndexExists == false) {
-            return null;
-        }
-
-        RoleAndVersion roleAndVersion = null;
-        final AtomicReference<GetResponse> getRef = new AtomicReference<>(null);
-        final CountDownLatch latch = new CountDownLatch(1);
-        try {
-            roleAndVersion = roleCache.computeIfAbsent(roleId, (key) -> {
-                logger.debug("attempting to load role [{}] from index", key);
-                executeGetRoleRequest(roleId, new LatchedActionListener<>(new ActionListener<GetResponse>() {
+            roleActionListener.onResponse(null);
+        } else {
+            RoleAndVersion cachedRoleAndVersion = roleCache.get(roleId);
+            if (cachedRoleAndVersion == null) {
+                final long invalidationCounter = numInvalidation.get();
+                executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                     @Override
-                    public void onResponse(GetResponse role) {
-                        getRef.set(role);
-                    }
-
-                    @Override
-                    public void onFailure(Exception t) {
-                        if (t instanceof IndexNotFoundException) {
-                            logger.trace(
-                                    (Supplier<?>) () -> new ParameterizedMessage(
-                                            "failed to retrieve role [{}] since security index does not exist", roleId), t);
-                        } else {
-                            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve role [{}]", roleId), t);
+                    public void onResponse(GetResponse response) {
+                        RoleDescriptor descriptor = transformRole(response);
+                        RoleAndVersion roleAndVersion = null;
+                        if (descriptor != null) {
+                            logger.debug("loaded role [{}] from index with version [{}]", roleId, response.getVersion());
+                            RoleAndVersion fetchedRoleAndVersion = new RoleAndVersion(descriptor, response.getVersion());
+                            roleAndVersion = fetchedRoleAndVersion;
+                            if (fetchedRoleAndVersion != null) {
+                                /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold the write
+                                 * lock (fetching stats for instance - which is kinda overkill?) but since we fetching stuff in an async
+                                 * fashion we need to make sure that if the cacht got invalidated since we started the request we don't
+                                 * put a potential stale result in the cache, hence the numInvalidation.get() comparison to the number of
+                                 * invalidation when we started. we just try to be on the safe side and don't cache potentially stale
+                                 * results*/
+                                try (final ReleasableLock ignored = readLock.acquire()) {
+                                    if (invalidationCounter == numInvalidation.get()) {
+                                        roleCache.computeIfAbsent(roleId, (k) -> fetchedRoleAndVersion);
+                                    }
+                                } catch (ExecutionException e) {
+                                    throw new AssertionError("failed to load constant non-null value", e);
+                                }
+                            } else {
+                                logger.trace("role [{}] was not found", roleId);
+                            }
                         }
+                        roleActionListener.onResponse(roleAndVersion);
                     }
-                }, latch));
 
-                try {
-                    latch.await(30, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    logger.error("timed out retrieving role [{}]", roleId);
-                }
-
-                GetResponse response = getRef.get();
-                if (response == null) {
-                    return null;
-                }
-
-                RoleDescriptor descriptor = transformRole(response);
-                if (descriptor == null) {
-                    return null;
-                }
-                logger.debug("loaded role [{}] from index with version [{}]", key, response.getVersion());
-                try (final ReleasableLock ignored = readLock.acquire()) {
-                    return new RoleAndVersion(descriptor, response.getVersion());
-                }
-            });
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof NullPointerException) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("role [{}] was not found", roleId), e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}]", roleId), e);
+                        roleActionListener.onFailure(e);
+                    }
+                });
             } else {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}]", roleId), e);
+                roleActionListener.onResponse(cachedRoleAndVersion);
             }
         }
-
-        return roleAndVersion;
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         try {
             GetRequest request = client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role).request();
-            client.get(request, listener);
+            // TODO we use a threaded listener here to make sure we don't execute on a transport thread. This can be removed once
+            // all blocking operations are removed from this and NativeUserStore
+            client.get(request, new ThreadedActionListener<>(logger, client.threadPool(), ThreadPool.Names.LISTENER, listener, true));
         } catch (IndexNotFoundException e) {
             logger.trace(
                     (Supplier<?>) () -> new ParameterizedMessage(
@@ -551,6 +562,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
     public void invalidateAll() {
         logger.debug("invalidating all roles in cache");
+        numInvalidation.incrementAndGet();
         try (final ReleasableLock ignored = readLock.acquire()) {
             roleCache.invalidateAll();
         }
@@ -558,6 +570,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
     public void invalidate(String role) {
         logger.debug("invalidating role [{}] in cache", role);
+        numInvalidation.incrementAndGet();
         try (final ReleasableLock ignored = readLock.acquire()) {
             roleCache.invalidate(role);
         }

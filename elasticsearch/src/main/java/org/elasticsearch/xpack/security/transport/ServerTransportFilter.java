@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.DelegatingTransportChannel;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.ssl.SslHandler;
 
@@ -27,6 +30,7 @@ import javax.net.ssl.SSLPeerUnverifiedException;
 import java.io.IOException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Collection;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 
@@ -43,7 +47,8 @@ public interface ServerTransportFilter {
      * thrown by this method will stop the request from being handled and the error will
      * be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request, TransportChannel transportChannel) throws IOException;
+    void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener)
+            throws IOException;
 
     /**
      * The server trasnport filter that should be used in nodes as it ensures that an incoming
@@ -67,7 +72,8 @@ public interface ServerTransportFilter {
         }
 
         @Override
-        public void inbound(String action, TransportRequest request, TransportChannel transportChannel) throws IOException {
+        public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener)
+                throws IOException {
             /*
              here we don't have a fallback user, as all incoming request are
              expected to have a user attached (either in headers or in context)
@@ -97,9 +103,13 @@ public interface ServerTransportFilter {
                     }
                 }
             }
-
-            Authentication authentication = authcService.authenticate(securityAction, request, null);
-            authzService.authorize(authentication, securityAction, request);
+            final Authentication authentication = authcService.authenticate(securityAction, request, null);
+            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, listener,
+                (userRoles, runAsRoles) -> {
+                    authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
+                    listener.onResponse(null);
+                });
+            asyncAuthorizer.authorize(authzService);
         }
 
         private void extactClientCertificates(SSLEngine sslEngine, Object channel) {
@@ -138,13 +148,14 @@ public interface ServerTransportFilter {
         }
 
         @Override
-        public void inbound(String action, TransportRequest request, TransportChannel transportChannel) throws IOException {
+        public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener)
+                throws IOException {
             // TODO is ']' sufficient to mark as shard action?
             boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
             if (isInternalOrShardAction) {
                 throw authenticationError("executing internal/shard actions is considered malicious and forbidden");
             }
-            super.inbound(action, request, transportChannel);
+            super.inbound(action, request, transportChannel, listener);
         }
     }
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.action.filter;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -19,7 +20,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +29,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.common.ContextPreservingActionListener;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
@@ -98,13 +99,33 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         final boolean restoreOriginalContext = securityContext.getAuthentication() != null;
         try {
             if (licenseState.isAuthAllowed()) {
-                if (AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action)) {
+                final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
+                // we should always restore the original here because we forcefully changed to the system user
+                final ThreadContext.StoredContext toRestore = restoreOriginalContext || useSystemUser ?  original : () -> {};
+                final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(toRestore,
+                        ActionListener.wrap(r -> {
+                            try {
+                                listener.onResponse(sign(r));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        }, listener::onFailure));
+                ActionListener<Void> authenticatedListener = new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        chain.proceed(task, action, request, signingListener);
+                    }
+                    @Override
+                    public void onFailure(Exception e) {
+                        signingListener.onFailure(e);
+                    }
+                };
+                if (useSystemUser) {
                     try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-                        applyInternal(task, action, request, new SigningListener(this, listener, original), chain);
+                        applyInternal(action, request, authenticatedListener);
                     }
                 } else {
-                    applyInternal(task, action, request,
-                            new SigningListener(this, listener, restoreOriginalContext ? original : null), chain);
+                    applyInternal(action, request, authenticatedListener);
                 }
             } else if (SECURITY_ACTION_MATCHER.test(action)) {
                 throw LicenseUtils.newComplianceException(XPackPlugin.SECURITY);
@@ -126,7 +147,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         return Integer.MIN_VALUE;
     }
 
-    private void applyInternal(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain)
+    private void applyInternal(String action, final ActionRequest request, ActionListener listener)
             throws IOException {
         /**
          here we fallback on the system user. Internal system requests are requests that are triggered by
@@ -141,35 +162,34 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         final String securityAction = actionMapper.action(action, request);
         Authentication authentication = authcService.authenticate(securityAction, request, SystemUser.INSTANCE);
         assert authentication != null;
-        authzService.authorize(authentication, securityAction, request);
-        final User user = authentication.getUser();
-        request = unsign(user, securityAction, request);
+        final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, listener,
+                (userRoles, runAsRoles) -> {
+                    authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
+                    final User user = authentication.getUser();
+                    unsign(user, securityAction, request);
 
-        /*
-         * We use a separate concept for code that needs to be run after authentication and authorization that could effect the running of
-         * the action. This is done to make it more clear of the state of the request.
-         */
-        for (RequestInterceptor interceptor : requestInterceptors) {
-            if (interceptor.supports(request)) {
-                interceptor.intercept(request, user);
-            }
-        }
-        // we should always restore the original here because we forcefully changed to the system user
-        chain.proceed(task, action, request, listener);
+                    /*
+                     * We use a separate concept for code that needs to be run after authentication and authorization that could effect the
+                     * running of the action. This is done to make it more clear of the state of the request.
+                     */
+                    for (RequestInterceptor interceptor : requestInterceptors) {
+                        if (interceptor.supports(request)) {
+                            interceptor.intercept(request, user);
+                        }
+                    }
+                    listener.onResponse(null);
+            });
+        asyncAuthorizer.authorize(authzService);
+
     }
 
-    <Request extends ActionRequest> Request unsign(User user, String action, Request request) {
-
+    ActionRequest unsign(User user, String action, final ActionRequest request) {
         try {
-
             if (request instanceof SearchScrollRequest) {
                 SearchScrollRequest scrollRequest = (SearchScrollRequest) request;
                 String scrollId = scrollRequest.scrollId();
                 scrollRequest.scrollId(cryptoService.unsignAndVerify(scrollId));
-                return request;
-            }
-
-            if (request instanceof ClearScrollRequest) {
+            } else if (request instanceof ClearScrollRequest) {
                 ClearScrollRequest clearScrollRequest = (ClearScrollRequest) request;
                 boolean isClearAllScrollRequest = clearScrollRequest.scrollIds().contains("_all");
                 if (!isClearAllScrollRequest) {
@@ -180,64 +200,22 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                     }
                     clearScrollRequest.scrollIds(unsignedIds);
                 }
-                return request;
             }
-
-            return request;
-
         } catch (IllegalArgumentException | IllegalStateException e) {
             auditTrail.tamperedRequest(user, action, request);
             throw authorizationError("invalid request. {}", e.getMessage());
         }
+        return request;
     }
 
     <Response extends ActionResponse> Response sign(Response response) throws IOException {
-
         if (response instanceof SearchResponse) {
             SearchResponse searchResponse = (SearchResponse) response;
             String scrollId = searchResponse.getScrollId();
             if (scrollId != null && !cryptoService.isSigned(scrollId)) {
                 searchResponse.scrollId(cryptoService.sign(scrollId));
             }
-            return response;
         }
-
         return response;
-    }
-
-    static class SigningListener<Response extends ActionResponse> implements ActionListener<Response> {
-
-        private final SecurityActionFilter filter;
-        private final ActionListener innerListener;
-        private final ThreadContext.StoredContext threadContext;
-
-        private SigningListener(SecurityActionFilter filter, ActionListener innerListener,
-                                @Nullable ThreadContext.StoredContext threadContext) {
-            this.filter = filter;
-            this.innerListener = innerListener;
-            this.threadContext = threadContext;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public void onResponse(Response response) {
-            if (threadContext != null) {
-                threadContext.restore();
-            }
-            try {
-                response = this.filter.sign(response);
-                innerListener.onResponse(response);
-            } catch (IOException e) {
-                onFailure(e);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (threadContext != null) {
-                threadContext.restore();
-            }
-            innerListener.onFailure(e);
-        }
     }
 }

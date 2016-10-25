@@ -5,12 +5,18 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.support.AutomatonPredicate;
 import org.elasticsearch.xpack.security.support.Automatons;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 public final class AuthorizationUtils {
@@ -58,5 +64,62 @@ public final class AuthorizationUtils {
 
     public static boolean isInternalAction(String action) {
         return INTERNAL_PREDICATE.test(action);
+    }
+
+    /**
+     * A base class to authorize authorize a given {@link Authentication} against it's users or run-as users roles.
+     * This class fetches the roles for the users asynchronously and then authenticates the in the callback.
+     */
+    public static class AsyncAuthorizer {
+
+        private final ActionListener listener;
+        private final BiConsumer<Collection<Role>, Collection<Role>> consumer;
+        private final Authentication authentication;
+        private volatile Collection<Role> userRoles;
+        private volatile Collection<Role> runAsRoles;
+        private CountDown countDown = new CountDown(2); // we expect only two responses!!
+
+        public AsyncAuthorizer(Authentication authentication, ActionListener listener, BiConsumer<Collection<Role>,
+                Collection<Role>> consumer) {
+            this.consumer = consumer;
+            this.listener = listener;
+            this.authentication = authentication;
+        }
+
+        public void authorize(AuthorizationService service) {
+            if (SystemUser.is(authentication.getUser())) {
+                setUserRoles(Collections.emptyList()); // we can inform the listener immediately - nothing to fetch for us on system user
+                setRunAsRoles(Collections.emptyList());
+            } else {
+                service.roles(authentication.getUser(), ActionListener.wrap(this::setUserRoles, listener::onFailure));
+                if (authentication.getUser().equals(authentication.getRunAsUser()) == false) {
+                    assert authentication.getRunAsUser() != null : "runAs user is null but shouldn't";
+                    service.roles(authentication.getRunAsUser(), ActionListener.wrap(this::setRunAsRoles, listener::onFailure));
+                } else {
+                    setRunAsRoles(Collections.emptyList());
+                }
+            }
+        }
+
+        private void setUserRoles(Collection<Role> roles) {
+            this.userRoles = roles;
+            maybeRun();
+        }
+
+        private void setRunAsRoles(Collection<Role> roles) {
+            this.runAsRoles = roles;
+            maybeRun();
+        }
+
+        private void maybeRun() {
+            if (countDown.countDown()) {
+                try {
+                    consumer.accept(userRoles, runAsRoles);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        }
+
     }
 }

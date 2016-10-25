@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.common.GroupedActionListener;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
@@ -49,7 +51,6 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -105,7 +106,8 @@ public class AuthorizationService extends AbstractComponent {
      * @param request         The request
      * @throws ElasticsearchSecurityException   If the given user is no allowed to execute the given request
      */
-    public void authorize(Authentication authentication, String action, TransportRequest request) throws ElasticsearchSecurityException {
+    public void authorize(Authentication authentication, String action, TransportRequest request, Collection<Role> userRoles,
+                          Collection<Role> runAsRoles) throws ElasticsearchSecurityException {
         final TransportRequest originalRequest = request;
         if (request instanceof ConcreteShardRequest) {
             request = ((ConcreteShardRequest<?>) request).getRequest();
@@ -122,9 +124,8 @@ public class AuthorizationService extends AbstractComponent {
             }
             throw denial(authentication, action, request);
         }
-
+        Collection<Role> roles = userRoles;
         // get the roles of the authenticated user, which may be different than the effective
-        Collection<Role> roles = roles(authentication.getUser());
         GlobalPermission permission = permission(roles);
 
         final boolean isRunAs = authentication.getUser() != authentication.getRunAsUser();
@@ -143,7 +144,7 @@ public class AuthorizationService extends AbstractComponent {
             RunAsPermission runAs = permission.runAs();
             if (runAs != null && runAs.check(authentication.getRunAsUser().principal())) {
                 grantRunAs(authentication, action, request);
-                roles = roles(authentication.getRunAsUser());
+                roles = runAsRoles;
                 permission = permission(roles);
                 // permission can be empty as it might be that the run as user's role is unknown
                 if (permission.isEmpty()) {
@@ -280,7 +281,7 @@ public class AuthorizationService extends AbstractComponent {
         return rolesBuilder.build();
     }
 
-    Collection<Role> roles(User user) {
+    public void roles(User user, ActionListener<Collection<Role>> roleActionListener) {
         // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
         // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
         // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
@@ -291,7 +292,8 @@ public class AuthorizationService extends AbstractComponent {
         }
         if (XPackUser.is(user)) {
             assert XPackUser.INSTANCE.roles().length == 1 && SuperuserRole.NAME.equals(XPackUser.INSTANCE.roles()[0]);
-            return Collections.singleton(SuperuserRole.INSTANCE);
+            roleActionListener.onResponse(Collections.singleton(SuperuserRole.INSTANCE));
+            return;
         }
 
         Set<String> roleNames = new HashSet<>();
@@ -302,15 +304,17 @@ public class AuthorizationService extends AbstractComponent {
             }
             Collections.addAll(roleNames, anonymousUser.roles());
         }
-        List<Role> roles = new ArrayList<>();
-        roles.add(DefaultRole.INSTANCE);
-        for (String roleName : roleNames) {
-            Role role = rolesStore.role(roleName);
-            if (role != null) {
-                roles.add(role);
+
+        final Collection<Role> defaultRoles = Collections.singletonList(DefaultRole.INSTANCE);
+        if (roleNames.isEmpty()) {
+            roleActionListener.onResponse(defaultRoles);
+        } else {
+            final GroupedActionListener<Role> listener = new GroupedActionListener<>(roleActionListener, roleNames.size(),
+                    defaultRoles);
+            for (String roleName : roleNames) {
+                rolesStore.roles(roleName, listener);
             }
         }
-        return Collections.unmodifiableList(roles);
     }
 
     private static boolean isCompositeAction(String action) {

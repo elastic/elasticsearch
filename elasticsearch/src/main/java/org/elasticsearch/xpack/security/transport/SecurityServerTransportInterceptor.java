@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.tasks.Task;
@@ -29,9 +31,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.user.SystemUser;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -100,8 +106,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     @Override
     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                                                                                     TransportRequestHandler<T> actualHandler) {
-        return new ProfileSecuredRequestHandler<>(action, actualHandler, profileFilters,
-                licenseState, threadPool.getThreadContext());
+        return new ProfileSecuredRequestHandler<>(action, executor, actualHandler, profileFilters,
+                licenseState, threadPool);
     }
 
 
@@ -150,20 +156,45 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         private final Map<String, ServerTransportFilter> profileFilters;
         private final XPackLicenseState licenseState;
         private final ThreadContext threadContext;
+        private final String executorName;
+        private final ThreadPool threadPool;
 
-        private ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler,
+        private ProfileSecuredRequestHandler(String action, String executorName, TransportRequestHandler<T> handler,
                                              Map<String,ServerTransportFilter> profileFilters, XPackLicenseState licenseState,
-                                             ThreadContext threadContext) {
+                                             ThreadPool threadPool) {
             this.action = action;
+            this.executorName = executorName;
             this.handler = handler;
             this.profileFilters = profileFilters;
             this.licenseState = licenseState;
-            this.threadContext = threadContext;
+            this.threadContext = threadPool.getThreadContext();
+            this.threadPool = threadPool;
         }
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
+            final Consumer<Exception> onFailure = (e) -> {
+                try {
+                    channel.sendResponse(e);
+                } catch (IOException e1) {
+                    throw new UncheckedIOException(e1);
+                }
+            };
+            final Runnable receiveMessage = () -> {
+                // FIXME we should remove the RequestContext completely since we have ThreadContext but cannot yet due to
+                // the query cache
+                RequestContext context = new RequestContext(request, threadContext);
+                RequestContext.setCurrent(context);
+                try {
+                    handler.messageReceived(request, channel, task);
+                } catch (Exception e) {
+                    onFailure.accept(e);
+                } finally {
+                    RequestContext.removeCurrent();
+                }
+            };
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext()) {
+
                 if (licenseState.isAuthAllowed()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
@@ -178,16 +209,35 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         }
                     }
                     assert filter != null;
-                    filter.inbound(action, request, channel);
+                    final Thread executingThread = Thread.currentThread();
+                    Consumer<Void> consumer = (x) -> {
+                        final Executor executor;
+                        if (executingThread == Thread.currentThread()) {
+                            // only fork off if we get called on another thread this means we moved to
+                            // an async execution and in this case we need to go back to the thread pool
+                            // that was actually executing it. it's also possible that the
+                            // thread-pool we are supposed to execute on is `SAME` in that case
+                            // the handler is OK with executing on a network thread and we can just continue even if
+                            // we are on another thread due to async operations
+                            executor = threadPool.executor(ThreadPool.Names.SAME);
+                        } else {
+                            executor = threadPool.executor(executorName);
+                        }
+
+                        try {
+                            executor.execute(receiveMessage);
+                        } catch (Exception e) {
+                            onFailure.accept(e);
+                        }
+
+                    };
+                    ActionListener<Void> filterListener = ActionListener.wrap(consumer, onFailure);
+                    filter.inbound(action, request, channel, filterListener);
+                } else {
+                    receiveMessage.run();
                 }
-                // FIXME we should remove the RequestContext completely since we have ThreadContext but cannot yet due to the query cache
-                RequestContext context = new RequestContext(request, threadContext);
-                RequestContext.setCurrent(context);
-                handler.messageReceived(request, channel, task);
             } catch (Exception e) {
                 channel.sendResponse(e);
-            } finally {
-                RequestContext.removeCurrent();
             }
         }
 

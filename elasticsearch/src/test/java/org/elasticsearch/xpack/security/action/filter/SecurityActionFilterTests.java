@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.action.filter;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -17,8 +19,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.common.ContextPreservingActionListener;
 import org.elasticsearch.xpack.security.SecurityContext;
-import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
@@ -31,8 +33,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -72,11 +76,18 @@ public class SecurityActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+
         when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(authentication);
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            callback.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(authzService).roles(any(User.class), any(ActionListener.class));
         doReturn(request).when(spy(filter)).unsign(user, "_action", request);
         filter.apply(task, "_action", request, listener, chain);
-        verify(authzService).authorize(authentication, "_action", request);
-        verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(SecurityActionFilter.SigningListener.class));
+        verify(authzService).authorize(authentication, "_action", request, Collections.emptyList(), Collections.emptyList());
+        verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
     }
 
     public void testActionProcessException() throws Exception {
@@ -88,7 +99,14 @@ public class SecurityActionFilterTests extends ESTestCase {
         User user = new User("username", "r1", "r2");
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(authentication);
-        doThrow(exception).when(authzService).authorize(authentication, "_action", request);
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            callback.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        doThrow(exception).when(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(Collection.class),
+                any(Collection.class));
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(exception);
         verifyNoMoreInteractions(chain);
@@ -104,10 +122,17 @@ public class SecurityActionFilterTests extends ESTestCase {
         when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(authentication);
         when(cryptoService.isSigned("signed_scroll_id")).thenReturn(true);
         when(cryptoService.unsignAndVerify("signed_scroll_id")).thenReturn("scroll_id");
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            callback.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(authzService).roles(any(User.class), any(ActionListener.class));
         filter.apply(task, "_action", request, listener, chain);
         assertThat(request.scrollId(), equalTo("scroll_id"));
-        verify(authzService).authorize(authentication, "_action", request);
-        verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(SecurityActionFilter.SigningListener.class));
+
+        verify(authzService).authorize(authentication, "_action", request, Collections.emptyList(), Collections.emptyList());
+        verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
     }
 
     public void testActionSignatureError() throws Exception {
@@ -121,6 +146,12 @@ public class SecurityActionFilterTests extends ESTestCase {
         when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(authentication);
         when(cryptoService.isSigned("scroll_id")).thenReturn(true);
         doThrow(sigException).when(cryptoService).unsignAndVerify("scroll_id");
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            callback.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(authzService).roles(any(User.class), any(ActionListener.class));
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(isA(ElasticsearchSecurityException.class));
         verify(auditTrail).tamperedRequest(user, "_action", request);

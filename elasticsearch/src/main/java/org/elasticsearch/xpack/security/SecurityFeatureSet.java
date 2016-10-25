@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.RolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
@@ -89,7 +88,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     @Override
     public XPackFeatureSet.Usage usage() {
         Map<String, Object> realmsUsage = buildRealmsUsage(realms);
-        Map<String, Object> rolesStoreUsage = rolesStoreUsage(rolesStore);
+        Map<String, Object> rolesStoreUsage = rolesStore == null ? Collections.emptyMap() : rolesStore.usageStats();
         Map<String, Object> sslUsage = sslUsage(settings);
         Map<String, Object> auditUsage = auditUsage(auditTrailService);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
@@ -104,13 +103,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             return Collections.emptyMap();
         }
         return realms.usageStats();
-    }
-
-    static Map<String, Object> rolesStoreUsage(@Nullable RolesStore rolesStore) {
-        if (rolesStore == null) {
-            return Collections.emptyMap();
-        }
-        return rolesStore.usageStats();
     }
 
     static Map<String, Object> sslUsage(Settings settings) {

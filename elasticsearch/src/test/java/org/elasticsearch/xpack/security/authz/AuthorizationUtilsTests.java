@@ -32,11 +32,13 @@ public class AuthorizationUtilsTests extends ESTestCase {
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, randomFrom("indices:foo", "cluster:bar")), is(false));
     }
 
-    public void testSystemUserSwitchWithNullorSystemUser() {
-        if (randomBoolean()) {
-            threadContext.putTransient(Authentication.AUTHENTICATION_KEY,
-                    new Authentication(SystemUser.INSTANCE, new RealmRef("test", "test", "foo"), null));
-        }
+    public void testSystemUserSwitchWithSystemUser() {
+        threadContext.putTransient(Authentication.AUTHENTICATION_KEY,
+                new Authentication(SystemUser.INSTANCE, new RealmRef("test", "test", "foo"), null));
+        assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
+    }
+
+    public void testSystemUserSwitchWithNullUser() {
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 

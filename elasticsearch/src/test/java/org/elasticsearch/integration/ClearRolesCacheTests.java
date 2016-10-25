@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.Before;
@@ -60,7 +62,9 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         // warm up the caches on every node
         for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {
             for (String role : roles) {
-                assertThat(rolesStore.role(role), notNullValue());
+                PlainActionFuture<Role> future = new PlainActionFuture<>();
+                rolesStore.role(role, future);
+                assertThat(future.actionGet(), notNullValue());
             }
         }
     }

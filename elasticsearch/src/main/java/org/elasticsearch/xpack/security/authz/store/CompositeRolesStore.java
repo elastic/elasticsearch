@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authz.permission.Role;
@@ -16,7 +17,7 @@ import java.util.Map;
  * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
  * file roles, and finally the index roles.
  */
-public class CompositeRolesStore extends AbstractComponent implements RolesStore {
+public class CompositeRolesStore extends AbstractComponent {
 
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
@@ -30,7 +31,7 @@ public class CompositeRolesStore extends AbstractComponent implements RolesStore
         this.reservedRolesStore = reservedRolesStore;
     }
     
-    public Role role(String role) {
+    private Role getBuildInRole(String role) {
         // builtins first
         Role builtIn = reservedRolesStore.role(role);
         if (builtIn != null) {
@@ -44,15 +45,19 @@ public class CompositeRolesStore extends AbstractComponent implements RolesStore
             logger.trace("loaded role [{}] from file roles store", role);
             return fileRole;
         }
-
-        Role nativeRole = nativeRolesStore.role(role);
-        if (nativeRole != null) {
-            logger.trace("loaded role [{}] from native roles store", role);
-        }
-        return nativeRole;
+        return null;
     }
 
-    @Override
+    public void roles(String role, ActionListener<Role> roleActionListener) {
+        Role storedRole = getBuildInRole(role);
+        if (storedRole == null) {
+            nativeRolesStore.role(role, roleActionListener);
+        } else {
+            roleActionListener.onResponse(storedRole);
+        }
+    }
+
+
     public Map<String, Object> usageStats() {
         Map<String, Object> usage = new HashMap<>(2);
         usage.put("file", fileRolesStore.usageStats());

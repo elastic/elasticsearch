@@ -58,7 +58,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -95,7 +97,7 @@ public final class MockTransportService extends TransportService {
 
     /**
      * Build the service.
-     * 
+     *
      * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
      *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
      */
@@ -142,7 +144,10 @@ public final class MockTransportService extends TransportService {
      * Clears the rule associated with the provided transport address.
      */
     public void clearRule(TransportAddress transportAddress) {
-        transport().transports.remove(transportAddress);
+        Transport transport = transport().transports.remove(transportAddress);
+        if (transport instanceof ClearableTransport) {
+            ((ClearableTransport) transport).clearRule();
+        }
     }
 
     /**
@@ -252,7 +257,8 @@ public final class MockTransportService extends TransportService {
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(TransportAddress transportAddress) {
-        addDelegate(transportAddress, new DelegateTransport(original) {
+        Queue<Runnable> requestsToSendWhenCleared = new ConcurrentLinkedQueue<>();
+        addDelegate(transportAddress, new ClearableTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
@@ -267,6 +273,28 @@ public final class MockTransportService extends TransportService {
             public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                     TransportRequestOptions options) throws IOException, TransportException {
                 // don't send anything, the receiving node is unresponsive
+                // store the request to resend it once the unresponsive rule is cleared.
+
+                // poor mans request cloning...
+                RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                request.writeTo(bStream);
+                final TransportRequest clonedRequest = reg.newRequest();
+                clonedRequest.readFrom(bStream.bytes().streamInput());
+
+                requestsToSendWhenCleared.add(() -> {
+                    try {
+                        original.sendRequest(node, requestId, action, clonedRequest, options);
+                    } catch (Exception e) {
+                        // just ignore the exception
+                        logger.info("Failed to re-send request after unresponsive rule cleared", e);
+                    }
+                });
+            }
+
+            @Override
+            public void clearRule() {
+                requestsToSendWhenCleared.forEach(Runnable::run);
             }
         });
     }
@@ -553,6 +581,23 @@ public final class MockTransportService extends TransportService {
         public Map<String, BoundTransportAddress> profileBoundAddresses() {
             return transport.profileBoundAddresses();
         }
+    }
+
+    /**
+     * The delegate transport instances defined in this class mock various kinds of disruption types. This subclass adds a method
+     * {@link #clearRule()} so that when the disruptions are cleared (see {@link #clearRule(TransportService)}) this gives the
+     * disruption a possibility to run clean-up actions.
+     */
+    public static abstract class ClearableTransport extends DelegateTransport {
+
+        public ClearableTransport(Transport transport) {
+            super(transport);
+        }
+
+        /**
+         * Called by {@link #clearRule(TransportService)}
+         */
+        public abstract void clearRule();
     }
 
 

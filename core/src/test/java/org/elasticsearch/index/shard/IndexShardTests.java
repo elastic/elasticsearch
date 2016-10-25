@@ -564,8 +564,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                if (created) {
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
+                if (result.isCreated()) {
                     postIndexCreate.incrementAndGet();
                 } else {
                     postIndexUpdate.incrementAndGet();
@@ -584,7 +584,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
                 postDelete.incrementAndGet();
             }
 
@@ -1127,7 +1127,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
                 postIndex.incrementAndGet();
             }
 
@@ -1138,7 +1138,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
                 postDelete.incrementAndGet();
 
             }

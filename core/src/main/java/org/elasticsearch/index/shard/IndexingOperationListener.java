@@ -40,7 +40,7 @@ public interface IndexingOperationListener {
     /**
      * Called after the indexing operation occurred.
      */
-    default void postIndex(Engine.Index index, boolean created) {}
+    default void postIndex(Engine.Index index, Engine.IndexResult result) {}
 
     /**
      * Called after the indexing operation occurred with exception.
@@ -58,7 +58,7 @@ public interface IndexingOperationListener {
     /**
      * Called after the delete operation occurred.
      */
-    default void postDelete(Engine.Delete delete) {}
+    default void postDelete(Engine.Delete delete, Engine.DeleteResult result) {}
 
     /**
      * Called after the delete operation occurred with exception.
@@ -91,11 +91,11 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public void postIndex(Engine.Index index, boolean created) {
+        public void postIndex(Engine.Index index, Engine.IndexResult result) {
             assert index != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.postIndex(index, created);
+                    listener.postIndex(index, result);
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
                 }
@@ -129,11 +129,11 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public void postDelete(Engine.Delete delete) {
+        public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
             assert delete != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.postDelete(delete);
+                    listener.postDelete(delete, result);
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
                 }

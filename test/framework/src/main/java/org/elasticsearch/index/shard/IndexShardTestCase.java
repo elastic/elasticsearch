@@ -441,7 +441,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) {
-        final Engine.Operation index;
+        final Engine.Index index;
         if (shard.routingEntry().primary()) {
             index = shard.prepareIndexOnPrimary(
                 SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source)),
@@ -452,7 +452,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
         shard.index(index);
-        return ((Engine.Index) index);
+        return index;
     }
 
     protected Engine.Delete deleteDoc(IndexShard shard, String type, String id) {

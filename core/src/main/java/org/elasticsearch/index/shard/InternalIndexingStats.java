@@ -74,9 +74,9 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postIndex(Engine.Index index, boolean created) {
+    public void postIndex(Engine.Index index, Engine.IndexResult result) {
         if (!index.origin().isRecovery()) {
-            long took = index.endTime() - index.startTime();
+            long took = result.getTook();
             totalStats.indexMetric.inc(took);
             totalStats.indexCurrent.dec();
             StatsHolder typeStats = typeStats(index.type());
@@ -106,9 +106,9 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postDelete(Engine.Delete delete) {
+    public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
         if (!delete.origin().isRecovery()) {
-            long took = delete.endTime() - delete.startTime();
+            long took = result.getTook();
             totalStats.deleteMetric.inc(took);
             totalStats.deleteCurrent.dec();
             StatsHolder typeStats = typeStats(delete.type());

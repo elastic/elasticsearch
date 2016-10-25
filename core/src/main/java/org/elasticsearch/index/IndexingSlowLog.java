@@ -133,15 +133,10 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         this.reformat = reformat;
     }
 
-
     @Override
-    public void postIndex(Engine.Index index, boolean created) {
-        final long took = index.endTime() - index.startTime();
-        postIndexing(index.parsedDoc(), took);
-    }
-
-
-    private void postIndexing(ParsedDocument doc, long tookInNanos) {
+    public void postIndex(Engine.Index indexOperation, Engine.IndexResult result) {
+        final ParsedDocument doc = indexOperation.parsedDoc();
+        final long tookInNanos = result.getTook();
         if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
             indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
         } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {

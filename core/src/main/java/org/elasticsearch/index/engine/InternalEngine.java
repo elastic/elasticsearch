@@ -422,7 +422,8 @@ public class InternalEngine extends Engine {
             }
         } catch (Exception e) {
             Exception transientOperationFailure = handleOperationFailure(index, e);
-            result = new IndexResult(transientOperationFailure, index.version(), index.startTime() - System.nanoTime());
+            result = new IndexResult(transientOperationFailure, index.version(),
+                    index.startTime() - System.nanoTime(), index.estimatedSizeInBytes());
         }
         return result;
     }
@@ -550,7 +551,7 @@ public class InternalEngine extends Engine {
             final long expectedVersion = index.version();
             if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) {
                 // skip index operation because of version conflict on recovery
-                return new IndexResult(null, expectedVersion, false, index.startTime() - System.nanoTime());
+                return new IndexResult(null, expectedVersion, false, index.startTime() - System.nanoTime(), index.estimatedSizeInBytes());
             } else {
                 updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
                 index.parsedDoc().version().setLongValue(updatedVersion);
@@ -561,7 +562,7 @@ public class InternalEngine extends Engine {
                     update(index.uid(), index.docs(), indexWriter);
                 }
                 location = maybeAddToTranslog(index, updatedVersion, Translog.Index::new, NEW_VERSION_VALUE);
-                return new IndexResult(location, updatedVersion, deleted, index.startTime() - System.nanoTime());
+                return new IndexResult(location, updatedVersion, deleted, index.startTime() - System.nanoTime(), index.estimatedSizeInBytes());
             }
         }
     }
@@ -591,7 +592,8 @@ public class InternalEngine extends Engine {
             result = innerDelete(delete);
         } catch (Exception e) {
             Exception transientOperationFailure = handleOperationFailure(delete, e);
-            result = new DeleteResult(transientOperationFailure, delete.version(), delete.startTime() - System.nanoTime());
+            result = new DeleteResult(transientOperationFailure, delete.version(),
+                    delete.startTime() - System.nanoTime(), delete.estimatedSizeInBytes());
         }
         maybePruneDeletedTombstones();
         return result;
@@ -626,12 +628,14 @@ public class InternalEngine extends Engine {
             final long expectedVersion = delete.version();
             if (checkVersionConflict(delete, currentVersion, expectedVersion, deleted)) {
                 // skip executing delete because of version conflict on recovery
-                return new DeleteResult(null, expectedVersion, true, delete.startTime() - System.nanoTime());
+                return new DeleteResult(null, expectedVersion, true,
+                        delete.startTime() - System.nanoTime(), delete.estimatedSizeInBytes());
             } else {
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
                 location = maybeAddToTranslog(delete, updatedVersion, Translog.Delete::new, DeleteVersionValue::new);
-                return new DeleteResult(location, updatedVersion, found, delete.startTime() - System.nanoTime());
+                return new DeleteResult(location, updatedVersion, found,
+                        delete.startTime() - System.nanoTime(), delete.estimatedSizeInBytes());
             }
         }
     }

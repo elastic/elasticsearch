@@ -367,16 +367,25 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 final Decision canAllocate = deciders.canAllocate(shard, node.getRoutingNode(), allocation);
                 final float nodeWeight = sorter.weight(node);
                 final boolean betterWeightThanCurrent = nodeWeight <= currentWeight;
-                final float currentDelta = absDelta(nodeWeight, currentWeight);
-                final boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
-                final float weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
-                final float proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
-                final boolean rebalanceConditionsMet = betterWeightThanCurrent && deltaAboveThreshold && proposedDelta < currentDelta;
-                if (rebalanceConditionsMet && canAllocate.type().higherThan(rebalanceDecisionType)) {
-                    // rebalance to the node, only will get overwritten if the decision here is to
-                    // THROTTLE and we get a decision with YES on another node
-                    rebalanceDecisionType = canAllocate.type();
-                    assignedNodeId = node.getNodeId();
+                final boolean rebalanceConditionsMet;
+                final boolean deltaAboveThreshold;
+                final float weightWithShardAdded;
+                if (betterWeightThanCurrent) {
+                    final float currentDelta = absDelta(nodeWeight, currentWeight);
+                    deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
+                    weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
+                    final float proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
+                    rebalanceConditionsMet = deltaAboveThreshold && proposedDelta < currentDelta;
+                    if (rebalanceConditionsMet && canAllocate.type().higherThan(rebalanceDecisionType)) {
+                        // rebalance to the node, only will get overwritten if the decision here is to
+                        // THROTTLE and we get a decision with YES on another node
+                        rebalanceDecisionType = canAllocate.type();
+                        assignedNodeId = node.getNodeId();
+                    }
+                } else {
+                    rebalanceConditionsMet = false;
+                    deltaAboveThreshold = false;
+                    weightWithShardAdded = Float.POSITIVE_INFINITY;
                 }
                 nodeDecisions.put(node.getNodeId(), new NodeRebalanceDecision(
                     rebalanceConditionsMet ? canAllocate.type() : Type.NO,

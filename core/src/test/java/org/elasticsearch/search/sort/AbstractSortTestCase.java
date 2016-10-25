@@ -24,10 +24,8 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -77,8 +75,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
 
@@ -179,7 +176,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T testsort = createTestItem();
-            T deserializedsort = copyItem(testsort);
+            T deserializedsort = copy(testsort);
             assertEquals(testsort, deserializedsort);
             assertEquals(testsort.hashCode(), deserializedsort.hashCode());
             assertNotSame(testsort, deserializedsort);
@@ -191,29 +188,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            T firstsort = createTestItem();
-            assertFalse("sort is equal to null", firstsort.equals(null));
-            assertFalse("sort is equal to incompatible type", firstsort.equals(""));
-            assertTrue("sort is not equal to self", firstsort.equals(firstsort));
-            assertThat("same sort's hashcode returns different values if called multiple times", firstsort.hashCode(),
-                    equalTo(firstsort.hashCode()));
-            assertThat("different sorts should not be equal", mutate(firstsort), not(equalTo(firstsort)));
-            assertThat("different sorts should have different hashcode", mutate(firstsort).hashCode(), not(equalTo(firstsort.hashCode())));
-
-            T secondsort = copyItem(firstsort);
-            assertTrue("sort is not equal to self", secondsort.equals(secondsort));
-            assertTrue("sort is not equal to its copy", firstsort.equals(secondsort));
-            assertTrue("equals is not symmetric", secondsort.equals(firstsort));
-            assertThat("sort copy's hashcode is different from original hashcode", secondsort.hashCode(), equalTo(firstsort.hashCode()));
-
-            T thirdsort = copyItem(secondsort);
-            assertTrue("sort is not equal to self", thirdsort.equals(thirdsort));
-            assertTrue("sort is not equal to its copy", secondsort.equals(thirdsort));
-            assertThat("sort copy's hashcode is different from original hashcode", secondsort.hashCode(), equalTo(thirdsort.hashCode()));
-            assertTrue("equals is not transitive", firstsort.equals(thirdsort));
-            assertThat("sort copy's hashcode is different from original hashcode", firstsort.hashCode(), equalTo(thirdsort.hashCode()));
-            assertTrue("equals is not symmetric", thirdsort.equals(secondsort));
-            assertTrue("equals is not symmetric", thirdsort.equals(firstsort));
+            checkEqualsAndHashCode(createTestItem(), this::copy, this::mutate);
         }
     }
 
@@ -274,12 +249,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     @SuppressWarnings("unchecked")
-    private T copyItem(T original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return (T) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()).read(in);
-            }
-        }
+    private T copy(T original) throws IOException {
+        return copyWriteable(original, namedWriteableRegistry,
+                (Writeable.Reader<T>) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
     }
 }

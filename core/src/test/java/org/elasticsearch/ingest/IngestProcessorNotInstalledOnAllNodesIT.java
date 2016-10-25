@@ -60,11 +60,6 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         return installPlugin ? Arrays.asList(IngestTestPlugin.class) : Collections.emptyList();
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Collections.singletonList(TestSeedPlugin.class);
-    }
-
     public void testFailPipelineCreation() throws Exception {
         installPlugin = true;
         String node1 = internalCluster().startNode();

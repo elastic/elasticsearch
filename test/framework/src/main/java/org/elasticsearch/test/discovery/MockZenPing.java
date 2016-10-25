@@ -26,8 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.ping.PingContextProvider;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
+import org.elasticsearch.discovery.zen.PingContextProvider;
+import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 

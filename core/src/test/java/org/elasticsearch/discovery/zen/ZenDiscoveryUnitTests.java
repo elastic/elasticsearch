@@ -32,9 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.discovery.zen.publish.PublishClusterStateActionTests.AssertingAckListener;
+import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -218,9 +216,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
     private ZenDiscovery buildZenDiscovery(Settings settings, TransportService service, ClusterService clusterService, ThreadPool threadPool) {
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ZenPingService zenPingService = new ZenPingService(settings, Collections.emptySet());
-        ElectMasterService electMasterService = new ElectMasterService(settings);
-        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, clusterService,
-                                                        clusterSettings, zenPingService, electMasterService);
+        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, clusterService, clusterSettings, zenPingService);
         zenDiscovery.start();
         return zenDiscovery;
     }

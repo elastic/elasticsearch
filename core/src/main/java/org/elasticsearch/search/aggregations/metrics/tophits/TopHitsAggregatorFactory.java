@@ -32,8 +32,6 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
-import org.elasticsearch.search.sort.SortBuilder;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +44,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final boolean explain;
     private final boolean version;
     private final boolean trackScores;
-    private final List<SortBuilder<?>> sorts;
+    private final Optional<SortAndFormats> sort;
     private final HighlightBuilder highlightBuilder;
     private final StoredFieldsContext storedFieldsContext;
     private final List<String> docValueFields;
@@ -54,7 +52,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
-            List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
+            Optional<SortAndFormats> sort, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
             List<String> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
             AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)
             throws IOException {
@@ -64,7 +62,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         this.explain = explain;
         this.version = version;
         this.trackScores = trackScores;
-        this.sorts = sorts;
+        this.sort = sort;
         this.highlightBuilder = highlightBuilder;
         this.storedFieldsContext = storedFieldsContext;
         this.docValueFields = docValueFields;
@@ -82,11 +80,8 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         subSearchContext.trackScores(trackScores);
         subSearchContext.from(from);
         subSearchContext.size(size);
-        if (sorts != null) {
-            Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(sorts, subSearchContext.getQueryShardContext());
-            if (optionalSort.isPresent()) {
-                subSearchContext.sort(optionalSort.get());
-            }
+        if (sort.isPresent()) {
+            subSearchContext.sort(sort.get());
         }
         if (storedFieldsContext != null) {
             subSearchContext.storedFieldsContext(storedFieldsContext);

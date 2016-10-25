@@ -54,14 +54,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
-import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
-import org.elasticsearch.discovery.zen.membership.MembershipAction;
-import org.elasticsearch.discovery.zen.ping.PingContextProvider;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
-import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -147,14 +139,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     @Inject
     public ZenDiscovery(Settings settings, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
-                        ZenPingService pingService, ElectMasterService electMasterService) {
+                        ZenPingService pingService) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.pingService = pingService;
-        this.electMaster = electMasterService;
+        this.electMaster = new ElectMasterService(settings);
         this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
 
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -288,7 +280,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         return clusterName.value() + "/" + clusterService.localNode().getId();
     }
 
-    /** start of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
+    /** start of {@link PingContextProvider } implementation */
     @Override
     public DiscoveryNodes nodes() {
         return clusterService.state().nodes();
@@ -299,7 +291,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         return clusterService.state();
     }
 
-    /** end of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
+    /** end of {@link PingContextProvider } implementation */
 
 
     @Override

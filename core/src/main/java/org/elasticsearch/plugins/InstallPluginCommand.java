@@ -142,29 +142,31 @@ class InstallPluginCommand extends SettingCommand {
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
 
-
-    static final Set<PosixFilePermission> DIR_AND_EXECUTABLE_PERMS;
-    static final Set<PosixFilePermission> FILE_PERMS;
+    static final Set<PosixFilePermission> BIN_DIR_PERMS;
+    static final Set<PosixFilePermission> BIN_FILES_PERMS;
+    static final Set<PosixFilePermission> CONFIG_DIR_PERMS;
+    static final Set<PosixFilePermission> CONFIG_FILES_PERMS;
+    static final Set<PosixFilePermission> PLUGIN_DIR_PERMS;
+    static final Set<PosixFilePermission> PLUGIN_FILES_PERMS;
 
     static {
-        Set<PosixFilePermission> dirAndExecutablePerms = new HashSet<>(7);
-        // Directories and executables get chmod 755
-        dirAndExecutablePerms.add(PosixFilePermission.OWNER_EXECUTE);
-        dirAndExecutablePerms.add(PosixFilePermission.OWNER_READ);
-        dirAndExecutablePerms.add(PosixFilePermission.OWNER_WRITE);
-        dirAndExecutablePerms.add(PosixFilePermission.GROUP_EXECUTE);
-        dirAndExecutablePerms.add(PosixFilePermission.GROUP_READ);
-        dirAndExecutablePerms.add(PosixFilePermission.OTHERS_READ);
-        dirAndExecutablePerms.add(PosixFilePermission.OTHERS_EXECUTE);
-        DIR_AND_EXECUTABLE_PERMS = Collections.unmodifiableSet(dirAndExecutablePerms);
+        // Bin directory get chmod 755
+        BIN_DIR_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rwxr-xr-x"));
 
-        Set<PosixFilePermission> filePerms = new HashSet<>(4);
-        // Files get chmod 644
-        filePerms.add(PosixFilePermission.OWNER_READ);
-        filePerms.add(PosixFilePermission.OWNER_WRITE);
-        filePerms.add(PosixFilePermission.GROUP_READ);
-        filePerms.add(PosixFilePermission.OTHERS_READ);
-        FILE_PERMS = Collections.unmodifiableSet(filePerms);
+        // Bin files also get chmod 755
+        BIN_FILES_PERMS = BIN_DIR_PERMS;
+
+        // Config directory get chmod 750
+        CONFIG_DIR_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rwxr-x---"));
+
+        // Config files get chmod 660
+        CONFIG_FILES_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rw-rw----"));
+
+        // Plugin directory get chmod 755
+        PLUGIN_DIR_PERMS = BIN_DIR_PERMS;
+
+        // Plugins files get chmod 644
+        PLUGIN_FILES_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rw-r--r--"));
     }
 
     InstallPluginCommand() {
@@ -387,7 +389,7 @@ class InstallPluginCommand extends SettingCommand {
 
     private Path stagingDirectory(Path pluginsDir) throws IOException {
         try {
-            return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(DIR_AND_EXECUTABLE_PERMS));
+            return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(PLUGIN_DIR_PERMS));
         } catch (IllegalArgumentException e) {
             // Jimfs throws an IAE where it should throw an UOE
             // remove when google/jimfs#30 is integrated into Jimfs
@@ -416,7 +418,7 @@ class InstallPluginCommand extends SettingCommand {
         PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
         terminal.println(VERBOSE, info.toString());
 
-        // don't let luser install plugin as a module...
+        // don't let user install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
             throw new UserException(
@@ -494,9 +496,9 @@ class InstallPluginCommand extends SettingCommand {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(destination)) {
                 for (Path pluginFile : stream) {
                     if (Files.isDirectory(pluginFile)) {
-                        setFileAttributes(pluginFile, DIR_AND_EXECUTABLE_PERMS);
+                        setFileAttributes(pluginFile, PLUGIN_DIR_PERMS);
                     } else {
-                        setFileAttributes(pluginFile, FILE_PERMS);
+                        setFileAttributes(pluginFile, PLUGIN_FILES_PERMS);
                     }
                 }
             }
@@ -518,7 +520,7 @@ class InstallPluginCommand extends SettingCommand {
             throw new UserException(ExitCodes.IO_ERROR, "bin in plugin " + info.getName() + " is not a directory");
         }
         Files.createDirectory(destBinDir);
-        setFileAttributes(destBinDir, DIR_AND_EXECUTABLE_PERMS);
+        setFileAttributes(destBinDir, BIN_DIR_PERMS);
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {
             for (Path srcFile : stream) {
@@ -530,7 +532,7 @@ class InstallPluginCommand extends SettingCommand {
 
                 Path destFile = destBinDir.resolve(tmpBinDir.relativize(srcFile));
                 Files.copy(srcFile, destFile);
-                setFileAttributes(destFile, DIR_AND_EXECUTABLE_PERMS);
+                setFileAttributes(destFile, BIN_FILES_PERMS);
             }
         }
         IOUtils.rm(tmpBinDir); // clean up what we just copied
@@ -546,7 +548,7 @@ class InstallPluginCommand extends SettingCommand {
         }
 
         Files.createDirectories(destConfigDir);
-        setFileAttributes(destConfigDir, DIR_AND_EXECUTABLE_PERMS);
+        setFileAttributes(destConfigDir, CONFIG_DIR_PERMS);
         final PosixFileAttributeView destConfigDirAttributesView =
             Files.getFileAttributeView(destConfigDir.getParent(), PosixFileAttributeView.class);
         final PosixFileAttributes destConfigDirAttributes =
@@ -564,7 +566,7 @@ class InstallPluginCommand extends SettingCommand {
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
                 if (Files.exists(destFile) == false) {
                     Files.copy(srcFile, destFile);
-                    setFileAttributes(destFile, FILE_PERMS);
+                    setFileAttributes(destFile, CONFIG_FILES_PERMS);
                     if (destConfigDirAttributes != null) {
                         setOwnerGroup(destFile, destConfigDirAttributes);
                     }

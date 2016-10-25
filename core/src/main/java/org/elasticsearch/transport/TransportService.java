@@ -613,7 +613,7 @@ public class TransportService extends AbstractLifecycleComponent {
      */
     public final <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory,
                                                     String executor, TransportRequestHandler<Request> handler) {
-        handler = interceptor.interceptHandler(action, handler);
+        handler = interceptor.interceptHandler(action, executor, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, requestFactory, taskManager, handler, executor, false, true);
         registerRequestHandler(reg);
@@ -623,7 +623,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * Registers a new request handler
      *
      * @param action                The action the request handler is associated with
-     * @param request               The request class that will be used to constrcut new instances for streaming
+     * @param request               The request class that will be used to construct new instances for streaming
      * @param executor              The executor the request handling will be executed on
      * @param forceExecution        Force execution on the executor queue and never reject it
      * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
@@ -633,7 +633,7 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                           String executor, boolean forceExecution,
                                                                           boolean canTripCircuitBreaker,
                                                                           TransportRequestHandler<Request> handler) {
-        handler = interceptor.interceptHandler(action, handler);
+        handler = interceptor.interceptHandler(action, executor, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, request, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
         registerRequestHandler(reg);

@@ -18,48 +18,73 @@
  */
 package org.elasticsearch.discovery;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
+
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.NoopDiscovery;
+import org.elasticsearch.transport.TransportService;
 
 public class DiscoveryModuleTests extends ModuleTestCase {
 
-    public static class DummyMasterElectionService extends ElectMasterService {
-
-        public DummyMasterElectionService(Settings settings) {
-            super(settings);
+    public interface DummyDiscoPlugin extends DiscoveryPlugin {
+        Map<String, Supplier<UnicastHostsProvider>> impl();
+        @Override
+        default Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
+                                                                                 NetworkService networkService) {
+            return impl();
         }
-    }
-
-    public void testRegisterMasterElectionService() {
-        Settings settings = Settings.builder().put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "custom").build();
-        DiscoveryModule module = new DiscoveryModule(settings);
-        module.addElectMasterService("custom", DummyMasterElectionService.class);
-        assertBinding(module, ElectMasterService.class, DummyMasterElectionService.class);
-        assertBinding(module, Discovery.class, ZenDiscovery.class);
-    }
-
-    public void testLoadUnregisteredMasterElectionService() {
-        Settings settings = Settings.builder().put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "foobar").build();
-        DiscoveryModule module = new DiscoveryModule(settings);
-        module.addElectMasterService("custom", DummyMasterElectionService.class);
-        assertBindingFailure(module, "Unknown master service type [foobar]");
     }
 
     public void testRegisterDefaults() {
         Settings settings = Settings.EMPTY;
-        DiscoveryModule module = new DiscoveryModule(settings);
+        DiscoveryModule module = new DiscoveryModule(settings, null, null, Collections.emptyList());
         assertBinding(module, Discovery.class, ZenDiscovery.class);
     }
 
     public void testRegisterDiscovery() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
-        DiscoveryModule module = new DiscoveryModule(settings);
+        DummyDiscoPlugin plugin = () -> Collections.singletonMap("custom", () -> Collections::emptyList);
+        DiscoveryModule module = new DiscoveryModule(settings, null, null, Collections.singletonList(plugin));
         module.addDiscoveryType("custom", NoopDiscovery.class);
         assertBinding(module, Discovery.class, NoopDiscovery.class);
     }
 
+    public void testHostsProvider() {
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
+        final UnicastHostsProvider provider = Collections::emptyList;
+        DummyDiscoPlugin plugin = () -> Collections.singletonMap("custom", () -> provider);
+        DiscoveryModule module = new DiscoveryModule(settings, null, null, Collections.singletonList(plugin));
+        assertInstanceBinding(module, UnicastHostsProvider.class, instance -> instance == provider);
+    }
 
+    public void testHostsProviderBwc() {
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
+        final UnicastHostsProvider provider = Collections::emptyList;
+        DummyDiscoPlugin plugin = () -> Collections.singletonMap("custom", () -> provider);
+        DiscoveryModule module = new DiscoveryModule(settings, null, null, Collections.singletonList(plugin));
+        module.addDiscoveryType("custom", NoopDiscovery.class);
+        assertInstanceBinding(module, UnicastHostsProvider.class, instance -> instance == provider);
+    }
+
+    public void testUnknownHostsProvider() {
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "dne").build();
+        DiscoveryModule module = new DiscoveryModule(settings, null, null, Collections.emptyList());
+        assertBindingFailure(module, "Unknown zen hosts provider");
+    }
+
+    public void testDuplicateHostsProvider() {
+        DummyDiscoPlugin plugin1 = () -> Collections.singletonMap("dup", () -> null);
+        DummyDiscoPlugin plugin2 = () -> Collections.singletonMap("dup", () -> null);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new DiscoveryModule(Settings.EMPTY, null, null, Arrays.asList(plugin1, plugin2)));
+        assertEquals("Cannot specify zen hosts provider [dup] twice", e.getMessage());
+    }
 }

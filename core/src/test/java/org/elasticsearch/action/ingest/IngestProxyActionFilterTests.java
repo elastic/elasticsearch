@@ -268,15 +268,4 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         assertTrue(run.get());
 
     }
-
-    private static class IngestNodeMatcher extends CustomTypeSafeMatcher<DiscoveryNode> {
-        private IngestNodeMatcher() {
-            super("discovery node should be an ingest node");
-        }
-
-        @Override
-        protected boolean matchesSafely(DiscoveryNode node) {
-            return node.isIngestNode();
-        }
-    }
 }

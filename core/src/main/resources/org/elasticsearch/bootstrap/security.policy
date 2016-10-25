@@ -116,12 +116,16 @@ grant {
   // load averages on Linux
   permission java.io.FilePermission "/proc/loadavg", "read";
 
-  // load averages on FreeBSD
-  permission java.io.FilePermission "/compat/linux/proc/loadavg", "read";
-
   // read max virtual memory areas
   permission java.io.FilePermission "/proc/sys/vm/max_map_count", "read";
 
   // io stats on Linux
   permission java.io.FilePermission "/proc/diskstats", "read";
+
+  // control group stats on Linux
+  permission java.io.FilePermission "/proc/self/cgroup", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuacct", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
 };

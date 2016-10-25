@@ -2536,7 +2536,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 
-        // Pick the node with the primary shard and remove the shard from the node
+        logger.info("--> removing primary shard that is being snapshotted");
         ClusterState clusterState = internalCluster().clusterService(internalCluster().getMasterName()).state();
         IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
         String nodeWithPrimary = clusterState.nodes().get(indexRoutingTable.shard(0).primaryShard().currentNodeId()).getName();
@@ -2551,7 +2551,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> waiting for snapshot to complete");
         waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(10));
 
-        // make sure snapshot is aborted and the aborted shard was marked as failed
+        logger.info("--> ensuring snapshot is aborted and the aborted shard was marked as failed");
         assertBusy(() -> {
             List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repo).setSnapshots(snapshot).get().getSnapshots();
             assertEquals(1, snapshotInfos.size());

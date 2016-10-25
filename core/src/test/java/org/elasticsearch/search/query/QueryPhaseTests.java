@@ -40,6 +40,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -54,6 +55,7 @@ public class QueryPhaseTests extends ESTestCase {
         TestSearchContext context = new TestSearchContext(null);
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
+        context.setTask(new SearchTask(123L, "", "", "", null));
 
         IndexSearcher searcher = new IndexSearcher(reader);
         final AtomicBoolean collected = new AtomicBoolean();
@@ -123,6 +125,7 @@ public class QueryPhaseTests extends ESTestCase {
         TestSearchContext context = new TestSearchContext(null);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
+        context.setTask(new SearchTask(123L, "", "", "", null));
 
         final AtomicBoolean collected = new AtomicBoolean();
         IndexSearcher contextSearcher = new IndexSearcher(new MultiReader()) {
@@ -146,6 +149,7 @@ public class QueryPhaseTests extends ESTestCase {
         TestSearchContext context = new TestSearchContext(null);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
+        context.setTask(new SearchTask(123L, "", "", "", null));
 
         final AtomicBoolean collected = new AtomicBoolean();
         IndexSearcher contextSearcher = new IndexSearcher(new MultiReader()) {

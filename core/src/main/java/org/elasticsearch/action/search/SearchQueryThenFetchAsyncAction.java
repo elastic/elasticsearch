@@ -54,9 +54,10 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
         AliasFilter> aliasFilter,
                                     SearchPhaseController searchPhaseController, Executor executor,
                                     SearchRequest request, ActionListener<SearchResponse> listener,
-                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
+                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
+                                    SearchTask task) {
         super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor, request, listener,
-            shardsIts, startTime, clusterStateVersion);
+            shardsIts, startTime, clusterStateVersion, task);
         this.searchPhaseController = searchPhaseController;
         fetchResults = new AtomicArray<>(firstResults.length());
         docIdsToLoad = new AtomicArray<>(firstResults.length());
@@ -70,7 +71,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     @Override
     protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
                                          ActionListener<QuerySearchResultProvider> listener) {
-        searchTransportService.sendExecuteQuery(node, request, listener);
+        searchTransportService.sendExecuteQuery(node, request, task, listener);
     }
 
     @Override
@@ -97,7 +98,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
 
     void executeFetch(final int shardIndex, final SearchShardTarget shardTarget, final AtomicInteger counter,
                       final ShardFetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
-        searchTransportService.sendExecuteFetch(node, fetchSearchRequest, new ActionListener<FetchSearchResult>() {
+        searchTransportService.sendExecuteFetch(node, fetchSearchRequest, task, new ActionListener<FetchSearchResult>() {
             @Override
             public void onResponse(FetchSearchResult result) {
                 result.shardTarget(shardTarget);

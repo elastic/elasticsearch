@@ -59,6 +59,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected final SearchRequest request;
     /** Used by subclasses to resolve node ids to DiscoveryNodes. **/
     protected final Function<String, DiscoveryNode> nodeIdToDiscoveryNode;
+    protected final SearchTask task;
     protected final int expectedSuccessfulOps;
     private final int expectedTotalOps;
     protected final AtomicInteger successfulOps = new AtomicInteger();
@@ -74,12 +75,13 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                                         Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
                                         Map<String, AliasFilter> aliasFilter, Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
-                                        long clusterStateVersion) {
+                                        long clusterStateVersion, SearchTask task) {
         super(startTime);
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.executor = executor;
         this.request = request;
+        this.task = task;
         this.listener = listener;
         this.nodeIdToDiscoveryNode = nodeIdToDiscoveryNode;
         this.clusterStateVersion = clusterStateVersion;

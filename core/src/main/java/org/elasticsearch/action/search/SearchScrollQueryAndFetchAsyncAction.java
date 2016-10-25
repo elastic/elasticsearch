@@ -44,6 +44,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     private final SearchPhaseController searchPhaseController;
     private final SearchTransportService searchTransportService;
     private final SearchScrollRequest request;
+    private final SearchTask task;
     private final ActionListener<SearchResponse> listener;
     private final ParsedScrollId scrollId;
     private final DiscoveryNodes nodes;
@@ -52,13 +53,14 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     private final AtomicInteger successfulOps;
     private final AtomicInteger counter;
 
-    SearchScrollQueryAndFetchAsyncAction(Logger logger, ClusterService clusterService,
-                                         SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
-                                         SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
+    SearchScrollQueryAndFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
+                                         SearchPhaseController searchPhaseController, SearchScrollRequest request, SearchTask task,
+                                         ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
         this.logger = logger;
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.request = request;
+        this.task = task;
         this.listener = listener;
         this.scrollId = scrollId;
         this.nodes = clusterService.state().nodes();
@@ -128,7 +130,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
 
     void executePhase(final int shardIndex, DiscoveryNode node, final long searchId) {
         InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(searchId, request);
-        searchTransportService.sendExecuteFetch(node, internalRequest, new ActionListener<ScrollQueryFetchSearchResult>() {
+        searchTransportService.sendExecuteFetch(node, internalRequest, task, new ActionListener<ScrollQueryFetchSearchResult>() {
             @Override
             public void onResponse(ScrollQueryFetchSearchResult result) {
                 queryFetchResults.set(shardIndex, result.result());

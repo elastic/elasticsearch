@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -52,19 +53,24 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService, clusterService);
     }
 
+
     @Override
-    protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+    protected final void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+        throw new UnsupportedOperationException("the task parameter is required");
+    }
+    @Override
+    protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
             AbstractAsyncAction action;
             switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE:
                     action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
-                            searchPhaseController, request, scrollId, listener);
+                        searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;
                 case QUERY_AND_FETCH_TYPE:
                     action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchTransportService,
-                            searchPhaseController, request, scrollId, listener);
+                        searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;
                 default:
                     throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");

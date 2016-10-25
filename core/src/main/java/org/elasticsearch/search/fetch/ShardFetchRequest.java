@@ -22,9 +22,12 @@ package org.elasticsearch.search.fetch;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -105,5 +108,10 @@ public class ShardFetchRequest extends TransportRequest {
             out.writeByte((byte) 2);
             Lucene.writeScoreDoc(out, lastEmittedDoc);
         }
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
 }

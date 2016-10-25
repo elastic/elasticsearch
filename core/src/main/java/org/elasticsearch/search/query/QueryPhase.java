@@ -362,6 +362,15 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
+            if (collector != null) {
+                final Collector child = collector;
+                collector = new CancellableCollector(searchContext.getTask()::isCancelled, searchContext.lowLevelCancellation(), collector);
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_CANCELLED,
+                        Collections.singletonList((InternalProfileCollector) child));
+                }
+            }
+
             try {
                 if (collector != null) {
                     if (doProfile) {

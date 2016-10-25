@@ -151,7 +151,7 @@ public interface ServerTransportFilter {
         public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener)
                 throws IOException {
             // TODO is ']' sufficient to mark as shard action?
-            boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
+            final boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
             if (isInternalOrShardAction) {
                 throw authenticationError("executing internal/shard actions is considered malicious and forbidden");
             }

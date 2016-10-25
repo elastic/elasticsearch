@@ -15,11 +15,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.graph.Graph;
-import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.watcher.Watcher;
 
 /**
  * A holder for the current state of the license for all xpack features.

@@ -93,44 +93,50 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             throw LicenseUtils.newComplianceException(XPackPlugin.SECURITY);
         }
 
-        // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
-        // and then a cleanup action is executed (like for search without a scroll)
-        final ThreadContext.StoredContext original = threadContext.newStoredContext();
-        final boolean restoreOriginalContext = securityContext.getAuthentication() != null;
-        try {
-            if (licenseState.isAuthAllowed()) {
-                final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-                // we should always restore the original here because we forcefully changed to the system user
-                final ThreadContext.StoredContext toRestore = restoreOriginalContext || useSystemUser ?  original : () -> {};
-                final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(toRestore,
-                        ActionListener.wrap(r -> {
-                            try {
-                                listener.onResponse(sign(r));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        }, listener::onFailure));
-                ActionListener<Void> authenticatedListener = new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void aVoid) {
-                        chain.proceed(task, action, request, signingListener);
-                    }
-                    @Override
-                    public void onFailure(Exception e) {
-                        signingListener.onFailure(e);
-                    }
-                };
-                if (useSystemUser) {
-                    try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-                        applyInternal(action, request, authenticatedListener);
-                    }
-                } else {
-                    applyInternal(action, request, authenticatedListener);
-                }
-            } else if (SECURITY_ACTION_MATCHER.test(action)) {
-                throw LicenseUtils.newComplianceException(XPackPlugin.SECURITY);
+        if (licenseState.isAuthAllowed() == false) {
+            if (SECURITY_ACTION_MATCHER.test(action)) {
+                // TODO we should be nice and just call the listener
+                listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.SECURITY));
             } else {
                 chain.proceed(task, action, request, listener);
+            }
+            return;
+        }
+
+        // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
+        // and then a cleanup action is executed (like for search without a scroll)
+        final boolean restoreOriginalContext = securityContext.getAuthentication() != null;
+        final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
+        // we should always restore the original here because we forcefully changed to the system user
+        final ThreadContext.StoredContext toRestore = restoreOriginalContext || useSystemUser ? threadContext.newStoredContext() : () -> {};
+        final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(toRestore, ActionListener.wrap(r -> {
+                    try {
+                        listener.onResponse(sign(r));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }, listener::onFailure));
+        ActionListener<Void> authenticatedListener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                chain.proceed(task, action, request, signingListener);
+            }
+            @Override
+            public void onFailure(Exception e) {
+                signingListener.onFailure(e);
+            }
+        };
+        try {
+            if (useSystemUser) {
+                securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
+                    try {
+                        applyInternal(action, request, authenticatedListener);
+                    } catch (IOException e) {
+                        listener.onFailure(e);
+                    }
+                });
+            } else {
+                applyInternal(action, request, authenticatedListener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -147,8 +153,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         return Integer.MIN_VALUE;
     }
 
-    private void applyInternal(String action, final ActionRequest request, ActionListener listener)
-            throws IOException {
+    private void applyInternal(String action, final ActionRequest request, ActionListener listener) throws IOException {
         /**
          here we fallback on the system user. Internal system requests are requests that are triggered by
          the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated

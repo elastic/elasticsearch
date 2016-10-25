@@ -10,9 +10,9 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.support.AutomatonPredicate;
 import org.elasticsearch.xpack.security.support.Automatons;
+import org.elasticsearch.xpack.security.user.SystemUser;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -29,11 +29,10 @@ public final class AuthorizationUtils {
      * This method is used to determine if a request should be executed as the system user, even if the request already
      * has a user associated with it.
      *
-     * In order for the system user to be used, one of the following conditions must be true:
+     * In order for the user to be replaced by the system user one of the following conditions must be true:
      *
      * <ul>
      *     <li>the action is an internal action and no user is associated with the request</li>
-     *     <li>the action is an internal action and the system user is already associated with the request</li>
      *     <li>the action is an internal action and the thread context contains a non-internal action as the originating action</li>
      * </ul>
      *
@@ -47,7 +46,7 @@ public final class AuthorizationUtils {
         }
 
         Authentication authentication = threadContext.getTransient(Authentication.AUTHENTICATION_KEY);
-        if (authentication == null || SystemUser.is(authentication.getUser())) {
+        if (authentication == null) {
             return true;
         }
 
@@ -62,7 +61,7 @@ public final class AuthorizationUtils {
         return false;
     }
 
-    public static boolean isInternalAction(String action) {
+    private static boolean isInternalAction(String action) {
         return INTERNAL_PREDICATE.test(action);
     }
 

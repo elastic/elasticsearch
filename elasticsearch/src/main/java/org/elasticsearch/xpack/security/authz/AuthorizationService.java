@@ -67,7 +67,7 @@ public class AuthorizationService extends AbstractComponent {
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =
             Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
     public static final String INDICES_PERMISSIONS_KEY = "_indices_permissions";
-    static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
+    public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
 
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
 

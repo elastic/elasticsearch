@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
@@ -50,16 +51,18 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final AuthorizationService authzService;
     private final SSLService sslService;
     private final Map<String, ServerTransportFilter> profileFilters;
-    final XPackLicenseState licenseState;
+    private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
     private final Settings settings;
+    private final SecurityContext securityContext;
 
     public SecurityServerTransportInterceptor(Settings settings,
                                               ThreadPool threadPool,
                                               AuthenticationService authcService,
                                               AuthorizationService authzService,
                                               XPackLicenseState licenseState,
-                                              SSLService sslService) {
+                                              SSLService sslService,
+                                              SecurityContext securityContext) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -67,6 +70,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.licenseState = licenseState;
         this.sslService = sslService;
         this.profileFilters = initializeProfileFilters();
+        this.securityContext = securityContext;
     }
 
     @Override
@@ -75,15 +79,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             @Override
             public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                // Sometimes a system action gets executed like a internal create index request or update mappings request
-                // which means that the user is copied over to system actions so we need to change the user
-                if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                    try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
-                        final ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext();
-                        sendWithUser(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler), sender);
+                if (licenseState.isAuthAllowed()) {
+                    // Sometimes a system action gets executed like a internal create index request or update mappings request
+                    // which means that the user is copied over to system actions so we need to change the user
+                    if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
+                        securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(node, action, request, options,
+                                new ContextRestoreResponseHandler<>(original, handler), sender));
+                    } else {
+                        sendWithUser(node, action, request, options, handler, sender);
                     }
                 } else {
-                    sendWithUser(node, action, request, options, handler, sender);
+                    sender.sendRequest(node, action, request, options, handler);
                 }
             }
         };
@@ -92,11 +98,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private <T extends TransportResponse> void sendWithUser(DiscoveryNode node, String action, TransportRequest request,
                                                             TransportRequestOptions options, TransportResponseHandler<T> handler,
                                                             AsyncSender sender) {
+        // There cannot be a request outgoing from this node that is not associated with a user.
+        if (securityContext.getAuthentication() == null) {
+            throw new IllegalStateException("there should always be a user when sending a message");
+        }
+
         try {
-            // this will check if there's a user associated with the request. If there isn't,
-            // the system user will be attached. There cannot be a request outgoing from this
-            // node that is not associated with a user.
-            authcService.attachUserIfMissing(SystemUser.INSTANCE);
             sender.sendRequest(node, action, request, options, handler);
         } catch (Exception e) {
             handler.handleException(new TransportException("failed sending request", e));
@@ -248,14 +255,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     }
 
     /**
-     * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the4 handle methods
+     * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the handle methods
      * are invoked we restore the context.
      */
-    private static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+    static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
         private final TransportResponseHandler<T> delegate;
         private final ThreadContext.StoredContext threadContext;
 
-        private ContextRestoreResponseHandler(ThreadContext.StoredContext threadContext, TransportResponseHandler<T> delegate) {
+        // pkg private for testing
+        ContextRestoreResponseHandler(ThreadContext.StoredContext threadContext, TransportResponseHandler<T> delegate) {
             this.delegate = delegate;
             this.threadContext = threadContext;
         }

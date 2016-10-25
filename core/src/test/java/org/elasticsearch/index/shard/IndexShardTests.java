@@ -558,9 +558,8 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.close("simon says", true);
         shard = reinitShard(shard, new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(Engine.Index operation) {
+            public void preIndex(Engine.Index operation) {
                 preIndex.incrementAndGet();
-                return operation;
             }
 
             @Override
@@ -578,9 +577,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public Engine.Delete preDelete(Engine.Delete delete) {
+            public void preDelete(Engine.Delete delete) {
                 preDelete.incrementAndGet();
-                return delete;
             }
 
             @Override
@@ -1121,9 +1119,8 @@ public class IndexShardTests extends IndexShardTestCase {
         final AtomicInteger postDelete = new AtomicInteger();
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(Engine.Index operation) {
+            public void preIndex(Engine.Index operation) {
                 preIndex.incrementAndGet();
-                return operation;
             }
 
             @Override
@@ -1132,9 +1129,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public Engine.Delete preDelete(Engine.Delete delete) {
+            public void preDelete(Engine.Delete delete) {
                 preDelete.incrementAndGet();
-                return delete;
             }
 
             @Override

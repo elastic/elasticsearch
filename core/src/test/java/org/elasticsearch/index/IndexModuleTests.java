@@ -233,9 +233,8 @@ public class IndexModuleTests extends ESTestCase {
         AtomicBoolean executed = new AtomicBoolean(false);
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(Engine.Index operation) {
+            public void preIndex(Engine.Index operation) {
                 executed.set(true);
-                return operation;
             }
         };
         module.addIndexOperationListener(listener);

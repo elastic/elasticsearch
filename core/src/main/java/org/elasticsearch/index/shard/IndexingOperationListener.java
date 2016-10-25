@@ -30,44 +30,25 @@ import java.util.List;
  */
 public interface IndexingOperationListener {
 
-    /**
-     * Called before the indexing occurs.
-     */
-    default Engine.Index preIndex(Engine.Index operation) {
-        return operation;
-    }
+    /** Called before the indexing occurs */
+    default void preIndex(Engine.Index operation) {}
 
-    /**
-     * Called after the indexing operation occurred.
-     */
+    /** Called after the indexing operation occurred */
     default void postIndex(Engine.Index index, Engine.IndexResult result) {}
 
-    /**
-     * Called after the indexing operation occurred with exception.
-     */
+    /** Called after the indexing operation occurred with exception */
     default void postIndex(Engine.Index index, Exception ex) {}
 
-    /**
-     * Called before the delete occurs.
-     */
-    default Engine.Delete preDelete(Engine.Delete delete) {
-        return delete;
-    }
+    /** Called before the delete occurs */
+    default void preDelete(Engine.Delete delete) {}
 
-
-    /**
-     * Called after the delete operation occurred.
-     */
+    /** Called after the delete operation occurred */
     default void postDelete(Engine.Delete delete, Engine.DeleteResult result) {}
 
-    /**
-     * Called after the delete operation occurred with exception.
-     */
+    /** Called after the delete operation occurred with exception */
     default void postDelete(Engine.Delete delete, Exception ex) {}
 
-    /**
-     * A Composite listener that multiplexes calls to each of the listeners methods.
-     */
+    /** A Composite listener that multiplexes calls to each of the listeners methods */
     final class CompositeListener implements IndexingOperationListener{
         private final List<IndexingOperationListener> listeners;
         private final Logger logger;
@@ -78,7 +59,7 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public Engine.Index preIndex(Engine.Index operation) {
+        public void preIndex(Engine.Index operation) {
             assert operation != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
@@ -87,12 +68,11 @@ public interface IndexingOperationListener {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("preIndex listener [{}] failed", listener), e);
                 }
             }
-            return operation;
         }
 
         @Override
         public void postIndex(Engine.Index index, Engine.IndexResult result) {
-            assert index != null;
+            assert index != null && result != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postIndex(index, result);
@@ -116,7 +96,7 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public Engine.Delete preDelete(Engine.Delete delete) {
+        public void preDelete(Engine.Delete delete) {
             assert delete != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
@@ -125,12 +105,11 @@ public interface IndexingOperationListener {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("preDelete listener [{}] failed", listener), e);
                 }
             }
-            return delete;
         }
 
         @Override
         public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
-            assert delete != null;
+            assert delete != null && result != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postDelete(delete, result);

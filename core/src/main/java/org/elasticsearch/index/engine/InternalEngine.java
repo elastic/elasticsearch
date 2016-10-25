@@ -387,26 +387,6 @@ public class InternalEngine extends Engine {
         return currentVersion;
     }
 
-    private static VersionValueSupplier NEW_VERSION_VALUE = (u, t) -> new VersionValue(u);
-
-    @FunctionalInterface
-    private interface VersionValueSupplier {
-        VersionValue apply(long updatedVersion, long time);
-    }
-
-    private <T extends Engine.Operation> Translog.Location maybeAddToTranslog(
-            final T op,
-            final long updatedVersion,
-            final Function<T, Translog.Operation> toTranslogOp,
-            final VersionValueSupplier toVersionValue) throws IOException {
-        Translog.Location location = null;
-        if (op.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-            location = translog.add(toTranslogOp.apply(op));
-        }
-        versionMap.putUnderLock(op.uid().bytes(), toVersionValue.apply(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
-        return location;
-    }
-
     @Override
     public IndexResult index(Index index) {
         IndexResult result;
@@ -423,7 +403,7 @@ public class InternalEngine extends Engine {
         } catch (Exception e) {
             Exception documentFailure = extractDocumentFailure(index, e);
             result = new IndexResult(documentFailure, index.version(),
-                    index.startTime() - System.nanoTime(), index.estimatedSizeInBytes());
+                    index.estimatedSizeInBytes());
         }
         return result;
     }
@@ -551,7 +531,7 @@ public class InternalEngine extends Engine {
             final long expectedVersion = index.version();
             if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) {
                 // skip index operation because of version conflict on recovery
-                return new IndexResult(null, expectedVersion, false, index.startTime() - System.nanoTime(), index.estimatedSizeInBytes());
+                return new IndexResult(expectedVersion, false, index.estimatedSizeInBytes());
             } else {
                 updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
                 index.parsedDoc().version().setLongValue(updatedVersion);
@@ -561,8 +541,17 @@ public class InternalEngine extends Engine {
                 } else {
                     update(index.uid(), index.docs(), indexWriter);
                 }
-                location = maybeAddToTranslog(index, updatedVersion, Translog.Index::new, NEW_VERSION_VALUE);
-                return new IndexResult(location, updatedVersion, deleted, index.startTime() - System.nanoTime(), index.estimatedSizeInBytes());
+                IndexResult indexResult = new IndexResult(updatedVersion, deleted, index.estimatedSizeInBytes());
+                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                    location = translog.add(new Translog.Index(index, indexResult));
+                } else {
+                    location = null;
+                }
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
+                indexResult.setLocation(location);
+                indexResult.setTook(index.startTime() - System.nanoTime());
+                indexResult.freeze();
+                return indexResult;
             }
         }
     }
@@ -593,7 +582,7 @@ public class InternalEngine extends Engine {
         } catch (Exception e) {
             Exception documentFailure = extractDocumentFailure(delete, e);
             result = new DeleteResult(documentFailure, delete.version(),
-                    delete.startTime() - System.nanoTime(), delete.estimatedSizeInBytes());
+                    delete.estimatedSizeInBytes());
         }
         maybePruneDeletedTombstones();
         return result;
@@ -628,14 +617,24 @@ public class InternalEngine extends Engine {
             final long expectedVersion = delete.version();
             if (checkVersionConflict(delete, currentVersion, expectedVersion, deleted)) {
                 // skip executing delete because of version conflict on recovery
-                return new DeleteResult(null, expectedVersion, true,
-                        delete.startTime() - System.nanoTime(), delete.estimatedSizeInBytes());
+                return new DeleteResult(expectedVersion, true,
+                        delete.estimatedSizeInBytes());
             } else {
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
-                location = maybeAddToTranslog(delete, updatedVersion, Translog.Delete::new, DeleteVersionValue::new);
-                return new DeleteResult(location, updatedVersion, found,
-                        delete.startTime() - System.nanoTime(), delete.estimatedSizeInBytes());
+                DeleteResult deleteResult = new DeleteResult(updatedVersion, found,
+                        delete.estimatedSizeInBytes());
+                if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                    location = translog.add(new Translog.Delete(delete, deleteResult));
+                } else {
+                    location = null;
+                }
+                versionMap.putUnderLock(delete.uid().bytes(),
+                        new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
+                deleteResult.setLocation(location);
+                deleteResult.setTook(delete.startTime() - System.nanoTime());
+                deleteResult.freeze();
+                return deleteResult;
             }
         }
     }

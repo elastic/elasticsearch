@@ -243,7 +243,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
-                updateOperationResult = new Engine.IndexResult(failure, updateRequest.version(), 0, 0);
+                updateOperationResult = new Engine.IndexResult(failure, updateRequest.version(), 0);
                 break; // out of retry loop
             }
             // execute translated update request

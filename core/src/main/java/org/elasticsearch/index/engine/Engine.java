@@ -284,30 +284,23 @@ public abstract class Engine implements Closeable {
 
     public abstract static class Result {
         private final Operation.TYPE operationType;
-        private final Translog.Location location;
         private final long version;
         private final Exception failure;
-        private final long took;
         private final int estimatedSizeInBytes;
+        private Translog.Location location;
+        private long took;
+        private boolean freeze;
 
-        private Result(Operation.TYPE operationType, Translog.Location location, Exception failure,
-                       long version, long took, int estimatedSizeInBytes) {
+        protected Result(Operation.TYPE operationType, Exception failure,
+                       long version, int estimatedSizeInBytes) {
             this.operationType = operationType;
-            this.location = location;
             this.failure = failure;
             this.version = version;
-            this.took = took;
             this.estimatedSizeInBytes = estimatedSizeInBytes;
         }
 
-        protected Result(Operation.TYPE operationType, Translog.Location location,
-                         long version, long took, int estimatedSizeInBytes) {
-            this(operationType, location, null, version, took, estimatedSizeInBytes);
-        }
-
-        protected Result(Operation.TYPE operationType, Exception failure,
-                         long version, long took, int estimatedSizeInBytes) {
-            this(operationType, null, failure, version, took, estimatedSizeInBytes);
+        protected Result(Operation.TYPE operationType, long version, int estimatedSizeInBytes) {
+            this(operationType, null, version, estimatedSizeInBytes);
         }
 
         public boolean hasFailure() {
@@ -340,18 +333,38 @@ public abstract class Engine implements Closeable {
             }
             return estimatedSizeInBytes;
         }
+
+        public void setLocation(Translog.Location location) {
+            if (freeze == false) {
+                this.location = location;
+            } else {
+                throw new IllegalStateException("result is already frozen");
+            }
+        }
+
+        public void setTook(long took) {
+            if (freeze == false) {
+                this.took = took;
+            } else {
+                throw new IllegalStateException("result is already frozen");
+            }
+        }
+
+        public void freeze() {
+            this.freeze = true;
+        }
     }
 
     public static class IndexResult extends Result {
         private final boolean created;
 
-        public IndexResult(Translog.Location location, long version, boolean created, long took, int estimatedSizeInBytes) {
-            super(Operation.TYPE.INDEX, location, version, took, estimatedSizeInBytes);
+        public IndexResult(long version, boolean created, int estimatedSizeInBytes) {
+            super(Operation.TYPE.INDEX, version, estimatedSizeInBytes);
             this.created = created;
         }
 
-        public IndexResult(Exception failure, long version, long took, int estimatedSizeInBytes) {
-            super(Operation.TYPE.INDEX, failure, version, took, estimatedSizeInBytes);
+        public IndexResult(Exception failure, long version, int estimatedSizeInBytes) {
+            super(Operation.TYPE.INDEX, failure, version, estimatedSizeInBytes);
             this.created = false;
         }
 
@@ -363,13 +376,13 @@ public abstract class Engine implements Closeable {
     public static class DeleteResult extends Result {
         private final boolean found;
 
-        public DeleteResult(Translog.Location location, long version, boolean found, long took, int estimatedSizeInBytes) {
-            super(Operation.TYPE.DELETE, location, version, took, estimatedSizeInBytes);
+        public DeleteResult(long version, boolean found, int estimatedSizeInBytes) {
+            super(Operation.TYPE.DELETE, version, estimatedSizeInBytes);
             this.found = found;
         }
 
-        DeleteResult(Exception failure, long version, long took, int estimatedSizeInBytes) {
-            super(Operation.TYPE.DELETE, failure, version, took, estimatedSizeInBytes);
+        public DeleteResult(Exception failure, long version, int estimatedSizeInBytes) {
+            super(Operation.TYPE.DELETE, failure, version, estimatedSizeInBytes);
             this.found = false;
         }
 

@@ -12,7 +12,7 @@ GET /_cat/master?v
 
 might respond:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 id                     host      ip        node
 YzWoH_2BT-6UjVGDyPdqYg 127.0.0.1 127.0.0.1 YzWoH_2

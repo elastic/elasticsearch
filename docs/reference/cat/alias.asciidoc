@@ -41,7 +41,7 @@ GET /_cat/aliases?v
 
 Might respond with:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 alias  index filter routing.index routing.search
 alias1 test1 -      -            -

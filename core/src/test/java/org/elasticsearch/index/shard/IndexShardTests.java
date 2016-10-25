@@ -558,43 +558,40 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.close("simon says", true);
         shard = reinitShard(shard, new IndexingOperationListener() {
             @Override
-            public void preOperation(Engine.Operation operation) {
-                switch (operation.operationType()) {
-                    case INDEX:
-                        preIndex.incrementAndGet();
-                        break;
-                    case DELETE:
-                        preDelete.incrementAndGet();
-                        break;
+            public Engine.Index preIndex(Engine.Index operation) {
+                preIndex.incrementAndGet();
+                return operation;
+            }
+
+            @Override
+            public void postIndex(Engine.Index index, boolean created) {
+                if (created) {
+                    postIndexCreate.incrementAndGet();
+                } else {
+                    postIndexUpdate.incrementAndGet();
                 }
             }
 
             @Override
-            public void postOperation(Engine.Operation operation) {
-                switch (operation.operationType()) {
-                    case INDEX:
-                        if (((Engine.Index) operation).isCreated()) {
-                            postIndexCreate.incrementAndGet();
-                        } else {
-                            postIndexUpdate.incrementAndGet();
-                        }
-                        break;
-                    case DELETE:
-                        postDelete.incrementAndGet();
-                        break;
-                }
+            public void postIndex(Engine.Index index, Exception ex) {
+                postIndexException.incrementAndGet();
             }
 
             @Override
-            public void postOperation(Engine.Operation operation, Exception ex) {
-                switch (operation.operationType()) {
-                    case INDEX:
-                        postIndexException.incrementAndGet();
-                        break;
-                    case DELETE:
-                        postDeleteException.incrementAndGet();
-                        break;
-                }
+            public Engine.Delete preDelete(Engine.Delete delete) {
+                preDelete.incrementAndGet();
+                return delete;
+            }
+
+            @Override
+            public void postDelete(Engine.Delete delete) {
+                postDelete.incrementAndGet();
+            }
+
+            @Override
+            public void postDelete(Engine.Delete delete, Exception ex) {
+                postDeleteException.incrementAndGet();
+
             }
         });
         recoveryShardFromStore(shard);
@@ -602,7 +599,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(),
             new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
-        shard.execute(index);
+        shard.index(index);
         assertEquals(1, preIndex.get());
         assertEquals(1, postIndexCreate.get());
         assertEquals(0, postIndexUpdate.get());
@@ -611,7 +608,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        shard.execute(index);
+        shard.index(index);
         assertEquals(2, preIndex.get());
         assertEquals(1, postIndexCreate.get());
         assertEquals(1, postIndexUpdate.get());
@@ -621,7 +618,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDeleteException.get());
 
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
-        shard.execute(delete);
+        shard.delete(delete);
 
         assertEquals(2, preIndex.get());
         assertEquals(1, postIndexCreate.get());
@@ -635,7 +632,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.state = IndexShardState.STARTED; // It will generate exception
 
         try {
-            shard.execute(index);
+            shard.index(index);
             fail();
         } catch (IllegalIndexShardStateException e) {
 
@@ -649,7 +646,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, postDelete.get());
         assertEquals(0, postDeleteException.get());
         try {
-            shard.execute(delete);
+            shard.delete(delete);
             fail();
         } catch (IllegalIndexShardStateException e) {
 
@@ -1124,27 +1121,26 @@ public class IndexShardTests extends IndexShardTestCase {
         final AtomicInteger postDelete = new AtomicInteger();
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public void preOperation(Engine.Operation operation) {
-                switch (operation.operationType()) {
-                    case INDEX:
-                        preIndex.incrementAndGet();
-                        break;
-                    case DELETE:
-                        preDelete.incrementAndGet();
-                        break;
-                }
+            public Engine.Index preIndex(Engine.Index operation) {
+                preIndex.incrementAndGet();
+                return operation;
             }
 
             @Override
-            public void postOperation(Engine.Operation operation) {
-                switch (operation.operationType()) {
-                    case INDEX:
-                        postIndex.incrementAndGet();
-                        break;
-                    case DELETE:
-                        postDelete.incrementAndGet();
-                        break;
-                }
+            public void postIndex(Engine.Index index, boolean created) {
+                postIndex.incrementAndGet();
+            }
+
+            @Override
+            public Engine.Delete preDelete(Engine.Delete delete) {
+                preDelete.incrementAndGet();
+                return delete;
+            }
+
+            @Override
+            public void postDelete(Engine.Delete delete) {
+                postDelete.incrementAndGet();
+
             }
         };
         final IndexShard newShard = reinitShard(shard, listener);

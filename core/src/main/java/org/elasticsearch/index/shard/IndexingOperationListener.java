@@ -25,19 +25,49 @@ import org.elasticsearch.index.engine.Engine;
 
 import java.util.List;
 
-/** An engine operation listener for index and delete execution. */
+/**
+ * An indexing listener for indexing, delete, events.
+ */
 public interface IndexingOperationListener {
 
-    /** Called before executing index or delete operation */
-    default void preOperation(Engine.Operation operation) {}
+    /**
+     * Called before the indexing occurs.
+     */
+    default Engine.Index preIndex(Engine.Index operation) {
+        return operation;
+    }
 
-    /** Called after executing index or delete operation */
-    default void postOperation(Engine.Operation operation) {}
+    /**
+     * Called after the indexing operation occurred.
+     */
+    default void postIndex(Engine.Index index, boolean created) {}
 
-    /** Called after index or delete operation failed with exception */
-    default void postOperation(Engine.Operation operation, Exception ex) {}
+    /**
+     * Called after the indexing operation occurred with exception.
+     */
+    default void postIndex(Engine.Index index, Exception ex) {}
 
-    /** A Composite listener that multiplexes calls to each of the listeners methods. */
+    /**
+     * Called before the delete occurs.
+     */
+    default Engine.Delete preDelete(Engine.Delete delete) {
+        return delete;
+    }
+
+
+    /**
+     * Called after the delete operation occurred.
+     */
+    default void postDelete(Engine.Delete delete) {}
+
+    /**
+     * Called after the delete operation occurred with exception.
+     */
+    default void postDelete(Engine.Delete delete, Exception ex) {}
+
+    /**
+     * A Composite listener that multiplexes calls to each of the listeners methods.
+     */
     final class CompositeListener implements IndexingOperationListener{
         private final List<IndexingOperationListener> listeners;
         private final Logger logger;
@@ -48,38 +78,77 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public void preOperation(Engine.Operation operation) {
+        public Engine.Index preIndex(Engine.Index operation) {
             assert operation != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.preOperation(operation);
+                    listener.preIndex(operation);
                 } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preOperation listener [{}] failed", listener), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preIndex listener [{}] failed", listener), e);
+                }
+            }
+            return operation;
+        }
+
+        @Override
+        public void postIndex(Engine.Index index, boolean created) {
+            assert index != null;
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postIndex(index, created);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
                 }
             }
         }
 
         @Override
-        public void postOperation(Engine.Operation operation) {
-            assert operation != null;
+        public void postIndex(Engine.Index index, Exception ex) {
+            assert index != null && ex != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.postOperation(operation);
-                } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postOperation listener [{}] failed", listener), e);
-                }
-            }
-        }
-
-        @Override
-        public void postOperation(Engine.Operation operation, Exception ex) {
-            assert operation != null && ex != null;
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.postOperation(operation, ex);
+                    listener.postIndex(index, ex);
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postOperation listener [{}] failed", listener), inner);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), inner);
+                }
+            }
+        }
+
+        @Override
+        public Engine.Delete preDelete(Engine.Delete delete) {
+            assert delete != null;
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.preDelete(delete);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preDelete listener [{}] failed", listener), e);
+                }
+            }
+            return delete;
+        }
+
+        @Override
+        public void postDelete(Engine.Delete delete) {
+            assert delete != null;
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postDelete(delete);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void postDelete(Engine.Delete delete, Exception ex) {
+            assert delete != null && ex != null;
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postDelete(delete, ex);
+                } catch (Exception inner) {
+                    inner.addSuppressed(ex);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), inner);
                 }
             }
         }

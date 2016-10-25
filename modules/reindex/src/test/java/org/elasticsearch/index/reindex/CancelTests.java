@@ -197,14 +197,25 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public static class BlockingOperationListener implements IndexingOperationListener {
+
         @Override
-        public void preOperation(Engine.Operation operation) {
-            if ((TYPE.equals(operation.type()) == false) || (operation.origin() != Origin.PRIMARY)) {
-                return;
+        public Engine.Index preIndex(Engine.Index index) {
+            return preCheck(index, index.type());
+        }
+
+        @Override
+        public Engine.Delete preDelete(Engine.Delete delete) {
+            return preCheck(delete, delete.type());
+        }
+
+        private <T extends Engine.Operation> T preCheck(T operation, String type) {
+            if ((TYPE.equals(type) == false) || (operation.origin() != Origin.PRIMARY)) {
+                return operation;
             }
+
             try {
                 if (ALLOWED_OPERATIONS.tryAcquire(30, TimeUnit.SECONDS)) {
-                    return;
+                    return operation;
                 }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);

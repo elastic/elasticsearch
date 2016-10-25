@@ -451,7 +451,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source)),
                 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
-        shard.execute(index);
+        shard.index(index);
         return ((Engine.Index) index);
     }
 
@@ -462,7 +462,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         } else {
             delete = shard.prepareDeleteOnPrimary(type, id, 1, VersionType.EXTERNAL);
         }
-        shard.execute(delete);
+        shard.delete(delete);
         return delete;
     }
 

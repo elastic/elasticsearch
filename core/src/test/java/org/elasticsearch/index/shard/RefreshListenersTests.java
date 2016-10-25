@@ -137,14 +137,14 @@ public class RefreshListenersTests extends ESTestCase {
 
     public void testTooMany() throws Exception {
         assertFalse(listeners.refreshNeeded());
-        Engine.Index index = index("1");
+        Engine.IndexResult index = index("1");
 
         // Fill the listener slots
         List<DummyRefreshListener> nonForcedListeners = new ArrayList<>(maxListeners);
         for (int i = 0; i < maxListeners; i++) {
             DummyRefreshListener listener = new DummyRefreshListener();
             nonForcedListeners.add(listener);
-            listeners.addOrNotify(index.getTranslogLocation(), listener);
+            listeners.addOrNotify(index.getLocation(), listener);
             assertTrue(listeners.refreshNeeded());
         }
 
@@ -155,7 +155,7 @@ public class RefreshListenersTests extends ESTestCase {
 
         // Add one more listener which should cause a refresh.
         DummyRefreshListener forcingListener = new DummyRefreshListener();
-        listeners.addOrNotify(index.getTranslogLocation(), forcingListener);
+        listeners.addOrNotify(index.getLocation(), forcingListener);
         assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
         forcingListener.assertNoError();
 
@@ -168,7 +168,7 @@ public class RefreshListenersTests extends ESTestCase {
     }
 
     public void testAfterRefresh() throws Exception {
-        Engine.Index index = index("1");
+        Engine.IndexResult index = index("1");
         engine.refresh("I said so");
         if (randomBoolean()) {
             index(randomFrom("1" /* same document */, "2" /* different document */));
@@ -178,7 +178,7 @@ public class RefreshListenersTests extends ESTestCase {
         }
 
         DummyRefreshListener listener = new DummyRefreshListener();
-        assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
+        assertTrue(listeners.addOrNotify(index.getLocation(), listener));
         assertFalse(listener.forcedRefresh.get());
         listener.assertNoError();
     }
@@ -198,9 +198,9 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.start();
         try {
             for (int i = 0; i < 1000; i++) {
-                Engine.Index index = index("1");
+                Engine.IndexResult index = index("1");
                 DummyRefreshListener listener = new DummyRefreshListener();
-                boolean immediate = listeners.addOrNotify(index.getTranslogLocation(), listener);
+                boolean immediate = listeners.addOrNotify(index.getLocation(), listener);
                 if (immediate) {
                     assertNotNull(listener.forcedRefresh.get());
                 } else {
@@ -234,18 +234,18 @@ public class RefreshListenersTests extends ESTestCase {
                 for (int iteration = 1; iteration <= 50; iteration++) {
                     try {
                         String testFieldValue = String.format(Locale.ROOT, "%s%04d", threadId, iteration);
-                        Engine.Index index = index(threadId, testFieldValue);
-                        assertEquals(iteration, index.version());
+                        Engine.IndexResult index = index(threadId, testFieldValue);
+                        assertEquals(iteration, index.getVersion());
 
                         DummyRefreshListener listener = new DummyRefreshListener();
-                        listeners.addOrNotify(index.getTranslogLocation(), listener);
+                        listeners.addOrNotify(index.getLocation(), listener);
                         assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()));
                         if (threadCount < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());
                         }
                         listener.assertNoError();
 
-                        Engine.Get get = new Engine.Get(false, index.uid());
+                        Engine.Get get = new Engine.Get(false, new Term("_uid", "test:"+threadId));
                         try (Engine.GetResult getResult = engine.get(get)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
@@ -267,11 +267,11 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.cancel();
     }
 
-    private Engine.Index index(String id) {
+    private Engine.IndexResult index(String id) {
         return index(id, "test");
     }
 
-    private Engine.Index index(String id, String testFieldValue) {
+    private Engine.IndexResult index(String id, String testFieldValue) {
         String type = "test";
         String uid = type + ":" + id;
         Document document = new Document();
@@ -283,8 +283,7 @@ public class RefreshListenersTests extends ESTestCase {
         BytesReference source = new BytesArray(new byte[] { 1 });
         ParsedDocument doc = new ParsedDocument(versionField, id, type, null, -1, -1, Arrays.asList(document), source, null);
         Engine.Index index = new Engine.Index(new Term("_uid", uid), doc);
-        engine.index(index);
-        return index;
+        return engine.index(index);
     }
 
     private static class DummyRefreshListener implements Consumer<Boolean> {

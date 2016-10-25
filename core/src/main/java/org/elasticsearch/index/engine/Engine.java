@@ -278,9 +278,105 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract void index(Index operation);
+    public abstract IndexResult index(Index operation);
 
-    public abstract void delete(Delete delete);
+    public abstract DeleteResult delete(Delete delete);
+
+    public abstract static class Result {
+        private final Operation.TYPE operationType;
+        private final Translog.Location location;
+        private final long version;
+        private final Exception failure;
+        private final long took;
+        private final int estimatedSizeInBytes;
+
+        private Result(Operation.TYPE operationType, Translog.Location location, Exception failure,
+                       long version, long took, int estimatedSizeInBytes) {
+            this.operationType = operationType;
+            this.location = location;
+            this.failure = failure;
+            this.version = version;
+            this.took = took;
+            this.estimatedSizeInBytes = estimatedSizeInBytes;
+        }
+
+        protected Result(Operation.TYPE operationType, Translog.Location location,
+                         long version, long took, int estimatedSizeInBytes) {
+            this(operationType, location, null, version, took, estimatedSizeInBytes);
+        }
+
+        protected Result(Operation.TYPE operationType, Exception failure,
+                         long version, long took, int estimatedSizeInBytes) {
+            this(operationType, null, failure, version, took, estimatedSizeInBytes);
+        }
+
+        public boolean hasFailure() {
+            return failure != null;
+        }
+
+        public long getVersion() {
+            return version;
+        }
+
+        public Translog.Location getLocation() {
+            return location;
+        }
+
+        public Exception getFailure() {
+            return failure;
+        }
+
+        public long getTook() {
+            return took;
+        }
+
+        public Operation.TYPE getOperationType() {
+            return operationType;
+        }
+
+        public int getSizeInBytes() {
+            if (location != null) {
+                return location.size;
+            }
+            return estimatedSizeInBytes;
+        }
+    }
+
+    public static class IndexResult extends Result {
+        private final boolean created;
+
+        public IndexResult(Translog.Location location, long version, boolean created, long took, int estimatedSizeInBytes) {
+            super(Operation.TYPE.INDEX, location, version, took, estimatedSizeInBytes);
+            this.created = created;
+        }
+
+        public IndexResult(Exception failure, long version, long took, int estimatedSizeInBytes) {
+            super(Operation.TYPE.INDEX, failure, version, took, estimatedSizeInBytes);
+            this.created = false;
+        }
+
+        public boolean isCreated() {
+            return created;
+        }
+    }
+
+    public static class DeleteResult extends Result {
+        private final boolean found;
+
+        public DeleteResult(Translog.Location location, long version, boolean found, long took, int estimatedSizeInBytes) {
+            super(Operation.TYPE.DELETE, location, version, took, estimatedSizeInBytes);
+            this.found = found;
+        }
+
+        DeleteResult(Exception failure, long version, long took, int estimatedSizeInBytes) {
+            super(Operation.TYPE.DELETE, failure, version, took, estimatedSizeInBytes);
+            this.found = false;
+        }
+
+        public boolean isFound() {
+            return found;
+        }
+    }
 
     /**
      * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
@@ -771,7 +867,7 @@ public abstract class Engine implements Closeable {
 
         /** type of operation (index, delete), subclasses use static types */
         public enum TYPE {
-            INDEX, DELETE, FAILURE;
+            INDEX, DELETE;
 
             private final String lowercase;
 
@@ -785,13 +881,10 @@ public abstract class Engine implements Closeable {
         }
 
         private final Term uid;
-        private long version;
+        private final long version;
         private final VersionType versionType;
         private final Origin origin;
-        private Translog.Location location;
-        private Exception failure;
         private final long startTime;
-        private long endTime;
 
         public Operation(Term uid, long version, VersionType versionType, Origin origin, long startTime) {
             this.uid = uid;
@@ -824,39 +917,7 @@ public abstract class Engine implements Closeable {
             return this.version;
         }
 
-        public void updateVersion(long version) {
-            this.version = version;
-        }
-
-        public void setTranslogLocation(Translog.Location location) {
-            this.location = location;
-        }
-
-        public Translog.Location getTranslogLocation() {
-            return this.location;
-        }
-
-        public Exception getFailure() {
-            return failure;
-        }
-
-        public void setFailure(Exception failure) {
-            this.failure = failure;
-        }
-
-        public boolean hasFailure() {
-            return failure != null;
-        }
-
-        public int sizeInBytes() {
-            if (location != null) {
-                return location.size;
-            } else {
-                return estimatedSizeInBytes();
-            }
-        }
-
-        protected abstract int estimatedSizeInBytes();
+        public abstract int estimatedSizeInBytes();
 
         public VersionType versionType() {
             return this.versionType;
@@ -869,24 +930,11 @@ public abstract class Engine implements Closeable {
             return this.startTime;
         }
 
-        public void endTime(long endTime) {
-            this.endTime = endTime;
-        }
-
-        /**
-         * Returns operation end time in nanoseconds.
-         */
-        public long endTime() {
-            return this.endTime;
-        }
-
         public abstract String type();
 
         abstract String id();
 
-        public abstract TYPE operationType();
-
-        public abstract String toString();
+        abstract TYPE operationType();
     }
 
     public static class Index extends Operation {
@@ -894,7 +942,6 @@ public abstract class Engine implements Closeable {
         private final ParsedDocument doc;
         private final long autoGeneratedIdTimestamp;
         private final boolean isRetry;
-        private boolean created;
 
         public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime,
                      long autoGeneratedIdTimestamp, boolean isRetry) {
@@ -927,7 +974,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public TYPE operationType() {
+        TYPE operationType() {
             return TYPE.INDEX;
         }
 
@@ -943,12 +990,6 @@ public abstract class Engine implements Closeable {
             return this.doc.ttl();
         }
 
-        @Override
-        public void updateVersion(long version) {
-            super.updateVersion(version);
-            this.doc.version().setLongValue(version);
-        }
-
         public String parent() {
             return this.doc.parent();
         }
@@ -961,16 +1002,8 @@ public abstract class Engine implements Closeable {
             return this.doc.source();
         }
 
-        public boolean isCreated() {
-            return created;
-        }
-
-        public void setCreated(boolean created) {
-            this.created = created;
-        }
-
         @Override
-        protected int estimatedSizeInBytes() {
+        public int estimatedSizeInBytes() {
             return (id().length() + type().length()) * 2 + source().length() + 12;
         }
 
@@ -991,31 +1024,25 @@ public abstract class Engine implements Closeable {
             return isRetry;
         }
 
-        @Override
-        public String toString() {
-            return "index [{" + type() + "}][{" + id()+ "}] [{" + docs() + "}]";
-        }
     }
 
     public static class Delete extends Operation {
 
         private final String type;
         private final String id;
-        private boolean found;
 
-        public Delete(String type, String id, Term uid, long version, VersionType versionType, Origin origin, long startTime, boolean found) {
+        public Delete(String type, String id, Term uid, long version, VersionType versionType, Origin origin, long startTime) {
             super(uid, version, versionType, origin, startTime);
             this.type = type;
             this.id = id;
-            this.found = found;
         }
 
         public Delete(String type, String id, Term uid) {
-            this(type, id, uid, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), false);
+            this(type, id, uid, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public Delete(Delete template, VersionType versionType) {
-            this(template.type(), template.id(), template.uid(), template.version(), versionType, template.origin(), template.startTime(), template.found());
+            this(template.type(), template.id(), template.uid(), template.version(), versionType, template.origin(), template.startTime());
         }
 
         @Override
@@ -1029,71 +1056,13 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public TYPE operationType() {
+        TYPE operationType() {
             return TYPE.DELETE;
         }
 
         @Override
-        public String toString() {
-            return "delete [{"+ uid().text() +"}]";
-        }
-
-        public void updateVersion(long version, boolean found) {
-            updateVersion(version);
-            this.found = found;
-        }
-
-        public boolean found() {
-            return this.found;
-        }
-
-        @Override
-        protected int estimatedSizeInBytes() {
+        public int estimatedSizeInBytes() {
             return (uid().field().length() + uid().text().length()) * 2 + 20;
-        }
-    }
-
-    public static class Failure extends Operation {
-
-        private final String type;
-        private final String id;
-
-        public Failure(String type, String id, long version, VersionType versionType, Origin origin,
-                       long startTime, Exception failure) {
-            super(null, version, versionType, origin, startTime);
-            this.type = type;
-            this.id = id;
-            setFailure(failure);
-        }
-
-        @Override
-        public Term uid() {
-            throw new UnsupportedOperationException("failure operation doesn't have uid");
-        }
-
-        @Override
-        protected int estimatedSizeInBytes() {
-            return 0;
-        }
-
-        @Override
-        public String type() {
-            return type;
-        }
-
-        @Override
-        protected String id() {
-            return id;
-        }
-
-        @Override
-        public TYPE operationType() {
-            return TYPE.FAILURE;
-        }
-
-        @Override
-        public String toString() {
-            return "failure [{" + type() + "}][{" + id()+ "}]";
         }
     }
 

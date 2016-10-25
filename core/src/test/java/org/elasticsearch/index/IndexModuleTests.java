@@ -233,10 +233,9 @@ public class IndexModuleTests extends ESTestCase {
         AtomicBoolean executed = new AtomicBoolean(false);
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public void preOperation(Engine.Operation operation) {
-                if (operation.operationType() == Engine.Operation.TYPE.INDEX) {
-                    executed.set(true);
-                }
+            public Engine.Index preIndex(Engine.Index operation) {
+                executed.set(true);
+                return operation;
             }
         };
         module.addIndexOperationListener(listener);
@@ -252,7 +251,7 @@ public class IndexModuleTests extends ESTestCase {
 
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
         for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {
-            l.preOperation(index);
+            l.preIndex(index);
         }
         assertTrue(executed.get());
         indexService.close("simon says", false);

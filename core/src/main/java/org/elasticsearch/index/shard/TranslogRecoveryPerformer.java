@@ -170,7 +170,7 @@ public class TranslogRecoveryPerformer {
                         logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
                     }
                     final Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
-                        delete.versionType().versionTypeForReplicationAndRecovery(), origin, System.nanoTime(), false);
+                        delete.versionType().versionTypeForReplicationAndRecovery(), origin, System.nanoTime());
                     delete(engine, engineDelete);
                     break;
                 default:

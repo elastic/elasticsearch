@@ -366,19 +366,19 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, IndexRequest request) throws Exception {
-            final Engine.Operation operation = executeIndexRequestOnPrimary(request, primary,
+            final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary,
                     null);
             request.primaryTerm(primary.getPrimaryTerm());
-            TransportWriteActionTestHelper.performPostWriteActions(primary, request, operation.getTranslogLocation(), logger);
-            IndexResponse response = new IndexResponse(primary.shardId(), request.type(), request.id(), operation.version(),
-                    ((Engine.Index) operation).isCreated());
+            TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getLocation(), logger);
+            IndexResponse response = new IndexResponse(primary.shardId(), request.type(), request.id(), indexResult.getVersion(),
+                    indexResult.isCreated());
             return new PrimaryResult(request, response);
         }
 
         @Override
         protected void performOnReplica(IndexRequest request, IndexShard replica) {
-            final Engine.Operation operation = executeIndexRequestOnReplica(request, replica);
-            TransportWriteActionTestHelper.performPostWriteActions(replica, request, operation.getTranslogLocation(), logger);
+            final Engine.IndexResult result = executeIndexRequestOnReplica(request, replica);
+            TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getLocation(), logger);
         }
     }
 }

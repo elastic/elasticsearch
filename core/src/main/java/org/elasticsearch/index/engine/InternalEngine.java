@@ -421,22 +421,22 @@ public class InternalEngine extends Engine {
                 }
             }
         } catch (Exception e) {
-            Exception transientOperationFailure = handleOperationFailure(index, e);
-            result = new IndexResult(transientOperationFailure, index.version(),
+            Exception documentFailure = extractDocumentFailure(index, e);
+            result = new IndexResult(documentFailure, index.version(),
                     index.startTime() - System.nanoTime(), index.estimatedSizeInBytes());
         }
         return result;
     }
 
     /**
-     * Handle failures executing write operations, distinguish persistent engine (environment) failures
-     * from document (request) specific failures.
-     * Write failures that fail the engine as a side-effect, are thrown wrapped in {@link OperationFailedEngineException}
-     * and document specific failures are returned to be set on the {@link Engine.Result} to be handled
-     * at the transport level.
+     * Inspects exception thrown when executing index or delete operations
+     *
+     * @return failure if the failure is a document specific failure (e.g. analysis chain failure)
+     * @throws OperationFailedEngineException if the failure caused the engine to fail
+     * (e.g. out of disk, lucene tragic event)
      */
-    private Exception handleOperationFailure(final Operation operation, final Exception failure) {
-        boolean isEnvironmentFailure;
+    private Exception extractDocumentFailure(final Operation operation, final Exception failure) {
+        boolean isDocumentFailure;
         try {
             // When indexing a document into Lucene, Lucene distinguishes between environment related errors
             // (like out of disk space) and document specific errors (like analysis chain problems) by setting
@@ -444,18 +444,18 @@ public class InternalEngine extends Engine {
             // errors and returns true if that is the case. We use that to indicate a document level failure
             // and set the error in operation.setFailure. In case of environment related errors, the failure
             // is bubbled up
-            isEnvironmentFailure = (failure instanceof IllegalStateException || failure instanceof IOException)
-                    && maybeFailEngine(operation.operationType().getLowercase(), failure);
+            isDocumentFailure = !((failure instanceof IllegalStateException || failure instanceof IOException)
+                    && maybeFailEngine(operation.operationType().getLowercase(), failure));
         } catch (Exception inner) {
             // we failed checking whether the failure can fail the engine, treat it as a persistent engine failure
-            isEnvironmentFailure = true;
+            isDocumentFailure = false;
             failure.addSuppressed(inner);
         }
-        if (isEnvironmentFailure) {
+        if (isDocumentFailure) {
+            return failure;
+        } else {
             throw new OperationFailedEngineException(shardId, operation.operationType().getLowercase(),
                     operation.type(), operation.id(), failure);
-        } else {
-            return failure;
         }
     }
 
@@ -591,8 +591,8 @@ public class InternalEngine extends Engine {
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             result = innerDelete(delete);
         } catch (Exception e) {
-            Exception transientOperationFailure = handleOperationFailure(delete, e);
-            result = new DeleteResult(transientOperationFailure, delete.version(),
+            Exception documentFailure = extractDocumentFailure(delete, e);
+            result = new DeleteResult(documentFailure, delete.version(),
                     delete.startTime() - System.nanoTime(), delete.estimatedSizeInBytes());
         }
         maybePruneDeletedTombstones();

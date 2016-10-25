@@ -50,11 +50,11 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
         }
     }
 
-    public void initialize(InternalAggregation.ReduceContext reduceContext) {
-
+    public SignificanceHeuristic initialize(InternalAggregation.ReduceContext reduceContext) {
+        return this;
     }
 
-    public void initialize(SearchContext context) {
-
+    public SignificanceHeuristic initialize(SearchContext context) {
+        return this;
     }
 }

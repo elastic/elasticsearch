@@ -400,9 +400,11 @@ public class OsProbe {
      * {@code cpu} subsystem. These lines represent the CPU time
      * statistics and have the form
      * <p>
+     * <pre>
      * nr_periods \d+
      * nr_throttled \d+
      * throttled_time \d+
+     * </pre>
      * <p>
      * where {@code nr_periods} is the number of period intervals
      * as specified by {@code cpu.cfs_period_us} that have elapsed,

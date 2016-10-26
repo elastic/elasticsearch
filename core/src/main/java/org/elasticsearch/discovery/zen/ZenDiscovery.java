@@ -683,15 +683,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     return currentState;
                 }
 
-                DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(currentState.nodes())
-                        // make sure the old master node, which has failed, is not part of the nodes we publish
-                        .remove(masterNode)
-                        .masterNodeId(null).build();
-
                 // flush any pending cluster states from old master, so it will not be set as master again
                 publishClusterState.pendingStatesQueue().failAllStatesAndClear(new ElasticsearchException("master left [{}]", reason));
 
-                return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
+                return rejoin(currentState, "master left (reason = " + reason + ")");
             }
 
             @Override

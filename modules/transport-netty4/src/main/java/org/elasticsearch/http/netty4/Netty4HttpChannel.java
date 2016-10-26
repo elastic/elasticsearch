@@ -95,7 +95,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
         // otherwise, create a new one
         ByteBuf buffer = Netty4Utils.toByteBuf(response.content());
         final FullHttpResponse resp;
-        if (nettyRequest.method().equals(HttpMethod.HEAD)) {
+        if (HttpMethod.HEAD.equals(nettyRequest.method())) {
             resp = newResponse(Unpooled.EMPTY_BUFFER);
         } else {
             resp = newResponse(buffer);

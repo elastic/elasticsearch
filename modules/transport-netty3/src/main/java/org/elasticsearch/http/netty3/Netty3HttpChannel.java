@@ -111,7 +111,7 @@ public final class Netty3HttpChannel extends AbstractRestChannel {
         boolean addedReleaseListener = false;
         try {
             buffer = Netty3Utils.toChannelBuffer(content);
-            if (nettyRequest.getMethod().equals(HttpMethod.HEAD)) {
+            if (HttpMethod.HEAD.equals(nettyRequest.getMethod())) {
                 resp.setContent(ChannelBuffers.EMPTY_BUFFER);
             } else {
                 resp.setContent(buffer);

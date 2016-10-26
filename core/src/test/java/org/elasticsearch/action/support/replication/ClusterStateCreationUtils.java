@@ -145,7 +145,8 @@ public class ClusterStateCreationUtils {
     }
 
     /**
-     * Creates cluster state with and index that has #(shardStates) started primary shards and no replicas, using the given number of nodes.
+     * Creates cluster state with an index that has #(numberOfPrimaries) primary shards in the started state and no replicas.
+     * The cluster state contains #(numberOfNodes) nodes and assigns primaries to those nodes.
      */
     public static ClusterState state(String index, final int numberOfNodes, final int numberOfPrimaries) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
@@ -157,11 +158,10 @@ public class ClusterStateCreationUtils {
         }
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
-        final int primaryTerm = 1 + randomInt(200);
         IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_CREATION_DATE, System.currentTimeMillis())).primaryTerm(0, primaryTerm).build();
+            .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
 
         RoutingTable.Builder routing = new RoutingTable.Builder();
         routing.addAsNew(indexMetaData);

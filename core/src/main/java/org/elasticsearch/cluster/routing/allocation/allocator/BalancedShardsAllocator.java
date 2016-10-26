@@ -133,8 +133,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * from the cluster allocation explain API to explain possible rebalancing decisions for a single
      * shard.
      */
-    public RebalanceDecision rebalanceShard(final ShardRouting shard, final RoutingAllocation allocation) {
-        return new Balancer(logger, allocation, weightFunction, threshold).balanceShard(shard);
+    public RebalanceDecision decideRebalance(final ShardRouting shard, final RoutingAllocation allocation) {
+        return new Balancer(logger, allocation, weightFunction, threshold).decideRebalance(shard);
     }
 
     /**
@@ -325,7 +325,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * optimally balanced cluster.  This method is invoked from the cluster allocation
          * explain API only.
          */
-        private RebalanceDecision balanceShard(final ShardRouting shard) {
+        private RebalanceDecision decideRebalance(final ShardRouting shard) {
             if (shard.started() == false) {
                 // cannot rebalance a shard that isn't started
                 return RebalanceDecision.NOT_TAKEN;
@@ -397,20 +397,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 );
             }
 
-            final String finalExplanation;
-            if (assignedNodeId != null) {
-                if (rebalanceDecisionType == Type.THROTTLE) {
-                    finalExplanation = "throttle moving shard to node [" + assignedNodeId + "], as it is " +
-                                           "currently busy with other shard relocations";
-                } else {
-                    finalExplanation = "moving shard to node [" + assignedNodeId + "] to form a more balanced cluster";
-                }
-            } else {
-                finalExplanation = "cannot rebalance shard, no other node exists that would form a more balanced " +
-                                       "cluster within the defined threshold [" + threshold + "]";
-            }
-            return new RebalanceDecision(canRebalance, rebalanceDecisionType, finalExplanation,
-                                            assignedNodeId, nodeDecisions, currentWeight);
+            return RebalanceDecision.decision(
+                canRebalance, rebalanceDecisionType, assignedNodeId, nodeDecisions, currentWeight, threshold
+            );
         }
 
         public Map<DiscoveryNode, Float> weighShard(ShardRouting shard) {
@@ -1372,12 +1361,27 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             this(canRebalanceDecision, finalDecision, finalExplanation, null, null, Float.POSITIVE_INFINITY);
         }
 
-        protected RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String finalExplanation,
-                                    String assignedNodeId, Map<String, NodeRebalanceDecision> nodeDecisions, float currentWeight) {
+        protected RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String assignedNodeId, Map<String,
+                                    NodeRebalanceDecision> nodeDecisions, float currentWeight, float threshold) {
+            this(canRebalanceDecision, finalDecision, produceFinalExplanation(finalDecision, assignedNodeId, threshold),
+                 assignedNodeId, nodeDecisions, currentWeight);
+        }
+
+        private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String finalExplanation,
+                                  String assignedNodeId, Map<String, NodeRebalanceDecision> nodeDecisions, float currentWeight) {
             super(finalDecision, finalExplanation, assignedNodeId);
             this.canRebalanceDecision = canRebalanceDecision;
             this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
             this.currentWeight = currentWeight;
+        }
+
+        /**
+         * Creates a new {@link RebalanceDecision}, computing the explanation based on the decision parameters.
+         */
+        public static RebalanceDecision decision(Decision canRebalanceDecision, Type finalDecision, String assignedNodeId,
+                                                 Map<String, NodeRebalanceDecision> nodeDecisions, float currentWeight, float threshold) {
+            final String explanation = produceFinalExplanation(finalDecision, assignedNodeId, threshold);
+            return new RebalanceDecision(canRebalanceDecision, finalDecision, explanation, assignedNodeId, nodeDecisions, currentWeight);
         }
 
         /**
@@ -1394,6 +1398,22 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         @Nullable
         public Map<String, NodeRebalanceDecision> getNodeDecisions() {
             return nodeDecisions;
+        }
+
+        private static String produceFinalExplanation(final Type finalDecisionType, final String assignedNodeId, final float threshold) {
+            final String finalExplanation;
+            if (assignedNodeId != null) {
+                if (finalDecisionType == Type.THROTTLE) {
+                    finalExplanation = "throttle moving shard to node [" + assignedNodeId + "], as it is " +
+                                           "currently busy with other shard relocations";
+                } else {
+                    finalExplanation = "moving shard to node [" + assignedNodeId + "] to form a more balanced cluster";
+                }
+            } else {
+                finalExplanation = "cannot rebalance shard, no other node exists that would form a more balanced " +
+                                       "cluster within the defined threshold [" + threshold + "]";
+            }
+            return finalExplanation;
         }
     }
 

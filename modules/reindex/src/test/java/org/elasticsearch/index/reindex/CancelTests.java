@@ -199,23 +199,23 @@ public class CancelTests extends ReindexTestCase {
     public static class BlockingOperationListener implements IndexingOperationListener {
 
         @Override
-        public void preIndex(Engine.Index index) {
-            preCheck(index, index.type());
+        public Engine.Index preIndex(Engine.Index index) {
+            return preCheck(index, index.type());
         }
 
         @Override
-        public void preDelete(Engine.Delete delete) {
-            preCheck(delete, delete.type());
+        public Engine.Delete preDelete(Engine.Delete delete) {
+            return preCheck(delete, delete.type());
         }
 
-        private void preCheck(Engine.Operation operation, String type) {
+        private <T extends Engine.Operation> T preCheck(T operation, String type) {
             if ((TYPE.equals(type) == false) || (operation.origin() != Origin.PRIMARY)) {
-                return;
+                return operation;
             }
 
             try {
                 if (ALLOWED_OPERATIONS.tryAcquire(30, TimeUnit.SECONDS)) {
-                    return;
+                    return operation;
                 }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);

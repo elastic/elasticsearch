@@ -65,11 +65,12 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void preIndex(Engine.Index operation) {
+    public Engine.Index preIndex(Engine.Index operation) {
         if (!operation.origin().isRecovery()) {
             totalStats.indexCurrent.inc();
             typeStats(operation.type()).indexCurrent.inc();
         }
+        return operation;
     }
 
     @Override
@@ -95,11 +96,13 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void preDelete(Engine.Delete delete) {
+    public Engine.Delete preDelete(Engine.Delete delete) {
         if (!delete.origin().isRecovery()) {
             totalStats.deleteCurrent.inc();
             typeStats(delete.type()).deleteCurrent.inc();
         }
+        return delete;
+
     }
 
     @Override

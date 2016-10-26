@@ -40,8 +40,9 @@ public class IndexingOperationListenerTests extends ESTestCase{
         AtomicInteger postDeleteException = new AtomicInteger();
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public void preIndex(Engine.Index operation) {
+            public Engine.Index preIndex(Engine.Index operation) {
                 preIndex.incrementAndGet();
+                return operation;
             }
 
             @Override
@@ -55,8 +56,9 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void preDelete(Engine.Delete delete) {
+            public Engine.Delete preDelete(Engine.Delete delete) {
                 preDelete.incrementAndGet();
+                return delete;
             }
 
             @Override
@@ -72,7 +74,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
 
         IndexingOperationListener throwingListener = new IndexingOperationListener() {
             @Override
-            public void preIndex(Engine.Index operation) {
+            public Engine.Index preIndex(Engine.Index operation) {
                 throw new RuntimeException();
             }
 
@@ -87,7 +89,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void preDelete(Engine.Delete delete) {
+            public Engine.Delete preDelete(Engine.Delete delete) {
                 throw new RuntimeException();
             }
 

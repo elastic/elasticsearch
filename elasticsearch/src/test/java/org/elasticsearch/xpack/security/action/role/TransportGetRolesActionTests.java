@@ -71,15 +71,12 @@ public class TransportGetRolesActionTests extends ESTestCase {
             expectedNames.remove(KibanaRole.NAME);
         }
 
-        doAnswer(new Answer() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                Object[] args = invocation.getArguments();
-                assert args.length == 2;
-                ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
-                listener.onResponse(Collections.emptyList());
-                return null;
-            }
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
+            listener.onResponse(Collections.emptyList());
+            return null;
         }).when(rolesStore).getRoleDescriptors(aryEq(Strings.EMPTY_ARRAY), any(ActionListener.class));
 
         GetRolesRequest request = new GetRolesRequest();
@@ -131,32 +128,13 @@ public class TransportGetRolesActionTests extends ESTestCase {
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));
 
-        if (request.names().length == 1) {
-            doAnswer(new Answer() {
-                @Override
-                public Void answer(InvocationOnMock invocation) throws Throwable {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    String requestedName = (String) args[0];
-                    ActionListener<RoleDescriptor> listener = (ActionListener<RoleDescriptor>) args[1];
-                    Optional<RoleDescriptor> rd =
-                            storeRoleDescriptors.stream().filter(r -> r.getName().equals(requestedName)).findFirst();
-                    listener.onResponse(rd.get());
-                    return null;
-                }
-            }).when(rolesStore).getRoleDescriptor(eq(request.names()[0]), any(ActionListener.class));
-        } else {
-            doAnswer(new Answer() {
-                @Override
-                public Void answer(InvocationOnMock invocation) throws Throwable {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
-                    listener.onResponse(storeRoleDescriptors);
-                    return null;
-                }
-            }).when(rolesStore).getRoleDescriptors(aryEq(request.names()), any(ActionListener.class));
-        }
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
+            listener.onResponse(storeRoleDescriptors);
+            return null;
+        }).when(rolesStore).getRoleDescriptors(aryEq(request.names()), any(ActionListener.class));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetRolesResponse> responseRef = new AtomicReference<>();
@@ -219,40 +197,21 @@ public class TransportGetRolesActionTests extends ESTestCase {
         GetRolesRequest request = new GetRolesRequest();
         request.names(requestedNames.toArray(Strings.EMPTY_ARRAY));
 
-        if (specificStoreNames.size() == 1) {
-            doAnswer(new Answer() {
-                @Override
-                public Void answer(InvocationOnMock invocation) throws Throwable {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    String requestedName = (String) args[0];
-                    ActionListener<RoleDescriptor> listener = (ActionListener<RoleDescriptor>) args[1];
-                    Optional<RoleDescriptor> rd =
-                            storeRoleDescriptors.stream().filter(r -> r.getName().equals(requestedName)).findFirst();
-                    listener.onResponse(rd.get());
-                    return null;
-                }
-            }).when(rolesStore).getRoleDescriptor(eq(specificStoreNames.get(0)), any(ActionListener.class));
-        } else {
-            doAnswer(new Answer() {
-                @Override
-                public Void answer(InvocationOnMock invocation) throws Throwable {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    String[] requestedNames = (String[]) args[0];
-                    ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
-                    if (requestedNames.length == 0) {
-                        listener.onResponse(storeRoleDescriptors);
-                    } else {
-                        List<String> requestedNamesList = Arrays.asList(requestedNames);
-                        listener.onResponse(storeRoleDescriptors.stream()
-                                .filter(r -> requestedNamesList.contains(r.getName()))
-                                .collect(Collectors.toList()));
-                    }
-                    return null;
-                }
-            }).when(rolesStore).getRoleDescriptors(aryEq(specificStoreNames.toArray(Strings.EMPTY_ARRAY)), any(ActionListener.class));
-        }
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            String[] requestedNames1 = (String[]) args[0];
+            ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
+            if (requestedNames1.length == 0) {
+                listener.onResponse(storeRoleDescriptors);
+            } else {
+                List<String> requestedNamesList = Arrays.asList(requestedNames1);
+                listener.onResponse(storeRoleDescriptors.stream()
+                        .filter(r -> requestedNamesList.contains(r.getName()))
+                        .collect(Collectors.toList()));
+            }
+            return null;
+        }).when(rolesStore).getRoleDescriptors(aryEq(specificStoreNames.toArray(Strings.EMPTY_ARRAY)), any(ActionListener.class));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetRolesResponse> responseRef = new AtomicReference<>();
@@ -276,8 +235,6 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         if (all) {
             verify(rolesStore, times(1)).getRoleDescriptors(aryEq(Strings.EMPTY_ARRAY), any(ActionListener.class));
-        } else if (specificStoreNames.size() == 1) {
-            verify(rolesStore, times(1)).getRoleDescriptor(eq(specificStoreNames.get(0)), any(ActionListener.class));
         } else {
             verify(rolesStore, times(1))
                     .getRoleDescriptors(aryEq(specificStoreNames.toArray(Strings.EMPTY_ARRAY)), any(ActionListener.class));
@@ -297,29 +254,13 @@ public class TransportGetRolesActionTests extends ESTestCase {
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));
 
-        if (request.names().length == 1) {
-            doAnswer(new Answer() {
-                @Override
-                public Void answer(InvocationOnMock invocation) throws Throwable {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    ActionListener<RoleDescriptor> listener = (ActionListener<RoleDescriptor>) args[1];
-                    listener.onFailure(e);
-                    return null;
-                }
-            }).when(rolesStore).getRoleDescriptor(eq(request.names()[0]), any(ActionListener.class));
-        } else {
-            doAnswer(new Answer() {
-                @Override
-                public Void answer(InvocationOnMock invocation) throws Throwable {
-                    Object[] args = invocation.getArguments();
-                    assert args.length == 2;
-                    ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
-                    listener.onFailure(e);
-                    return null;
-                }
-            }).when(rolesStore).getRoleDescriptors(aryEq(request.names()), any(ActionListener.class));
-        }
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
+            listener.onFailure(e);
+            return null;
+        }).when(rolesStore).getRoleDescriptors(aryEq(request.names()), any(ActionListener.class));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetRolesResponse> responseRef = new AtomicReference<>();

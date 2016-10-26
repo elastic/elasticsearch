@@ -67,44 +67,15 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
             roles.addAll(reservedRolesStore.roleDescriptors());
         }
 
-        if (rolesToSearchFor.size() == 1) {
-            final String rolename = rolesToSearchFor.get(0);
-            // We can fetch a single role with a get, much easier
-            nativeRolesStore.getRoleDescriptor(rolename, new ActionListener<RoleDescriptor>() {
-                @Override
-                public void onResponse(RoleDescriptor roleD) {
-                    if (roleD != null) {
-                        roles.add(roleD);
-                    }
-                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
-                }
-
-                @Override
-                public void onFailure(Exception t) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve role [{}]", rolename), t);
-                    listener.onFailure(t);
-                }
-            });
-        } else if (specificRolesRequested && rolesToSearchFor.isEmpty()) {
+        if (specificRolesRequested && rolesToSearchFor.isEmpty()) {
             // specific roles were requested but they were built in only, no need to hit the store
             listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
         } else {
-            nativeRolesStore.getRoleDescriptors(
-                    rolesToSearchFor.toArray(new String[rolesToSearchFor.size()]), new ActionListener<List<RoleDescriptor>>() {
-                @Override
-                public void onResponse(List<RoleDescriptor> foundRoles) {
-                    roles.addAll(foundRoles);
-                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
-                }
-
-                @Override
-                public void onFailure(Exception t) {
-                    logger.error(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to retrieve role [{}]", arrayToDelimitedString(request.names(), ",")), t);
-                    listener.onFailure(t);
-                }
-            });
+            String[] roleNames = rolesToSearchFor.toArray(new String[rolesToSearchFor.size()]);
+            nativeRolesStore.getRoleDescriptors(roleNames, ActionListener.wrap((foundRoles) -> {
+                        roles.addAll(foundRoles);
+                        listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
+                    }, listener::onFailure));
         }
     }
 }

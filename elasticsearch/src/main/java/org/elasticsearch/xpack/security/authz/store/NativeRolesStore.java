@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -207,89 +208,77 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
             listener.onFailure(new IllegalStateException("roles cannot be retrieved as native role service has not been started"));
             return;
         }
-        try {
-            final List<RoleDescriptor> roles = new ArrayList<>();
-            QueryBuilder query;
-            if (names == null || names.length == 0) {
-                query = QueryBuilders.matchAllQuery();
-            } else {
-                query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(names));
-            }
-            SearchRequest request = client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
-                    .setTypes(ROLE_DOC_TYPE)
-                    .setScroll(scrollKeepAlive)
-                    .setQuery(query)
-                    .setSize(scrollSize)
-                    .setFetchSource(true)
-                    .request();
-            request.indicesOptions().ignoreUnavailable();
+        if (names != null && names.length == 1) {
+            getRoleAndVersion(Objects.requireNonNull(names[0]), ActionListener.wrap(roleAndVersion ->
+                    listener.onResponse(roleAndVersion == null || roleAndVersion.getRoleDescriptor() == null ? Collections.emptyList()
+                    : Collections.singletonList(roleAndVersion.getRoleDescriptor())), listener::onFailure));
+        } else {
+            try {
+                final List<RoleDescriptor> roles = new ArrayList<>();
+                QueryBuilder query;
+                if (names == null || names.length == 0) {
+                    query = QueryBuilders.matchAllQuery();
+                } else {
+                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(names));
+                }
+                SearchRequest request = client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
+                        .setTypes(ROLE_DOC_TYPE)
+                        .setScroll(scrollKeepAlive)
+                        .setQuery(query)
+                        .setSize(scrollSize)
+                        .setFetchSource(true)
+                        .request();
+                request.indicesOptions().ignoreUnavailable();
 
-            // This function is MADNESS! But it works, don't think about it too hard...
-            client.search(request, new ActionListener<SearchResponse>() {
+                // This function is MADNESS! But it works, don't think about it too hard...
+                client.search(request, new ActionListener<SearchResponse>() {
 
-                private SearchResponse lastResponse = null;
+                    private SearchResponse lastResponse = null;
 
-                @Override
-                public void onResponse(SearchResponse resp) {
-                    lastResponse = resp;
-                    boolean hasHits = resp.getHits().getHits().length > 0;
-                    if (hasHits) {
-                        for (SearchHit hit : resp.getHits().getHits()) {
-                            RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef(), logger);
-                            if (rd != null) {
-                                roles.add(rd);
+                    @Override
+                    public void onResponse(SearchResponse resp) {
+                        lastResponse = resp;
+                        boolean hasHits = resp.getHits().getHits().length > 0;
+                        if (hasHits) {
+                            for (SearchHit hit : resp.getHits().getHits()) {
+                                RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef(), logger);
+                                if (rd != null) {
+                                    roles.add(rd);
+                                }
                             }
+                            SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
+                                    .setScroll(scrollKeepAlive).request();
+                            client.searchScroll(scrollRequest, this);
+                        } else {
+                            if (resp.getScrollId() != null) {
+                                clearScollRequest(resp.getScrollId());
+                            }
+                            // Finally, return the list of users
+                            listener.onResponse(Collections.unmodifiableList(roles));
                         }
-                        SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
-                                .setScroll(scrollKeepAlive).request();
-                        client.searchScroll(scrollRequest, this);
-                    } else {
-                        if (resp.getScrollId() != null) {
-                            clearScollRequest(resp.getScrollId());
+                    }
+
+                    @Override
+                    public void onFailure(Exception t) {
+                        // attempt to clear the scroll request
+                        if (lastResponse != null && lastResponse.getScrollId() != null) {
+                            clearScollRequest(lastResponse.getScrollId());
                         }
-                        // Finally, return the list of users
-                        listener.onResponse(Collections.unmodifiableList(roles));
+
+                        if (t instanceof IndexNotFoundException) {
+                            logger.trace("could not retrieve roles because security index does not exist");
+                            // since this is expected to happen at times, we just call the listener with an empty list
+                            listener.onResponse(Collections.<RoleDescriptor>emptyList());
+                        } else {
+                            listener.onFailure(t);
+                        }
                     }
-                }
-
-                @Override
-                public void onFailure(Exception t) {
-                    // attempt to clear the scroll request
-                    if (lastResponse != null && lastResponse.getScrollId() != null) {
-                        clearScollRequest(lastResponse.getScrollId());
-                    }
-
-                    if (t instanceof IndexNotFoundException) {
-                        logger.trace("could not retrieve roles because security index does not exist");
-                        // since this is expected to happen at times, we just call the listener with an empty list
-                        listener.onResponse(Collections.<RoleDescriptor>emptyList());
-                    } else {
-                        listener.onFailure(t);
-                    }
-                }
-            });
-        } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
-            listener.onFailure(e);
-        }
-    }
-
-    public void getRoleDescriptor(final String role, final ActionListener<RoleDescriptor> listener) {
-        if (state() != State.STARTED) {
-            logger.trace("attempted to get role [{}] before service was started", role);
-            listener.onResponse(null);
-        }
-        getRoleAndVersion(role, new ActionListener<RoleAndVersion>() {
-            @Override
-            public void onResponse(RoleAndVersion roleAndVersion) {
-                listener.onResponse(roleAndVersion == null ? null : roleAndVersion.getRoleDescriptor());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+                });
+            } catch (Exception e) {
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
                 listener.onFailure(e);
             }
-        });
+        }
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {

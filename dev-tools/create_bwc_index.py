@@ -265,10 +265,18 @@ def generate_index(client, version, index_name):
   mappings['doc'] = {'properties' : {}}
   supports_dots_in_field_names = parse_version(version) >= parse_version("2.4.0")
   if supports_dots_in_field_names:
-    mappings["doc"]['properties'].update({
+
+    if parse_version(version) < parse_version("5.0.0-alpha1"):
+      mappings["doc"]['properties'].update({
         'field.with.dots': {
           'type': 'string',
           'boost': 4
+        }
+      })
+    else:
+      mappings["doc"]['properties'].update({
+        'field.with.dots': {
+          'type': 'text'
         }
       })
 
@@ -339,7 +347,10 @@ def generate_index(client, version, index_name):
   if warmers:
     body['warmers'] = warmers
   client.indices.create(index=index_name, body=body)
-  health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
+  if parse_version(version) < parse_version("5.0.0-alpha1"):
+    health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
+  else:
+    health = client.cluster.health(wait_for_status='green', wait_for_no_relocating_shards=True)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
   num_docs = random.randint(2000, 3000)

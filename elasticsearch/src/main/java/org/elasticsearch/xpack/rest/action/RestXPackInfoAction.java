@@ -50,12 +50,6 @@ public class RestXPackInfoAction extends XPackRestHandler {
                             @Override
                             public RestResponse buildResponse(XPackInfoResponse infoResponse, XContentBuilder builder) throws Exception {
 
-                                // we treat HEAD requests as simple pings to ensure that X-Pack is installed
-                                // we still execute the action as we want this request to be authorized
-                                if (request.method() == RestRequest.Method.HEAD) {
-                                    return new BytesRestResponse(OK, builder);
-                                }
-
                                 builder.startObject();
 
                                 if (infoResponse.getBuildInfo() != null) {

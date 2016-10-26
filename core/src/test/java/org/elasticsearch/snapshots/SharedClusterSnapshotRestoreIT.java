@@ -2548,18 +2548,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> unblocking blocked node [{}]", blockedNode);
         unblockNode(repo, blockedNode);
 
-        logger.info("--> waiting for snapshot to complete");
-        waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(10));
-
         logger.info("--> ensuring snapshot is aborted and the aborted shard was marked as failed");
-        assertBusy(() -> {
-            List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repo).setSnapshots(snapshot).get().getSnapshots();
-            assertEquals(1, snapshotInfos.size());
-            assertTrue(snapshotInfos.get(0).state().completed());
-            assertEquals(1, snapshotInfos.get(0).shardFailures().size());
-            assertEquals(0, snapshotInfos.get(0).shardFailures().get(0).shardId());
-            assertEquals("IndexShardSnapshotFailedException[Aborted]", snapshotInfos.get(0).shardFailures().get(0).reason());
-        });
+        SnapshotInfo snapshotInfo = waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(10));
+        assertEquals(1, snapshotInfo.shardFailures().size());
+        assertEquals(0, snapshotInfo.shardFailures().get(0).shardId());
+        assertEquals("IndexShardSnapshotFailedException[Aborted]", snapshotInfo.shardFailures().get(0).reason());
     }
 
 }

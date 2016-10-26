@@ -411,7 +411,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
         } finally {
             try {
-                store.close();
+                if (store != null) {
+                    store.close();
+                } else {
+                    logger.trace("[{}] store not initialized prior to closing shard, nothing to close", shardId);
+                }
             } catch (Exception e) {
                 logger.warn(
                     (Supplier<?>) () -> new ParameterizedMessage(

@@ -72,7 +72,7 @@ public class DefaultRole extends Role {
         // we need to verify that this user was authenticated by or looked up by a realm type that support password changes
         // otherwise we open ourselves up to issues where a user in a different realm could be created with the same username
         // and do malicious things
-        final boolean isRunAs = authentication.getUser() != authentication.getRunAsUser();
+        final boolean isRunAs = authentication.isRunAs();
         final String realmType;
         if (isRunAs) {
             realmType = authentication.getLookedUpBy().getType();

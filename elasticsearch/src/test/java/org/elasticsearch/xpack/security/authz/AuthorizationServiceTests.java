@@ -67,6 +67,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -74,6 +75,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
@@ -404,6 +407,19 @@ public class AuthorizationServiceTests extends ESTestCase {
                 () -> authorize(createAuthentication(user), "indices:a", request),
                 "indices:a", "test user", "run as me"); // run as [run as me]
         verify(auditTrail).runAsDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRunAsRequestWithoutLookedUpBy() {
+        AuthenticateRequest request = new AuthenticateRequest("run as me");
+        roleMap.put("can run as", SuperuserRole.INSTANCE);
+        User user = new User("test user", new String[] { "can run as" }, new User("run as me", Strings.EMPTY_ARRAY));
+        Authentication authentication = new Authentication(user, new RealmRef("foo", "bar", "baz"), null);
+        assertThat(user.runAs(), is(notNullValue()));
+        assertThrowsAuthorizationExceptionRunAs(
+                () -> authorize(authentication, AuthenticateAction.NAME, request),
+                AuthenticateAction.NAME, "test user", "run as me"); // run as [run as me]
+        verify(auditTrail).runAsDenied(user, AuthenticateAction.NAME, request);
         verifyNoMoreInteractions(auditTrail);
     }
 

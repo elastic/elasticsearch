@@ -145,6 +145,7 @@ public class DefaultRoleTests extends ESTestCase {
         when(authentication.getRunAsUser()).thenReturn(runAs);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
+        when(authentication.isRunAs()).thenReturn(true);
         when(lookedUpBy.getType())
                 .thenReturn(changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealm.TYPE) : randomAsciiOfLengthBetween(4, 12));
 
@@ -162,6 +163,7 @@ public class DefaultRoleTests extends ESTestCase {
         final RealmRef authenticatedBy = mock(RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.isRunAs()).thenReturn(false);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authenticatedBy.getType()).thenReturn(randomFrom(LdapRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, PkiRealm.TYPE,
                         randomAsciiOfLengthBetween(4, 12)));
@@ -169,9 +171,9 @@ public class DefaultRoleTests extends ESTestCase {
         assertThat(request, instanceOf(UserRequest.class));
         assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(false));
         verify(authenticatedBy).getType();
-        verify(authentication, times(2)).getRunAsUser();
-        verify(authentication).getUser();
+        verify(authentication).getRunAsUser();
         verify(authentication).getAuthenticatedBy();
+        verify(authentication).isRunAs();
         verifyNoMoreInteractions(authenticatedBy, authentication);
     }
 
@@ -185,6 +187,7 @@ public class DefaultRoleTests extends ESTestCase {
         final RealmRef lookedUpBy = mock(RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getRunAsUser()).thenReturn(runAs);
+        when(authentication.isRunAs()).thenReturn(true);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
         when(lookedUpBy.getType()).thenReturn(randomFrom(LdapRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, PkiRealm.TYPE,
@@ -193,8 +196,8 @@ public class DefaultRoleTests extends ESTestCase {
         assertThat(request, instanceOf(UserRequest.class));
         assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(false));
         verify(authentication).getLookedUpBy();
-        verify(authentication, times(2)).getRunAsUser();
-        verify(authentication).getUser();
+        verify(authentication).getRunAsUser();
+        verify(authentication).isRunAs();
         verify(lookedUpBy).getType();
         verifyNoMoreInteractions(authentication, lookedUpBy, authenticatedBy);
     }

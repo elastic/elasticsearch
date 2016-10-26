@@ -292,6 +292,9 @@ public class AuthenticationService extends AbstractComponent {
                 // the requested run as user does not exist, but we don't throw an error here otherwise this could let
                 // information leak about users in the system... instead we'll just let the authz service fail throw an
                 // authorization error
+                if (lookedupBy != null) {
+                    throw new IllegalStateException("we could not lookup the user but created a realm reference");
+                }
                 user = new User(user.principal(), user.roles(), new User(runAsUsername, Strings.EMPTY_ARRAY));
             } catch (Exception e) {
                 logger.debug(

@@ -54,6 +54,14 @@ public class Authentication {
         return user;
     }
 
+    /**
+     * returns true if this authentication represents a authentication object with a authenticated user that is different than the user the
+     * request should be run as
+     */
+    public boolean isRunAs() {
+        return getUser().equals(getRunAsUser()) == false;
+    }
+
     public RealmRef getAuthenticatedBy() {
         return authenticatedBy;
     }

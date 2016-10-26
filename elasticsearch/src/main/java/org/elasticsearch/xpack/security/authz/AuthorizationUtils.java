@@ -91,7 +91,7 @@ public final class AuthorizationUtils {
                 setRunAsRoles(Collections.emptyList());
             } else {
                 service.roles(authentication.getUser(), ActionListener.wrap(this::setUserRoles, listener::onFailure));
-                if (authentication.getUser().equals(authentication.getRunAsUser()) == false) {
+                if (authentication.isRunAs()) {
                     assert authentication.getRunAsUser() != null : "runAs user is null but shouldn't";
                     service.roles(authentication.getRunAsUser(), ActionListener.wrap(this::setRunAsRoles, listener::onFailure));
                 } else {

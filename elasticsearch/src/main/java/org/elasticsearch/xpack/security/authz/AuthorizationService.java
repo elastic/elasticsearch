@@ -128,7 +128,7 @@ public class AuthorizationService extends AbstractComponent {
         // get the roles of the authenticated user, which may be different than the effective
         GlobalPermission permission = permission(roles);
 
-        final boolean isRunAs = authentication.getUser() != authentication.getRunAsUser();
+        final boolean isRunAs = authentication.isRunAs();
         // permission can be empty as it might be that the user's role is unknown
         if (permission.isEmpty()) {
             if (isRunAs) {
@@ -140,6 +140,12 @@ public class AuthorizationService extends AbstractComponent {
         }
         // check if the request is a run as request
         if (isRunAs) {
+            // if we are running as a user we looked up then the authentication must contain a lookedUpBy. If it doesn't then this user
+            // doesn't really exist but the authc service allowed it through to avoid leaking users that exist in the system
+            if (authentication.getLookedUpBy() == null) {
+                throw denyRunAs(authentication, action, request);
+            }
+
             // first we must authorize for the RUN_AS action
             RunAsPermission runAs = permission.runAs();
             if (runAs != null && runAs.check(authentication.getRunAsUser().principal())) {

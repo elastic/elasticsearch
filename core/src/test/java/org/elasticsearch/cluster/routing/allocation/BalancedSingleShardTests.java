@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -67,7 +68,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertNotNull(rebalanceDecision.getCanRebalanceDecision());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
-        assertEquals("cannot rebalance due to in-flight shard store fetches", rebalanceDecision.getFinalExplanation());
+        assertThat(rebalanceDecision.getFinalExplanation(), Matchers.startsWith("cannot rebalance due to in-flight shard store fetches"));
         assertNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
     }

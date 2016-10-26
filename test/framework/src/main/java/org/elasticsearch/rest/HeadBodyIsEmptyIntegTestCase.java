@@ -17,10 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest;
+package org.elasticsearch.rest;
 
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -28,15 +30,17 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Tests that HTTP HEAD requests don't respond with a body.
  */
-public class HeadBodyIsEmptyIT extends ESRestTestCase {
+public class HeadBodyIsEmptyIntegTestCase extends ESRestTestCase {
     public void testHeadRoot() throws IOException {
-        headTestCase("/", emptyMap(), 350);
-        headTestCase("/", singletonMap("pretty", ""), 350);
-        headTestCase("/", singletonMap("pretty", "true"), 350);
+        headTestCase("/", emptyMap(), greaterThan(0));
+        headTestCase("/", singletonMap("pretty", ""), greaterThan(0));
+        headTestCase("/", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     private void createTestDoc() throws UnsupportedEncodingException, IOException {
@@ -45,29 +49,26 @@ public class HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testDocumentExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test/1", emptyMap(), 0);
-        headTestCase("test/test/1", singletonMap("pretty", "true"), 0);
+        headTestCase("test/test/1", emptyMap(), equalTo(0));
+        headTestCase("test/test/1", singletonMap("pretty", "true"), equalTo(0));
     }
 
     public void testIndexExists() throws IOException {
         createTestDoc();
-        headTestCase("test", emptyMap(), 0);
-        headTestCase("test", singletonMap("pretty", "true"), 0);
+        headTestCase("test", emptyMap(), equalTo(0));
+        headTestCase("test", singletonMap("pretty", "true"), equalTo(0));
     }
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test", emptyMap(), 0);
-        headTestCase("test/test", singletonMap("pretty", "true"), 0);
+        headTestCase("test/test", emptyMap(), equalTo(0));
+        headTestCase("test/test", singletonMap("pretty", "true"), equalTo(0));
     }
 
-    private void headTestCase(String url, Map<String, String> params, int length) throws IOException {
+    private void headTestCase(String url, Map<String, String> params, Matcher<Integer> matcher) throws IOException {
         Response response = client().performRequest("HEAD", url, params);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals(
-            "We expect HEAD requests to have " + length + " + Content-Length but " + url + " didn't",
-            Integer.toString(length),
-            response.getHeader("Content-Length"));
+        assertThat(Integer.valueOf(response.getHeader("Content-Length")), matcher);
         assertNull("HEAD requests shouldn't have a response body but " + url + " did", response.getEntity());
     }
 }

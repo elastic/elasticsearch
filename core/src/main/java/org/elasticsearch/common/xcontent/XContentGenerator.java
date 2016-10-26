@@ -94,4 +94,6 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 
+    boolean isClosed();
+
 }

@@ -21,10 +21,7 @@ package org.elasticsearch.rest.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -33,31 +30,60 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 public class RestBuilderListenerTests extends ESTestCase {
 
-    public void testThatXContentBuilderIsClosed() throws Exception {
+    public void testXContentBuilderClosedInBuildResponse() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
         RestBuilderListener<TransportResponse.Empty> builderListener =
             new RestBuilderListener<Empty>(new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)) {
-            @Override
-            public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
-                builderAtomicReference.set(builder);
-                // write some bad data that will cause an exception to be thrown on the close of the builder
-                builder.startObject().field("foo", "bar");
-                return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-            }
+                @Override
+                public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
+                    builderAtomicReference.set(builder);
+                    builder.close();
+                    return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                }
         };
 
-        // TODO unfortunately this isn't very easy to test but we can at least verify that close is called
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> builderListener.buildResponse(Empty.INSTANCE));
-        assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
+        builderListener.buildResponse(Empty.INSTANCE);
         assertNotNull(builderAtomicReference.get());
+        assertTrue(builderAtomicReference.get().isClosed());
+    }
+
+    public void testXContentBuilderNotClosedInBuildResponseAssertionsDisabled() throws Exception {
+        AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
+        RestBuilderListener<TransportResponse.Empty> builderListener =
+            new RestBuilderListener<Empty>(new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)) {
+                @Override
+                public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
+                    builderAtomicReference.set(builder);
+                    return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                }
+        };
+
+        RestBuilderListener.assertionsEnabled = false;
+        try {
+            builderListener.buildResponse(Empty.INSTANCE);
+            assertNotNull(builderAtomicReference.get());
+            assertTrue(builderAtomicReference.get().isClosed());
+        } finally {
+            RestBuilderListener.assertionsEnabled = true;
+        }
+    }
+
+    public void testXContentBuilderNotClosedInBuildResponseAssertionsEnabled() throws Exception {
+        assumeTrue("tests are not being run with assertions", RestBuilderListener.class.desiredAssertionStatus());
+
+        RestBuilderListener<TransportResponse.Empty> builderListener =
+            new RestBuilderListener<Empty>(new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)) {
+                @Override
+                public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                }
+        };
+
+        AssertionError error = expectThrows(AssertionError.class, () -> builderListener.buildResponse(Empty.INSTANCE));
+        assertEquals("callers should ensure the XContentBuilder is closed themselves", error.getMessage());
     }
 }

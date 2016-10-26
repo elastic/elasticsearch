@@ -276,8 +276,7 @@ def generate_index(client, version, index_name):
     else:
       mappings["doc"]['properties'].update({
         'field.with.dots': {
-          'type': 'text',
-          'index': True
+          'type': 'text'
         }
       })
 

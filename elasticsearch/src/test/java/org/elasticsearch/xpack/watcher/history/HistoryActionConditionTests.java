@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
@@ -265,7 +265,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @return Never {@code null}
      */
     private static Condition mockScriptCondition(String inlineScript) {
-        Script script = new Script(inlineScript, ScriptService.ScriptType.INLINE, MockScriptPlugin.NAME, null, null);
+        Script script = new Script(inlineScript, ScriptType.INLINE, MockScriptPlugin.NAME, null, null);
         return new ScriptCondition(script);
     }
 

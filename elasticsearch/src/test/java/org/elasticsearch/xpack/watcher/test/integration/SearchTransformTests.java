@@ -22,6 +22,7 @@ import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -192,7 +193,7 @@ public class SearchTransformTests extends ESIntegTestCase {
             builder.field("search_type", searchType.name());
         }
         if (templateName != null) {
-            TextTemplate template = new TextTemplate(templateName, null, ScriptService.ScriptType.FILE, null);
+            TextTemplate template = new TextTemplate(templateName, null, ScriptType.FILE, null);
             builder.field("template", template);
         }
 
@@ -229,7 +230,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
         if (templateName != null) {
             assertThat(executable.transform().getRequest().getTemplate(),
-                    equalTo(new Script("template1", ScriptService.ScriptType.FILE, "mustache", null)));
+                    equalTo(new Script("template1", ScriptType.FILE, "mustache", null)));
         }
         assertThat(executable.transform().getRequest().getSearchSource().utf8ToString(), equalTo("{\"query\":{\"match_all\":{}}}"));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));

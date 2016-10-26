@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
@@ -348,7 +348,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testWatchExecutionDuration() throws Exception {
-        Script script = new Script("sleep", ScriptService.ScriptType.INLINE, null, singletonMap("millis", 100L));
+        Script script = new Script("sleep", ScriptType.INLINE, null, singletonMap("millis", 100L));
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
@@ -364,7 +364,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testForceDeletionOfLongRunningWatch() throws Exception {
-        Script script = new Script("sleep", ScriptService.ScriptType.INLINE,  null, singletonMap("millis", 10000L));
+        Script script = new Script("sleep", ScriptType.INLINE,  null, singletonMap("millis", 10000L));
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))

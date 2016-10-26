@@ -73,6 +73,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.license.XPackLicenseState;
@@ -591,7 +592,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder();
         String query = new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
-        Script script = new Script(query, ScriptService.ScriptType.INLINE, null, Collections.singletonMap("custom", "value"));
+        Script script = new Script(query, ScriptType.INLINE, null, Collections.singletonMap("custom", "value"));
         builder = jsonBuilder().startObject().field("template");
         script.toXContent(builder, ToXContent.EMPTY_PARAMS);
         BytesReference querySource = builder.endObject().bytes();

@@ -69,7 +69,7 @@ public class SleepScriptEngine implements ScriptEngineService {
     }
 
     public static Script sleepScript(long millis) {
-        return new Script("", ScriptService.ScriptType.INLINE, "sleep", Collections.singletonMap("millis", millis));
+        return new Script("", ScriptType.INLINE, "sleep", Collections.singletonMap("millis", millis));
     }
 
     @Override

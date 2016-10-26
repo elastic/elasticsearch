@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.support.clock.SystemClock;
@@ -32,7 +31,8 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.script.ScriptService.ScriptType;
+
+import org.elasticsearch.script.ScriptType;
 import static org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput.DEFAULT_SEARCH_TYPE;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.watcher.support.WatcherUtils.flattenModel;
@@ -107,7 +107,7 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+            ScriptType scriptType = randomFrom(ScriptType.values());
             expectedTemplate = new Script(text, scriptType, "mustache", params);
             request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
                     expectedIndicesOptions, expectedTemplate);
@@ -206,7 +206,7 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+            ScriptType scriptType = randomFrom(ScriptType.values());
             template = new Script(text, scriptType, "mustache", params);
             builder.field("template", template);
         }

@@ -88,6 +88,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(UpdateRequest.class));
 
     @Nullable
     private IndexRequest doc;
@@ -133,6 +134,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (doc == null && docAsUpsert) {
             validationException = addValidationError("doc must be specified if doc_as_upsert is enabled", validationException);
+        }
+        if (versionType == VersionType.FORCE) {
+            deprecationLogger.deprecated("version type FORCE is deprecated and will be removed in the next major version");
         }
         return validationException;
     }

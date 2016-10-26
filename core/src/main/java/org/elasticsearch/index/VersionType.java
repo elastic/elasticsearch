@@ -201,7 +201,10 @@ public enum VersionType implements Writeable {
     },
     /**
      * Warning: this version type should be used with care. Concurrent indexing may result in loss of data on replicas
+     *
+     * @deprecated this version type will be removed in the next major version
      */
+    @Deprecated
     FORCE((byte) 3) {
         @Override
         public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {

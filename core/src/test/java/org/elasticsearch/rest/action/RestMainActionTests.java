@@ -61,9 +61,9 @@ public class RestMainActionTests extends ESTestCase {
         BytesRestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
         assertNotNull(response);
         assertEquals(expectedStatus, response.status());
-        assertEquals(0, response.content().length());
 
-        assertEquals(0, builder.bytes().length());
+        // the empty responses are handled in the HTTP layer so we do
+        // not assert on them here
     }
 
     public void testGetResponse() throws Exception {

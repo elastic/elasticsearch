@@ -33,6 +33,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
@@ -41,6 +42,7 @@ import org.jboss.netty.handler.codec.http.CookieDecoder;
 import org.jboss.netty.handler.codec.http.CookieEncoder;
 import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.codec.http.HttpVersion;
@@ -109,7 +111,11 @@ public final class Netty3HttpChannel extends AbstractRestChannel {
         boolean addedReleaseListener = false;
         try {
             buffer = Netty3Utils.toChannelBuffer(content);
-            resp.setContent(buffer);
+            if (HttpMethod.HEAD.equals(nettyRequest.getMethod())) {
+                resp.setContent(ChannelBuffers.EMPTY_BUFFER);
+            } else {
+                resp.setContent(buffer);
+            }
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(resp, HttpHeaders.Names.CONTENT_TYPE, response.contentType(), false);

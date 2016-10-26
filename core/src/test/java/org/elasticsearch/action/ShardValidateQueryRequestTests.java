@@ -42,7 +42,6 @@ import java.util.Collections;
 import java.util.List;
 
 public class ShardValidateQueryRequestTests extends ESTestCase {
-    public static final Version V_5_0_0 = Version.fromId(5000099);
 
     protected NamedWriteableRegistry namedWriteableRegistry;
     protected SearchRequestParsers searchRequestParsers;
@@ -94,7 +93,7 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
             // this is a base64 encoded request generated with the same input
             .decode("AAVpbmRleAZmb29iYXIBAQdpbmRpY2VzBAR0ZXJtP4AAAAAFZmllbGQVBXZhbHVlAgV0eXBlMQV0eXBlMgIGYWxpYXMwBmFsaWFzMQABAA"));
         try (StreamInput in = new NamedWriteableAwareStreamInput(requestBytes.streamInput(), namedWriteableRegistry)) {
-            in.setVersion(V_5_0_0);
+            in.setVersion(Version.V_5_0_0);
             ShardValidateQueryRequest readRequest = new ShardValidateQueryRequest();
             readRequest.readFrom(in);
             assertEquals(0, in.available());
@@ -106,7 +105,7 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
             assertEquals(request.rewrite(), readRequest.rewrite());
             assertEquals(request.shardId(), readRequest.shardId());
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(V_5_0_0);
+            output.setVersion(Version.V_5_0_0);
             readRequest.writeTo(output);
             assertEquals(output.bytes().toBytesRef(), requestBytes.toBytesRef());
         }

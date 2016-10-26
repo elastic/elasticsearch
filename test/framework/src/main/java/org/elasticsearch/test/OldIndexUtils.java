@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.upgrade.get.IndexUpgradeStatus;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
@@ -56,7 +57,10 @@ import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 
 public class OldIndexUtils {
@@ -103,10 +107,35 @@ public class OldIndexUtils {
             throw new IllegalStateException("Backwards index must contain exactly one cluster");
         }
 
-        // the bwc scripts packs the indices under this path
-        Path src = list[0].resolve("nodes/0/indices/" + indexName);
-        assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
-        copyIndex(logger, src, indexName, paths);
+        final Path src = getIndexDir(logger, indexName, indexFile, list[0]);
+        copyIndex(logger, src, src.getFileName().toString(), paths);
+    }
+
+    public static Path getIndexDir(
+        final Logger logger,
+        final String indexName,
+        final String indexFile,
+        final Path dataDir) throws IOException {
+        final Version version = Version.fromString(indexName.substring("index-".length()));
+        if (version.before(Version.V_5_0_0_alpha1)) {
+            // the bwc scripts packs the indices under this path
+            Path src = dataDir.resolve("nodes/0/indices/" + indexName);
+            assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
+            return src;
+        } else {
+            final List<Path> indexFolders = new ArrayList<>();
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir.resolve("0/indices"))) {
+                for (final Path path : stream) {
+                    indexFolders.add(path);
+                }
+            }
+            assertThat(indexFolders.size(), equalTo(1));
+            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, indexFolders.get(0));
+            assertNotNull(indexMetaData);
+            assertThat(indexFolders.get(0).getFileName().toString(), equalTo(indexMetaData.getIndexUUID()));
+            assertThat(indexMetaData.getCreationVersion(), equalTo(version));
+            return indexFolders.get(0);
+        }
     }
 
     public static void assertNotUpgraded(Client client, String... index) throws Exception {
@@ -128,10 +157,10 @@ public class OldIndexUtils {
     }
 
     // randomly distribute the files from src over dests paths
-    public static void copyIndex(final Logger logger, final Path src, final String indexName, final Path... dests) throws IOException {
+    public static void copyIndex(final Logger logger, final Path src, final String folderName, final Path... dests) throws IOException {
         Path destinationDataPath = dests[randomInt(dests.length - 1)];
         for (Path dest : dests) {
-            Path indexDir = dest.resolve(indexName);
+            Path indexDir = dest.resolve(folderName);
             assertFalse(Files.exists(indexDir));
             Files.createDirectories(indexDir);
         }
@@ -140,7 +169,7 @@ public class OldIndexUtils {
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                 Path relativeDir = src.relativize(dir);
                 for (Path dest : dests) {
-                    Path destDir = dest.resolve(indexName).resolve(relativeDir);
+                    Path destDir = dest.resolve(folderName).resolve(relativeDir);
                     Files.createDirectories(destDir);
                 }
                 return FileVisitResult.CONTINUE;
@@ -155,7 +184,7 @@ public class OldIndexUtils {
                 }
 
                 Path relativeFile = src.relativize(file);
-                Path destFile = destinationDataPath.resolve(indexName).resolve(relativeFile);
+                Path destFile = destinationDataPath.resolve(folderName).resolve(relativeFile);
                 logger.trace("--> Moving {} to {}", relativeFile, destFile);
                 Files.move(file, destFile);
                 assertFalse(Files.exists(file));

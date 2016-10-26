@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -92,7 +93,7 @@ public class ExplainRequestTests extends ESTestCase {
             .decode("AAABBWluZGV4BHR5cGUCaWQBDHNvbWVfcm91dGluZwEOdGhlX3ByZWZlcmVuY2UEdGVybT" +
                 "+AAAAABWZpZWxkFQV2YWx1ZQIGYWxpYXMwBmFsaWFzMQECBmZpZWxkMQZmaWVsZDIBAQEIZmllbGQxLioBCGZpZWxkMi4qAA"));
         try (StreamInput in = new NamedWriteableAwareStreamInput(requestBytes.streamInput(), namedWriteableRegistry)) {
-            in.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
+            in.setVersion(Version.V_5_0_0);
             ExplainRequest readRequest = new ExplainRequest();
             readRequest.readFrom(in);
             assertEquals(0, in.available());
@@ -104,7 +105,7 @@ public class ExplainRequestTests extends ESTestCase {
             assertEquals(request.routing(), readRequest.routing());
             assertEquals(request.fetchSourceContext(), readRequest.fetchSourceContext());
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
+            output.setVersion(Version.V_5_0_0);
             readRequest.writeTo(output);
             assertEquals(output.bytes().toBytesRef(), requestBytes.toBytesRef());
         }

@@ -134,7 +134,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * shard.
      */
     public RebalanceDecision decideRebalance(final ShardRouting shard, final RoutingAllocation allocation) {
-        allocation.debugDecision();
+        allocation.debugDecision(true);
         return new Balancer(logger, allocation, weightFunction, threshold).decideRebalance(shard);
     }
 

@@ -23,7 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.ScriptQueryBuilder.ScriptQuery;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 

@@ -66,9 +66,9 @@ public class ScriptTests extends ESTestCase {
 
     private Script createScript(XContent xContent) throws IOException {
         final Map<String, Object> params = randomBoolean() ? null : Collections.singletonMap("key", "value");
-        ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+        ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
-        if (scriptType == ScriptService.ScriptType.INLINE) {
+        if (scriptType == ScriptType.INLINE) {
             try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
                 builder.startObject();
                 builder.field("field", randomAsciiOfLengthBetween(1, 5));
@@ -83,7 +83,7 @@ public class ScriptTests extends ESTestCase {
                 scriptType,
                 randomFrom("_lang1", "_lang2", null),
                 params,
-                scriptType == ScriptService.ScriptType.INLINE ? xContent.type() : null
+                scriptType == ScriptType.INLINE ? xContent.type() : null
         );
     }
 

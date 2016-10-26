@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -74,7 +74,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         // Search #1
         SearchTemplateRequest search1 = new SearchTemplateRequest();
         search1.setRequest(new SearchRequest("msearch"));
-        search1.setScriptType(ScriptService.ScriptType.INLINE);
+        search1.setScriptType(ScriptType.INLINE);
         search1.setScript(template);
 
         Map<String, Object> params1 = new HashMap<>();
@@ -87,7 +87,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         // Search #2 (Simulate is true)
         SearchTemplateRequest search2 = new SearchTemplateRequest();
         search2.setRequest(new SearchRequest("msearch"));
-        search2.setScriptType(ScriptService.ScriptType.INLINE);
+        search2.setScriptType(ScriptType.INLINE);
         search2.setScript(template);
         search2.setSimulate(true);
 
@@ -101,7 +101,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         // Search #3
         SearchTemplateRequest search3 = new SearchTemplateRequest();
         search3.setRequest(new SearchRequest("msearch"));
-        search3.setScriptType(ScriptService.ScriptType.INLINE);
+        search3.setScriptType(ScriptType.INLINE);
         search3.setScript(template);
         search3.setSimulate(false);
 
@@ -115,7 +115,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         // Search #4 (Fail because of unknown index)
         SearchTemplateRequest search4 = new SearchTemplateRequest();
         search4.setRequest(new SearchRequest("unknown"));
-        search4.setScriptType(ScriptService.ScriptType.INLINE);
+        search4.setScriptType(ScriptType.INLINE);
         search4.setScript(template);
 
         Map<String, Object> params4 = new HashMap<>();
@@ -128,7 +128,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         // Search #5 (Simulate is true)
         SearchTemplateRequest search5 = new SearchTemplateRequest();
         search5.setRequest(new SearchRequest("msearch"));
-        search5.setScriptType(ScriptService.ScriptType.INLINE);
+        search5.setScriptType(ScriptType.INLINE);
         search5.setScript("{{! ignore me }}{\"query\":{\"terms\":{\"group\":[{{#groups}}{{.}},{{/groups}}]}}}");
         search5.setSimulate(true);
 

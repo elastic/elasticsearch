@@ -31,7 +31,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -54,12 +54,12 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
 
     public void testSimpleEquation() {
         Map<String, Object> vars = new HashMap<String, Object>();
-        Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testSimpleEquation", "js", se.compile(null, "1 + 2", Collections.emptyMap())), vars).run();
+        Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testSimpleEquation", "js", se.compile(null, "1 + 2", Collections.emptyMap())), vars).run();
         assertThat(((Number) o).intValue(), equalTo(3));
     }
 
     public void testNullVars() {
-        CompiledScript script = new CompiledScript(ScriptService.ScriptType.INLINE, "testSimpleEquation", "js",
+        CompiledScript script = new CompiledScript(ScriptType.INLINE, "testSimpleEquation", "js",
                 se.compile(null, "1 + 2", emptyMap()));
         Object o = se.executable(script, null).run();
         assertThat(((Number) o).intValue(), equalTo(3));
@@ -72,20 +72,20 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
         Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).put("l", Arrays.asList("2", "1")).map();
         vars.put("obj1", obj1);
-        Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testMapAccess", "js", se.compile(null, "obj1", Collections.emptyMap())), vars).run();
+        Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testMapAccess", "js", se.compile(null, "obj1", Collections.emptyMap())), vars).run();
         assertThat(o, instanceOf(Map.class));
         obj1 = (Map<String, Object>) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
 
-        o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testMapAccess", "js", se.compile(null, "obj1.l[0]", Collections.emptyMap())), vars).run();
+        o = se.executable(new CompiledScript(ScriptType.INLINE, "testMapAccess", "js", se.compile(null, "obj1.l[0]", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("2"));
     }
 
     @SuppressWarnings("unchecked")
     public void testJavaScriptObjectToMap() {
         Map<String, Object> vars = new HashMap<String, Object>();
-        Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testJavaScriptObjectToMap", "js",
+        Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testJavaScriptObjectToMap", "js",
                 se.compile(null, "var obj1 = {}; obj1.prop1 = 'value1'; obj1.obj2 = {}; obj1.obj2.prop2 = 'value2'; obj1", Collections.emptyMap())), vars).run();
         Map<String, Object> obj1 = (Map<String, Object>) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
@@ -101,7 +101,7 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         ctx.put("obj1", obj1);
         vars.put("ctx", ctx);
 
-        ExecutableScript executable = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testJavaScriptObjectMapInter", "js",
+        ExecutableScript executable = se.executable(new CompiledScript(ScriptType.INLINE, "testJavaScriptObjectMapInter", "js",
                 se.compile(null, "ctx.obj2 = {}; ctx.obj2.prop2 = 'value2'; ctx.obj1.prop1 = 'uvalue1'", Collections.emptyMap())), vars);
         executable.run();
         ctx = (Map<String, Object>) executable.unwrap(vars.get("ctx"));
@@ -118,7 +118,7 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         ctx.put("doc", doc);
 
         Object compiled = se.compile(null, "ctx.doc.field1 = ['value1', 'value2']", Collections.emptyMap());
-        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testJavaScriptInnerArrayCreation", "js",
+        ExecutableScript script = se.executable(new CompiledScript(ScriptType.INLINE, "testJavaScriptInnerArrayCreation", "js",
                 compiled), new HashMap<String, Object>());
         script.setNextVar("ctx", ctx);
         script.run();
@@ -135,21 +135,21 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).map();
         vars.put("l", Arrays.asList("1", "2", "3", obj1));
 
-        Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testAccessInScript", "js",
+        Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessInScript", "js",
                 se.compile(null, "l.length", Collections.emptyMap())), vars).run();
         assertThat(((Number) o).intValue(), equalTo(4));
 
-        o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testAccessInScript", "js",
+        o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessInScript", "js",
                 se.compile(null, "l[0]", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("1"));
 
-        o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testAccessInScript", "js",
+        o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessInScript", "js",
                 se.compile(null, "l[3]", Collections.emptyMap())), vars).run();
         obj1 = (Map<String, Object>) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
 
-        o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testAccessInScript", "js",
+        o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessInScript", "js",
                 se.compile(null, "l[3].prop1", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("value1"));
     }
@@ -160,7 +160,7 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         vars.put("ctx", ctx);
         Object compiledScript = se.compile(null, "ctx.value", Collections.emptyMap());
 
-        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testChangingVarsCrossExecution1", "js",
+        ExecutableScript script = se.executable(new CompiledScript(ScriptType.INLINE, "testChangingVarsCrossExecution1", "js",
                 compiledScript), vars);
         ctx.put("value", 1);
         Object o = script.run();
@@ -175,7 +175,7 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object compiledScript = se.compile(null, "value", Collections.emptyMap());
 
-        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testChangingVarsCrossExecution2", "js",
+        ExecutableScript script = se.executable(new CompiledScript(ScriptType.INLINE, "testChangingVarsCrossExecution2", "js",
                 compiledScript), vars);
         script.setNextVar("value", 1);
         Object o = script.run();

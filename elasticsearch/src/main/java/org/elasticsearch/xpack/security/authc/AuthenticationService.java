@@ -283,7 +283,7 @@ public class AuthenticationService extends AbstractComponent {
                         User runAsUser = realm.lookupUser(runAsUsername);
                         if (runAsUser != null) {
                             lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
-                            user = new User(user.principal(), user.roles(), runAsUser);
+                            user = new User(user, runAsUser);
                             return user;
                         }
                     }

@@ -629,7 +629,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(new User("lookup user", new String[]{"user"}));
+        final User user = new User("lookup user", new String[]{"user"}, "lookup user", "lookup@foo.foo",
+                Collections.singletonMap("foo", "bar"), true);
+        when(secondRealm.authenticate(token)).thenReturn(user);
         when(secondRealm.lookupUser("run_as")).thenReturn(new User("looked up user", new String[]{"some role"}));
         when(secondRealm.userLookupSupported()).thenReturn(true);
 
@@ -646,6 +648,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(authenticated.runAs(), is(notNullValue()));
         assertThat(authenticated.principal(), is("lookup user"));
         assertThat(authenticated.roles(), arrayContaining("user"));
+        assertEquals(user.metadata(), authenticated.metadata());
+        assertEquals(user.email(), authenticated.email());
+        assertEquals(user.enabled(), authenticated.enabled());
+        assertEquals(user.fullName(), authenticated.fullName());
+
         assertThat(authenticated.runAs().principal(), is("looked up user"));
         assertThat(authenticated.runAs().roles(), arrayContaining("some role"));
         assertThreadContextContainsAuthentication(result);

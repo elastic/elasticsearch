@@ -43,6 +43,10 @@ public class User implements ToXContent {
         this(username, roles, null, null, null, true, runAs);
     }
 
+    public User(User user, User runAs) {
+        this(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled(), runAs);
+    }
+
     public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled) {
         this.username = username;
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;

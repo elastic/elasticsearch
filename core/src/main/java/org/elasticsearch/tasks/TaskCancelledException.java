@@ -16,26 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.tasks;
 
-package org.elasticsearch.search.fetch;
-
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.SearchContextException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-public class FetchPhaseExecutionException extends SearchContextException {
+/**
+ * A generic exception that can be thrown by a task when it's cancelled by the task manager API
+ */
+public class TaskCancelledException  extends ElasticsearchException {
 
-    public FetchPhaseExecutionException(SearchContext context, String msg, Throwable t) {
-        super(context, "Fetch Failed [" + msg + "]", t);
+    public TaskCancelledException(String msg) {
+        super(msg);
     }
 
-    public FetchPhaseExecutionException(SearchContext context, String msg) {
-        super(context, "Fetch Failed [" + msg + "]");
-    }
-
-    public FetchPhaseExecutionException(StreamInput in) throws IOException {
+    public TaskCancelledException(StreamInput in) throws IOException{
         super(in);
     }
 }

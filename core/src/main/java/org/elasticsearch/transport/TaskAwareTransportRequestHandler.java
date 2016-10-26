@@ -17,25 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch;
+package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.SearchContextException;
-import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
-
-public class FetchPhaseExecutionException extends SearchContextException {
-
-    public FetchPhaseExecutionException(SearchContext context, String msg, Throwable t) {
-        super(context, "Fetch Failed [" + msg + "]", t);
-    }
-
-    public FetchPhaseExecutionException(SearchContext context, String msg) {
-        super(context, "Fetch Failed [" + msg + "]");
-    }
-
-    public FetchPhaseExecutionException(StreamInput in) throws IOException {
-        super(in);
+/**
+ * Transport request handlers that is using task context
+ */
+public abstract class TaskAwareTransportRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T>  {
+    @Override
+    public final void messageReceived(T request, TransportChannel channel) throws Exception {
+        throw new UnsupportedOperationException("the task parameter is required");
     }
 }

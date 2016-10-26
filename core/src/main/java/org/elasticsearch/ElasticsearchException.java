@@ -693,7 +693,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 ShardStateAction.NoLongerPrimaryShardException::new, 142),
         SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143),
         NOT_MASTER_EXCEPTION(org.elasticsearch.cluster.NotMasterException.class, org.elasticsearch.cluster.NotMasterException::new, 144),
-        STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145);
+        STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145),
+        TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
+            org.elasticsearch.tasks.TaskCancelledException::new, 146);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException> constructor;

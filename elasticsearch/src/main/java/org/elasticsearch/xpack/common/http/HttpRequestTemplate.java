@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestUtils;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -459,7 +459,7 @@ public class HttpRequestTemplate implements ToXContent {
         }
 
         public Builder body(XContentBuilder content) throws IOException {
-            return body(new TextTemplate(content.string(), content.contentType(), ScriptService.ScriptType.INLINE, null));
+            return body(new TextTemplate(content.string(), content.contentType(), ScriptType.INLINE, null));
         }
 
         public Builder connectionTimeout(TimeValue timeout) {

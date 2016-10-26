@@ -15,7 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -128,10 +128,10 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                     .setScriptLang("painless")
                     .setSource(new BytesArray("{\"script\" : \"['key3' : ctx.payload.key1 + ctx.payload.key2]\"}"))
                     .get());
-            script = new Script("my-script", ScriptService.ScriptType.STORED, "painless", null);
+            script = new Script("my-script", ScriptType.STORED, "painless", null);
         } else {
             logger.info("testing script transform with a file script");
-            script = new Script("my-script", ScriptService.ScriptType.FILE, "painless", null);
+            script = new Script("my-script", ScriptType.FILE, "painless", null);
         }
 
         // put a watch that has watch level transform:

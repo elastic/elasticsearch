@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -54,7 +54,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
         this.indicesOptions = indicesOptions;
         // Here we convert a watch search request body into an inline search template,
         // this way if any Watcher related context variables are used, they will get resolved.
-        this.template = new Script(searchSource.utf8ToString(), ScriptService.ScriptType.INLINE, TextTemplate.DEFAULT_TEMPLATE_LANG, null);
+        this.template = new Script(searchSource.utf8ToString(), ScriptType.INLINE, TextTemplate.DEFAULT_TEMPLATE_LANG, null);
         this.searchSource = null;
     }
 
@@ -118,7 +118,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
         if (template != null) {
             return template;
         } else {
-            return new Script(searchSource.utf8ToString(), ScriptService.ScriptType.INLINE, TextTemplate.DEFAULT_TEMPLATE_LANG, null);
+            return new Script(searchSource.utf8ToString(), ScriptType.INLINE, TextTemplate.DEFAULT_TEMPLATE_LANG, null);
         }
     }
 

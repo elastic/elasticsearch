@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
@@ -256,7 +256,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
                 .get());
 
-        Script template = new Script("my-template", ScriptService.ScriptType.STORED, "mustache", null);
+        Script template = new Script("my-template", ScriptType.STORED, "mustache", null);
         WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"}, new String[0],
                 SearchType.DEFAULT, WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, template);
         testConditionSearch(searchRequest);

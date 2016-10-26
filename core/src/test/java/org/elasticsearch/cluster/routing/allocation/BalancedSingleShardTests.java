@@ -77,7 +77,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         AllocationDecider noRebalanceDecider = new AllocationDecider(Settings.EMPTY) {
             @Override
             public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                return randomFrom(Decision.NO, Decision.THROTTLE);
+                return allocation.decision(randomFrom(Decision.NO, Decision.THROTTLE), "TEST", "foobar");
             }
         };
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
@@ -87,7 +87,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             new AllocationDeciders(Settings.EMPTY, Collections.singleton(noRebalanceDecider)), clusterState));
         assertNotEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
-        assertEquals("rebalancing is not allowed", rebalanceDecision.getFinalExplanation());
+        assertEquals("foobar", rebalanceDecision.getFinalExplanation());
         assertNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
     }
@@ -166,10 +166,6 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation newRoutingAllocation(AllocationDeciders deciders, ClusterState state) {
-        RoutingAllocation allocation = new RoutingAllocation(
-            deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime(), false
-        );
-        allocation.debugDecision();
-        return allocation;
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime(), false);
     }
 }

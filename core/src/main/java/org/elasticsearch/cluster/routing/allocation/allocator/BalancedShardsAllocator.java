@@ -134,6 +134,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * shard.
      */
     public RebalanceDecision decideRebalance(final ShardRouting shard, final RoutingAllocation allocation) {
+        allocation.debugDecision();
         return new Balancer(logger, allocation, weightFunction, threshold).decideRebalance(shard);
     }
 
@@ -339,7 +340,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 for (Decision subDecision : canRebalance.getDecisions()) {
                     if ((subDecision.type() == Type.NO && (explanation != null || explanationCause == Type.THROTTLE))
                             || (subDecision.type() == Type.THROTTLE && explanation == null)) {
-                        explanation = subDecision.label();
+                        explanation = subDecision.getExplanation();
                         explanationCause = subDecision.type();
                     }
                 }

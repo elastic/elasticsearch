@@ -48,7 +48,7 @@ public class RestBuilderListenerTests extends ESTestCase {
 
         builderListener.buildResponse(Empty.INSTANCE);
         assertNotNull(builderAtomicReference.get());
-        assertTrue(builderAtomicReference.get().isClosed());
+        assertTrue(builderAtomicReference.get().generator().isClosed());
     }
 
     public void testXContentBuilderNotClosedInBuildResponseAssertionsDisabled() throws Exception {
@@ -60,16 +60,17 @@ public class RestBuilderListenerTests extends ESTestCase {
                     builderAtomicReference.set(builder);
                     return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 }
+
+                @Override
+                boolean assertBuilderClosed(XContentBuilder xContentBuilder) {
+                    // don't check the actual builder being closed so we can test auto close
+                    return true;
+                }
         };
 
-        RestBuilderListener.assertionsEnabled = false;
-        try {
-            builderListener.buildResponse(Empty.INSTANCE);
-            assertNotNull(builderAtomicReference.get());
-            assertTrue(builderAtomicReference.get().isClosed());
-        } finally {
-            RestBuilderListener.assertionsEnabled = true;
-        }
+        builderListener.buildResponse(Empty.INSTANCE);
+        assertNotNull(builderAtomicReference.get());
+        assertTrue(builderAtomicReference.get().generator().isClosed());
     }
 
     public void testXContentBuilderNotClosedInBuildResponseAssertionsEnabled() throws Exception {

@@ -998,10 +998,6 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
         }
     }
 
-    public boolean isClosed() {
-        return generator.isClosed();
-    }
-
     public XContentGenerator generator() {
         return this.generator;
     }

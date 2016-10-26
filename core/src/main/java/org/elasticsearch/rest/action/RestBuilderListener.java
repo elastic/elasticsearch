@@ -28,9 +28,6 @@ import org.elasticsearch.rest.RestResponse;
  */
 public abstract class RestBuilderListener<Response> extends RestResponseListener<Response> {
 
-    // pkg-private static boolean that enables testing of the auto-close functionality
-    static boolean assertionsEnabled = true;
-
     public RestBuilderListener(RestChannel channel) {
         super(channel);
     }
@@ -39,7 +36,7 @@ public abstract class RestBuilderListener<Response> extends RestResponseListener
     public final RestResponse buildResponse(Response response) throws Exception {
         try (XContentBuilder builder = channel.newBuilder()) {
             final RestResponse restResponse = buildResponse(response, builder);
-            assert assertionsEnabled == false || builder.isClosed() : "callers should ensure the XContentBuilder is closed themselves";
+            assert assertBuilderClosed(builder) : "callers should ensure the XContentBuilder is closed themselves";
             return restResponse;
         }
     }
@@ -49,4 +46,9 @@ public abstract class RestBuilderListener<Response> extends RestResponseListener
      * using the {@link XContentBuilder#close()} method.
      */
     public abstract RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception;
+
+    // pkg private method that we can override for testing
+    boolean assertBuilderClosed(XContentBuilder xContentBuilder) {
+        return xContentBuilder.generator().isClosed();
+    }
 }

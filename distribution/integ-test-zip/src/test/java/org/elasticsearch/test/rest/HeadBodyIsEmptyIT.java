@@ -34,9 +34,9 @@ import static java.util.Collections.singletonMap;
  */
 public class HeadBodyIsEmptyIT extends ESRestTestCase {
     public void testHeadRoot() throws IOException {
-        headTestCase("/", emptyMap());
-        headTestCase("/", singletonMap("pretty", ""));
-        headTestCase("/", singletonMap("pretty", "true"));
+        headTestCase("/", emptyMap(), 350);
+        headTestCase("/", singletonMap("pretty", ""), 350);
+        headTestCase("/", singletonMap("pretty", "true"), 350);
     }
 
     private void createTestDoc() throws UnsupportedEncodingException, IOException {
@@ -45,28 +45,31 @@ public class HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testDocumentExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test/1", emptyMap());
-        headTestCase("test/test/1", singletonMap("pretty", "true"));
+        headTestCase("test/test/1", emptyMap(), 0);
+        headTestCase("test/test/1", singletonMap("pretty", "true"), 0);
     }
 
     public void testIndexExists() throws IOException {
         createTestDoc();
-        headTestCase("test", emptyMap());
-        headTestCase("test", singletonMap("pretty", "true"));
+        headTestCase("test", emptyMap(), 0);
+        headTestCase("test", singletonMap("pretty", "true"), 0);
     }
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test", emptyMap());
-        headTestCase("test/test", singletonMap("pretty", "true"));
+        headTestCase("test/test", emptyMap(), 0);
+        headTestCase("test/test", singletonMap("pretty", "true"), 0);
     }
 
-    private void headTestCase(String url, Map<String, String> params) throws IOException {
+    private void headTestCase(String url, Map<String, String> params, int length) throws IOException {
         Response response = client().performRequest("HEAD", url, params);
         assertEquals(200, response.getStatusLine().getStatusCode());
         /* Check that the content-length header is always 0. This isn't what we should be doing in the long run but it is what we expect
          * that we are *actually* doing. */
-        assertEquals("We expect HEAD requests to have 0 Content-Length but " + url + " didn't", "0", response.getHeader("Content-Length"));
+        assertEquals(
+            "We expect HEAD requests to have 0 Content-Length but " + url + " didn't",
+            Integer.toString(length),
+            response.getHeader("Content-Length"));
         assertNull("HEAD requests shouldn't have a response body but " + url + " did", response.getEntity());
     }
 }

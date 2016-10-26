@@ -64,10 +64,8 @@ public class HeadBodyIsEmptyIT extends ESRestTestCase {
     private void headTestCase(String url, Map<String, String> params, int length) throws IOException {
         Response response = client().performRequest("HEAD", url, params);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        /* Check that the content-length header is always 0. This isn't what we should be doing in the long run but it is what we expect
-         * that we are *actually* doing. */
         assertEquals(
-            "We expect HEAD requests to have 0 Content-Length but " + url + " didn't",
+            "We expect HEAD requests to have " + length + " + Content-Length but " + url + " didn't",
             Integer.toString(length),
             response.getHeader("Content-Length"));
         assertNull("HEAD requests shouldn't have a response body but " + url + " did", response.getEntity());

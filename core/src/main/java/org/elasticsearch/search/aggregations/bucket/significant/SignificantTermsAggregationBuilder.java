@@ -217,7 +217,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.initialize(context.searchContext());
+        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context.searchContext());
         return new SignificantTermsAggregatorFactory(name, type, config, includeExclude, executionHint, filterBuilder,
                 bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metaData);
     }

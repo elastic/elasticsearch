@@ -24,7 +24,6 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
@@ -47,7 +46,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     
     // This class holds an executable form of the script with private variables ready for execution
     // on a single search thread.
-    static class ExecutableScriptHeuristic extends ScriptHeuristic{
+    static class ExecutableScriptHeuristic extends ScriptHeuristic {
         private final LongAccessor subsetSizeHolder;
         private final LongAccessor supersetSizeHolder;
         private final LongAccessor subsetDfHolder;
@@ -94,12 +93,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     @Override
-    public SignificanceHeuristic initialize(InternalAggregation.ReduceContext context) {
+    public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
         return new ExecutableScriptHeuristic(script, context.scriptService().executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
     }
 
     @Override
-    public SignificanceHeuristic initialize(SearchContext context) {
+    public SignificanceHeuristic rewrite(SearchContext context) {
         return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
     }
 
@@ -115,7 +114,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("This scoring heuristic must have 'rewrite' called on it to provide a version ready for use");
     }
 
     @Override

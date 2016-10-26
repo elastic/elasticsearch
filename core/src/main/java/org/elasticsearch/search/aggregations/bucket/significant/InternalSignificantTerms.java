@@ -197,7 +197,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             }
         }
 
-        SignificanceHeuristic heuristic = getSignificanceHeuristic().initialize(reduceContext);
+        SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
         final int size = Math.min(requiredSize, buckets.size());
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {

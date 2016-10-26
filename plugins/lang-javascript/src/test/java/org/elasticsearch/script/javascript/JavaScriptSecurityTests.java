@@ -21,7 +21,7 @@ package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.WrappedException;
@@ -54,7 +54,7 @@ public class JavaScriptSecurityTests extends ESTestCase {
     /** runs a script */
     private void doTest(String script) {
         Map<String, Object> vars = new HashMap<String, Object>();
-        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(null, script, Collections.emptyMap())), vars).run();
+        se.executable(new CompiledScript(ScriptType.INLINE, "test", "js", se.compile(null, script, Collections.emptyMap())), vars).run();
     }
 
     /** asserts that a script runs without exception */

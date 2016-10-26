@@ -42,8 +42,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -232,7 +231,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script()} instead
      */
     @Deprecated
-    public ScriptService.ScriptType scriptType() {
+    public ScriptType scriptType() {
         return this.script == null ? null : this.script.getType();
     }
 
@@ -252,7 +251,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
-    public UpdateRequest script(String script, ScriptService.ScriptType scriptType) {
+    public UpdateRequest script(String script, ScriptType scriptType) {
         updateOrCreateScript(script, scriptType, null, null);
         return this;
     }
@@ -347,7 +346,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
-    public UpdateRequest script(String script, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
         this.script = new Script(script, scriptType, null, scriptParams);
         return this;
     }
@@ -369,7 +368,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
-    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptService.ScriptType scriptType,
+    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptType scriptType,
             @Nullable Map<String, Object> scriptParams) {
         this.script = new Script(script, scriptType, scriptLang, scriptParams);
         return this;

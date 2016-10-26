@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -62,6 +63,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED);
         ShardRouting shard = clusterState.routingTable().index("idx").shard(0).primaryShard();
+        final String initialNodeId = shard.currentNodeId();
         RoutingAllocation routingAllocation = newRoutingAllocation(
             new AllocationDeciders(Settings.EMPTY, Collections.emptyList()), clusterState);
         routingAllocation.setHasPendingAsyncFetch();
@@ -71,6 +73,8 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertThat(rebalanceDecision.getFinalExplanation(), Matchers.startsWith("cannot rebalance due to in-flight shard store fetches"));
         assertNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
+
+        assesrtNoChangesInRoutingTable(allocator, routingAllocation, shard.shardId(), initialNodeId);
     }
 
     public void testRebalancingNotAllowedDueToCanRebalance() {
@@ -83,13 +87,17 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED);
         ShardRouting shard = clusterState.routingTable().index("idx").shard(0).primaryShard();
-        RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, newRoutingAllocation(
-            new AllocationDeciders(Settings.EMPTY, Collections.singleton(noRebalanceDecider)), clusterState));
+        final String initialNodeId = shard.currentNodeId();
+        RoutingAllocation routingAllocation =  newRoutingAllocation(
+            new AllocationDeciders(Settings.EMPTY, Collections.singleton(noRebalanceDecider)), clusterState);
+        RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertNotEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
         assertEquals("foobar", rebalanceDecision.getFinalExplanation());
         assertNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
+
+        assesrtNoChangesInRoutingTable(allocator, routingAllocation, shard.shardId(), initialNodeId);
     }
 
     public void testRebalancePossible() {
@@ -167,5 +175,14 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
 
     private RoutingAllocation newRoutingAllocation(AllocationDeciders deciders, ClusterState state) {
         return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime(), false);
+    }
+
+    // asserts that allocation causes no changes in the routing table
+    private void assesrtNoChangesInRoutingTable(BalancedShardsAllocator allocator, RoutingAllocation routingAllocation,
+                                                ShardId shardId, String initialNodeId) {
+        allocator.allocate(routingAllocation);
+        RoutingNodes routingNodes = routingAllocation.routingNodes();
+        // no changes should've taken place
+        assertEquals(initialNodeId, routingNodes.activePrimary(shardId).currentNodeId());
     }
 }

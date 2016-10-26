@@ -41,6 +41,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -401,9 +402,7 @@ public class InternalEngine extends Engine {
                 }
             }
         } catch (Exception e) {
-            Exception documentFailure = extractDocumentFailure(index, e);
-            result = new IndexResult(documentFailure, index.version(),
-                    index.estimatedSizeInBytes());
+            result = new IndexResult(checkIfDocumentFailureOrThrow(index, e), index.version());
         }
         return result;
     }
@@ -412,10 +411,12 @@ public class InternalEngine extends Engine {
      * Inspects exception thrown when executing index or delete operations
      *
      * @return failure if the failure is a document specific failure (e.g. analysis chain failure)
-     * @throws OperationFailedEngineException if the failure caused the engine to fail
+     * @throws ElasticsearchException if the failure caused the engine to fail
      * (e.g. out of disk, lucene tragic event)
+     *
+     * Note: pkg-private for testing
      */
-    private Exception extractDocumentFailure(final Operation operation, final Exception failure) {
+    final Exception checkIfDocumentFailureOrThrow(final Operation operation, final Exception failure) {
         boolean isDocumentFailure;
         try {
             // When indexing a document into Lucene, Lucene distinguishes between environment related errors
@@ -434,8 +435,9 @@ public class InternalEngine extends Engine {
         if (isDocumentFailure) {
             return failure;
         } else {
-            throw new OperationFailedEngineException(shardId, operation.operationType().getLowercase(),
-                    operation.type(), operation.id(), failure);
+            ElasticsearchException exception = new ElasticsearchException(failure);
+            exception.setShard(shardId);
+            throw exception;
         }
     }
 
@@ -529,9 +531,10 @@ public class InternalEngine extends Engine {
                 }
             }
             final long expectedVersion = index.version();
+            final IndexResult indexResult;
             if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) {
                 // skip index operation because of version conflict on recovery
-                return new IndexResult(expectedVersion, false, index.estimatedSizeInBytes());
+                indexResult = new IndexResult(expectedVersion, false);
             } else {
                 updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
                 index.parsedDoc().version().setLongValue(updatedVersion);
@@ -541,18 +544,16 @@ public class InternalEngine extends Engine {
                 } else {
                     update(index.uid(), index.docs(), indexWriter);
                 }
-                IndexResult indexResult = new IndexResult(updatedVersion, deleted, index.estimatedSizeInBytes());
-                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                    location = translog.add(new Translog.Index(index, indexResult));
-                } else {
-                    location = null;
-                }
+                indexResult = new IndexResult(updatedVersion, deleted);
+                location = index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
+                        ? translog.add(new Translog.Index(index, indexResult))
+                        : null;
                 versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
-                indexResult.setLocation(location);
-                indexResult.setTook(System.nanoTime() - index.startTime());
-                indexResult.freeze();
-                return indexResult;
+                indexResult.setTranslogLocation(location);
             }
+            indexResult.setTook(System.nanoTime() - index.startTime());
+            indexResult.freeze();
+            return indexResult;
         }
     }
 
@@ -580,9 +581,7 @@ public class InternalEngine extends Engine {
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             result = innerDelete(delete);
         } catch (Exception e) {
-            Exception documentFailure = extractDocumentFailure(delete, e);
-            result = new DeleteResult(documentFailure, delete.version(),
-                    delete.estimatedSizeInBytes());
+            result = new DeleteResult(checkIfDocumentFailureOrThrow(delete, e), delete.version());
         }
         maybePruneDeletedTombstones();
         return result;
@@ -615,27 +614,24 @@ public class InternalEngine extends Engine {
             }
 
             final long expectedVersion = delete.version();
+            final DeleteResult deleteResult;
             if (checkVersionConflict(delete, currentVersion, expectedVersion, deleted)) {
                 // skip executing delete because of version conflict on recovery
-                return new DeleteResult(expectedVersion, true,
-                        delete.estimatedSizeInBytes());
+                deleteResult = new DeleteResult(expectedVersion, true);
             } else {
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
-                DeleteResult deleteResult = new DeleteResult(updatedVersion, found,
-                        delete.estimatedSizeInBytes());
-                if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                    location = translog.add(new Translog.Delete(delete, deleteResult));
-                } else {
-                    location = null;
-                }
+                deleteResult = new DeleteResult(updatedVersion, found);
+                location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
+                        ? translog.add(new Translog.Delete(delete, deleteResult))
+                        : null;
                 versionMap.putUnderLock(delete.uid().bytes(),
                         new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
-                deleteResult.setLocation(location);
-                deleteResult.setTook(System.nanoTime() - delete.startTime());
-                deleteResult.freeze();
-                return deleteResult;
+                deleteResult.setTranslogLocation(location);
             }
+            deleteResult.setTook(System.nanoTime() - delete.startTime());
+            deleteResult.freeze();
+            return deleteResult;
         }
     }
 
@@ -1117,7 +1113,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriter createWriter(boolean create) throws IOException {
+    // pkg-private for testing
+    IndexWriter createWriter(boolean create) throws IOException {
         try {
             final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
             iwc.setCommitOnClose(false); // we by default don't commit on close

@@ -1126,8 +1126,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void verifyPrimary() {
         if (shardRouting.primary() == false) {
-            // TODO throw a more appropriate exception
-            throw new ShardNotFoundException(shardRouting.shardId(), "shard is not a primary anymore");
+            throw new IllegalStateException("shard is not a primary " + shardRouting);
         }
     }
 

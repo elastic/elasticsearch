@@ -89,7 +89,6 @@ public abstract class TransportWriteAction<
                                   @Nullable Location location, @Nullable Exception operationFailure,
                                   IndexShard primary) {
             super(request, finalResponse, operationFailure);
-            assert operationFailure != null ^ finalResponse != null;
             if (operationFailure != null) {
                 this.finishedAsyncActions = true;
             } else {
@@ -127,9 +126,7 @@ public abstract class TransportWriteAction<
 
         @Override
         public synchronized void onSuccess(boolean forcedRefresh) {
-            if (finalResponseIfSuccessful != null) {
-                finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
-            }
+            finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
             finishedAsyncActions = true;
             respondIfPossible(null);
         }

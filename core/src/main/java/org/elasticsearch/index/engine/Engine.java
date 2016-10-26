@@ -282,43 +282,50 @@ public abstract class Engine implements Closeable {
 
     public abstract DeleteResult delete(Delete delete);
 
+    /**
+     * Base class for index and delete operation results
+     * Holds result meta data (e.g. translog location, updated version)
+     * for an executed write {@link Operation}
+     **/
     public abstract static class Result {
         private final Operation.TYPE operationType;
         private final long version;
         private final Exception failure;
-        private final int estimatedSizeInBytes;
-        private Translog.Location location;
+        private Translog.Location translogLocation;
         private long took;
         private boolean freeze;
 
-        protected Result(Operation.TYPE operationType, Exception failure,
-                       long version, int estimatedSizeInBytes) {
+        protected Result(Operation.TYPE operationType, Exception failure, long version) {
             this.operationType = operationType;
             this.failure = failure;
             this.version = version;
-            this.estimatedSizeInBytes = estimatedSizeInBytes;
         }
 
-        protected Result(Operation.TYPE operationType, long version, int estimatedSizeInBytes) {
-            this(operationType, null, version, estimatedSizeInBytes);
+        protected Result(Operation.TYPE operationType, long version) {
+            this(operationType, null, version);
         }
 
+        /** whether the operation had failure */
         public boolean hasFailure() {
             return failure != null;
         }
 
+        /** get the updated document version */
         public long getVersion() {
             return version;
         }
 
-        public Translog.Location getLocation() {
-            return location;
+        /** get the translog location after executing the operation */
+        public Translog.Location getTranslogLocation() {
+            return translogLocation;
         }
 
+        /** get document failure while executing the operation {@code null} in case of no failure */
         public Exception getFailure() {
             return failure;
         }
 
+        /** get total time in nanoseconds */
         public long getTook() {
             return took;
         }
@@ -327,22 +334,24 @@ public abstract class Engine implements Closeable {
             return operationType;
         }
 
+        /** get size of the translog operation if translog location has been set */
         public int getSizeInBytes() {
-            if (location != null) {
-                return location.size;
+            if (translogLocation != null) {
+                return translogLocation.size;
+            } else {
+                throw new IllegalStateException("result has null location, use Operation#estimatedSizeInBytes instead");
             }
-            return estimatedSizeInBytes;
         }
 
-        public void setLocation(Translog.Location location) {
+        void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze == false) {
-                this.location = location;
+                this.translogLocation = translogLocation;
             } else {
                 throw new IllegalStateException("result is already frozen");
             }
         }
 
-        public void setTook(long took) {
+        void setTook(long took) {
             if (freeze == false) {
                 this.took = took;
             } else {
@@ -350,7 +359,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        public void freeze() {
+        void freeze() {
             this.freeze = true;
         }
     }
@@ -358,13 +367,13 @@ public abstract class Engine implements Closeable {
     public static class IndexResult extends Result {
         private final boolean created;
 
-        public IndexResult(long version, boolean created, int estimatedSizeInBytes) {
-            super(Operation.TYPE.INDEX, version, estimatedSizeInBytes);
+        public IndexResult(long version, boolean created) {
+            super(Operation.TYPE.INDEX, version);
             this.created = created;
         }
 
-        public IndexResult(Exception failure, long version, int estimatedSizeInBytes) {
-            super(Operation.TYPE.INDEX, failure, version, estimatedSizeInBytes);
+        public IndexResult(Exception failure, long version) {
+            super(Operation.TYPE.INDEX, failure, version);
             this.created = false;
         }
 
@@ -376,13 +385,13 @@ public abstract class Engine implements Closeable {
     public static class DeleteResult extends Result {
         private final boolean found;
 
-        public DeleteResult(long version, boolean found, int estimatedSizeInBytes) {
-            super(Operation.TYPE.DELETE, version, estimatedSizeInBytes);
+        public DeleteResult(long version, boolean found) {
+            super(Operation.TYPE.DELETE, version);
             this.found = found;
         }
 
-        public DeleteResult(Exception failure, long version, int estimatedSizeInBytes) {
-            super(Operation.TYPE.DELETE, failure, version, estimatedSizeInBytes);
+        public DeleteResult(Exception failure, long version) {
+            super(Operation.TYPE.DELETE, failure, version);
             this.found = false;
         }
 

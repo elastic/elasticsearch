@@ -207,13 +207,8 @@ public abstract class TransportReplicationAction<
     }
 
     protected boolean retryPrimaryException(final Throwable e) {
-        boolean retry = e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
+        return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
                 || TransportActions.isShardNotAvailableException(e);
-        if (retry) {
-            assert e instanceof ElasticsearchException
-                    : "expected all retry on primary exception to be ElasticsearchException instances, found: " + e.getClass();
-        }
-        return retry;
     }
 
     class OperationTransportHandler implements TransportRequestHandler<Request> {
@@ -378,7 +373,12 @@ public abstract class TransportReplicationAction<
         final Response finalResponseIfSuccessful;
         final Exception finalFailure;
 
+        /**
+         * Result of executing a primary operation
+         * expects <code>finalResponseIfSuccessful</code> or <code>finalFailure</code> to be not-null
+         */
         public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponseIfSuccessful, Exception finalFailure) {
+            assert finalFailure != null ^ finalResponseIfSuccessful != null : "either a response or a failure has to be not null";
             this.replicaRequest = replicaRequest;
             this.finalResponseIfSuccessful = finalResponseIfSuccessful;
             this.finalFailure = finalFailure;

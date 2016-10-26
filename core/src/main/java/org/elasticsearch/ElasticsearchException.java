@@ -28,7 +28,6 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.OperationFailedEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
@@ -580,8 +579,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.TimestampParsingException::new, 78),
         ROUTING_MISSING_EXCEPTION(org.elasticsearch.action.RoutingMissingException.class,
                 org.elasticsearch.action.RoutingMissingException::new, 79),
-        OPERATION_FAILED_ENGINE_EXCEPTION(OperationFailedEngineException.class,
-                OperationFailedEngineException::new, 80),
+        // 80 used to be for IndexFailedEngineException, removed in 6.0
         INDEX_SHARD_RESTORE_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreFailedException::new, 81),
         REPOSITORY_EXCEPTION(org.elasticsearch.repositories.RepositoryException.class,

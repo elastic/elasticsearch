@@ -114,7 +114,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         IndexingOperationListener.CompositeListener compositeListener = new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
-        compositeListener.postDelete(delete, new Engine.DeleteResult(1, true, 0));
+        compositeListener.postDelete(delete, new Engine.DeleteResult(1, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -138,7 +138,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(index, new Engine.IndexResult(0, false, 0));
+        compositeListener.postIndex(index, new Engine.IndexResult(0, false));
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());

@@ -201,17 +201,23 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     @Override
     public void postIndex(Engine.Index index, Engine.IndexResult result) {
-        recordOperationBytes(result);
+        recordOperationBytes(index, result);
     }
 
     @Override
     public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
-        recordOperationBytes(result);
+        recordOperationBytes(delete, result);
     }
 
     /** called by IndexShard to record that this many bytes were written to translog */
-    private void recordOperationBytes(Engine.Result result) {
-        statusChecker.bytesWritten(result.getSizeInBytes());
+    private void recordOperationBytes(Engine.Operation operation, Engine.Result result) {
+        final int sizeInBytes;
+        if (result.getTranslogLocation() != null) {
+            sizeInBytes = result.getSizeInBytes();
+        } else {
+            sizeInBytes = operation.estimatedSizeInBytes();
+        }
+        statusChecker.bytesWritten(sizeInBytes);
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {

@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -369,7 +368,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary,
                     null);
             request.primaryTerm(primary.getPrimaryTerm());
-            TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getLocation(), logger);
+            TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getTranslogLocation(), logger);
             IndexResponse response = new IndexResponse(primary.shardId(), request.type(), request.id(), indexResult.getVersion(),
                     indexResult.isCreated());
             return new PrimaryResult(request, response);
@@ -378,7 +377,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnReplica(IndexRequest request, IndexShard replica) {
             final Engine.IndexResult result = executeIndexRequestOnReplica(request, replica);
-            TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getLocation(), logger);
+            TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getTranslogLocation(), logger);
         }
     }
 }

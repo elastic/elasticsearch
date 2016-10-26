@@ -718,7 +718,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 if (throwException) {
                     throw new ElasticsearchException("simulated");
                 }
-                return new ReplicaResult(null);
+                return new ReplicaResult();
             }
         };
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
@@ -837,7 +837,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 if (throwException.get()) {
                     throw new RetryOnReplicaException(shardId, "simulation");
                 }
-                return new ReplicaResult(null);
+                return new ReplicaResult();
             }
         };
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
@@ -961,13 +961,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         protected PrimaryResult shardOperationOnPrimary(Request shardRequest, IndexShard primary) throws Exception {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
-            return new PrimaryResult(shardRequest, new Response(), null);
+            return new PrimaryResult(shardRequest, new Response());
         }
 
         @Override
         protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
             request.processedOnReplicas.incrementAndGet();
-            return new ReplicaResult(null);
+            return new ReplicaResult();
         }
 
         @Override
@@ -1053,7 +1053,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         @Override
         public void execute() throws Exception {
-            this.resultListener.onResponse(action.new PrimaryResult(null, new Response(), null));
+            this.resultListener.onResponse(action.new PrimaryResult(null, new Response()));
         }
     }
 

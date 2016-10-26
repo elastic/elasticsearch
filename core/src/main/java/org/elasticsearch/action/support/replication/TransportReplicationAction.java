@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.indices.flush.ShardFlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportAction;
@@ -383,6 +384,10 @@ public abstract class TransportReplicationAction<
             this.finalFailure = finalFailure;
         }
 
+        public PrimaryResult(ReplicaRequest replicaRequest, Response replicationResponse) {
+            this(replicaRequest, replicationResponse, null);
+        }
+
         @Override
         public ReplicaRequest replicaRequest() {
             return replicaRequest;
@@ -409,6 +414,10 @@ public abstract class TransportReplicationAction<
 
         public ReplicaResult(Exception finalFailure) {
             this.finalFailure = finalFailure;
+        }
+
+        public ReplicaResult() {
+            this(null);
         }
 
         public void respond(ActionListener<TransportResponse.Empty> listener) {

@@ -57,14 +57,14 @@ public class TransportShardRefreshAction
     protected PrimaryResult shardOperationOnPrimary(BasicReplicationRequest shardRequest, IndexShard primary) {
         primary.refresh("api");
         logger.trace("{} refresh request executed on primary", primary.shardId());
-        return new PrimaryResult(shardRequest, new ReplicationResponse(), null);
+        return new PrimaryResult(shardRequest, new ReplicationResponse());
     }
 
     @Override
     protected ReplicaResult shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica) {
         replica.refresh("api");
         logger.trace("{} refresh request executed on replica", replica.shardId());
-        return new ReplicaResult(null);
+        return new ReplicaResult();
     }
 
     @Override

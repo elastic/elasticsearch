@@ -488,8 +488,14 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}]", roleId), e);
-                        roleActionListener.onFailure(e);
+                        if (e instanceof IndexNotFoundException) { // if the index is not there we just claim the role is not there
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}] index not available",
+                                    roleId), e);
+                            roleActionListener.onResponse(RoleAndVersion.NON_EXISTENT);
+                        } else {
+                            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}]", roleId), e);
+                            roleActionListener.onFailure(e);
+                        }
                     }
                 });
             } else {

@@ -16,14 +16,10 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,7 +41,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
@@ -58,8 +53,8 @@ import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -95,12 +90,6 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         FAILED
     }
 
-    private static final Setting<Integer> SCROLL_SIZE_SETTING =
-            Setting.intSetting(setting("authz.store.roles.index.scroll.size"), 1000, Property.NodeScope);
-
-    private static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
-            Setting.timeSetting(setting("authz.store.roles.index.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
-
     private static final Setting<Integer> CACHE_SIZE_SETTING =
             Setting.intSetting(setting("authz.store.roles.index.cache.max_size"), 10000, Property.NodeScope);
     private static final Setting<TimeValue> CACHE_TTL_SETTING =
@@ -126,8 +115,6 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
     }
 
     private SecurityClient securityClient;
-    private int scrollSize;
-    private TimeValue scrollKeepAlive;
     // incremented each time the cache is invalidated
     private final AtomicLong numInvalidation = new AtomicLong(0);
 
@@ -183,8 +170,6 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
                 this.securityClient = new SecurityClient(client);
-                this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
-                this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -202,7 +187,7 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
     /**
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
-    public void getRoleDescriptors(String[] names, final ActionListener<List<RoleDescriptor>> listener) {
+    public void getRoleDescriptors(String[] names, final ActionListener<Collection<RoleDescriptor>> listener) {
         if (state() != State.STARTED) {
             logger.trace("attempted to get roles before service was started");
             listener.onFailure(new IllegalStateException("roles cannot be retrieved as native role service has not been started"));
@@ -214,7 +199,6 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
                     : Collections.singletonList(roleAndVersion.getRoleDescriptor())), listener::onFailure));
         } else {
             try {
-                final List<RoleDescriptor> roles = new ArrayList<>();
                 QueryBuilder query;
                 if (names == null || names.length == 0) {
                     query = QueryBuilders.matchAllQuery();
@@ -223,57 +207,13 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
                 }
                 SearchRequest request = client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
                         .setTypes(ROLE_DOC_TYPE)
-                        .setScroll(scrollKeepAlive)
+                        .setScroll(TimeValue.timeValueSeconds(10L))
                         .setQuery(query)
-                        .setSize(scrollSize)
+                        .setSize(1000)
                         .setFetchSource(true)
                         .request();
                 request.indicesOptions().ignoreUnavailable();
-
-                // This function is MADNESS! But it works, don't think about it too hard...
-                client.search(request, new ActionListener<SearchResponse>() {
-
-                    private SearchResponse lastResponse = null;
-
-                    @Override
-                    public void onResponse(SearchResponse resp) {
-                        lastResponse = resp;
-                        boolean hasHits = resp.getHits().getHits().length > 0;
-                        if (hasHits) {
-                            for (SearchHit hit : resp.getHits().getHits()) {
-                                RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef(), logger);
-                                if (rd != null) {
-                                    roles.add(rd);
-                                }
-                            }
-                            SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
-                                    .setScroll(scrollKeepAlive).request();
-                            client.searchScroll(scrollRequest, this);
-                        } else {
-                            if (resp.getScrollId() != null) {
-                                clearScollRequest(resp.getScrollId());
-                            }
-                            // Finally, return the list of users
-                            listener.onResponse(Collections.unmodifiableList(roles));
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception t) {
-                        // attempt to clear the scroll request
-                        if (lastResponse != null && lastResponse.getScrollId() != null) {
-                            clearScollRequest(lastResponse.getScrollId());
-                        }
-
-                        if (t instanceof IndexNotFoundException) {
-                            logger.trace("could not retrieve roles because security index does not exist");
-                            // since this is expected to happen at times, we just call the listener with an empty list
-                            listener.onResponse(Collections.<RoleDescriptor>emptyList());
-                        } else {
-                            listener.onFailure(t);
-                        }
-                    }
-                });
+                InternalClient.fetchAllByEntity(client, request, listener, (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger));
             } catch (Exception e) {
                 logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
                 listener.onFailure(e);
@@ -488,8 +428,14 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}]", roleId), e);
-                        roleActionListener.onFailure(e);
+                        if (e instanceof IndexNotFoundException) { // if the index is not there we just claim the role is not there
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}] index not available",
+                                    roleId), e);
+                            roleActionListener.onResponse(RoleAndVersion.NON_EXISTENT);
+                        } else {
+                            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}]", roleId), e);
+                            roleActionListener.onFailure(e);
+                        }
                     }
                 });
             } else {
@@ -517,22 +463,6 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         }
     }
 
-    private void clearScollRequest(final String scrollId) {
-        ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(scrollId).request();
-        client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse response) {
-                // cool, it cleared, we don't really care though...
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                // Not really much to do here except for warn about it...
-                logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage("failed to clear scroll [{}] after retrieving roles", scrollId), t);
-            }
-        });
-    }
 
     // FIXME hack for testing
     public void reset() {
@@ -652,8 +582,6 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
     }
 
     public static void addSettings(List<Setting<?>> settings) {
-        settings.add(SCROLL_SIZE_SETTING);
-        settings.add(SCROLL_KEEP_ALIVE_SETTING);
         settings.add(CACHE_SIZE_SETTING);
         settings.add(CACHE_TTL_SETTING);
     }

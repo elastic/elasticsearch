@@ -22,7 +22,6 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -33,8 +32,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -57,9 +54,7 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.User.Fields;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.watcher.actions.Action;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -72,7 +67,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
@@ -83,12 +77,6 @@ import static org.elasticsearch.xpack.security.SecurityTemplateService.securityI
  * operations make a best effort attempt to clear the cache on all nodes for the user that was modified.
  */
 public class NativeUsersStore extends AbstractComponent implements ClusterStateListener {
-
-    private static final Setting<Integer> SCROLL_SIZE_SETTING =
-            Setting.intSetting(setting("authc.native.scroll.size"), 1000, Property.NodeScope);
-
-    private static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
-            Setting.timeSetting(setting("authc.native.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
 
     public enum State {
         INITIALIZED,
@@ -106,8 +94,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final InternalClient client;
     private final boolean isTribeNode;
-    private int scrollSize;
-    private TimeValue scrollKeepAlive;
 
     private volatile boolean securityIndexExists = false;
 
@@ -130,9 +116,9 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     }
 
     /**
-     * Retrieve a list of users, if usernames is null or empty, fetch all users
+     * Retrieve a list of users, if userNames is null or empty, fetch all users
      */
-    public void getUsers(String[] usernames, final ActionListener<Collection<User>> listener) {
+    public void getUsers(String[] userNames, final ActionListener<Collection<User>> listener) {
         if (state() != State.STARTED) {
             logger.trace("attempted to get users before service was started");
             listener.onFailure(new IllegalStateException("users cannot be retrieved as native user service has not been started"));
@@ -147,68 +133,33 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 listener.onFailure(t);
             }
         };
-        if (usernames.length == 1) { // optimization for single user lookup
-            final String username = usernames[0];
+        if (userNames.length == 1) { // optimization for single user lookup
+            final String username = userNames[0];
             getUserAndPassword(username, ActionListener.wrap(
                     (uap) -> listener.onResponse(uap == null ? Collections.emptyList() : Collections.singletonList(uap.user())),
                     handleException::accept));
         } else {
             try {
-                final List<User> users = new ArrayList<>();
-                QueryBuilder query;
-                if (usernames == null || usernames.length == 0) {
+                final QueryBuilder query;
+                if (userNames == null || userNames.length == 0) {
                     query = QueryBuilders.matchAllQuery();
                 } else {
-                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(USER_DOC_TYPE).addIds(usernames));
+                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(USER_DOC_TYPE).addIds(userNames));
                 }
                 SearchRequest request = client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
-                        .setScroll(scrollKeepAlive)
+                        .setScroll(TimeValue.timeValueSeconds(10L))
                         .setTypes(USER_DOC_TYPE)
                         .setQuery(query)
-                        .setSize(scrollSize)
+                        .setSize(1000)
                         .setFetchSource(true)
                         .request();
                 request.indicesOptions().ignoreUnavailable();
-
-                // This function is MADNESS! But it works, don't think about it too hard...
-                client.search(request, new ActionListener<SearchResponse>() {
-
-                    private SearchResponse lastResponse = null;
-
-                    @Override
-                    public void onResponse(final SearchResponse resp) {
-                        lastResponse = resp;
-                        boolean hasHits = resp.getHits().getHits().length > 0;
-                        if (hasHits) {
-                            for (SearchHit hit : resp.getHits().getHits()) {
-                                UserAndPassword u = transformUser(hit.getId(), hit.getSource());
-                                if (u != null) {
-                                    users.add(u.user());
-                                }
-                            }
-                            SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
-                                    .setScroll(scrollKeepAlive).request();
-                            client.searchScroll(scrollRequest, this);
-                        } else {
-                            if (resp.getScrollId() != null) {
-                                clearScrollResponse(resp.getScrollId());
-                            }
-                            // Finally, return the list of users
-                            listener.onResponse(Collections.unmodifiableList(users));
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception t) {
-                        // attempt to clear scroll response
-                        if (lastResponse != null && lastResponse.getScrollId() != null) {
-                            clearScrollResponse(lastResponse.getScrollId());
-                        }
-                        handleException.accept(t);
-                    }
+                InternalClient.fetchAllByEntity(client, request, listener, (hit) -> {
+                    UserAndPassword u = transformUser(hit.getId(), hit.getSource());
+                    return u != null ? u.user() : null;
                 });
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve users {}", Arrays.toString(usernames)), e);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve users {}", Arrays.toString(userNames)), e);
                 listener.onFailure(e);
             }
         }
@@ -590,8 +541,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
-                this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -840,10 +789,5 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             this.passwordHash = passwordHash;
             this.enabled = enabled;
         }
-    }
-
-    public static void addSettings(List<Setting<?>> settings) {
-        settings.add(SCROLL_SIZE_SETTING);
-        settings.add(SCROLL_KEEP_ALIVE_SETTING);
     }
 }

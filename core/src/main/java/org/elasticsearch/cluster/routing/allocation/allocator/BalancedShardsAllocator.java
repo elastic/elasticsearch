@@ -333,11 +333,27 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
             Decision canRebalance = allocation.deciders().canRebalance(shard, allocation);
             if (canRebalance.type() != Type.YES) {
-                return new RebalanceDecision(canRebalance, Type.NO, "rebalancing is not allowed");
+                // pick the first NO rebalance decision and use its explanation for the final explanation
+                String explanation = null;
+                Type explanationCause = null;
+                for (Decision subDecision : canRebalance.getDecisions()) {
+                    if ((subDecision.type() == Type.NO && (explanation != null || explanationCause == Type.THROTTLE))
+                            || (subDecision.type() == Type.THROTTLE && explanation == null)) {
+                        explanation = subDecision.label();
+                        explanationCause = subDecision.type();
+                    }
+                }
+                return new RebalanceDecision(canRebalance, Type.NO, explanation);
             }
 
             if (allocation.hasPendingAsyncFetch()) {
-                return new RebalanceDecision(canRebalance, Type.NO, "cannot rebalance due to in-flight shard store fetches");
+                return new RebalanceDecision(
+                    canRebalance,
+                    Type.NO,
+                    "cannot rebalance due to in-flight shard store fetches, otherwise allocation may prematurely rebalance a shard to " +
+                        "a node that is soon to receive another shard assignment upon completion of the shard store fetch, " +
+                        "rendering the cluster imbalanced again"
+                );
             }
 
             sorter.reset(shard.getIndexName());

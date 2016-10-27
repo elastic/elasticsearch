@@ -247,7 +247,7 @@ Now let's take a peek at our indices:
 
 [source,js]
 --------------------------------------------------
-GET /_cat/indices?v
+curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 // CONSOLE
 

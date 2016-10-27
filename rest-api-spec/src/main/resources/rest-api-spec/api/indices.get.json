@@ -1,6 +1,6 @@
 {
   "indices.get":{
-    "documentation":"http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-index.html",
+    "documentation":"https://www.elastic.co/guide/en/elasticsearch/reference/2.4/indices-get-index.html",
     "methods":[ "GET" ],
     "url":{
       "path":"/{index}",

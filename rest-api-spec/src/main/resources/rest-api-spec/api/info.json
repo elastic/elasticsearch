@@ -1,6 +1,6 @@
 {
   "info": {
-    "documentation": "http://www.elastic.co/guide/",
+    "documentation": "https://www.elastic.co/guide/",
     "methods": ["GET"],
     "url": {
       "path": "/",

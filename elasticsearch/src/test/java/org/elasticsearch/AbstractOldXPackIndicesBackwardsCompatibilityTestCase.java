@@ -96,6 +96,7 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3908")
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allVersions()) {
@@ -114,6 +115,7 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3908")
     public void testOldIndexes() throws Exception {
         Collections.shuffle(dataFiles, random());
         for (String dataFile : dataFiles) {
@@ -132,6 +134,10 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
                     TimeUnit.NANOSECONDS.toMillis(testStartTime - clusterStartTime),
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - testStartTime));
         }
+    }
+
+    public void testEmpty() {
+        // empty test so test suite does not fail for no tests
     }
 
     /**

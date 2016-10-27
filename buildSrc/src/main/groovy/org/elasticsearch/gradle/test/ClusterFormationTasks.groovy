@@ -73,8 +73,8 @@ class ClusterFormationTasks {
         }
         // this is our current version distribution configuration we use for all kinds of REST tests etc.
         String distroConfigName = "${task.name}_elasticsearchDistro"
-        Configuration distro = project.configurations.create(distroConfigName)
-        configureDistributionDependency(project, config.distribution, distro, VersionProperties.elasticsearch)
+        Configuration currentDistro = project.configurations.create(distroConfigName)
+        configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
         if (config.bwcVersion != null && config.numBwcNodes > 0) {
             // if we have a cluster that has a BWC cluster we also need to configure a dependency on the BWC version
             // this version uses the same distribution etc. and only differs in the version we depend on.
@@ -85,11 +85,11 @@ class ClusterFormationTasks {
             }
             configureDistributionDependency(project, config.distribution, project.configurations.elasticsearchBwcDistro, config.bwcVersion)
         }
-
-        for (int i = 0; i < config.numNodes; ++i) {
+        for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
             // for each of those nodes we might have a different configuratioon
             String elasticsearchVersion = VersionProperties.elasticsearch
+            Configuration distro = currentDistro
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion
                 distro = project.configurations.elasticsearchBwcDistro
@@ -252,7 +252,7 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.attr.testattr'                : 'test',
+                'node.attr.testattr'           : 'test',
                 'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -38,7 +38,7 @@ public class RandomQueryBuilder {
      * @return a random {@link QueryBuilder}
      */
     public static QueryBuilder createQuery(Random r) {
-        switch (RandomInts.randomIntBetween(r, 0, 3)) {
+        switch (RandomNumbers.randomIntBetween(r, 0, 3)) {
             case 0:
                 return new MatchAllQueryBuilderTests().createTestQueryBuilder();
             case 1:
@@ -61,7 +61,7 @@ public class RandomQueryBuilder {
         // for now, only use String Rangequeries for MultiTerm test, numeric and date makes little sense
         // see issue #12123 for discussion
         MultiTermQueryBuilder multiTermQueryBuilder;
-        switch(RandomInts.randomIntBetween(r, 0, 3)) {
+        switch(RandomNumbers.randomIntBetween(r, 0, 3)) {
             case 0:
                 RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME);
                 stringRangeQuery.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
@@ -81,7 +81,7 @@ public class RandomQueryBuilder {
                 throw new UnsupportedOperationException();
         }
         if (r.nextBoolean()) {
-            multiTermQueryBuilder.boost(2.0f / RandomInts.randomIntBetween(r, 1, 20));
+            multiTermQueryBuilder.boost(2.0f / RandomNumbers.randomIntBetween(r, 1, 20));
         }
         return multiTermQueryBuilder;
     }

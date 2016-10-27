@@ -118,7 +118,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
         assertThat(e.getMessage(), startsWith("explain must be either 'true' or 'false'"));
     }
 
-    public void testDeprecatedParamException() throws Exception {
+    public void testDeprecatedParamIn2xException() throws Exception {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(
                 XContentFactory.jsonBuilder()
@@ -165,5 +165,4 @@ public class RestAnalyzeActionTests extends ESTestCase {
                 , new AnalyzeRequest("for test"), new ParseFieldMatcher(Settings.EMPTY)));
         assertThat(e.getMessage(), startsWith("Unknown parameter [token_filter]"));
     }
-
 }

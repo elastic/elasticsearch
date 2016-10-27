@@ -164,14 +164,19 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             }
         };
         List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
-        final String[] indices = { "idx1", "idx2", "idx3" };
+        final String[] indices = { "idx1", "idx2" };
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
-        // create a cluster state with 3 indices, each with 1 started primary shard, and only
-        // one node initially so all 3 primary shards get allocated to the same shard
+        // create a cluster state with 2 indices, each with 1 started primary shard, and only
+        // one node initially so all primary shards get allocated to the same shard (we are only
+        // using 2 indices because anymore and we can't know deterministically which shard the
+        // BalanceShardsAllocator#allocate step will chose to run through first
         ClusterState clusterState = ClusterStateCreationUtils.state(1, indices, 1);
         // add a new node so one of the primaries can be rebalanced there
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        nodesBuilder.add(newNode(randomAsciiOfLength(7)));
+        int numAddedNodes = randomIntBetween(1, 5);
+        for (int i = 0; i < numAddedNodes; i++) {
+            nodesBuilder.add(newNode(randomAsciiOfLength(7)));
+        }
         clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
         RoutingAllocation routingAllocation = newRoutingAllocation(
             new AllocationDeciders(Settings.EMPTY, allocationDeciders), clusterState);
@@ -180,8 +185,8 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         ShardRouting shardToRebalance = null;
         for (RoutingNode routingNode : routingAllocation.routingNodes()) {
             List<ShardRouting> relocatingShards = routingNode.shardsWithState(ShardRoutingState.RELOCATING);
-            if (relocatingShards.size() == 1) {
-                shardToRebalance = relocatingShards.get(0);
+            if (relocatingShards.size() > 0) {
+                shardToRebalance = randomFrom(relocatingShards);
                 break;
             }
         }

@@ -47,7 +47,11 @@ public class IndexingOperationListenerTests extends ESTestCase{
 
             @Override
             public void postIndex(Engine.Index index, Engine.IndexResult result) {
-                postIndex.incrementAndGet();
+                if (result.hasFailure() == false) {
+                    postIndex.incrementAndGet();
+                } else {
+                    postIndex(index, result.getFailure());
+                }
             }
 
             @Override
@@ -63,7 +67,11 @@ public class IndexingOperationListenerTests extends ESTestCase{
 
             @Override
             public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
-                postDelete.incrementAndGet();
+                if (result.hasFailure() == false) {
+                    postDelete.incrementAndGet();
+                } else {
+                    postDelete(delete, result.getFailure());
+                }
             }
 
             @Override

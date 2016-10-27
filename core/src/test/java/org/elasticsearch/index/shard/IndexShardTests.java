@@ -115,6 +115,7 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
+import static org.elasticsearch.common.lucene.Lucene.readScoreDoc;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -565,10 +566,14 @@ public class IndexShardTests extends IndexShardTestCase {
 
             @Override
             public void postIndex(Engine.Index index, Engine.IndexResult result) {
-                if (result.isCreated()) {
-                    postIndexCreate.incrementAndGet();
+                if (result.hasFailure() == false) {
+                    if (result.isCreated()) {
+                        postIndexCreate.incrementAndGet();
+                    } else {
+                        postIndexUpdate.incrementAndGet();
+                    }
                 } else {
-                    postIndexUpdate.incrementAndGet();
+                    postIndex(index, result.getFailure());
                 }
             }
 
@@ -585,7 +590,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
             @Override
             public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
-                postDelete.incrementAndGet();
+                if (result.hasFailure() == false) {
+                    postDelete.incrementAndGet();
+                } else {
+                    postDelete(delete, result.getFailure());
+                }
             }
 
             @Override

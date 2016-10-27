@@ -211,13 +211,15 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     /** called by IndexShard to record that this many bytes were written to translog */
     private void recordOperationBytes(Engine.Operation operation, Engine.Result result) {
-        final int sizeInBytes;
-        if (result.getTranslogLocation() != null) {
-            sizeInBytes = result.getSizeInBytes();
-        } else {
-            sizeInBytes = operation.estimatedSizeInBytes();
+        if (result.hasFailure() == false) {
+            final int sizeInBytes;
+            if (result.getTranslogLocation() != null) {
+                sizeInBytes = result.getSizeInBytes();
+            } else {
+                sizeInBytes = operation.estimatedSizeInBytes();
+            }
+            statusChecker.bytesWritten(sizeInBytes);
         }
-        statusChecker.bytesWritten(sizeInBytes);
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {

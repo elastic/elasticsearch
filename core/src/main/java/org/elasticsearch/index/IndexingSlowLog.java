@@ -135,16 +135,18 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     @Override
     public void postIndex(Engine.Index indexOperation, Engine.IndexResult result) {
-        final ParsedDocument doc = indexOperation.parsedDoc();
-        final long tookInNanos = result.getTook();
-        if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-            indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-        } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-            indexLogger.info("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-        } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-            indexLogger.debug("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-        } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-            indexLogger.trace("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+        if (result.hasFailure() == false) {
+            final ParsedDocument doc = indexOperation.parsedDoc();
+            final long tookInNanos = result.getTook();
+            if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
+                indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+            } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
+                indexLogger.info("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+            } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
+                indexLogger.debug("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+            } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
+                indexLogger.trace("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+            }
         }
     }
 

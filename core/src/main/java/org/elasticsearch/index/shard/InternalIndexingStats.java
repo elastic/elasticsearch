@@ -75,13 +75,17 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public void postIndex(Engine.Index index, Engine.IndexResult result) {
-        if (!index.origin().isRecovery()) {
-            long took = result.getTook();
-            totalStats.indexMetric.inc(took);
-            totalStats.indexCurrent.dec();
-            StatsHolder typeStats = typeStats(index.type());
-            typeStats.indexMetric.inc(took);
-            typeStats.indexCurrent.dec();
+        if (result.hasFailure() == false) {
+            if (!index.origin().isRecovery()) {
+                long took = result.getTook();
+                totalStats.indexMetric.inc(took);
+                totalStats.indexCurrent.dec();
+                StatsHolder typeStats = typeStats(index.type());
+                typeStats.indexMetric.inc(took);
+                typeStats.indexCurrent.dec();
+            }
+        } else {
+            postIndex(index, result.getFailure());
         }
     }
 
@@ -107,13 +111,17 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
-        if (!delete.origin().isRecovery()) {
-            long took = result.getTook();
-            totalStats.deleteMetric.inc(took);
-            totalStats.deleteCurrent.dec();
-            StatsHolder typeStats = typeStats(delete.type());
-            typeStats.deleteMetric.inc(took);
-            typeStats.deleteCurrent.dec();
+        if (result.hasFailure() == false) {
+            if (!delete.origin().isRecovery()) {
+                long took = result.getTook();
+                totalStats.deleteMetric.inc(took);
+                totalStats.deleteCurrent.dec();
+                StatsHolder typeStats = typeStats(delete.type());
+                typeStats.deleteMetric.inc(took);
+                typeStats.deleteCurrent.dec();
+            }
+        } else {
+            postDelete(delete, result.getFailure());
         }
     }
 

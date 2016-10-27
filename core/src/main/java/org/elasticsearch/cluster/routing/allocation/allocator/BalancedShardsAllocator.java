@@ -333,9 +333,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
 
             Decision canRebalance = allocation.deciders().canRebalance(shard, allocation);
-            if (canRebalance.type() != Type.YES) {
-                return new RebalanceDecision(canRebalance, Type.NO, "rebalancing is not allowed");
-            }
 
             if (allocation.hasPendingAsyncFetch()) {
                 return new RebalanceDecision(
@@ -400,8 +397,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 );
             }
 
-            return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNodeId,
-                                              nodeDecisions, currentWeight, threshold);
+
+            if (canRebalance.type() != Type.YES) {
+                return new RebalanceDecision(canRebalance, Type.NO, "rebalancing is not allowed", null, nodeDecisions, currentWeight);
+            } else {
+                return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNodeId,
+                                                  nodeDecisions, currentWeight, threshold);
+            }
         }
 
         public Map<DiscoveryNode, Float> weighShard(ShardRouting shard) {
@@ -1363,14 +1365,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             this(canRebalanceDecision, finalDecision, finalExplanation, null, null, Float.POSITIVE_INFINITY);
         }
 
-        protected RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String assignedNodeId, Map<String,
-                                    NodeRebalanceDecision> nodeDecisions, float currentWeight, float threshold) {
-            this(canRebalanceDecision, finalDecision, produceFinalExplanation(finalDecision, assignedNodeId, threshold),
-                 assignedNodeId, nodeDecisions, currentWeight);
-        }
-
-        private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String finalExplanation,
-                                  String assignedNodeId, Map<String, NodeRebalanceDecision> nodeDecisions, float currentWeight) {
+        protected RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String finalExplanation,
+                                    String assignedNodeId, Map<String, NodeRebalanceDecision> nodeDecisions, float currentWeight) {
             super(finalDecision, finalExplanation, assignedNodeId);
             this.canRebalanceDecision = canRebalanceDecision;
             this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;

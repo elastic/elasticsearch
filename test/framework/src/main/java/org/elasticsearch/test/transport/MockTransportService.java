@@ -369,21 +369,9 @@ public final class MockTransportService extends TransportService {
                 final TransportRequest clonedRequest = reg.newRequest();
                 clonedRequest.readFrom(bStream.bytes().streamInput());
 
-                AtomicBoolean requestSent = new AtomicBoolean();
+                Runnable runnable = new AbstractRunnable() {
+                    AtomicBoolean requestSent = new AtomicBoolean();
 
-                // store the request to send it once the rule is cleared.
-                requestsToSendWhenCleared.add(() -> {
-                    if (requestSent.compareAndSet(false, true)) {
-                        try {
-                            original.sendRequest(node, requestId, action, clonedRequest, options);
-                        } catch (Exception e) {
-                            // just ignore the exception
-                            logger.info("Failed to re-send request after rule cleared", e);
-                        }
-                    }
-                });
-
-                threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug("failed to send delayed request", e);
@@ -395,7 +383,12 @@ public final class MockTransportService extends TransportService {
                             original.sendRequest(node, requestId, action, clonedRequest, options);
                         }
                     }
-                });
+                };
+
+                // store the request to send it once the rule is cleared.
+                requestsToSendWhenCleared.add(runnable);
+
+                threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
             }
 
 

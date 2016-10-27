@@ -993,7 +993,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         String isolatedNode = randomBoolean() ? masterNode : nonMasterNode;
         TwoPartitions partitions = isolateNode(isolatedNode);
-        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
+        // we cannot use the NetworkUnresponsive disruption type here as it will swallow the "shard failed" request, calling neither
+        // onSuccess nor onFailure on the provided listener.
+        NetworkLinkDisruptionType disruptionType = new NetworkDisconnect();
+        NetworkDisruption networkDisruption = new NetworkDisruption(partitions, disruptionType);
+        setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
         service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new

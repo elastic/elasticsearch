@@ -60,13 +60,15 @@ PUT /my_index
   }
 }
 
-GET my_index/_analyze?field=text <3>
+GET my_index/_analyze <3>
 {
+  "field": "text",
   "text": "The quick Brown Foxes."
 }
 
-GET my_index/_analyze?field=text.english <4>
+GET my_index/_analyze <4>
 {
+  "field": "text.english",
   "text": "The quick Brown Foxes."
 }
 --------------------------------------------------

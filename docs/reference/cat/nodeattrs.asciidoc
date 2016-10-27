@@ -12,7 +12,7 @@ GET /_cat/nodeattrs?v
 
 Could look like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 node    host      ip        attr     value
 EK_AsJb 127.0.0.1 127.0.0.1 testattr test

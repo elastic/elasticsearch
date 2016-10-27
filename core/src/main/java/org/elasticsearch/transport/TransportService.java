@@ -46,6 +46,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -460,6 +462,27 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
         asyncSender.sendRequest(node, action, request, options, handler);
+    }
+
+    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+                                                               final TransportRequest request, final Task parentTask,
+                                                               final TransportResponseHandler<T> handler) {
+        sendChildRequest(node, action, request, parentTask, TransportRequestOptions.EMPTY, handler);
+    }
+
+    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+                                                               final TransportRequest request, final Task parentTask,
+                                                               final TransportRequestOptions options,
+                                                               final TransportResponseHandler<T> handler) {
+        request.setParentTask(localNode.getId(), parentTask.getId());
+        try {
+            taskManager.registerChildTask(parentTask, node.getId());
+            sendRequest(node, action, request, options, handler);
+        } catch (TaskCancelledException ex) {
+            // The parent task is already cancelled - just fail the request
+            handler.handleException(new TransportException(ex));
+        }
+
     }
 
     private <T extends TransportResponse> void sendRequestInternal(final DiscoveryNode node, final String action,

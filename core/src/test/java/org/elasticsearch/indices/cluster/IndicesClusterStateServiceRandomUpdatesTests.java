@@ -376,7 +376,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         return new IndicesClusterStateService(settings, indicesService, clusterService,
-            threadPool, recoveryTargetService, shardStateAction, null, repositoriesService, null, null, null, null);
+            threadPool, recoveryTargetService, shardStateAction, null, repositoriesService, null, null, null, null, null);
     }
 
     private class RecordingIndicesService extends MockIndicesService {

@@ -399,11 +399,11 @@ public class OsProbe {
      * group to which the Elasticsearch process belongs for the
      * {@code cpu} subsystem. These lines represent the CPU time
      * statistics and have the form
-     * <p>
+     * <blockquote><pre>
      * nr_periods \d+
      * nr_throttled \d+
      * throttled_time \d+
-     * <p>
+     * </pre></blockquote>
      * where {@code nr_periods} is the number of period intervals
      * as specified by {@code cpu.cfs_period_us} that have elapsed,
      * {@code nr_throttled} is the number of times tasks in the given

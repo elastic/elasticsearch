@@ -23,6 +23,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -95,6 +96,12 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public ParseFieldMatcher parseFieldMatcher() {
         return parseFieldMatcher;
     }
+
+    public abstract void setTask(SearchTask task);
+
+    public abstract SearchTask getTask();
+
+    public abstract boolean isCancelled();
 
     @Override
     public final void close() {
@@ -219,6 +226,14 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract int terminateAfter();
 
     public abstract void terminateAfter(int terminateAfter);
+
+    /**
+     * Indicates if the current index should perform frequent low level search cancellation check.
+     *
+     * Enabling low-level checks will make long running searches to react to the cancellation request faster. However,
+     * since it will produce more cancellation checks it might slow the search performance down.
+     */
+    public abstract boolean lowLevelCancellation();
 
     public abstract SearchContext minimumScore(float minimumScore);
 

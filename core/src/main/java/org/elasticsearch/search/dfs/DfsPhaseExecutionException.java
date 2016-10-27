@@ -31,6 +31,10 @@ public class DfsPhaseExecutionException extends SearchContextException {
         super(context, "Dfs Failed [" + msg + "]", t);
     }
 
+    public DfsPhaseExecutionException(SearchContext context, String msg) {
+        super(context, "Dfs Failed [" + msg + "]");
+    }
+
     public DfsPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
     }

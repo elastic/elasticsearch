@@ -25,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -105,6 +107,11 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
         super.writeTo(out);
         out.writeString(scrollId);
         out.writeOptionalWriteable(scroll);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
 
     @Override

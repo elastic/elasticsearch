@@ -85,7 +85,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, DiscoveryNode> lookup = new HashMap<>();
         lookup.put(primaryNode.getId(), primaryNode);
         AbstractSearchAsyncAction asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(logger, transportService, lookup::get,
-            Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0) {
+            Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0, null) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override

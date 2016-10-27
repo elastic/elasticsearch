@@ -60,9 +60,6 @@ public class RestMainAction extends BaseRestHandler {
 
     static BytesRestResponse convertMainResponse(MainResponse response, RestRequest request, XContentBuilder builder) throws IOException {
         RestStatus status = response.isAvailable() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
-        if (request.method() == RestRequest.Method.HEAD) {
-            return new BytesRestResponse(status, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-        }
 
         // Default to pretty printing, but allow ?pretty=false to disable
         if (request.hasParam("pretty") == false) {

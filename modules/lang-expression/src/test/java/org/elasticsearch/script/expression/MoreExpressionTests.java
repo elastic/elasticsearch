@@ -36,7 +36,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -164,7 +164,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
     }
-    
+
     public void testDateObjectMethods() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
@@ -257,7 +257,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(2.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
-        
+
         // make sure count() works for missing
         rsp = buildRequest("doc['double2'].count()").get();
         assertSearchResponse(rsp);
@@ -266,7 +266,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(0.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(0.0, hits.getAt(2).field("foo").getValue(), 0.0D);
-        
+
         // make sure .empty works in the same way
         rsp = buildRequest("doc['double2'].empty ? 5.0 : 2.0").get();
         assertSearchResponse(rsp);
@@ -616,7 +616,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             }
         }
     }
-    
+
     public void testGeo() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point");
@@ -649,7 +649,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1, rsp.getHits().getTotalHits());
         assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
     }
-    
+
     public void testBoolean() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("vip").field("type", "boolean");

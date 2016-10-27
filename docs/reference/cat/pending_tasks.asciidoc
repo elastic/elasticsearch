@@ -13,7 +13,7 @@ GET /_cat/pending_tasks?v
 
 Might look like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 insertOrder timeInQueue priority source
        1685       855ms HIGH     update-mapping [foo][t]

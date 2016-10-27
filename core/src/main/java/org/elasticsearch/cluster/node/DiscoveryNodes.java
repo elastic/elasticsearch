@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -399,9 +400,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
-        for (DiscoveryNode node : this) {
-            sb.append(node).append(',');
-        }
+        sb.append(Strings.collectionToDelimitedString(this, ","));
         sb.append("}");
         return sb.toString();
     }

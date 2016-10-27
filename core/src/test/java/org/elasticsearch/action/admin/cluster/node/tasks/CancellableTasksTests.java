@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -168,7 +169,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 try {
                     awaitBusy(() -> {
                         if (((CancellableTask) task).isCancelled()) {
-                            throw new RuntimeException("Cancelled");
+                            throw new TaskCancelledException("Cancelled");
                         }
                         return false;
                     });

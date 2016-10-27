@@ -1,5 +1,9 @@
 ---
-"Force version":
+"Force Version":
+
+ - skip:
+    version: " - 5.0.0"
+    reason:  headers were introduced in 5.0.1
 
  - do:
       warnings:

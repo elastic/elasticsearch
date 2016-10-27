@@ -7,7 +7,8 @@ setup:
 ---
 "Basic test":
     - skip:
-        features: ["warnings"]
+        version: " - 5.0.99"
+        reason:  text was deprecated in 5.1.0
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -20,7 +21,8 @@ setup:
 ---
 "Tokenizer and filter":
     - skip:
-        features: ["warnings"]
+        version: " - 5.0.99"
+        reason:  text, filter and tokenizer were deprecated in 5.1.0
     - do:
         warnings:
           - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -36,7 +38,8 @@ setup:
 ---
 "Index and field":
     - skip:
-        features: ["warnings"]
+        version: " - 5.0.99"
+        reason:  text was deprecated in 5.1.0
     - do:
         indices.create:
           index: test
@@ -69,7 +72,8 @@ setup:
 ---
 "Body params override query string":
     - skip:
-        features: ["warnings"]
+        version: " - 5.0.99"
+        reason:  text was deprecated in 5.1.0
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param

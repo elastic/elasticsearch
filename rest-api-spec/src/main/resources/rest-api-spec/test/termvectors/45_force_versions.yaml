@@ -1,0 +1,54 @@
+---
+"Force Version":
+ - skip:
+    version: " - 5.0.0"
+    reason:  headers were introduced in 5.0.1
+
+ - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+ - match:   { _version: 1}
+
+ - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+ - match:   { _version: 2}
+
+ - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+          version: 2
+          version_type: force
+ - match:   { _id: "1" }
+
+ - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+          version: 10
+          version_type: force
+ - match:   { _id: "1" }
+
+ - do:
+      warnings:
+          - version type FORCE is deprecated and will be removed in the next major version
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+          version: 1
+          version_type: force
+ - match:   { _id: "1" }

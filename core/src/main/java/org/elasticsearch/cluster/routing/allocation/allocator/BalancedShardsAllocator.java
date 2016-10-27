@@ -338,7 +338,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 String explanation = null;
                 Type explanationCause = null;
                 for (Decision subDecision : canRebalance.getDecisions()) {
-                    if ((subDecision.type() == Type.NO && (explanation != null || explanationCause == Type.THROTTLE))
+                    if ((subDecision.type() == Type.NO && (explanation == null || explanationCause == Type.THROTTLE))
                             || (subDecision.type() == Type.THROTTLE && explanation == null)) {
                         explanation = subDecision.getExplanation();
                         explanationCause = subDecision.type();

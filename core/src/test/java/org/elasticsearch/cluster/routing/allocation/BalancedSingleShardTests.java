@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.ShardId;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -74,7 +73,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
 
-        assesrtNoChangesInRoutingTable(allocator, routingAllocation, shard.shardId(), initialNodeId);
+        assertAssignedNodeRemainsSame(allocator, routingAllocation, shard);
     }
 
     public void testRebalancingNotAllowedDueToCanRebalance() {
@@ -97,7 +96,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
 
-        assesrtNoChangesInRoutingTable(allocator, routingAllocation, shard.shardId(), initialNodeId);
+        assertAssignedNodeRemainsSame(allocator, routingAllocation, shard);
     }
 
     public void testRebalancePossible() {
@@ -107,7 +106,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
                 return Decision.YES;
             }
         };
-        Tuple<ClusterState, RebalanceDecision> rebalance = setupStateAndRebalance(canAllocateDecider, Settings.EMPTY);
+        Tuple<ClusterState, RebalanceDecision> rebalance = setupStateAndRebalance(canAllocateDecider, Settings.EMPTY, true);
         ClusterState clusterState = rebalance.v1();
         RebalanceDecision rebalanceDecision = rebalance.v2();
         assertEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
@@ -124,7 +123,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
                 return Decision.NO;
             }
         };
-        Tuple<ClusterState, RebalanceDecision> rebalance = setupStateAndRebalance(canAllocateDecider, Settings.EMPTY);
+        Tuple<ClusterState, RebalanceDecision> rebalance = setupStateAndRebalance(canAllocateDecider, Settings.EMPTY, false);
         ClusterState clusterState = rebalance.v1();
         RebalanceDecision rebalanceDecision = rebalance.v2();
         assertEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
@@ -143,7 +142,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         };
         // ridiculously high threshold setting so we won't rebalance
         Settings balancerSettings = Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 1000f).build();
-        Tuple<ClusterState, RebalanceDecision> rebalance = setupStateAndRebalance(canAllocateDecider, balancerSettings);
+        Tuple<ClusterState, RebalanceDecision> rebalance = setupStateAndRebalance(canAllocateDecider, balancerSettings, false);
         ClusterState clusterState = rebalance.v1();
         RebalanceDecision rebalanceDecision = rebalance.v2();
         assertEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
@@ -153,7 +152,9 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertNull(rebalanceDecision.getAssignedNodeId());
     }
 
-    private Tuple<ClusterState, RebalanceDecision> setupStateAndRebalance(AllocationDecider allocationDecider, Settings balancerSettings) {
+    private Tuple<ClusterState, RebalanceDecision> setupStateAndRebalance(AllocationDecider allocationDecider,
+                                                                          Settings balancerSettings,
+                                                                          boolean rebalanceExpected) {
         AllocationDecider rebalanceDecider = new AllocationDecider(Settings.EMPTY) {
             @Override
             public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
@@ -169,20 +170,26 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         nodesBuilder.add(newNode(randomAsciiOfLength(7)));
         clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
         ShardRouting shard = clusterState.routingTable().index("idx").shard(0).primaryShard();
-        return Tuple.tuple(clusterState, allocator.decideRebalance(shard, newRoutingAllocation(
-            new AllocationDeciders(Settings.EMPTY, allocationDeciders), clusterState)));
+        RoutingAllocation routingAllocation = newRoutingAllocation(
+            new AllocationDeciders(Settings.EMPTY, allocationDeciders), clusterState);
+        RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
+
+        if (rebalanceExpected == false) {
+            assertAssignedNodeRemainsSame(allocator, routingAllocation, shard);
+        }
+
+        return Tuple.tuple(clusterState, rebalanceDecision);
     }
 
     private RoutingAllocation newRoutingAllocation(AllocationDeciders deciders, ClusterState state) {
         return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime(), false);
     }
 
-    // asserts that allocation causes no changes in the routing table
-    private void assesrtNoChangesInRoutingTable(BalancedShardsAllocator allocator, RoutingAllocation routingAllocation,
-                                                ShardId shardId, String initialNodeId) {
+    private void assertAssignedNodeRemainsSame(BalancedShardsAllocator allocator, RoutingAllocation routingAllocation,
+                                               ShardRouting originalRouting) {
         allocator.allocate(routingAllocation);
         RoutingNodes routingNodes = routingAllocation.routingNodes();
-        // no changes should've taken place
-        assertEquals(initialNodeId, routingNodes.activePrimary(shardId).currentNodeId());
+        // make sure the previous node id is the same as the current one after rerouting
+        assertEquals(originalRouting.currentNodeId(), routingNodes.activePrimary(originalRouting.shardId()).currentNodeId());
     }
 }

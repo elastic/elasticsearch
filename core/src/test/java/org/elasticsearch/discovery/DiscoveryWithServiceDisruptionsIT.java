@@ -153,11 +153,25 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return 1;
     }
 
+    private boolean disableBeforeIndexDeletion;
+
+    @Override
+    public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
+        if (scheme instanceof NetworkDisruption &&
+            ((NetworkDisruption) scheme).getNetworkLinkDisruptionType() instanceof NetworkUnresponsive) {
+            // the network unresponsive disruption may leave operations in flight
+            // this is because this disruption scheme swallows requests by design
+            // as such, these operations will never be marked as finished
+            disableBeforeIndexDeletion = true;
+        }
+        super.setDisruptionScheme(scheme);
+    }
+
     @Override
     protected void beforeIndexDeletion() {
-        // some test may leave operations in flight
-        // this is because the disruption schemes swallow requests by design
-        // as such, these operations will never be marked as finished
+        if (disableBeforeIndexDeletion == false) {
+            super.beforeIndexDeletion();
+        }
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {

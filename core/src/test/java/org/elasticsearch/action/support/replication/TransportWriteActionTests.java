@@ -70,6 +70,7 @@ public class TransportWriteActionTests extends ESTestCase {
         CapturingActionListener<Response> listener = new CapturingActionListener<>();
         responder.accept(result, listener);
         assertNotNull(listener.response);
+        assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
         verify(indexShard, never()).addRefreshListener(any(), any());
     }
@@ -91,6 +92,7 @@ public class TransportWriteActionTests extends ESTestCase {
         CapturingActionListener<Response> listener = new CapturingActionListener<>();
         responder.accept(result, listener);
         assertNotNull(listener.response);
+        assertNull(listener.failure);
         responseChecker.accept(listener.response);
         verify(indexShard).refresh("refresh_flag_index");
         verify(indexShard, never()).addRefreshListener(any(), any());
@@ -124,15 +126,46 @@ public class TransportWriteActionTests extends ESTestCase {
         boolean forcedRefresh = randomBoolean();
         refreshListener.getValue().accept(forcedRefresh);
         assertNotNull(listener.response);
+        assertNull(listener.failure);
         resultChecker.accept(listener.response, forcedRefresh);
     }
 
+    public void testDocumentFailureInShardOperationOnPrimary() throws Exception {
+        handleDocumentFailure(new TestAction(true, true), TestAction::shardOperationOnPrimary, TestAction.WritePrimaryResult::respond);
+    }
+
+    public void testDocumentFailureInShardOperationOnReplica() throws Exception {
+        handleDocumentFailure(new TestAction(randomBoolean(), true), TestAction::shardOperationOnReplica,
+                TestAction.WriteReplicaResult::respond);
+    }
+
+    private <Result, Response> void handleDocumentFailure(TestAction testAction,
+                                                          ThrowingTriFunction<TestAction, TestRequest, IndexShard, Result> action,
+                                                          BiConsumer<Result, CapturingActionListener<Response>> responder)
+            throws Exception {
+        TestRequest request = new TestRequest();
+        Result result = action.apply(testAction, request, indexShard);
+        CapturingActionListener<Response> listener = new CapturingActionListener<>();
+        responder.accept(result, listener);
+        assertNull(listener.response);
+        assertNotNull(listener.failure);
+    }
+
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
+
+        private final boolean withDocumentFailureOnPrimary;
+        private final boolean withDocumentFailureOnReplica;
+
         protected TestAction() {
+            this(false, false);
+        }
+        protected TestAction(boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(Settings.EMPTY, "test",
                     new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null), null, null, null,
                     null, new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new,
                     TestRequest::new, ThreadPool.Names.SAME);
+            this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
+            this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
 
         @Override
@@ -142,12 +175,24 @@ public class TransportWriteActionTests extends ESTestCase {
 
         @Override
         protected WritePrimaryResult shardOperationOnPrimary(TestRequest request, IndexShard primary) throws Exception {
-            return new WritePrimaryResult(request, new TestResponse(), location, null, primary);
+            final WritePrimaryResult primaryResult;
+            if (withDocumentFailureOnPrimary) {
+                primaryResult = new WritePrimaryResult(request, null, null, new RuntimeException("simulated"), primary);
+            } else {
+                primaryResult = new WritePrimaryResult(request, new TestResponse(), location, null, primary);
+            }
+            return primaryResult;
         }
 
         @Override
         protected WriteReplicaResult shardOperationOnReplica(TestRequest request, IndexShard replica) throws Exception {
-            return new WriteReplicaResult(request, location, null, replica);
+            final WriteReplicaResult replicaResult;
+            if (withDocumentFailureOnReplica) {
+                replicaResult = new WriteReplicaResult(request, null, new RuntimeException("simulated"), replica);
+            } else {
+                replicaResult = new WriteReplicaResult(request, location, null, replica);
+            }
+            return replicaResult;
         }
     }
 
@@ -168,6 +213,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private static class CapturingActionListener<R> implements ActionListener<R> {
         private R response;
+        private Exception failure;
 
         @Override
         public void onResponse(R response) {
@@ -175,8 +221,8 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(Exception e) {
-            throw new RuntimeException(e);
+        public void onFailure(Exception failure) {
+            this.failure = failure;
         }
     }
 

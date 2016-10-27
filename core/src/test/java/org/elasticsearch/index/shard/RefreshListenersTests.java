@@ -144,7 +144,7 @@ public class RefreshListenersTests extends ESTestCase {
         for (int i = 0; i < maxListeners; i++) {
             DummyRefreshListener listener = new DummyRefreshListener();
             nonForcedListeners.add(listener);
-            listeners.addOrNotify(index.getLocation(), listener);
+            listeners.addOrNotify(index.getTranslogLocation(), listener);
             assertTrue(listeners.refreshNeeded());
         }
 
@@ -155,7 +155,7 @@ public class RefreshListenersTests extends ESTestCase {
 
         // Add one more listener which should cause a refresh.
         DummyRefreshListener forcingListener = new DummyRefreshListener();
-        listeners.addOrNotify(index.getLocation(), forcingListener);
+        listeners.addOrNotify(index.getTranslogLocation(), forcingListener);
         assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
         forcingListener.assertNoError();
 
@@ -178,7 +178,7 @@ public class RefreshListenersTests extends ESTestCase {
         }
 
         DummyRefreshListener listener = new DummyRefreshListener();
-        assertTrue(listeners.addOrNotify(index.getLocation(), listener));
+        assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
         assertFalse(listener.forcedRefresh.get());
         listener.assertNoError();
     }
@@ -200,7 +200,7 @@ public class RefreshListenersTests extends ESTestCase {
             for (int i = 0; i < 1000; i++) {
                 Engine.IndexResult index = index("1");
                 DummyRefreshListener listener = new DummyRefreshListener();
-                boolean immediate = listeners.addOrNotify(index.getLocation(), listener);
+                boolean immediate = listeners.addOrNotify(index.getTranslogLocation(), listener);
                 if (immediate) {
                     assertNotNull(listener.forcedRefresh.get());
                 } else {
@@ -238,7 +238,7 @@ public class RefreshListenersTests extends ESTestCase {
                         assertEquals(iteration, index.getVersion());
 
                         DummyRefreshListener listener = new DummyRefreshListener();
-                        listeners.addOrNotify(index.getLocation(), listener);
+                        listeners.addOrNotify(index.getTranslogLocation(), listener);
                         assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()));
                         if (threadCount < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());

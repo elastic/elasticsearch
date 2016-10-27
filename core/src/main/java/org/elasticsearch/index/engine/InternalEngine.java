@@ -411,8 +411,7 @@ public class InternalEngine extends Engine {
      * Inspects exception thrown when executing index or delete operations
      *
      * @return failure if the failure is a document specific failure (e.g. analysis chain failure)
-     * @throws ElasticsearchException if the failure caused the engine to fail
-     * (e.g. out of disk, lucene tragic event)
+     * or throws Exception if the failure caused the engine to fail (e.g. out of disk, lucene tragic event)
      *
      * Note: pkg-private for testing
      */
@@ -435,10 +434,14 @@ public class InternalEngine extends Engine {
         if (isDocumentFailure) {
             return failure;
         } else {
-            ElasticsearchException exception = new ElasticsearchException(failure);
-            exception.setShard(shardId);
-            throw exception;
+            rethrow(failure);
+            return null;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T extends Throwable> void rethrow(Throwable t) throws T {
+        throw (T) t;
     }
 
     private boolean canOptimizeAddDocument(Index index) {

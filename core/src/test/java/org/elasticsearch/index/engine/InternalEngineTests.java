@@ -2153,9 +2153,8 @@ public class InternalEngineTests extends ESTestCase {
         try {
             engine.checkIfDocumentFailureOrThrow(new Engine.Index(newUid("1"), doc), new CorruptIndexException("simulated environment failure", ""));
             fail("expected exception to be thrown");
-        } catch (ElasticsearchException envirnomentException) {
-            assertThat(envirnomentException.getShardId(), equalTo(engine.shardId));
-            assertThat(envirnomentException.getCause().getMessage(), containsString("simulated environment failure"));
+        } catch (Exception envirnomentException) {
+            assertThat(envirnomentException.getMessage(), containsString("simulated environment failure"));
         }
     }
 

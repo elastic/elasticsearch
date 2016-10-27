@@ -165,12 +165,6 @@ public abstract class Decision implements ToXContent {
     public abstract String label();
 
     /**
-     * Returns the explanation string, fully formatted.
-     */
-    @Nullable
-    public abstract String getExplanation();
-
-    /**
      * Return the list of all decisions that make up this decision
      */
     public abstract List<Decision> getDecisions();
@@ -227,11 +221,12 @@ public abstract class Decision implements ToXContent {
             return Collections.singletonList(this);
         }
 
-        @Override
+        /**
+         * Returns the explanation string, fully formatted.  Only formats the string once.
+         */
         @Nullable
         public String getExplanation() {
             if (explanationString == null && explanation != null) {
-                // Only formats the string once
                 explanationString = String.format(Locale.ROOT, explanation, explanationParams);
             }
             return this.explanationString;
@@ -317,13 +312,6 @@ public abstract class Decision implements ToXContent {
         @Nullable
         public String label() {
             // Multi decisions have no labels
-            return null;
-        }
-
-        @Override
-        @Nullable
-        public String getExplanation() {
-            // multi-decisions have no explanation
             return null;
         }
 

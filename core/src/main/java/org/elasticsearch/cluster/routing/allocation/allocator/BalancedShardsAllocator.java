@@ -334,20 +334,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
             Decision canRebalance = allocation.deciders().canRebalance(shard, allocation);
             if (canRebalance.type() != Type.YES) {
-                // pick the first NO rebalance decision and use its explanation for the final explanation
-                String explanation = null;
-                Type explanationCause = null;
-                for (Decision subDecision : canRebalance.getDecisions()) {
-                    if ((subDecision.type() == Type.NO && (explanation == null || explanationCause == Type.THROTTLE))
-                            || (subDecision.type() == Type.THROTTLE && explanation == null)) {
-                        explanation = subDecision.getExplanation();
-                        explanationCause = subDecision.type();
-                        if (explanationCause == Type.NO) {
-                            break; // we already have an explanation from a NO decision, so no need to check decisions anymore
-                        }
-                    }
-                }
-                return new RebalanceDecision(canRebalance, Type.NO, explanation);
+                return new RebalanceDecision(canRebalance, Type.NO, "rebalancing is not allowed");
             }
 
             if (allocation.hasPendingAsyncFetch()) {

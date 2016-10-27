@@ -90,9 +90,13 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertNotEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
-        assertEquals("foobar", rebalanceDecision.getFinalExplanation());
+        assertEquals("rebalancing is not allowed", rebalanceDecision.getFinalExplanation());
         assertNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
+        assertEquals(1, rebalanceDecision.getCanRebalanceDecision().getDecisions().size());
+        for (Decision subDecision : rebalanceDecision.getCanRebalanceDecision().getDecisions()) {
+            assertEquals("foobar", ((Decision.Single) subDecision).getExplanation());
+        }
 
         assertAssignedNodeRemainsSame(allocator, routingAllocation, shard);
     }

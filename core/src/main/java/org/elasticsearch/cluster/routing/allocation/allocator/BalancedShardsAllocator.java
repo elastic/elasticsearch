@@ -279,11 +279,18 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return new NodeSorter(nodesArray(), weight, this);
         }
 
+        /**
+         * The absolute value difference between two weights.
+         */
         private static float absDelta(float lower, float higher) {
             assert higher >= lower : higher + " lt " + lower +" but was expected to be gte";
             return Math.abs(higher - lower);
         }
 
+        /**
+         * Returns {@code true} iff the weight delta between two nodes is under a defined threshold.
+         * See {@link #THRESHOLD_SETTING} for defining the threshold.
+         */
         private static boolean lessThan(float delta, float threshold) {
             /* deltas close to the threshold are "rounded" to the threshold manually
                to prevent floating point problems if the delta is very close to the
@@ -369,17 +376,35 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     continue; // skip over node we're currently allocated to it
                 }
                 final Decision canAllocate = deciders.canAllocate(shard, node.getRoutingNode(), allocation);
+                // the current weight of the node in the cluster, as computed by the weight function;
+                // this is a comparison of the number of shards on this node to the number of shards
+                // that should be on each node on average (both taking the cluster as a whole into account
+                // as well as shards per index)
                 final float nodeWeight = sorter.weight(node);
+                // if the node we are examining has a worse (higher) weight than the node the shard is
+                // assigned to, then there is no way moving the shard to the node with the worse weight
+                // can make the balance of the cluster better, so we check for that here
                 final boolean betterWeightThanCurrent = nodeWeight <= currentWeight;
                 boolean rebalanceConditionsMet = false;
                 boolean deltaAboveThreshold = false;
                 float weightWithShardAdded = Float.POSITIVE_INFINITY;
                 if (betterWeightThanCurrent) {
+                    // get the delta between the weights of the node we are checking and the node that holds the shard
                     final float currentDelta = absDelta(nodeWeight, currentWeight);
+                    // checks if the weight delta is above a certain threshold; if it is not above a certain threshold,
+                    // then even though the node we are examining has a better weight and may make the cluster balance
+                    // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
+                    // the gains make it worth it, as defined by the threshold
                     deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
+                    // simulate the weight of the node if we were to relocate the shard to it
                     weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
+                    // calculate the delta of the weights of the two nodes if we were to add the shard to the
+                    // node in question and move it away from the node that currently holds it.
                     final float proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
                     rebalanceConditionsMet = deltaAboveThreshold && proposedDelta < currentDelta;
+                    // if the simulated weight delta with the shard moved away is better than the weight delta
+                    // with the shard remaining on the current node, and we are allowed to allocate to the
+                    // node in question, then allow the rebalance
                     if (rebalanceConditionsMet && canAllocate.type().higherThan(rebalanceDecisionType)) {
                         // rebalance to the node, only will get overwritten if the decision here is to
                         // THROTTLE and we get a decision with YES on another node

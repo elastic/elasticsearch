@@ -108,7 +108,7 @@ public class OldIndexUtils {
         }
 
         final Path src = getIndexDir(logger, indexName, indexFile, list[0]);
-        copyIndex(logger, src, indexName, paths);
+        copyIndex(logger, src, src.getFileName().toString(), paths);
     }
 
     public static Path getIndexDir(
@@ -157,10 +157,10 @@ public class OldIndexUtils {
     }
 
     // randomly distribute the files from src over dests paths
-    public static void copyIndex(final Logger logger, final Path src, final String indexName, final Path... dests) throws IOException {
+    public static void copyIndex(final Logger logger, final Path src, final String folderName, final Path... dests) throws IOException {
         Path destinationDataPath = dests[randomInt(dests.length - 1)];
         for (Path dest : dests) {
-            Path indexDir = dest.resolve(indexName);
+            Path indexDir = dest.resolve(folderName);
             assertFalse(Files.exists(indexDir));
             Files.createDirectories(indexDir);
         }
@@ -169,7 +169,7 @@ public class OldIndexUtils {
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                 Path relativeDir = src.relativize(dir);
                 for (Path dest : dests) {
-                    Path destDir = dest.resolve(indexName).resolve(relativeDir);
+                    Path destDir = dest.resolve(folderName).resolve(relativeDir);
                     Files.createDirectories(destDir);
                 }
                 return FileVisitResult.CONTINUE;
@@ -184,7 +184,7 @@ public class OldIndexUtils {
                 }
 
                 Path relativeFile = src.relativize(file);
-                Path destFile = destinationDataPath.resolve(indexName).resolve(relativeFile);
+                Path destFile = destinationDataPath.resolve(folderName).resolve(relativeFile);
                 logger.trace("--> Moving {} to {}", relativeFile, destFile);
                 Files.move(file, destFile);
                 assertFalse(Files.exists(file));

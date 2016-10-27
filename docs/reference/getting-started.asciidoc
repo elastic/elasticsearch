@@ -358,8 +358,8 @@ Now let's delete the index that we just created and then list all the indexes ag
 
 [source,js]
 --------------------------------------------------
-DELETE /customer?pretty
-GET /_cat/indices?v
+curl -X DELETE 'localhost:9200/customer?pretty'
+curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -378,13 +378,10 @@ Before we move on, let's take a closer look again at some of the API commands th
 
 [source,js]
 --------------------------------------------------
-PUT /customer
-PUT /customer/external/1
-{
-  "name": "John Doe"
-}
-GET /customer/external/1
-DELETE /customer
+curl -X PUT 'localhost:9200/customer'
+curl -X PUT 'localhost:9200/customer/external/1' -d '{"name":"John Doe"}'
+curl 'localhost:9200/customer/external/1'
+curl -X DELETE 'localhost:9200/customer'
 --------------------------------------------------
 // CONSOLE
 

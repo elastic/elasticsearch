@@ -36,9 +36,9 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalMap;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
-import static org.elasticsearch.script.ScriptService.ScriptType.FILE;
-import static org.elasticsearch.script.ScriptService.ScriptType.INLINE;
-import static org.elasticsearch.script.ScriptService.ScriptType.STORED;
+import static org.elasticsearch.script.ScriptType.FILE;
+import static org.elasticsearch.script.ScriptType.INLINE;
+import static org.elasticsearch.script.ScriptType.STORED;
 
 /**
  * Processor that adds new fields with their corresponding values. If the field is already present, its value

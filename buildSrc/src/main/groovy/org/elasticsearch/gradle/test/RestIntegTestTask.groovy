@@ -55,7 +55,9 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         parallelism = '1'
         include('**/*IT.class')
         systemProperty('tests.rest.load_packaged', 'false')
-        systemProperty('tests.rest.cluster', "${-> nodes[0].httpUri()}")
+        // we pass all nodes to the rest cluster to allow the clients to round-robin between them
+        // this is more realistic than just talking to a single node
+        systemProperty('tests.rest.cluster', "${-> nodes.collect{it.httpUri()}.join(",")}")
         systemProperty('tests.config.dir', "${-> nodes[0].confDir}")
         // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
         // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass

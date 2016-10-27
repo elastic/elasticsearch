@@ -33,8 +33,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import java.util.Map;
 import java.util.Map.Entry;
@@ -68,7 +70,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         this.testRequest = testRequest;
         this.indices = indices;
         this.types = types;
-        this.ratedDocs = ratedDocs;
+        setRatedDocs(ratedDocs);
     }
 
     public RatedRequest(StreamInput in) throws IOException {
@@ -159,8 +161,19 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         return ratedDocs;
     }
 
-    /** Set a list of rated documents for this query. */
+    /**
+     * Set a list of rated documents for this query.
+     * No documents with same _index/_type/id allowed.
+     **/
     public void setRatedDocs(List<RatedDocument> ratedDocs) {
+        Set<DocumentKey> docKeys = new HashSet<>();
+        for (RatedDocument doc : ratedDocs) {
+            if (docKeys.add(doc.getKey()) == false) {
+                String docKeyToString = doc.getKey().toString().replaceAll("\n", "").replaceAll("  ", " ");
+                throw new IllegalArgumentException(
+                        "Found duplicate rated document key [" + docKeyToString + "]");
+            }
+        }
         this.ratedDocs = ratedDocs;
     }
     

@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -129,6 +130,16 @@ public class RatedRequestsTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+
+    public void testDuplicateRatedDocThrowsException() {
+        RatedRequest request = createTestItem(Arrays.asList("index"), Arrays.asList("type"));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "type1", "id1"), 1),
+                new RatedDocument(new DocumentKey("index1", "type1", "id1"), 5));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> request.setRatedDocs(ratedDocs));
+        assertEquals(
+                "Found duplicate rated document key [{ \"_index\" : \"index1\", \"_type\" : \"type1\", \"_id\" : \"id1\"}]",
+                ex.getMessage());
     }
 
     public void testParseFromXContent() throws IOException {

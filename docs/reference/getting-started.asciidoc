@@ -202,7 +202,7 @@ To check the cluster health, we will be using the <<cat,`_cat` API>>. Remember p
 
 [source,js]
 --------------------------------------------------
-GET /_cat/health?v
+curl 'localhost:9200/_cat/health?v'
 --------------------------------------------------
 // CONSOLE
 
@@ -225,7 +225,7 @@ We can also get a list of nodes in our cluster as follows:
 
 [source,js]
 --------------------------------------------------
-GET /_cat/nodes?v
+curl 'localhost:9200/_cat/nodes?v'
 --------------------------------------------------
 // CONSOLE
 
@@ -247,7 +247,7 @@ Now let's take a peek at our indices:
 
 [source,js]
 --------------------------------------------------
-GET /_cat/indices?v
+curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 // CONSOLE
 
@@ -267,8 +267,8 @@ Now let's create an index named "customer" and then list all the indexes again:
 
 [source,js]
 --------------------------------------------------
-PUT /customer?pretty
-GET /_cat/indices?v
+curl -X PUT 'localhost:9200/customer?pretty'
+curl 'localhost:9200/customer1?pretty'
 --------------------------------------------------
 // CONSOLE
 
@@ -295,10 +295,7 @@ Let's index a simple customer document into the customer index, "external" type,
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/1?pretty
-{
-  "name": "John Doe"
-}
+curl -X PUT 'localhost:9200/customer/external/1?pretty' -d '{"name":"John Doe"}'
 --------------------------------------------------
 // CONSOLE
 
@@ -330,7 +327,7 @@ Let's now retrieve that document that we just indexed:
 
 [source,js]
 --------------------------------------------------
-GET /customer/external/1?pretty
+curl 'localhost:9200/customer/external/1?pretty'
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

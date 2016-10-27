@@ -45,6 +45,7 @@ import java.util.Map.Entry;
  *
  * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.
  * */
+@SuppressWarnings("unchecked")
 public class RatedRequest extends ToXContentToBytes implements Writeable {
     private String specId;
     private SearchSourceBuilder testRequest;

@@ -184,9 +184,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (this.template != null) {
-            builder.startObject(TEMPLATE_FIELD.getPreferredName());
-            this.template.toXContent(builder, params);
-            builder.endObject();
+            builder.field(TEMPLATE_FIELD.getPreferredName(), this.template);
         }
         builder.startArray(REQUESTS_FIELD.getPreferredName());
         for (RatedRequest spec : this.ratedRequests) {
@@ -207,6 +205,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             return false;
         }
         RankEvalSpec other = (RankEvalSpec) obj;
+
         return Objects.equals(ratedRequests, other.ratedRequests) &&
                 Objects.equals(metric, other.metric) &&
                 Objects.equals(template, other.template);

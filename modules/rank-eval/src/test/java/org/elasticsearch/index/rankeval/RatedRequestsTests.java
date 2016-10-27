@@ -86,7 +86,7 @@ public class RatedRequestsTests extends ESTestCase {
 
         if (randomBoolean()) {
             Map<String, String> params = new HashMap<String, String>();
-            int randomSize = randomInt();
+            int randomSize = randomIntBetween(1, 10);
             for (int i = 0; i < randomSize; i++) {
                 params.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
             }

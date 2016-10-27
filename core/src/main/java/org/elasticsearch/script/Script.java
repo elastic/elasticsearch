@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
@@ -186,8 +187,12 @@ public final class Script implements ToXContent, Writeable {
         return builder;
     }
 
-    public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return parse(parser, parseFieldMatcher, null);
+    public static Script parse(XContentParser parser, ParseFieldMatcher matcher) {
+        return parse(parser, matcher, null);
+    }
+
+    public static Script parse(XContentParser parser, QueryParseContext context) {
+        return parse(parser, context.getParseFieldMatcher(), null);
     }
 
     public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, @Nullable String lang) {
@@ -284,7 +289,7 @@ public final class Script implements ToXContent, Writeable {
     @Override
     public String toString() {
         return "[script: " + script + ", type: " + type.getParseField().getPreferredName() + ", lang: "
-                + lang + ", params: " + params + "]";
+                + lang + ", params: " + params + ", contentType: " + contentType + "]";
     }
 
     public interface ScriptField {

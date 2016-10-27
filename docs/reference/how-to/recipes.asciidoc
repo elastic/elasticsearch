@@ -66,8 +66,8 @@ With such a setup, searching for `ski` on `body` would return both documents:
 GET index/_search
 {
   "query": {
-    "query_string": {
-      "default_field": "body",
+    "simple_query_string": {
+      "fields": [ "body" ],
       "query": "ski"
     }
   }
@@ -123,8 +123,8 @@ stemming.
 GET index/_search
 {
   "query": {
-    "query_string": {
-      "default_field": "body.exact",
+    "simple_query_string": {
+      "fields": [ "body.exact" ],
       "query": "ski"
     }
   }
@@ -168,18 +168,18 @@ redirect to the appropriate field accordingly. Also what to do if only parts of
 the query need to be matched exactly while other parts should still take
 stemming into account?
 
-Fortunately, the `query_string` query has a feature that allows to solve exactly
-this problem: `quote_field_suffix`. It allows to tell Elasticsearch that words
-that appear in between quotes should be redirected to a different field, see
-below:
+Fortunately, the `query_string` and `simple_query_string` queries have a feature
+that allows to solve exactly this problem: `quote_field_suffix`. It allows to
+tell Elasticsearch that words that appear in between quotes should be redirected
+to a different field, see below:
 
 [source,js]
 --------------------------------------------------
 GET index/_search
 {
   "query": {
-    "query_string": {
-      "default_field": "body",
+    "simple_query_string": {
+      "fields": [ "body" ],
       "quote_field_suffix": ".exact",
       "query": "\"ski\""
     }

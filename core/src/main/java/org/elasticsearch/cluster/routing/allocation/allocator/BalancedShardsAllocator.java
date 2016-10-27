@@ -134,7 +134,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * shard.
      */
     public RebalanceDecision decideRebalance(final ShardRouting shard, final RoutingAllocation allocation) {
-        allocation.debugDecision(true);
+        assert allocation.debugDecision() : "debugDecision should be set in explain mode";
         return new Balancer(logger, allocation, weightFunction, threshold).decideRebalance(shard);
     }
 
@@ -342,6 +342,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             || (subDecision.type() == Type.THROTTLE && explanation == null)) {
                         explanation = subDecision.getExplanation();
                         explanationCause = subDecision.type();
+                        if (explanationCause == Type.NO) {
+                            break; // we already have an explanation from a NO decision, so no need to check decisions anymore
+                        }
                     }
                 }
                 return new RebalanceDecision(canRebalance, Type.NO, explanation);
@@ -374,7 +377,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float currentWeight = sorter.weight(currentNode);
             final AllocationDeciders deciders = allocation.deciders();
             final String idxName = shard.getIndexName();
-            Map<String, NodeRebalanceDecision> nodeDecisions = new HashMap<>();
+            Map<String, NodeRebalanceDecision> nodeDecisions = new HashMap<>(modelNodes.length - 1);
             Type rebalanceDecisionType = Type.NO;
             String assignedNodeId = null;
             for (ModelNode node : modelNodes) {
@@ -384,9 +387,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 final Decision canAllocate = deciders.canAllocate(shard, node.getRoutingNode(), allocation);
                 final float nodeWeight = sorter.weight(node);
                 final boolean betterWeightThanCurrent = nodeWeight <= currentWeight;
-                final boolean rebalanceConditionsMet;
-                final boolean deltaAboveThreshold;
-                final float weightWithShardAdded;
+                boolean rebalanceConditionsMet = false;
+                boolean deltaAboveThreshold = false;
+                float weightWithShardAdded = Float.POSITIVE_INFINITY;
                 if (betterWeightThanCurrent) {
                     final float currentDelta = absDelta(nodeWeight, currentWeight);
                     deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
@@ -399,10 +402,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         rebalanceDecisionType = canAllocate.type();
                         assignedNodeId = node.getNodeId();
                     }
-                } else {
-                    rebalanceConditionsMet = false;
-                    deltaAboveThreshold = false;
-                    weightWithShardAdded = Float.POSITIVE_INFINITY;
                 }
                 nodeDecisions.put(node.getNodeId(), new NodeRebalanceDecision(
                     rebalanceConditionsMet ? canAllocate.type() : Type.NO,
@@ -414,9 +413,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 );
             }
 
-            return RebalanceDecision.decision(
-                canRebalance, rebalanceDecisionType, assignedNodeId, nodeDecisions, currentWeight, threshold
-            );
+            return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNodeId,
+                                              nodeDecisions, currentWeight, threshold);
         }
 
         public Map<DiscoveryNode, Float> weighShard(ShardRouting shard) {
@@ -1404,6 +1402,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         /**
          * Returns the decision for being allowed to rebalance the shard.
          */
+        @Nullable
         public Decision getCanRebalanceDecision() {
             return canRebalanceDecision;
         }

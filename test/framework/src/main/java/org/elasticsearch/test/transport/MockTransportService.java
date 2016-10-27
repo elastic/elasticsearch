@@ -582,7 +582,7 @@ public final class MockTransportService extends TransportService {
      * {@link #clearRule()} so that when the disruptions are cleared (see {@link #clearRule(TransportService)}) this gives the
      * disruption a possibility to run clean-up actions.
      */
-    public static abstract class ClearableTransport extends DelegateTransport {
+    public abstract static class ClearableTransport extends DelegateTransport {
 
         public ClearableTransport(Transport transport) {
             super(transport);

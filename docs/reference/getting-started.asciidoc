@@ -267,8 +267,8 @@ Now let's create an index named "customer" and then list all the indexes again:
 
 [source,js]
 --------------------------------------------------
-PUT /customer?pretty
-GET /_cat/indices?v
+curl -X PUT 'localhost:9200/customer?pretty'
+curl 'localhost:9200/customer1?pretty'
 --------------------------------------------------
 // CONSOLE
 

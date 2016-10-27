@@ -202,7 +202,7 @@ To check the cluster health, we will be using the <<cat,`_cat` API>>. Remember p
 
 [source,js]
 --------------------------------------------------
-GET /_cat/health?v
+curl 'localhost:9200/_cat/health?v'
 --------------------------------------------------
 // CONSOLE
 
@@ -225,7 +225,7 @@ We can also get a list of nodes in our cluster as follows:
 
 [source,js]
 --------------------------------------------------
-GET /_cat/nodes?v
+curl 'localhost:9200/_cat/nodes?v'
 --------------------------------------------------
 // CONSOLE
 

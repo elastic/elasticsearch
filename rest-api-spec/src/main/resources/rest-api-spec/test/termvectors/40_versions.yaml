@@ -86,36 +86,3 @@
           id:     1
           version: 1
           version_type: external_gte
-
- - do:
-      warnings:
-          - version type FORCE is deprecated and will be removed in the next major version
-      get:
-          index:  test_1
-          type:   test
-          id:     1
-          version: 2
-          version_type: force
- - match:   { _id: "1" }
-
- - do:
-      warnings:
-          - version type FORCE is deprecated and will be removed in the next major version
-      get:
-          index:  test_1
-          type:   test
-          id:     1
-          version: 10
-          version_type: force
- - match:   { _id: "1" }
-
- - do:
-      warnings:
-          - version type FORCE is deprecated and will be removed in the next major version
-      get:
-          index:  test_1
-          type:   test
-          id:     1
-          version: 1
-          version_type: force
- - match:   { _id: "1" }

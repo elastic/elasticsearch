@@ -1,6 +1,6 @@
 {
   "ingest.get_pipeline": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/5.x/ingest.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_ingest/pipeline/{id}",

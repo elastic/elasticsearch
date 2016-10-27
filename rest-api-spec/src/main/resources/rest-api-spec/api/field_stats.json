@@ -1,6 +1,6 @@
 {
   "field_stats": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-stats.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/5.x/search-field-stats.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_field_stats",

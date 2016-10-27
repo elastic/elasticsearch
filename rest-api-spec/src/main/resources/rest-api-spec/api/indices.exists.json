@@ -1,6 +1,6 @@
 {
   "indices.exists": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-exists.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/5.x/indices-exists.html",
     "methods": ["HEAD"],
     "url": {
       "path": "/{index}",

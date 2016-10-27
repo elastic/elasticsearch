@@ -141,7 +141,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/mapping/types/nested.asciidoc',
   'reference/mapping/types/object.asciidoc',
   'reference/mapping/types/percolator.asciidoc',
-  'reference/migration/migrate_5_0.asciidoc',
   'reference/migration/migrate_5_0/docs.asciidoc',
   'reference/migration/migrate_5_0/mapping.asciidoc',
   'reference/migration/migrate_5_0/scripting.asciidoc',

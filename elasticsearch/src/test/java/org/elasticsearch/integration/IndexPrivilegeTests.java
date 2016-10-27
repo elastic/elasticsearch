@@ -456,8 +456,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     // wait until index ready, but as admin
                     client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get();
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
-                    Map<String, String> analyzeParams = singletonMap("text", "test");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_analyze", null, analyzeParams);
+                    assertAccessIsAllowed(user, "GET", "/" + index + "/_analyze", "{ \"text\" : \"test\" }");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_forcemerge");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_upgrade", null);
@@ -473,8 +472,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsDenied(user, "DELETE", "/" + index);
                     assertUserIsDenied(user, "create_index", index);
                     assertAccessIsDenied(user, "POST", "/" + index + "/_refresh");
-                    Map<String, String> analyzeParams = singletonMap("text", "test");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_analyze", null, analyzeParams);
+                    assertAccessIsDenied(user, "GET", "/" + index + "/_analyze", "{ \"text\" : \"test\" }");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_forcemerge");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_upgrade", null);

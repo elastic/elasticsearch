@@ -1,0 +1,45 @@
+# Integration tests for the is_holiday script
+#
+setup:
+    - do:
+        indices.create:
+            index: test_index
+            body:
+                settings:
+                    index.number_of_shards: 1
+                    index.number_of_replicas: 0
+                mappings.type1:
+                      properties:
+                          event.type: string
+                          date.type: date
+
+    - do:
+        index: {index: test_index, type: type1, id: 1, body: {event: "Halloween", date: "2016-10-30"}}
+    - do:
+        index: {index: test_index, type: type1, id: 2, body: {event: "Thanksgiving", date: "2016-11-24"}}
+    - do:
+        indices.refresh: {}
+
+---
+
+"Primes Test":
+    - do:
+        search:
+            index: test_index
+            type: type1
+            body:
+                query:
+                    script:
+                        script:
+                            inline: is_holiday
+                            lang: example
+                            params:
+                                field: date
+                                country: UNITED_STATES
+
+
+    - match: { hits.total: 1}
+    - match: {hits.hits.0._index: test_index }
+    - match: {hits.hits.0._type: type1 }
+    - match: {hits.hits.0._id: "2" }
+    - match: {hits.hits.0._source.event: "Thanksgiving" }

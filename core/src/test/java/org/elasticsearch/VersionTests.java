@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -273,6 +274,7 @@ public class VersionTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
         assertUnknownVersion(AliasFilter.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
         assertUnknownVersion(OsStats.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
+        assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
         // once we released 5.0.0 and it's added to Version.java we need to remove this constant
         assertUnknownVersion(ShardValidateQueryRequestTests.V_5_0_0);
     }

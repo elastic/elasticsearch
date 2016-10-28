@@ -185,8 +185,8 @@ public class XContentMapValues {
         // we want all sub properties to match as soon as an object matches
 
         return (map) -> filter(map,
-            include, include.getInitialState(),
-            exclude, exclude.getInitialState(),
+            include, 0,
+            exclude, 0,
             matchAllAutomaton);
     }
 
@@ -237,7 +237,7 @@ public class XContentMapValues {
                     // the object matched, so consider that the include matches every inner property
                     // we only care about excludes now
                     subIncludeAutomaton = matchAllAutomaton;
-                    subIncludeState = includeAutomaton.getInitialState();
+                    subIncludeState = 0;
                 }
             }
 

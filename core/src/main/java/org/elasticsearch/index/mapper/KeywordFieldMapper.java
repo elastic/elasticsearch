@@ -138,6 +138,23 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new StringFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
+
+            // parse the index property explicitly, otherwise we fall back to the default impl that still accepts
+            // analyzed and not_analyzed, which does not make sense for keyword fields
+            Object index = node.remove("index");
+            if (index != null) {
+                switch (index.toString()) {
+                case "true":
+                    builder.index(true);
+                    break;
+                case "false":
+                    builder.index(false);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + name + "], expected [true] or [false]");
+                }
+            }
+
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

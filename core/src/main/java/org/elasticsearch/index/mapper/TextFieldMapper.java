@@ -181,6 +181,23 @@ public class TextFieldMapper extends FieldMapper {
             builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
             builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
             builder.fieldType().setSearchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
+
+            // parse the index property explicitly, otherwise we fall back to the default impl that still accepts
+            // analyzed and not_analyzed, which does not make sense for text fields
+            Object index = node.remove("index");
+            if (index != null) {
+                switch (index.toString()) {
+                case "true":
+                    builder.index(true);
+                    break;
+                case "false":
+                    builder.index(false);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true] or [false]");
+                }
+            }
+
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

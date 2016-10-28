@@ -592,4 +592,21 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         assertEquals(downgradedMapping, defaultMapper.mappingSource().string());
     }
+
+    public void testRejectLegacyIndexValues() throws IOException {
+        for (String index : new String[] {"no", "not_analyzed", "analyzed"}) {
+            String mapping = XContentFactory.jsonBuilder().startObject()
+                    .startObject("type")
+                        .startObject("properties")
+                            .startObject("foo")
+                                .field("type", "text")
+                                .field("index", index)
+                            .endObject()
+                        .endObject()
+                    .endObject().endObject().string();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertThat(e.getMessage(), containsString("Can't parse [index] value [" + index + "] for field [foo], expected [true] or [false]"));
+        }
+    }
 }

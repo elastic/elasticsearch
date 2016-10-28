@@ -120,9 +120,18 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
-                Query q = createPhraseQuery(entry.getKey(), text, slop);
+                String field = entry.getKey();
+                if (settings.quoteFieldSuffix() != null) {
+                    String quoteField = field + settings.quoteFieldSuffix();
+                    MappedFieldType quotedFieldType = context.fieldMapper(quoteField);
+                    if (quotedFieldType != null) {
+                        field = quoteField;
+                    }
+                }
+                Float boost = entry.getValue();
+                Query q = createPhraseQuery(field, text, slop);
                 if (q != null) {
-                    bq.add(wrapWithBoost(q, entry.getValue()), BooleanClause.Occur.SHOULD);
+                    bq.add(wrapWithBoost(q, boost), BooleanClause.Occur.SHOULD);
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
@@ -256,19 +265,14 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         private boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
         /** Specifies whether wildcards should be analyzed. */
         private boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
+        /** Specifies a suffix, if any, to apply to field names for phrase matching. */
+        private String quoteFieldSuffix = null;
 
         /**
          * Generates default {@link Settings} object (uses ROOT locale, does
          * lowercase terms, no lenient parsing, no wildcard analysis).
          * */
         public Settings() {
-        }
-
-        public Settings(Locale locale, Boolean lowercaseExpandedTerms, Boolean lenient, Boolean analyzeWildcard) {
-            this.locale = locale;
-            this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-            this.lenient = lenient;
-            this.analyzeWildcard = analyzeWildcard;
         }
 
         /** Specifies the locale to use for parsing, Locale.ROOT by default. */
@@ -314,12 +318,27 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             return analyzeWildcard;
         }
 
+        /**
+         * Set the suffix to append to field names for phrase matching.
+         */
+        public void quoteFieldSuffix(String suffix) {
+            this.quoteFieldSuffix = suffix;
+        }
+
+        /**
+         * Return the suffix to append for phrase matching, or {@code null} if
+         * no suffix should be appended.
+         */
+        public String quoteFieldSuffix() {
+            return quoteFieldSuffix;
+        }
+
         @Override
         public int hashCode() {
             // checking the return value of toLanguageTag() for locales only.
             // For further reasoning see
             // https://issues.apache.org/jira/browse/LUCENE-4021
-            return Objects.hash(locale.toLanguageTag(), lowercaseExpandedTerms, lenient, analyzeWildcard);
+            return Objects.hash(locale.toLanguageTag(), lowercaseExpandedTerms, lenient, analyzeWildcard, quoteFieldSuffix);
         }
 
         @Override
@@ -338,7 +357,8 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             return (Objects.equals(locale.toLanguageTag(), other.locale.toLanguageTag())
                     && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms)
                     && Objects.equals(lenient, other.lenient)
-                    && Objects.equals(analyzeWildcard, other.analyzeWildcard));
+                    && Objects.equals(analyzeWildcard, other.analyzeWildcard)
+                    && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix));
         }
     }
 }

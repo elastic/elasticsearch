@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -104,6 +105,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
+    private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
 
     /** Query text to parse. */
     private final String queryText;
@@ -158,6 +160,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         settings.analyzeWildcard(in.readBoolean());
         settings.locale(Locale.forLanguageTag(in.readString()));
         minimumShouldMatch = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_5_1_0)) {
+            settings.quoteFieldSuffix(in.readOptionalString());
+        }
     }
 
     @Override
@@ -176,6 +181,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeBoolean(settings.analyzeWildcard());
         out.writeString(settings.locale().toLanguageTag());
         out.writeOptionalString(minimumShouldMatch);
+        if (out.getVersion().onOrAfter(Version.V_5_1_0)) {
+            out.writeOptionalString(settings.quoteFieldSuffix());
+        }
     }
 
     /** Returns the text to parse the query from. */
@@ -290,6 +298,21 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Returns the locale for parsing terms for this query. */
     public Locale locale() {
         return this.settings.locale();
+    }
+
+    /**
+     * Set the suffix to append to field names for phrase matching.
+     */
+    public SimpleQueryStringBuilder quoteFieldSuffix(String suffix) {
+        settings.quoteFieldSuffix(suffix);
+        return this;
+    }
+
+    /**
+     * Return the suffix to append to field names for phrase matching.
+     */
+    public String quoteFieldSuffix() {
+        return settings.quoteFieldSuffix();
     }
 
     /** Specifies whether query parsing should be lenient. Defaults to false. */
@@ -408,6 +431,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         builder.field(LENIENT_FIELD.getPreferredName(), settings.lenient());
         builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());
         builder.field(LOCALE_FIELD.getPreferredName(), (settings.locale().toLanguageTag()));
+        if (settings.quoteFieldSuffix() != null) {
+            builder.field(QUOTE_FIELD_SUFFIX_FIELD.getPreferredName(), settings.quoteFieldSuffix());
+        }
 
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
@@ -433,6 +459,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         Locale locale = null;
+        String quoteFieldSuffix = null;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -495,6 +522,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     queryName = parser.text();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
                     minimumShouldMatch = parser.textOrNull();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, QUOTE_FIELD_SUFFIX_FIELD)) {
+                    quoteFieldSuffix = parser.textOrNull();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
                             "] unsupported field [" + parser.currentName() + "]");
@@ -513,7 +542,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
         qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
         qb.flags(flags).defaultOperator(defaultOperator).locale(locale).lowercaseExpandedTerms(lowercaseExpandedTerms);
-        qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost);
+        qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
         return Optional.of(qb);
     }
 

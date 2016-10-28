@@ -92,7 +92,7 @@ public class Version {
     public static final int V_5_0_0_rc1_ID = 5000051;
     public static final Version V_5_0_0_rc1 = new Version(V_5_0_0_rc1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final int V_5_1_0_ID = 5010099;
-    public static final Version V_5_1_0 = new Version(V_5_1_0_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
+    public static final Version V_5_1_0 = new Version(V_5_1_0_ID, org.apache.lucene.util.Version.LUCENE_6_3_0);
     public static final Version CURRENT = V_5_1_0;
 
     /* NOTE: don't add unreleased version to this list except of the version assigned to CURRENT.

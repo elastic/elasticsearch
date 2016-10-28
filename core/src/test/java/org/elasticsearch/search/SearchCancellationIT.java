@@ -28,8 +28,11 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -58,6 +61,9 @@ import static org.hamcrest.Matchers.hasSize;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchCancellationIT extends ESIntegTestCase {
 
+    private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(ScriptedBlockPlugin.class);
@@ -65,15 +71,17 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean()).build();
+        boolean lowLevelCancellation = randomBoolean();
+        logger.info("Using lowLevelCancellation: {}", lowLevelCancellation);
+        return Settings.builder().put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), lowLevelCancellation).build();
     }
 
     private void indexTestData() {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 5; i++) {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for(int j=0; j<10; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test", "type", Integer.toString(i*10 + j)).setSource("field", "value"));
+            for (int j = 0; j < 20; j++) {
+                bulkRequestBuilder.add(client().prepareIndex("test", "type", Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }
@@ -145,6 +153,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
+        logger.info("Segments {}", XContentHelper.toString(client().admin().indices().prepareSegments("test").get(), FORMAT_PARAMS));
         ensureSearchWasCancelled(searchResponse);
     }
 
@@ -162,6 +171,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
+        logger.info("Segments {}", XContentHelper.toString(client().admin().indices().prepareSegments("test").get(), FORMAT_PARAMS));
         ensureSearchWasCancelled(searchResponse);
     }
 
@@ -222,7 +232,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         disableBlocks(plugins);
 
         SearchResponse response = ensureSearchWasCancelled(scrollResponse);
-        if (response != null){
+        if (response != null) {
             // The response didn't fail completely - update scroll id
             scrollId = response.getScrollId();
         }
@@ -285,6 +295,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         public class NativeTestScriptedBlock extends AbstractSearchScript {
             @Override
             public Object run() {
+                Loggers.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", doc().get("_uid"));
                 hits.incrementAndGet();
                 try {
                     awaitBusy(() -> shouldBlock.get() == false);

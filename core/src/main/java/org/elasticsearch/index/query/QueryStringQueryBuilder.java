@@ -26,6 +26,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,6 +59,8 @@ import java.util.TreeMap;
  */
 public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
     public static final String NAME = "query_string";
+
+    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
 
     public static final boolean DEFAULT_AUTO_GENERATE_PHRASE_QUERIES = false;
     public static final int DEFAULT_MAX_DETERMINED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
@@ -204,7 +207,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         timeZone = in.readOptionalTimeZone();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        splitOnWhitespace = in.readBoolean();
+        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            splitOnWhitespace = in.readBoolean();
+        }
     }
 
     @Override
@@ -239,7 +244,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalTimeZone(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        out.writeBoolean(this.splitOnWhitespace);
+        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            out.writeBoolean(this.splitOnWhitespace);
+        }
     }
 
     public String queryString() {

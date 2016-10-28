@@ -155,11 +155,11 @@ This parameter was undocumented and silently ignored before for these types of `
 
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoPolygonQuery. Use parameter validation_method instead.
 
-* Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoDistanceRangeQuery. Use parameter validation_method instead.
-
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoDistanceQuery. Use parameter validation_method instead.
 
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoBoundingBoxQuery. Use parameter validation_method instead.
+
+* The `geo_distance_range` query is no longer supported and should be replaced by the `geo_distance` bucket aggregation.
 
 ==== Top level `filter` parameter
 

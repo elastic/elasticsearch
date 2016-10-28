@@ -1,0 +1,6 @@
+<ivy-module version="2.0">
+  <!-- Cheating ivy repository so we can resolve deb and rpm artifacts from
+    https://artifacts.elastic.co/downloads/  which isn't a maven or ivy
+    repository. -->
+  <info organisation="org.elasticsearch" module="elasticsearch"/>
+</ivy-module>

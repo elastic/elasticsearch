@@ -90,7 +90,18 @@ configurations {
 }
 
 repositories {
-  mavenCentral()
+  mavenCentral() // Try maven central first, it'll have releases before 5.0.0
+  /* Setup a repository that tries to download from
+    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-[revision].[ext]
+    which should work for 5.0.0+. This isn't a real ivy repository so we have
+    to fake the ivy.xml file locally but it gets the job done. */
+  ivy {
+    url "https://artifacts.elastic.co/downloads/"
+    layout "pattern", {
+      artifact "elasticsearch/elasticsearch-[revision].[ext]"
+      ivy "file:$projectDir/ivy.xml"
+    }
+  }
 }
 
 dependencies {
@@ -150,8 +161,8 @@ task verifyPackagingTestUpgradeFromVersions {
       Set<String> versions = getVersions()
       Set<String> actualVersions = new TreeSet<>(Arrays.asList(upgradeFromVersions))
       if (!versions.equals(actualVersions)) {
-        println("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
-        // throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
+        throw new GradleException("out-of-date versions " + actualVersions +
+          ", expected " + versions + "; run gradle updatePackagingTestUpgradeFromVersions")
       }
     }
   }
@@ -245,7 +256,7 @@ for (String box : availableBoxes) {
 
   Task up = tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
     boxName box
-    /* Its important that we try to reprovision the box even if it already
+    /* It's important that we try to reprovision the box even if it already
       exists. That way updates to the vagrant configuration take automatically.
       That isn't to say that the updates will always be compatible. Its ok to
       just destroy the boxes if they get busted but that is a manual step

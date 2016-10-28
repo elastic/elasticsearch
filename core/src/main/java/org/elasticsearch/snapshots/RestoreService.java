@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -704,7 +705,75 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         cleanRestoreStateTaskExecutor);
                 }
             }
+
+            if (event.localNodeMaster() && !event.previousState().nodes().isLocalNodeElectedMaster()) {
+                // old master (before 5.1.0) might have failed to update RestoreInProgress after updating the routing table
+                // try to reconcile routing table and RestoreInProgress here.
+                clusterService.submitStateUpdateTask("update restore state after master switch", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        return resyncRestoreInProgressWithRoutingTable(currentState);
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        logger.warn("failed to sync restore state after master switch", e);
+                    }
+                });
+            }
         }
+    }
+
+    private ClusterState resyncRestoreInProgressWithRoutingTable(ClusterState currentState) {
+        RoutingTable routingTable = currentState.routingTable();
+        RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
+        if (restoreInProgress != null) {
+            final List<RestoreInProgress.Entry> entries = new ArrayList<>();
+            for (RestoreInProgress.Entry entry : restoreInProgress.entries()) {
+                Snapshot snapshot = entry.snapshot();
+                ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(entry.shards());
+                for (ObjectObjectCursor<ShardId, ShardRestoreStatus> restoreEntry : entry.shards()) {
+                    ShardId shardId = restoreEntry.key;
+                    IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTableOrNull(shardId);
+                    if (indexShardRoutingTable == null) {
+                        shardsBuilder.put(shardId, new ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "index was deleted"));
+                    } else {
+                        if (restoreEntry.value.state().completed() == false) {
+                            // must be INIT (restore state for ShardRestoreStatus is never STARTED)
+                            assert restoreEntry.value.state() == RestoreInProgress.State.INIT;
+                            ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
+                            if (primaryShard.active()) {
+                                // assume shard was started after successful restore from snapshot
+                                shardsBuilder.put(shardId,
+                                    new ShardRestoreStatus(primaryShard.currentNodeId(), RestoreInProgress.State.SUCCESS));
+                            } else {
+                                assert primaryShard.unassigned() || primaryShard.initializing();
+                                if (primaryShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT &&
+                                    ((SnapshotRecoverySource) primaryShard.recoverySource()).snapshot().equals(snapshot)) {
+                                    // if the primary is unassigned we assume that the restore wasn't started yet and try the restore again
+                                    // once the primary is assigned to a node.
+                                    // if the primary is initializing we assume that the restore is in progress.
+                                } else {
+                                    // for example if an empty primary was forced (see AllocateEmptyPrimaryAllocationCommand)
+                                    shardsBuilder.put(shardId, new ShardRestoreStatus(null, RestoreInProgress.State.FAILURE,
+                                        "recovery source type changed from snapshot to " + primaryShard.recoverySource()));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
+                RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
+                entries.add(new RestoreInProgress.Entry(entry.snapshot(), newState, entry.indices(), shards));
+            }
+            RestoreInProgress updatedRestoreInProgress = new RestoreInProgress(entries.toArray(new RestoreInProgress.Entry[entries.size()]));
+            ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(currentState.getCustoms());
+            builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
+            ImmutableOpenMap<String, ClusterState.Custom> customs = builder.build();
+            return ClusterState.builder(currentState).customs(customs).build();
+        }
+        return currentState;
     }
 
     public static RestoreInProgress.State overallState(RestoreInProgress.State nonCompletedState,

@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -428,7 +429,8 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof IndexNotFoundException) { // if the index is not there we just claim the role is not there
+                        // if the index or the shard is not there / available we just claim the role is not there
+                        if (TransportActions.isShardNotAvailableException(e)) {
                             logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}] index not available",
                                     roleId), e);
                             roleActionListener.onResponse(RoleAndVersion.NON_EXISTENT);

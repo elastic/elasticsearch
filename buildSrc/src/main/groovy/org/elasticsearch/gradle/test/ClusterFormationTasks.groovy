@@ -255,6 +255,12 @@ class ClusterFormationTasks {
                 'node.attr.testattr'           : 'test',
                 'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
+        // we set min master nodes to the total number of nodes in the cluster and
+        // basically skip initial state recovery to allow the cluster to form using a realistic master election
+        // this means all nodes must be up, join the seed node and do a master election. This will also allow new and
+        // old nodes in the BWC case to become the master
+        esConfig['discovery.zen.minimum_master_nodes'] = node.config.numNodes
+        esConfig['discovery.initial_state_timeout'] = '0s' // don't wait for state.. just start up quickly
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         esConfig['transport.tcp.port'] =  node.config.transportPort

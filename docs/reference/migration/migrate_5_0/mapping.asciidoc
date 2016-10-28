@@ -76,6 +76,15 @@ PUT my_index
 Also the `precision_step` parameter is now irrelevant and will be rejected on
 indices that are created on or after 5.0.
 
+==== `geo_point` fields
+
+Like Numeric fields the Geo point field now uses the new BKD tree structure. Since
+this structure is fundamentally designed for multi-dimension spatial data, the
+the following field parameters are no longer needed or supported: `geohash`,
+`geohash_prefix`, `geohash_precision`, `lat_lon`. Geohashes are still supported from
+an API perspective, and can still be accessed using the `.geohash` field extension,
+but they are no longer used to index geo point data.
+
 ==== `_timestamp` and `_ttl`
 
 The `_timestamp` and `_ttl` fields were deprecated and are now removed. As a

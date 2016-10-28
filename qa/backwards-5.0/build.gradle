@@ -19,6 +19,5 @@ integTest {
     numNodes = 2
     numBwcNodes = 1
     bwcVersion = "6.0.0-alpha1-SNAPSHOT" // this is the same as the current version until we released the first RC
-    useMinimumMasterNodes = true // do a real master election in this case
   }
 }

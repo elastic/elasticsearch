@@ -69,7 +69,7 @@ class ClusterConfiguration {
      * before any tests start
      */
     @Input
-    boolean useMinimumMasterNodes = false
+    boolean useMinimumMasterNodes = true
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +

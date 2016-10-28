@@ -92,15 +92,11 @@ configurations {
 repositories {
   mavenCentral() // Try maven central first, it'll have releases before 5.0.0
   /* Setup a repository that tries to download from
-    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-[revision].[ext]
-    which should work for 5.0.0+. This isn't a real ivy repository so we have
-    to fake the ivy.xml file locally but it gets the job done. */
+    https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]
+    which should work for 5.0.0+. This isn't a real ivy repository but gradle
+    is fine with that */
   ivy {
-    url "https://artifacts.elastic.co/downloads/"
-    layout "pattern", {
-      artifact "elasticsearch/elasticsearch-[revision].[ext]"
-      ivy "file:$projectDir/ivy.xml"
-    }
+    artifactPattern "https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
   }
 }
 

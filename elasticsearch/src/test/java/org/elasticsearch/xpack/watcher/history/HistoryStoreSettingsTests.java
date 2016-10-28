@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-@TestLogging("org.elasticsearch.cluster:DEBUG,org.elasticsearch.action.admin.cluster.settings:DEBUG,org.elasticsearch.watcher:DEBUG")
+@TestLogging("org.elasticsearch.cluster:DEBUG,org.elasticsearch.action.admin.cluster.settings:DEBUG,org.elasticsearch.xpack.watcher:DEBUG")
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false,
         supportsDedicatedMasters = false, numDataNodes = 1)
 public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCase {

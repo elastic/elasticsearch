@@ -125,10 +125,7 @@ Set<String> getVersions() {
   new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
     xml = new XmlParser().parse(s)
   }
-
-  // List all N-1 releases from maven central
-  int major = Integer.parseInt(project.version.substring(0, project.version.indexOf('.'))) - 1
-  Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /$major\.\d\.\d/ })
+  Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /[5]\.\d\.\d/ })
   if (versions.isEmpty() == false) {
     return versions;
   }
@@ -151,7 +148,7 @@ task verifyPackagingTestUpgradeFromVersions {
     String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
     if (maybeUpdateFromVersions == null) {
       Set<String> versions = getVersions()
-      Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
+      Set<String> actualVersions = new TreeSet<>(Arrays.asList(upgradeFromVersions))
       if (!versions.equals(actualVersions)) {
         println("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
         // throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")

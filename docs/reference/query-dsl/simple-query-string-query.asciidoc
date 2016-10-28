@@ -63,6 +63,11 @@ Defaults to `ROOT`.
  document to be returned. See the
  <<query-dsl-minimum-should-match,`minimum_should_match`>> documentation for the
  full list of options.
+
+|`quote_field_suffix` | A suffix to append to fields for quoted parts of
+the query string. This allows to use a field that has a different analysis chain
+for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
+comprehensive example.
 |=======================================================================
 
 [float]

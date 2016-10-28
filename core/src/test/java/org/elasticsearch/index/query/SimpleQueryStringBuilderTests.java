@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -27,6 +29,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -70,6 +73,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         }
         if (randomBoolean()) {
             result.defaultOperator(randomFrom(Operator.values()));
+        }
+        if (randomBoolean()) {
+            result.quoteFieldSuffix(TestUtil.randomSimpleString(random()));
         }
         if (randomBoolean()) {
             Set<SimpleQueryStringFlag> flagSet = new HashSet<>();
@@ -334,6 +340,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "    \"lenient\" : false,\n" +
                 "    \"analyze_wildcard\" : false,\n" +
                 "    \"locale\" : \"und\",\n" +
+                "    \"quote_field_suffix\" : \".quote\",\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -344,6 +351,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, "\"fried eggs\" +(eggplant | potato) -frittata", parsed.value());
         assertEquals(json, 2, parsed.fields().size());
         assertEquals(json, "snowball", parsed.analyzer());
+        assertEquals(json, ".quote", parsed.quoteFieldSuffix());
     }
 
     public void testMinimumShouldMatch() throws IOException {

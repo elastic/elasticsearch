@@ -20,7 +20,6 @@
 package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
@@ -428,6 +427,15 @@ public class IndicesService extends AbstractLifecycleComponent
         }
         return indexModule.newIndexService(nodeEnv, this, circuitBreakerService, bigArrays, threadPool, scriptService,
                 indicesQueriesRegistry, clusterService, client, indicesQueryCache, mapperRegistry, indicesFieldDataCache);
+    }
+
+    public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
+        final Index index = indexMetaData.getIndex();
+        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
+        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
+        pluginsService.onIndexModule(indexModule);
+        return indexModule.newIndexMapperService(mapperRegistry);
     }
 
     /**

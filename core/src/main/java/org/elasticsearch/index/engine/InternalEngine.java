@@ -523,13 +523,31 @@ public class InternalEngine extends Engine {
             final long updatedVersion = updateVersion(index, currentVersion, expectedVersion);
             index.setCreated(deleted);
             if (currentVersion == Versions.NOT_FOUND && forceUpdateDocument == false) {
-                // document does not exists, we can optimize for create
+                // document does not exists, we can optimize for create, but double check if assertions are running
+                assert assertDocDoesNotExist(index);
                 index(index, indexWriter);
             } else {
                 update(index, indexWriter);
             }
             maybeAddToTranslog(index, updatedVersion, Translog.Index::new, NEW_VERSION_VALUE);
         }
+    }
+
+    /**
+     * Asserts that the doc in the index operation really doesn't exist
+     */
+    private boolean assertDocDoesNotExist(Index index) throws IOException {
+        final VersionValue versionValue = versionMap.getUnderLock(index.uid());
+        if (versionValue != null && versionValue.delete() == false) {
+            throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
+        }
+        try (final Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
+            final long docsWithId = searcher.reader().totalTermFreq(index.uid());
+            if (docsWithId > 0) {
+                throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
+            }
+        }
+        return true;
     }
 
     private long updateVersion(Engine.Operation op, long currentVersion, long expectedVersion) {

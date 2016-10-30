@@ -24,9 +24,7 @@ import org.hamcrest.Matcher;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.equalTo;
 
 /** Tests for working with arrays. */
 public class ArrayTests extends ArrayLikeObjectTestCase {
@@ -41,9 +39,8 @@ public class ArrayTests extends ArrayLikeObjectTestCase {
     }
 
     @Override
-    protected Matcher<? super IndexOutOfBoundsException> outOfBoundsExceptionMatcher(int index, int size) {
-        return both(instanceOf(ArrayIndexOutOfBoundsException.class))
-                .and(hasToString("java.lang.ArrayIndexOutOfBoundsException: " + index));
+    protected Matcher<String> outOfBoundsExceptionMessageMatcher(int index, int size) {
+        return equalTo(Integer.toString(index));
     }
 
     public void testArrayLengthHelper() throws Throwable {

@@ -23,10 +23,9 @@ import org.hamcrest.Matcher;
 
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /** Tests for working with lists. */
 public class ListTests extends ArrayLikeObjectTestCase {
@@ -55,15 +54,20 @@ public class ListTests extends ArrayLikeObjectTestCase {
     }
 
     @Override
-    protected Matcher<? super IndexOutOfBoundsException> outOfBoundsExceptionMatcher(int index, int size) {
-        if (index > size) {
-            return hasToString("java.lang.IndexOutOfBoundsException: Index: " + index + ", Size: " + size);
+    protected Matcher<String> outOfBoundsExceptionMessageMatcher(int index, int size) {
+        if ("1.8".equals(Runtime.class.getPackage().getSpecificationVersion())) {
+            // 1.8 and below aren't as clean as 1.9+
+            if (index > size) {
+                return equalTo("Index: " + index + ", Size: " + size);
+            } else {
+                Matcher<String> m = equalTo(Integer.toString(index));
+                // If we set -XX:-OmitStackTraceInFastThrow we wouldn't need this
+                m = anyOf(m, nullValue());
+                return m;
+            }
         } else {
-            Matcher<? super IndexOutOfBoundsException> m = both(instanceOf(ArrayIndexOutOfBoundsException.class))
-                    .and(hasToString("java.lang.ArrayIndexOutOfBoundsException: " + index));
-            // If we set -XX:-OmitStackTraceInFastThrow we wouldn't need this
-            m = either(m).or(instanceOf(ArrayIndexOutOfBoundsException.class));
-            return m;
+            // Starting with 1.9 it gets nicer
+            return equalTo("Index " + index + " out-of-bounds for length " + size);
         }
     }
 

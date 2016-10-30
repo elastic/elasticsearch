@@ -898,7 +898,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String name = ctx.DOTID().getText();
         List<AExpression> arguments = collectArguments(ctx.arguments());
 
-        return new PCallInvoke(location(ctx), prefix, name, arguments);
+        return new PCallInvoke(location(ctx), prefix, name, ctx.COND() != null, arguments);
     }
 
     @Override
@@ -917,7 +917,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        return new PField(location(ctx), prefix, value);
+        return new PField(location(ctx), prefix, ctx.COND() != null, value);
     }
 
     @Override

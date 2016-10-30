@@ -156,11 +156,11 @@ postdot
     ;
 
 callinvoke
-    : DOT DOTID arguments
+    : COND? DOT DOTID arguments
     ;
 
 fieldaccess
-    : DOT ( DOTID | DOTINTEGER )
+    : COND? DOT ( DOTID | DOTINTEGER )
     ;
 
 braceaccess

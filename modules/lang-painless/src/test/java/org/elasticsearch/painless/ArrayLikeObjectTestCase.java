@@ -39,9 +39,9 @@ public abstract class ArrayLikeObjectTestCase extends ScriptTestCase {
      */
     protected abstract String valueCtorCall(String valueType, int size);
     /**
-     * The type of the exception thrown by out of bounds accesses;
+     * Matcher for the message of the out of bounds exceptions thrown for too negative or too positive offsets.
      */
-    protected abstract Matcher<? super IndexOutOfBoundsException> outOfBoundsExceptionMatcher(int index, int size);
+    protected abstract Matcher<String> outOfBoundsExceptionMessageMatcher(int index, int size);
 
     private void arrayLoadStoreTestCase(boolean declareAsDef, String valueType, Object val, @Nullable Number valPlusOne) {
         String declType = declareAsDef ? "def" : declType(valueType);
@@ -80,7 +80,7 @@ public abstract class ArrayLikeObjectTestCase extends ScriptTestCase {
         IndexOutOfBoundsException e = expectScriptThrows(IndexOutOfBoundsException.class,
                 () -> exec(script, singletonMap("val", val), true));
         try {
-            assertThat(e, outOfBoundsExceptionMatcher(index, 5));
+            assertThat(e.getMessage(), outOfBoundsExceptionMessageMatcher(index, 5));
         } catch (AssertionError ae) {
             ae.addSuppressed(e);   // Mark the exception we are testing as suppressed so we get its stack trace. If it has one :(
             throw ae;

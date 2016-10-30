@@ -131,6 +131,37 @@ using these characters:
 |=======================================================================
 
 [float]
+[[painless-deref]]
+=== Dereferences
+
+Like lots of languages, Painless uses `.` to reference fields and call methods:
+
+[source,painless]
+---------------------------------------------------------
+String foo = 'foo';
+TypeWithGetterOrPublicField bar = new TypeWithGetterOrPublicField()
+return foo.length() + bar.x
+---------------------------------------------------------
+
+Like Groovy, Painless uses `?.` to perform null-safe references, with the
+result being `null` if the left hand side is null:
+
+[source,painless]
+---------------------------------------------------------
+String foo = null;
+return foo?.length()  // Returns null
+---------------------------------------------------------
+
+Unlike Groovy, Painless doesn't support writing to null values with this
+operator:
+
+[source,painless]
+---------------------------------------------------------
+TypeWithSetterOrPublicField foo = null;
+foo?.x = 'bar'  // Compile error
+---------------------------------------------------------
+
+[float]
 [[painless-operators]]
 === Operators
 

@@ -35,6 +35,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -542,7 +543,7 @@ public class InternalEngine extends Engine {
             throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
         }
         try (final Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
-            final long docsWithId = searcher.reader().totalTermFreq(index.uid());
+            final long docsWithId = searcher.searcher().count(new TermQuery(index.uid()));
             if (docsWithId > 0) {
                 throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
             }

@@ -181,7 +181,7 @@ public class PathTrie<T> {
         }
 
         /**
-         * Retrive only explicitly mapped nodes (ie. wildcards are only allowed
+         * Retrieve only explicitly mapped nodes (ie. wildcards are only allowed
          * as leaf nodes).
          */
         public T retrieveExplicit(String[] path, int index, Map<String, String> params) {
@@ -254,7 +254,7 @@ public class PathTrie<T> {
         if (strings.length > 0 && strings[0].isEmpty()) {
             index = 1;
         }
-        if (ignoreWildcards == true) {
+        if (ignoreWildcards) {
             return root.retrieveExplicit(strings, index, params);
         } else {
             return root.retrieve(strings, index, params);

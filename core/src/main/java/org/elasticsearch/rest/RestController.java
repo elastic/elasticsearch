@@ -180,7 +180,7 @@ public class RestController extends AbstractLifecycleComponent {
 
     /**
      * @param request The current request. Must not be null.
-     * @return true if the circuit breaker limit must be enforced for processing this request.
+     * @return true iff the circuit breaker limit must be enforced for processing this request.
      */
     public boolean canTripCircuitBreaker(RestRequest request) {
         RestHandler handler = getHandler(request, false);

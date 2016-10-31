@@ -41,7 +41,7 @@ public class Netty4Utils {
 
             @Override
             public InternalLogger newInstance(final String name) {
-                return new Netty4InternalESLogger(name.replace("io.netty.", "netty."));
+                return new Netty4InternalESLogger(name);
             }
 
         });

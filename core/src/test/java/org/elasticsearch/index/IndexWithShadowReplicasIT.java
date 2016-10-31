@@ -291,13 +291,14 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         // Node1 has the primary, now node2 has the replica
-        String node2 = internalCluster().startNode(nodeSettings);
+        internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
         client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
         flushAndRefresh(IDX);
 
         logger.info("--> stopping node1 [{}]", node1);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+        ensureClusterSizeConsistency(); // wait for the new node to be elected and process the node leave
         ensureYellow(IDX);
 
         logger.info("--> performing query");

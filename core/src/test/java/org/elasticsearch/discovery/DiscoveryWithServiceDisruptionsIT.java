@@ -761,15 +761,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
         // Make sure that the end state is consistent on all nodes:
         assertDiscoveryCompleted(nodes);
-        // Use assertBusy(...) because the unfrozen node may take a while to actually join the cluster.
-        // The assertDiscoveryCompleted(...) can't know if all nodes have the old master node in all of the local cluster states
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertMaster(newMasterNode, nodes);
-            }
-        });
-
+        assertMaster(newMasterNode, nodes);
 
         assertThat(masters.size(), equalTo(2));
         for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
@@ -1366,14 +1358,16 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }, 10, TimeUnit.SECONDS);
     }
 
-    private void assertMaster(String masterNode, List<String> nodes) {
-        for (String node : nodes) {
-            ClusterState state = getNodeClusterState(node);
-            String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
-            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
-            String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
-            assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
-        }
+    private void assertMaster(String masterNode, List<String> nodes) throws Exception {
+        assertBusy(() -> {
+            for (String node : nodes) {
+                ClusterState state = getNodeClusterState(node);
+                String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
+                assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
+                String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
+                assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
+            }
+        });
     }
 
     private void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {

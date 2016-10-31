@@ -109,7 +109,7 @@ public class TextTemplateTests extends ESTestCase {
                 builder.field("file", template.getTemplate());
                 break;
             case STORED:
-                builder.field("id", template.getTemplate());
+                builder.field("stored", template.getTemplate());
         }
         builder.field("params", template.getParams());
         builder.endObject();

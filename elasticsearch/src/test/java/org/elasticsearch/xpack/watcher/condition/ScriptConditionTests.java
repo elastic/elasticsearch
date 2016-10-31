@@ -220,7 +220,7 @@ public class ScriptConditionTests extends ESTestCase {
                 builder.field("file", script);
                 break;
             case STORED:
-                builder.field("id", script);
+                builder.field("stored", script);
                 break;
             default:
                 throw illegalArgument("unsupported script type [{}]", scriptType);

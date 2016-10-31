@@ -140,7 +140,7 @@ setup:
                   "request" : {
                     "indices" : "idx",
                     "template" : {
-                      "id": "search-template",
+                      "stored": "search-template",
                       "params": {
                         "num": 2
                       }
@@ -156,6 +156,6 @@ setup:
   - match: { "watch_record.result.input.payload.hits.hits.0._id": "2" }
   # makes sure that the mustache template snippets have been resolved  correctly:
   - match: { "watch_record.result.input.search.request.body.query.bool.must.0.term.value": "val_2" }
-  - match: { "watch_record.result.input.search.request.template.id": "search-template" }
+  - match: { "watch_record.result.input.search.request.template.stored": "search-template" }
   - match: { "watch_record.result.input.search.request.template.lang": "mustache" }
   - match: { "watch_record.result.input.search.request.template.params.num": 2 }

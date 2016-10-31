@@ -109,7 +109,7 @@ public final class Script implements ToXContent, Writeable {
         boolean hasType = type != null;
         out.writeBoolean(hasType);
         if (hasType) {
-            ScriptType.writeTo(type, out);
+            type.writeTo(out);
         }
         out.writeOptionalString(lang);
         out.writeMap(params);

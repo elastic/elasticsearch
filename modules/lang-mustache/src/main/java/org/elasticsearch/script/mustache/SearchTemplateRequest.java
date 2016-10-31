@@ -157,7 +157,7 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         out.writeBoolean(simulate);
         out.writeBoolean(explain);
         out.writeBoolean(profile);
-        ScriptType.writeTo(scriptType, out);
+        scriptType.writeTo(out);
         out.writeOptionalString(script);
         boolean hasParams = scriptParams != null;
         out.writeBoolean(hasParams);

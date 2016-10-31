@@ -22,17 +22,16 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * ScriptType represents the way a script is stored and retrieved from the {@link ScriptService}.
  * It's also used to by {@link ScriptSettings} and {@link ScriptModes} to determine whether or not
  * a {@link Script} is allowed to be executed based on both default and user-defined settings.
  */
-public enum ScriptType {
-
+public enum ScriptType implements Writeable {
     /**
      * INLINE scripts are specified in numerous queries and compiled on-the-fly.
      * They will be cached based on the lang and code of the script.
@@ -73,15 +72,6 @@ public enum ScriptType {
         }
     }
 
-    /**
-     * Writes an int to the output stream based on the id of the {@link ScriptType}.
-     * @param type The {@link ScriptType}.  Must not be {@code null}.
-     */
-    public static void writeTo(ScriptType type, StreamOutput out) throws IOException {
-        Objects.requireNonNull(type);
-        out.writeVInt(type.id);
-    }
-
     private final int id;
     private final String name;
     private final ParseField parseField;
@@ -99,6 +89,13 @@ public enum ScriptType {
         this.name = name;
         this.parseField = parseField;
         this.defaultEnabled = defaultEnabled;
+    }
+
+    /**
+     * Writes an int to the output stream based on the id of the {@link ScriptType}.
+     */
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(id);
     }
 
     /**

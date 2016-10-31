@@ -282,7 +282,11 @@ However in the event that you either
 then there are good chances that all shards that are involved in the search
 request do not have similar index statistics and relevancy could be bad.
 
-The recommended way to work around this issue is to use the
+If you have a small dataset, the easiest way to work around this issue is to
+index everything into an index that has a single shard. Then index statistics
+will be the same for all documents and scores will be consistent.
+
+Otherwise the recommended way to work around this issue is to use the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type. This will make
 Elasticsearch perform an inital round trip to all involved shards, asking
 them for their index statistics relatively to the query, then the coordinating

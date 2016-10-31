@@ -671,7 +671,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                 }
             }
 
-            nodeConnectionsService.connectToAddedNodes(clusterChangedEvent);
+            nodeConnectionsService.connectToNodes(clusterChangedEvent.nodesDelta().addedNodes());
 
             // if we are the master, publish the new state to all nodes
             // we publish here before we send a notification to all the listeners, since if it fails
@@ -686,6 +686,8 @@ public class ClusterService extends AbstractLifecycleComponent {
                         (Supplier<?>) () -> new ParameterizedMessage(
                             "failing [{}]: failed to commit cluster state version [{}]", tasksSummary, version),
                         t);
+                    // ensure that list of connected nodes in NodeConnectionsService is in-sync with the nodes of the current cluster state
+                    nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().addedNodes());
                     proccessedListeners.forEach(task -> task.listener.onFailure(task.source, t));
                     return;
                 }
@@ -711,7 +713,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                 }
             }
 
-            nodeConnectionsService.disconnectFromRemovedNodes(clusterChangedEvent);
+            nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().removedNodes());
 
             newClusterState.status(ClusterState.ClusterStateStatus.APPLIED);
 

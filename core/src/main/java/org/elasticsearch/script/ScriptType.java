@@ -32,6 +32,7 @@ import java.io.IOException;
  * a {@link Script} is allowed to be executed based on both default and user-defined settings.
  */
 public enum ScriptType implements Writeable {
+
     /**
      * INLINE scripts are specified in numerous queries and compiled on-the-fly.
      * They will be cached based on the lang and code of the script.
@@ -87,7 +88,7 @@ public enum ScriptType implements Writeable {
      * Standard constructor.
      * @param id A unique identifier for a type that can be read/written to a stream.
      * @param parseField Specifies the name used to parse input from queries.
-     * @param defaultEnabled Whether or not an {@link ScriptType} can be run by default.
+     * @param defaultEnabled Whether or not a {@link ScriptType} can be run by default.
      */
     ScriptType(int id, ParseField parseField, boolean defaultEnabled) {
         this.id = id;

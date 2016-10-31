@@ -259,7 +259,7 @@ class ClusterFormationTasks {
         // basically skip initial state recovery to allow the cluster to form using a realistic master election
         // this means all nodes must be up, join the seed node and do a master election. This will also allow new and
         // old nodes in the BWC case to become the master
-        if (node.config.numNodes > 1) {
+        if (node.config.useMinimumMasterNodes && node.config.numNodes > 1) {
             esConfig['discovery.zen.minimum_master_nodes'] = node.config.numNodes
             esConfig['discovery.initial_state_timeout'] = '0s' // don't wait for state.. just start up quickly
         }

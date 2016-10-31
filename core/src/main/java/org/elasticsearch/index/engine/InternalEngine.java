@@ -485,7 +485,8 @@ public class InternalEngine extends Engine {
             // if anything is fishy here ie. there is a retry we go and force updateDocument below so we are updating the document in the
             // lucene index without checking the version map but we still do the version check
             final boolean forceUpdateDocument;
-            if (canOptimizeAddDocument(index)) {
+            final boolean canOptimizeAddDocument = canOptimizeAddDocument(index);
+            if (canOptimizeAddDocument) {
                 long deOptimizeTimestamp = maxUnsafeAutoIdTimestamp.get();
                 if (index.isRetry()) {
                     forceUpdateDocument = true;
@@ -525,7 +526,7 @@ public class InternalEngine extends Engine {
             index.setCreated(deleted);
             if (currentVersion == Versions.NOT_FOUND && forceUpdateDocument == false) {
                 // document does not exists, we can optimize for create, but double check if assertions are running
-                assert assertDocDoesNotExist(index);
+                assert assertDocDoesNotExist(index, canOptimizeAddDocument == false);
                 index(index, indexWriter);
             } else {
                 update(index, indexWriter);
@@ -537,15 +538,18 @@ public class InternalEngine extends Engine {
     /**
      * Asserts that the doc in the index operation really doesn't exist
      */
-    private boolean assertDocDoesNotExist(Index index) throws IOException {
+    private boolean assertDocDoesNotExist(final Index index, final boolean allowDeleted) throws IOException {
         final VersionValue versionValue = versionMap.getUnderLock(index.uid());
-        if (versionValue != null && versionValue.delete() == false) {
-            throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
-        }
-        try (final Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
-            final long docsWithId = searcher.searcher().count(new TermQuery(index.uid()));
-            if (docsWithId > 0) {
-                throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
+        if (versionValue != null) {
+            if (versionValue.delete() == false || allowDeleted == false) {
+                throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
+            }
+        } else {
+            try (final Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
+                final long docsWithId = searcher.searcher().count(new TermQuery(index.uid()));
+                if (docsWithId > 0) {
+                    throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
+                }
             }
         }
         return true;

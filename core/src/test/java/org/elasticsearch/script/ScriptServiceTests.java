@@ -266,9 +266,9 @@ public class ScriptServiceTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         for (Map.Entry<ScriptType, Boolean> entry : scriptSourceSettings.entrySet()) {
             if (entry.getValue()) {
-                builder.put("script" + "." + entry.getKey().getScriptType(), "true");
+                builder.put("script" + "." + entry.getKey().getName(), "true");
             } else {
-                builder.put("script" + "." + entry.getKey().getScriptType(), "false");
+                builder.put("script" + "." + entry.getKey().getName(), "false");
             }
         }
         for (Map.Entry<ScriptContext, Boolean> entry : scriptContextSettings.entrySet()) {

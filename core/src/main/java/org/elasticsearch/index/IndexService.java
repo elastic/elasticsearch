@@ -52,6 +52,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShadowIndexShard;
@@ -692,7 +693,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                             if (shard.isRefreshNeeded()) {
                                 shard.refresh("schedule");
                             }
-                        } catch (EngineClosedException | AlreadyClosedException ex) {
+                        } catch (IndexShardClosedException | AlreadyClosedException ex) {
                             // fine - continue;
                         }
                         continue;

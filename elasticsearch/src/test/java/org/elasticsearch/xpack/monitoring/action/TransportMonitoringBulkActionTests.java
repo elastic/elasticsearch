@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -99,12 +100,12 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                 Version.CURRENT));
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToAddedNodes(ClusterChangedEvent event) {
+            public void connectToNodes(List<DiscoveryNode> addedNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromRemovedNodes(ClusterChangedEvent event) {
+            public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
                 // skip
             }
         });

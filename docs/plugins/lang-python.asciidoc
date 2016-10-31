@@ -119,7 +119,7 @@ GET test/_search
     "function_score": {
       "script_score": {
         "script": {
-          "id": "my_script", <2>
+          "stored": "my_script", <2>
           "lang": "python",
           "params": {
             "factor": 2

@@ -894,11 +894,12 @@ public final class NodeEnvironment  implements Closeable {
         final NodePath[] nodePaths = nodePaths();
         for (NodePath nodePath : nodePaths) {
             assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
-            final Path src = nodePath.path.resolve("__es__.tmp");
-            final Path target = nodePath.path.resolve("__es__.final");
+            final Path src = nodePath.path.resolve(TEMP_FILE_NAME + ".src");
+            final Path target = nodePath.path.resolve(TEMP_FILE_NAME + ".target");
             try {
+                Files.deleteIfExists(src);
                 Files.createFile(src);
-                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
+                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ex) {
                 throw new IllegalStateException("atomic_move is not supported by the filesystem on path ["
                         + nodePath.path

@@ -35,27 +35,32 @@ public enum ScriptType implements Writeable {
     /**
      * INLINE scripts are specified in numerous queries and compiled on-the-fly.
      * They will be cached based on the lang and code of the script.
-     * They are turned off by default for security purposes.
+     * They are turned off by default because most languages are insecure
+     * (Groovy and others), but can be overriden by the specific {@link ScriptEngineService}
+     * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    INLINE ( 0 , "inline" , new ParseField("inline")       , false ),
+    INLINE ( 0 , new ParseField("inline") , false ),
 
     /**
      * STORED scripts are saved as part of the {@link org.elasticsearch.cluster.ClusterState}
      * based on user requests.  They will be cached when they are first used in a query.
-     * They are turned off by default for security purposes.
+     * They are turned off by default because most languages are insecure
+     * (Groovy and others), but can be overriden by the specific {@link ScriptEngineService}
+     * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    STORED ( 1 , "stored" , new ParseField("stored", "id") , false ),
+    STORED ( 1 , new ParseField("stored", "id") , false ),
 
     /**
      * FILE scripts are loaded from disk either on start-up or on-the-fly depending on
      * user-defined settings.  They will be compiled and cached as soon as they are loaded
      * from disk.  They are turned on by default as they should always be safe to execute.
      */
-    FILE   ( 2 , "file"   , new ParseField("file")         , true  );
+    FILE ( 2 , new ParseField("file") , true  );
 
     /**
      * Reads an int from the input stream and converts it to a {@link ScriptType}.
-     * @return The ScriptType read from the stream. Throws an {@link IllegalStateException} if no ScriptType is found based on the id.
+     * @return The ScriptType read from the stream. Throws an {@link IllegalStateException}
+     * if no ScriptType is found based on the id.
      */
     public static ScriptType readFrom(StreamInput in) throws IOException {
         int id = in.readVInt();
@@ -68,32 +73,28 @@ public enum ScriptType implements Writeable {
             return INLINE;
         } else {
             throw new IllegalStateException("Error reading ScriptType id [" + id + "] from stream, expected one of [" +
-                FILE.id + " [" + FILE.name + "], " + STORED.id + " [" + STORED.name + "], " + INLINE.id + " [" + INLINE.name + "]]");
+                FILE.id + " [" + FILE.parseField.getPreferredName() + "], " +
+                STORED.id + " [" + STORED.parseField.getPreferredName() + "], " +
+                INLINE.id + " [" + INLINE.parseField.getPreferredName() + "]]");
         }
     }
 
     private final int id;
-    private final String name;
     private final ParseField parseField;
     private final boolean defaultEnabled;
 
     /**
      * Standard constructor.
      * @param id A unique identifier for a type that can be read/written to a stream.
-     * @param name A unique name for a type.
      * @param parseField Specifies the name used to parse input from queries.
      * @param defaultEnabled Whether or not an {@link ScriptType} can be run by default.
      */
-    ScriptType(int id, String name, ParseField parseField, boolean defaultEnabled) {
+    ScriptType(int id, ParseField parseField, boolean defaultEnabled) {
         this.id = id;
-        this.name = name;
         this.parseField = parseField;
         this.defaultEnabled = defaultEnabled;
     }
 
-    /**
-     * Writes an int to the output stream based on the id of the {@link ScriptType}.
-     */
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
     }
@@ -106,10 +107,10 @@ public enum ScriptType implements Writeable {
     }
 
     /**
-     * @return The unique name for this {@link ScriptType}.
+     * @return The unique name for this {@link ScriptType} based on the {@link ParseField}.
      */
     public String getName() {
-        return name;
+        return parseField.getPreferredName();
     }
 
     /**

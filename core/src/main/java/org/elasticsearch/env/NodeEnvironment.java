@@ -38,7 +38,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -209,7 +208,7 @@ public final class NodeEnvironment  implements Closeable {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
                     Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
                     Path dataDir = environment.dataFiles()[dirIndex];
-                    Path dir = dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
+                    Path dir = buildNodePath(dataDir, possibleLockId);
                     Files.createDirectories(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
@@ -273,6 +272,10 @@ public final class NodeEnvironment  implements Closeable {
                 IOUtils.closeWhileHandlingException(locks);
             }
         }
+    }
+
+    static Path buildNodePath(Path dataDir, int lockId) {
+        return dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(lockId));
     }
 
     /** Returns true if the directory is empty */
@@ -999,19 +1002,19 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
+    // package private for testing
+    static final String TEMP_FILE_NAME = ".es_temp_file";
+
     private static void tryWriteTempFile(Path path) throws IOException {
         if (Files.exists(path)) {
-            Path resolve = path.resolve(".es_temp_file");
-            boolean tempFileCreated = false;
+            Path resolve = path.resolve(TEMP_FILE_NAME);
             try {
+                // delete any lingering file from a previous failure
+                Files.deleteIfExists(resolve);
                 Files.createFile(resolve);
-                tempFileCreated = true;
+                Files.delete(resolve);
             } catch (IOException ex) {
                 throw new IOException("failed to write in data directory [" + path + "] write permission is required", ex);
-            } finally {
-                if (tempFileCreated) {
-                    Files.deleteIfExists(resolve);
-                }
             }
         }
     }

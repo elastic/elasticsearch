@@ -417,6 +417,23 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
+    public void testCanStartWithTempFile() throws IOException {
+        String[] paths = tmpPaths();
+        // simulate some previous left over temp files
+        for (String path: randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
+            final Path nodePath = NodeEnvironment.buildNodePath(PathUtils.get(path), 0);
+            Files.createDirectories(nodePath);
+            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
+        }
+        NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
+        env.close();
+        // check we clean up
+        for (String path: paths) {
+            final Path tempFile = NodeEnvironment.buildNodePath(PathUtils.get(path), 0).resolve(NodeEnvironment.TEMP_FILE_NAME);
+            assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
+        }
+    }
+
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */
     private Path[] stringsToPaths(String[] strings, String additional) {
         Path[] locations = new Path[strings.length];

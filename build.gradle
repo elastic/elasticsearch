@@ -1,6 +1,8 @@
 description = 'Builds the Prelert Engine native binaries and Java classes'
 
 import org.gradle.internal.os.OperatingSystem
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.apache.tools.ant.taskdefs.condition.Os
 
 project.ext.make = OperatingSystem.current().isLinux() ? "make" : "gnumake"
 project.ext.numCpus = Runtime.runtime.availableProcessors()
@@ -50,5 +52,99 @@ subprojects {
         // Includes: junit, hamcrest and mockito
         testCompile group: 'org.elasticsearch.test', name: 'framework', version: '5.0.0'
     }
+}
+
+allprojects {
+  // injecting groovy property variables into all projects
+  project.ext {
+    // for ide hacks...
+    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+    isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
+  }
+}
+
+allprojects {
+  apply plugin: 'idea'
+
+  if (isIdea) {
+    project.buildDir = file('build-idea')
+  }
+  idea {
+    module {
+      inheritOutputDirs = false
+      outputDir = file('build-idea/classes/main')
+      testOutputDir = file('build-idea/classes/test')
+
+      // also ignore other possible build dirs
+      excludeDirs += file('build')
+      excludeDirs += file('build-eclipse')
+
+      iml {
+        // fix so that Gradle idea plugin properly generates support for resource folders
+        // see also https://issues.gradle.org/browse/GRADLE-2975
+        withXml {
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/main/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-resource')
+          }
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/test/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-test-resource')
+          }
+        }
+      }
+    }
+  }
+}
+
+// Make sure gradle idea was run before running anything in intellij (including import).
+File ideaMarker = new File(projectDir, '.local-idea-is-configured')
+tasks.idea.doLast {
+  ideaMarker.setText('', 'UTF-8')
+}
+if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
+  throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
+}
+
+// eclipse configuration
+allprojects {
+  apply plugin: 'eclipse'
+  // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
+  if (path != ':') {
+    eclipse.project.name = path
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+      eclipse.project.name = eclipse.project.name.replace(':', '_')
+    }
+  }
+
+  plugins.withType(JavaBasePlugin) {
+    File eclipseBuild = project.file('build-eclipse')
+    eclipse.classpath.defaultOutputDir = eclipseBuild
+    if (isEclipse) {
+      // set this so generated dirs will be relative to eclipse build
+      project.buildDir = eclipseBuild
+    }
+    eclipse.classpath.file.whenMerged { classpath ->
+      // give each source folder a unique corresponding output folder
+      int i = 0;
+      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
+        i++;
+        // this is *NOT* a path or a file.
+        folder.output = "build-eclipse/" + i
+      }
+    }
+  }
+  task copyEclipseSettings(type: Copy) {
+    // TODO: "package this up" for external builds
+    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
+    into '.settings'
+  }
+  // otherwise .settings is not nuked entirely
+  task wipeEclipseSettings(type: Delete) {
+    delete '.settings'
+  }
+  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
+  // otherwise the eclipse merging is *super confusing*
+  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 

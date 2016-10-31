@@ -20,7 +20,6 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -30,11 +29,12 @@ import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParser;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.test.rest.yaml.section.SkipSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -52,6 +52,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,6 +85,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
     private static final String DEFAULT_SPEC_PATH = "/rest-api-spec/api";
+    private static final String SETUP_YAML = "setup.yaml";
 
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
@@ -108,7 +110,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         for (String entry : blacklist) {
             this.blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
         }
-        
+
     }
 
     @Override
@@ -288,11 +290,22 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return messageBuilder.toString();
     }
 
-    public void test() throws IOException {
+    public void test() throws IOException, ClientYamlTestParseException {
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
+
+        final DoSection templateDoSection = new DoSection();
+        final ApiCallSection templateApiCallSection = new ApiCallSection("indices.put_template");
+        templateApiCallSection.addParam("name", "global");
+        templateApiCallSection.addBody(Collections.singletonMap("template", "*"));
+        final Map<String, Integer> indexSettings = new HashMap<>();
+        indexSettings.put("number_of_shards", 1);
+        indexSettings.put("number_of_replicas", 0);
+        templateApiCallSection.addBody(Collections.singletonMap("settings", indexSettings));
+        templateDoSection.setApiCallSection(templateApiCallSection);
+        templateDoSection.execute(restTestExecutionContext);
 
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());

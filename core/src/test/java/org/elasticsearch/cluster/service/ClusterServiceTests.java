@@ -977,7 +977,7 @@ public class ClusterServiceTests extends ESTestCase {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
             "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool);
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
+        timedClusterService.setLocalNode(new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), emptyMap(),
             emptySet(), Version.CURRENT));
         Set<DiscoveryNode> currentNodes = Collections.synchronizedSet(new HashSet<>());
         currentNodes.add(timedClusterService.localNode());
@@ -1016,7 +1016,7 @@ public class ClusterServiceTests extends ESTestCase {
         timedClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                DiscoveryNode newNode = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(),
+                DiscoveryNode newNode = new DiscoveryNode("node2", LocalTransportAddress.buildUnique(), emptyMap(),
                     emptySet(), Version.CURRENT);
                 return ClusterState.builder(currentState).nodes(DiscoveryNodes.builder(currentState.nodes()).add(newNode)).build();
             }

@@ -63,7 +63,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * The upper bound of the potential sublist is one less than the size of
          * the array, so we are guaranteed at least one invalid method to test.
          */
-        validHttpMethodArray = validHttpMethodArray.subList(0, randomIntBetween(0, validHttpMethodArray.size() - 1));
+        validHttpMethodArray = validHttpMethodArray.subList(0, randomIntBetween(1, validHttpMethodArray.size() - 1));
         assertTrue(validHttpMethodArray.size() > 0);
         assertTrue(validHttpMethodArray.size() < RestRequest.Method.values().length);
 

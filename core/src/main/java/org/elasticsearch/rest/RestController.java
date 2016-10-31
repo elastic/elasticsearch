@@ -278,28 +278,7 @@ public class RestController extends AbstractLifecycleComponent {
             return true;
         }
 
-        /*
-         * Get the map of matching explicit handlers (ie. ignore wildcard path
-         * matches) for this request, for the set of HTTP methods.
-         */
-        final HashSet<RestRequest.Method> explicitPathValidMethodSet = getValidHandlerMethodSet(request, true);
-        if (explicitPathValidMethodSet.size() > 0 
-                && !explicitPathValidMethodSet.contains(request.method())
-                && request.method() != RestRequest.Method.OPTIONS) {
-            /*
-             * If an alternative handler for an explicit path is registered to a
-             * different HTTP method than the one supplied - return a 405 Method
-             * Not Allowed error.
-             */
-            handleUnsupportedHttpMethod(request, channel, explicitPathValidMethodSet);
-            return true;
-        } else if (!explicitPathValidMethodSet.contains(request.method()) 
-                && request.method() == RestRequest.Method.OPTIONS) {
-            handleOptionsRequest(request, channel, explicitPathValidMethodSet);
-            return true;
-        }
-
-        return false;
+        return handleInvalidRequest(request, channel, true);
     }
     
     private boolean executeWildcardHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -316,27 +295,29 @@ public class RestController extends AbstractLifecycleComponent {
             return true;
         }
 
+        return handleInvalidRequest(request, channel, false);
+    }
+    
+    private boolean handleInvalidRequest(RestRequest request, RestChannel channel, boolean ignoreWildcards) {
         /*
-         * Get the map of matching explicit handlers (ie. ignore wildcard path
-         * matches) for this request, for the set of HTTP methods.
+         * Get the map of matching handlers for a request, for the full set of HTTP methods.
          */
-        final HashSet<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request, false);
-        if (validMethodSet.size() > 0 
-                && !validMethodSet.contains(request.method()) 
+        final HashSet<RestRequest.Method> methodSet = getValidHandlerMethodSet(request, ignoreWildcards);
+        if (methodSet.size() > 0 
+                && !methodSet.contains(request.method())
                 && request.method() != RestRequest.Method.OPTIONS) {
             /*
-             * If an alternative handler for a path including wildcards is
-             * registered to a different HTTP method than the one supplied -
-             * Return a 405 Method Not Allowed error.
+             * If an alternative handler for an explicit path is registered to a
+             * different HTTP method than the one supplied - return a 405 Method
+             * Not Allowed error.
              */
-            handleUnsupportedHttpMethod(request, channel, validMethodSet);
+            handleUnsupportedHttpMethod(request, channel, methodSet);
             return true;
-        } else if (!validMethodSet.contains(request.method()) 
+        } else if (!methodSet.contains(request.method()) 
                 && request.method() == RestRequest.Method.OPTIONS) {
-            handleOptionsRequest(request, channel, validMethodSet);
+            handleOptionsRequest(request, channel, methodSet);
             return true;
         }
-
         return false;
     }
     

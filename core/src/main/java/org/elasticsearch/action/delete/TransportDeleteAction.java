@@ -156,8 +156,8 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     }
 
     public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
-        final Engine.Delete delete =
-            replica.prepareDeleteOnReplica(request.type(), request.id(), request.seqNo(), request.version(), request.versionType());
+        final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
+                request.seqNo(), request.primaryTerm(), request.version(), request.versionType());
         return replica.delete(delete);
     }
 

@@ -46,7 +46,7 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
     //default buffer limit is 10MB
     public static final int DEFAULT_BUFFER_LIMIT = 10 * 1024 * 1024;
 
-    private final int bufferLimit;
+    private final int bufferLimitBytes;
     private volatile HttpResponse response;
     private volatile SimpleInputBuffer buf;
 
@@ -54,7 +54,7 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
      * Creates a new instance of this consumer with a buffer limit of {@link #DEFAULT_BUFFER_LIMIT}
      */
     public HeapBufferedAsyncResponseConsumer() {
-        this.bufferLimit = DEFAULT_BUFFER_LIMIT;
+        this.bufferLimitBytes = DEFAULT_BUFFER_LIMIT;
     }
 
     /**
@@ -64,7 +64,14 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
         if (bufferLimit <= 0) {
             throw new IllegalArgumentException("bufferLimit must be greater than 0");
         }
-        this.bufferLimit = bufferLimit;
+        this.bufferLimitBytes = bufferLimit;
+    }
+
+    /**
+     * Get the limit of the buffer.
+     */
+    public int getBufferLimit() {
+        return bufferLimitBytes;
     }
 
     @Override
@@ -75,9 +82,9 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
     @Override
     protected void onEntityEnclosed(HttpEntity entity, ContentType contentType) throws IOException {
         long len = entity.getContentLength();
-        if (len > bufferLimit) {
+        if (len > bufferLimitBytes) {
             throw new ContentTooLongException("entity content is too long [" + len +
-                    "] for the configured buffer limit [" + bufferLimit + "]");
+                    "] for the configured buffer limit [" + bufferLimitBytes + "]");
         }
         if (len < 0) {
             len = 4096;

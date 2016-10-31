@@ -79,16 +79,18 @@ export_elasticsearch_paths() {
 # Checks that all directories & files are correctly installed
 # after a archive (tar.gz/zip) install
 verify_archive_installation() {
-    assert_file "$ESHOME" d
-    assert_file "$ESHOME/bin" d
-    assert_file "$ESHOME/bin/elasticsearch" f
-    assert_file "$ESHOME/bin/elasticsearch.in.sh" f
-    assert_file "$ESHOME/bin/elasticsearch-plugin" f
-    assert_file "$ESCONFIG" d
-    assert_file "$ESCONFIG/elasticsearch.yml" f
-    assert_file "$ESCONFIG/log4j2.properties" f
-    assert_file "$ESHOME/lib" d
-    assert_file "$ESHOME/NOTICE.txt" f
-    assert_file "$ESHOME/LICENSE.txt" f
-    assert_file "$ESHOME/README.textile" f
+    assert_file "$ESHOME" d elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin" d elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch.in.sh" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-plugin" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-translog" f elasticsearch elasticsearch 755
+    assert_file "$ESCONFIG" d elasticsearch elasticsearch 755
+    assert_file "$ESCONFIG/elasticsearch.yml" f elasticsearch elasticsearch 660
+    assert_file "$ESCONFIG/jvm.options" f elasticsearch elasticsearch 660
+    assert_file "$ESCONFIG/log4j2.properties" f elasticsearch elasticsearch 660
+    assert_file "$ESHOME/lib" d elasticsearch elasticsearch 755
+    assert_file "$ESHOME/NOTICE.txt" f elasticsearch elasticsearch 644
+    assert_file "$ESHOME/LICENSE.txt" f elasticsearch elasticsearch 644
+    assert_file "$ESHOME/README.textile" f elasticsearch elasticsearch 644
 }

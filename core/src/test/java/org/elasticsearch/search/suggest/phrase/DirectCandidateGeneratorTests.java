@@ -21,8 +21,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,8 +34,12 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCan
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class DirectCandidateGeneratorTests extends ESTestCase{
 
@@ -51,7 +54,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             DirectCandidateGeneratorBuilder original = randomCandidateGenerator();
-            DirectCandidateGeneratorBuilder deserialized = serializedCopy(original);
+            DirectCandidateGeneratorBuilder deserialized = copy(original);
             assertEquals(deserialized, original);
             assertEquals(deserialized.hashCode(), original.hashCode());
             assertNotSame(deserialized, original);
@@ -63,47 +66,38 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
-            DirectCandidateGeneratorBuilder first = randomCandidateGenerator();
-            assertFalse("generator is equal to null", first.equals(null));
-            assertFalse("generator is equal to incompatible type", first.equals(""));
-            assertTrue("generator is not equal to self", first.equals(first));
-            assertThat("same generator's hashcode returns different values if called multiple times", first.hashCode(),
-                    equalTo(first.hashCode()));
-
-            DirectCandidateGeneratorBuilder second = serializedCopy(first);
-            assertTrue("generator is not equal to self", second.equals(second));
-            assertTrue("generator is not equal to its copy", first.equals(second));
-            assertTrue("equals is not symmetric", second.equals(first));
-            assertThat("generator copy's hashcode is different from original hashcode", second.hashCode(), equalTo(first.hashCode()));
-
-            DirectCandidateGeneratorBuilder third = serializedCopy(second);
-            assertTrue("generator is not equal to self", third.equals(third));
-            assertTrue("generator is not equal to its copy", second.equals(third));
-            assertThat("generator copy's hashcode is different from original hashcode", second.hashCode(), equalTo(third.hashCode()));
-            assertTrue("equals is not transitive", first.equals(third));
-            assertThat("generator copy's hashcode is different from original hashcode", first.hashCode(), equalTo(third.hashCode()));
-            assertTrue("equals is not symmetric", third.equals(second));
-            assertTrue("equals is not symmetric", third.equals(first));
-
-            // test for non-equality, check that all fields are covered by changing one by one
-            first = new DirectCandidateGeneratorBuilder("aaa");
-            assertEquals(first, serializedCopy(first));
-            second = new DirectCandidateGeneratorBuilder("bbb");
-            assertNotEquals(first, second);
-            assertNotEquals(first.accuracy(0.1f), serializedCopy(first).accuracy(0.2f));
-            assertNotEquals(first.maxEdits(1), serializedCopy(first).maxEdits(2));
-            assertNotEquals(first.maxInspections(1), serializedCopy(first).maxInspections(2));
-            assertNotEquals(first.maxTermFreq(0.1f), serializedCopy(first).maxTermFreq(0.2f));
-            assertNotEquals(first.minDocFreq(0.1f), serializedCopy(first).minDocFreq(0.2f));
-            assertNotEquals(first.minWordLength(1), serializedCopy(first).minWordLength(2));
-            assertNotEquals(first.postFilter("postFilter"), serializedCopy(first).postFilter("postFilter_other"));
-            assertNotEquals(first.preFilter("preFilter"), serializedCopy(first).preFilter("preFilter_other"));
-            assertNotEquals(first.prefixLength(1), serializedCopy(first).prefixLength(2));
-            assertNotEquals(first.size(1), serializedCopy(first).size(2));
-            assertNotEquals(first.sort("score"), serializedCopy(first).sort("frequency"));
-            assertNotEquals(first.stringDistance("levenstein"), serializedCopy(first).sort("ngram"));
-            assertNotEquals(first.suggestMode("missing"), serializedCopy(first).suggestMode("always"));
+            final DirectCandidateGeneratorBuilder original = randomCandidateGenerator();
+            checkEqualsAndHashCode(original, DirectCandidateGeneratorTests::copy, DirectCandidateGeneratorTests::mutate);
         }
+    }
+
+    private static DirectCandidateGeneratorBuilder mutate(DirectCandidateGeneratorBuilder original) throws IOException {
+        DirectCandidateGeneratorBuilder mutation = copy(original);
+        List<Supplier<DirectCandidateGeneratorBuilder>> mutators = new ArrayList<>();
+        mutators.add(() -> new DirectCandidateGeneratorBuilder(original.field() + "_other"));
+        mutators.add(() -> mutation.accuracy(original.accuracy() == null ? 0.1f : original.accuracy() + 0.1f));
+        mutators.add(() -> {
+            Integer maxEdits = original.maxEdits() == null ? 1 : original.maxEdits();
+            if (maxEdits == 1) {
+                maxEdits = 2;
+            } else {
+                maxEdits = 1;
+            }
+            return mutation.maxEdits(maxEdits);
+        });
+        mutators.add(() -> mutation.maxInspections(original.maxInspections() == null ? 1 : original.maxInspections() + 1));
+        mutators.add(() -> mutation.minWordLength(original.minWordLength() == null ? 1 : original.minWordLength() + 1));
+        mutators.add(() -> mutation.prefixLength(original.prefixLength() == null ? 1 : original.prefixLength() + 1));
+        mutators.add(() -> mutation.size(original.size() == null ? 1 : original.size() + 1));
+        mutators.add(() -> mutation.maxTermFreq(original.maxTermFreq() == null ? 0.1f : original.maxTermFreq() + 0.1f));
+        mutators.add(() -> mutation.minDocFreq(original.minDocFreq() == null ? 0.1f : original.minDocFreq() + 0.1f));
+        mutators.add(() -> mutation.postFilter(original.postFilter() == null ? "postFilter" : original.postFilter() + "_other"));
+        mutators.add(() -> mutation.preFilter(original.preFilter() == null ? "preFilter" : original.preFilter() + "_other"));
+        mutators.add(() -> mutation.sort(original.sort() == null ? "score" : original.sort() + "_other"));
+        mutators.add(
+                () -> mutation.stringDistance(original.stringDistance() == null ? "levenstein" : original.stringDistance() + "_other"));
+        mutators.add(() -> mutation.suggestMode(original.suggestMode() == null ? "missing" : original.suggestMode() + "_other"));
+        return randomFrom(mutators).get();
     }
 
     /**
@@ -204,12 +198,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
         return generator;
     }
 
-    private static DirectCandidateGeneratorBuilder serializedCopy(DirectCandidateGeneratorBuilder original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                return new DirectCandidateGeneratorBuilder(in);
-            }
-        }
+    private static DirectCandidateGeneratorBuilder copy(DirectCandidateGeneratorBuilder original) throws IOException {
+        return copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), DirectCandidateGeneratorBuilder::new);
     }
 }

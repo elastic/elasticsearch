@@ -17,17 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.elasticsearch.transport;
 
 /**
- * A listener that should be called by the {@link org.elasticsearch.discovery.Discovery} component
- * when the first valid initial cluster state has been submitted and processed by the cluster service.
- * <p>
- * Note, this listener should be registered with the discovery service before it has started.
- *
- *
+ * Transport request handlers that is using task context
  */
-public interface InitialStateDiscoveryListener {
-
-    void initialStateProcessed();
+public abstract class TaskAwareTransportRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T>  {
+    @Override
+    public final void messageReceived(T request, TransportChannel channel) throws Exception {
+        throw new UnsupportedOperationException("the task parameter is required");
+    }
 }

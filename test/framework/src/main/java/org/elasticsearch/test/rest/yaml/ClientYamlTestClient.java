@@ -31,6 +31,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -66,34 +67,72 @@ public class ClientYamlTestClient {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClient = restClient;
-        this.esVersion = readAndCheckVersion(hosts);
+        Tuple<Version, Version> versionTuple = readMasterAndMinNodeVersion(hosts.size());
+        this.esVersion = versionTuple.v1();
+        Version masterVersion = versionTuple.v2();
+        // this will be logged in each test such that if something fails we get it in the logs for each test
+        logger.info("initializing client, minimum es version: [{}] master version: [{}] hosts: {}", esVersion, masterVersion, hosts);
     }
 
-    private Version readAndCheckVersion(List<HttpHost> hosts) throws IOException {
+    private Tuple<Version, Version> readMasterAndMinNodeVersion(int numHosts) throws IOException {
+        try {
+            // we simply go to the _cat/nodes API and parse all versions in the cluster
+            Response response = restClient.performRequest("GET", "/_cat/nodes", Collections.singletonMap("h", "version,master"));
+            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+            String nodesCatResponse = restTestResponse.getBodyAsString();
+            String[] split = nodesCatResponse.split("\n");
+            Version version = null;
+            Version masterVersion = null;
+            for (String perNode : split) {
+                final String[] versionAndMaster = perNode.split(" ");
+                assert versionAndMaster.length == 2 : "invalid line: " + perNode + " length: " + versionAndMaster.length;
+                final Version currentVersion = Version.fromString(versionAndMaster[0]);
+                final boolean master = versionAndMaster[1].trim().equals("*");
+                if (master) {
+                    assert masterVersion == null;
+                    masterVersion = currentVersion;
+                }
+                if (version == null) {
+                    version = currentVersion;
+                } else if (version.onOrAfter(currentVersion)) {
+                        version = currentVersion;
+                }
+            }
+            return new Tuple<>(version, masterVersion);
+        } catch (ResponseException ex) {
+            if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
+                logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
+                final Version version = readAndCheckVersion(numHosts);
+                return new Tuple<>(version, version);
+            }
+            throw ex;
+        }
+    }
+
+    private Version readAndCheckVersion(int numHosts) throws IOException {
         ClientYamlSuiteRestApi restApi = restApi("info");
         assert restApi.getPaths().size() == 1;
         assert restApi.getMethods().size() == 1;
-
-        String version = null;
-        for (HttpHost ignored : hosts) {
+        Version version = null;
+        for (int i = 0; i < numHosts; i++) {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
             String method = restApi.getMethods().get(0);
             String endpoint = restApi.getPaths().get(0);
             Response response = restClient.performRequest(method, endpoint);
             ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+
             Object latestVersion = restTestResponse.evaluate("version.number");
             if (latestVersion == null) {
                 throw new RuntimeException("elasticsearch version not found in the response");
             }
+            final Version currentVersion = Version.fromString(restTestResponse.evaluate("version.number").toString());
             if (version == null) {
-                version = latestVersion.toString();
-            } else {
-                if (!latestVersion.equals(version)) {
-                    throw new IllegalArgumentException("provided nodes addresses run different elasticsearch versions");
-                }
+                version = currentVersion;
+            } else if (version.onOrAfter(currentVersion)) {
+                version = currentVersion;
             }
         }
-        return Version.fromString(version);
+        return version;
     }
 
     public Version getEsVersion() {

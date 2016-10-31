@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -50,6 +51,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -120,12 +122,12 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -481,7 +483,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    private void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
+    private static void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
         int i = validQuery.indexOf("\"" + queryName + "\"");
         assertThat(i, greaterThan(0));
 
@@ -744,47 +746,28 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
-            QB firstQuery = createTestQueryBuilder();
-            assertFalse("query is equal to null", firstQuery.equals(null));
-            assertFalse("query is equal to incompatible type", firstQuery.equals(""));
-            assertTrue("query is not equal to self", firstQuery.equals(firstQuery));
-            assertThat("same query's hashcode returns different values if called multiple times", firstQuery.hashCode(),
-                    equalTo(firstQuery.hashCode()));
-
-            QB secondQuery = copyQuery(firstQuery);
-            assertTrue("query is not equal to self", secondQuery.equals(secondQuery));
-            assertTrue("query is not equal to its copy", firstQuery.equals(secondQuery));
-            assertTrue("equals is not symmetric", secondQuery.equals(firstQuery));
-            assertThat("query copy's hashcode is different from original hashcode", secondQuery.hashCode(), equalTo(firstQuery.hashCode()));
-
-            QB thirdQuery = copyQuery(secondQuery);
-            assertTrue("query is not equal to self", thirdQuery.equals(thirdQuery));
-            assertTrue("query is not equal to its copy", secondQuery.equals(thirdQuery));
-            assertThat("query copy's hashcode is different from original hashcode", secondQuery.hashCode(), equalTo(thirdQuery.hashCode()));
-            assertTrue("equals is not transitive", firstQuery.equals(thirdQuery));
-            assertThat("query copy's hashcode is different from original hashcode", firstQuery.hashCode(), equalTo(thirdQuery.hashCode()));
-            assertTrue("equals is not symmetric", thirdQuery.equals(secondQuery));
-            assertTrue("equals is not symmetric", thirdQuery.equals(firstQuery));
-
-            if (randomBoolean()) {
-                secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
-                        + randomAsciiOfLengthBetween(1, 10));
-            } else {
-                secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-            }
-            assertThat("different queries should not be equal", secondQuery, not(equalTo(firstQuery)));
+            // TODO we only change name and boost, we should extend by any sub-test supplying a "mutate" method that randomly changes one
+            // aspect of the object under test
+            checkEqualsAndHashCode(createTestQueryBuilder(), this::copyQuery, this::changeNameOrBoost);
         }
+    }
+
+    private QB changeNameOrBoost(QB original) throws IOException {
+        QB secondQuery = copyQuery(original);
+        if (randomBoolean()) {
+            secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
+                    + randomAsciiOfLengthBetween(1, 10));
+        } else {
+            secondQuery.boost(original.boost() + 1f + randomFloat());
+        }
+        return secondQuery;
     }
 
     //we use the streaming infra to create a copy of the query provided as argument
     @SuppressWarnings("unchecked")
     private QB copyQuery(QB query) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeNamedWriteable(query);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), serviceHolder.namedWriteableRegistry)) {
-                return (QB) in.readNamedWriteable(QueryBuilder.class);
-            }
-        }
+        Reader<QB> reader = (Reader<QB>) serviceHolder.namedWriteableRegistry.getReader(QueryBuilder.class, query.getWriteableName());
+        return copyWriteable(query, serviceHolder.namedWriteableRegistry, reader);
     }
 
     /**

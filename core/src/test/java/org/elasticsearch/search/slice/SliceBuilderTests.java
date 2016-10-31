@@ -31,8 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -52,12 +51,14 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -83,19 +84,23 @@ public class SliceBuilderTests extends ESTestCase {
         indicesQueriesRegistry = null;
     }
 
-    private SliceBuilder randomSliceBuilder() throws IOException {
+    private static SliceBuilder randomSliceBuilder() throws IOException {
         int max = randomIntBetween(2, MAX_SLICE);
-        int id = randomInt(max - 1);
+        int id = randomIntBetween(1, max - 1);
         String field = randomAsciiOfLengthBetween(5, 20);
         return new SliceBuilder(field, id, max);
     }
 
     private static SliceBuilder serializedCopy(SliceBuilder original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                return new SliceBuilder(in);
-            }
+        return copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), SliceBuilder::new);
+    }
+
+    private static SliceBuilder mutate(SliceBuilder original) throws IOException {
+        switch (randomIntBetween(0, 2)) {
+            case 0: return new SliceBuilder(original.getField() + "_xyz", original.getId(), original.getMax());
+            case 1: return new SliceBuilder(original.getField(), original.getId() - 1, original.getMax());
+            case 2:
+            default: return new SliceBuilder(original.getField(), original.getId(), original.getMax() + 1);
         }
     }
 
@@ -108,29 +113,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     public void testEqualsAndHashcode() throws Exception {
-        SliceBuilder firstBuilder = randomSliceBuilder();
-        assertFalse("sliceBuilder is equal to null", firstBuilder.equals(null));
-        assertFalse("sliceBuilder is equal to incompatible type", firstBuilder.equals(""));
-        assertTrue("sliceBuilder is not equal to self", firstBuilder.equals(firstBuilder));
-        assertThat("same searchFrom's hashcode returns different values if called multiple times",
-            firstBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
-
-        SliceBuilder secondBuilder = serializedCopy(firstBuilder);
-        assertTrue("sliceBuilder is not equal to self", secondBuilder.equals(secondBuilder));
-        assertTrue("sliceBuilder is not equal to its copy", firstBuilder.equals(secondBuilder));
-        assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
-        assertThat("sliceBuilder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-            equalTo(firstBuilder.hashCode()));
-        SliceBuilder thirdBuilder = serializedCopy(secondBuilder);
-        assertTrue("sliceBuilder is not equal to self", thirdBuilder.equals(thirdBuilder));
-        assertTrue("sliceBuilder is not equal to its copy", secondBuilder.equals(thirdBuilder));
-        assertThat("sliceBuilder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-            equalTo(thirdBuilder.hashCode()));
-        assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-        assertThat("sliceBuilder copy's hashcode is different from original hashcode", firstBuilder.hashCode(),
-            equalTo(thirdBuilder.hashCode()));
-        assertTrue("sliceBuilder is not symmetric", thirdBuilder.equals(secondBuilder));
-        assertTrue("sliceBuilder is not symmetric", thirdBuilder.equals(firstBuilder));
+        checkEqualsAndHashCode(randomSliceBuilder(), SliceBuilderTests::serializedCopy, SliceBuilderTests::mutate);
     }
 
     public void testFromXContent() throws Exception {

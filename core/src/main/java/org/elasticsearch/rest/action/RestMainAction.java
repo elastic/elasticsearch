@@ -23,6 +23,7 @@ import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -59,9 +60,6 @@ public class RestMainAction extends BaseRestHandler {
 
     static BytesRestResponse convertMainResponse(MainResponse response, RestRequest request, XContentBuilder builder) throws IOException {
         RestStatus status = response.isAvailable() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
-        if (request.method() == RestRequest.Method.HEAD) {
-            return new BytesRestResponse(status, builder);
-        }
 
         // Default to pretty printing, but allow ?pretty=false to disable
         if (request.hasParam("pretty") == false) {

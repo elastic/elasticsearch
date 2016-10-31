@@ -18,7 +18,7 @@ package org.elasticsearch.test;/*
  */
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -208,10 +208,10 @@ public class BackgroundIndexer implements AutoCloseable {
     }
 
     private XContentBuilder generateSource(long id, Random random) throws IOException {
-        int contentLength = RandomInts.randomIntBetween(random, minFieldSize, maxFieldSize);
+        int contentLength = RandomNumbers.randomIntBetween(random, minFieldSize, maxFieldSize);
         StringBuilder text = new StringBuilder(contentLength);
         while (text.length() < contentLength) {
-            int tokenLength = RandomInts.randomIntBetween(random, 1, Math.min(contentLength - text.length(), 10));
+            int tokenLength = RandomNumbers.randomIntBetween(random, 1, Math.min(contentLength - text.length(), 10));
             text.append(" ").append(RandomStrings.randomRealisticUnicodeOfCodepointLength(random, tokenLength));
         }
         XContentBuilder builder = XContentFactory.smileBuilder();

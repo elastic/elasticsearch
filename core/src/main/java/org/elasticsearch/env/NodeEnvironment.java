@@ -1002,11 +1002,16 @@ public final class NodeEnvironment  implements Closeable {
     private static void tryWriteTempFile(Path path) throws IOException {
         if (Files.exists(path)) {
             Path resolve = path.resolve(".es_temp_file");
+            boolean tempFileCreated = false;
             try {
                 Files.createFile(resolve);
-                Files.deleteIfExists(resolve);
+                tempFileCreated = true;
             } catch (IOException ex) {
                 throw new IOException("failed to write in data directory [" + path + "] write permission is required", ex);
+            } finally {
+                if (tempFileCreated) {
+                    Files.deleteIfExists(resolve);
+                }
             }
         }
     }

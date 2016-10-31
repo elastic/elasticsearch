@@ -31,6 +31,10 @@ public class FetchPhaseExecutionException extends SearchContextException {
         super(context, "Fetch Failed [" + msg + "]", t);
     }
 
+    public FetchPhaseExecutionException(SearchContext context, String msg) {
+        super(context, "Fetch Failed [" + msg + "]");
+    }
+
     public FetchPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
     }

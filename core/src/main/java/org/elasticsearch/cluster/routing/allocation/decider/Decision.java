@@ -138,6 +138,18 @@ public abstract class Decision implements ToXContent {
                     throw new IllegalArgumentException("Invalid Type [" + type + "]");
             }
         }
+
+        public boolean higherThan(Type other) {
+            if (this == NO) {
+                return false;
+            } else if (other == NO) {
+                return true;
+            } else if (other == THROTTLE && this == YES) {
+                return true;
+            }
+            return false;
+        }
+
     }
 
     /**

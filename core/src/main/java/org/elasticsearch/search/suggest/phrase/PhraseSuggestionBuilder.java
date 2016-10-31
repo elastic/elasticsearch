@@ -39,11 +39,10 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -394,7 +393,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * Sets a query used for filtering out suggested phrases (collation).
      */
     public PhraseSuggestionBuilder collateQuery(String collateQuery) {
-        this.collateQuery = new Script(collateQuery, ScriptService.ScriptType.INLINE, "mustache", Collections.emptyMap());
+        this.collateQuery = new Script(collateQuery, ScriptType.INLINE, "mustache", Collections.emptyMap());
         return this;
     }
 

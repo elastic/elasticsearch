@@ -54,9 +54,11 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -253,7 +255,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                     assertFalse("not a dir", Files.isDirectory(file));
                     if (isPosix) {
                         PosixFileAttributes attributes = Files.readAttributes(file, PosixFileAttributes.class);
-                        assertEquals(InstallPluginCommand.DIR_AND_EXECUTABLE_PERMS, attributes.permissions());
+                        assertEquals(InstallPluginCommand.BIN_FILES_PERMS, attributes.permissions());
                     }
                 }
             }
@@ -263,18 +265,33 @@ public class InstallPluginCommandTests extends ESTestCase {
             assertTrue("config dir exists", Files.exists(configDir));
             assertTrue("config is a dir", Files.isDirectory(configDir));
 
+            UserPrincipal user = null;
+            GroupPrincipal group = null;
+
             if (isPosix) {
-                Path configRoot = env.configFile();
                 PosixFileAttributes configAttributes =
-                    Files.getFileAttributeView(configRoot, PosixFileAttributeView.class).readAttributes();
+                        Files.getFileAttributeView(env.configFile(), PosixFileAttributeView.class).readAttributes();
+                user = configAttributes.owner();
+                group = configAttributes.group();
+
                 PosixFileAttributes attributes = Files.getFileAttributeView(configDir, PosixFileAttributeView.class).readAttributes();
-                assertThat(attributes.owner(), equalTo(configAttributes.owner()));
-                assertThat(attributes.group(), equalTo(configAttributes.group()));
+                assertThat(attributes.owner(), equalTo(user));
+                assertThat(attributes.group(), equalTo(group));
             }
 
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(configDir)) {
                 for (Path file : stream) {
                     assertFalse("not a dir", Files.isDirectory(file));
+
+                    if (isPosix) {
+                        PosixFileAttributes attributes = Files.readAttributes(file, PosixFileAttributes.class);
+                        if (user != null) {
+                            assertThat(attributes.owner(), equalTo(user));
+                        }
+                        if (group != null) {
+                            assertThat(attributes.group(), equalTo(group));
+                        }
+                    }
                 }
             }
         }

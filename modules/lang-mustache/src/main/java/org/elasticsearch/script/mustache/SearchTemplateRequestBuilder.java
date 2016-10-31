@@ -22,7 +22,7 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.util.Map;
 
@@ -63,7 +63,7 @@ public class SearchTemplateRequestBuilder
         return this;
     }
 
-    public SearchTemplateRequestBuilder setScriptType(ScriptService.ScriptType scriptType) {
+    public SearchTemplateRequestBuilder setScriptType(ScriptType scriptType) {
         request.setScriptType(scriptType);
         return this;
     }

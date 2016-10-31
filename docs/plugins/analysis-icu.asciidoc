@@ -164,7 +164,11 @@ PUT icu_sample
     }
 }
 
-POST icu_sample/_analyze?analyzer=my_analyzer&text=Elasticsearch. Wow!
+GET icu_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Elasticsearch. Wow!"
+}
 --------------------------------------------------
 // CONSOLE
 
@@ -480,18 +484,21 @@ PUT icu_sample
   }
 }
 
-GET icu_sample/_analyze?analyzer=latin
+GET icu_sample/_analyze
 {
+  "analyzer": "latin",
   "text": "你好" <2>
 }
 
-GET icu_sample/_analyze?analyzer=latin
+GET icu_sample/_analyze
 {
+  "analyzer": "latin",
   "text": "здравствуйте" <3>
 }
 
-GET icu_sample/_analyze?analyzer=latin
+GET icu_sample/_analyze
 {
+  "analyzer": "latin",
   "text": "こんにちは" <4>
 }
 

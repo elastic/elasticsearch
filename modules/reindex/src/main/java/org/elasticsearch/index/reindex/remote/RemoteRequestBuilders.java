@@ -89,6 +89,10 @@ final class RemoteRequestBuilders {
                 params.put("sort", sorts.toString());
             }
         }
+        if (remoteVersion.before(Version.V_2_0_0)) {
+            // Versions before 2.0.0 need prompting to return interesting fields. Note that timestamp isn't available at all....
+            searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
+        }
         if (searchRequest.source().storedFields() != null && false == searchRequest.source().storedFields().fieldNames().isEmpty()) {
             StringBuilder fields = new StringBuilder(searchRequest.source().storedFields().fieldNames().get(0));
             for (int i = 1; i < searchRequest.source().storedFields().fieldNames().size(); i++) {
@@ -97,6 +101,8 @@ final class RemoteRequestBuilders {
             String storedFieldsParamName = remoteVersion.before(Version.V_5_0_0_alpha4) ? "fields" : "stored_fields";
             params.put(storedFieldsParamName, fields.toString());
         }
+        // We always want the _source document and this will force it to be returned.
+        params.put("_source", "true");
         return params;
     }
 

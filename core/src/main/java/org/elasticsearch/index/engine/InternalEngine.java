@@ -35,13 +35,13 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -502,7 +502,8 @@ public class InternalEngine extends Engine {
             // if anything is fishy here ie. there is a retry we go and force updateDocument below so we are updating the document in the
             // lucene index without checking the version map but we still do the version check
             final boolean forceUpdateDocument;
-            if (canOptimizeAddDocument(index)) {
+            final boolean canOptimizeAddDocument = canOptimizeAddDocument(index);
+            if (canOptimizeAddDocument) {
                 long deOptimizeTimestamp = maxUnsafeAutoIdTimestamp.get();
                 if (index.isRetry()) {
                     forceUpdateDocument = true;
@@ -542,7 +543,8 @@ public class InternalEngine extends Engine {
                 updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
                 index.parsedDoc().version().setLongValue(updatedVersion);
                 if (currentVersion == Versions.NOT_FOUND && forceUpdateDocument == false) {
-                    // document does not exists, we can optimize for create
+                    // document does not exists, we can optimize for create, but double check if assertions are running
+                    assert assertDocDoesNotExist(index, canOptimizeAddDocument == false);
                     index(index.docs(), indexWriter);
                 } else {
                     update(index.uid(), index.docs(), indexWriter);
@@ -566,6 +568,26 @@ public class InternalEngine extends Engine {
         } else {
             indexWriter.addDocument(docs.get(0));
         }
+    }
+
+    /**
+     * Asserts that the doc in the index operation really doesn't exist
+     */
+    private boolean assertDocDoesNotExist(final Index index, final boolean allowDeleted) throws IOException {
+        final VersionValue versionValue = versionMap.getUnderLock(index.uid());
+        if (versionValue != null) {
+            if (versionValue.delete() == false || allowDeleted == false) {
+                throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
+            }
+        } else {
+            try (final Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
+                final long docsWithId = searcher.searcher().count(new TermQuery(index.uid()));
+                if (docsWithId > 0) {
+                    throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
+                }
+            }
+        }
+        return true;
     }
 
     private static void update(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {

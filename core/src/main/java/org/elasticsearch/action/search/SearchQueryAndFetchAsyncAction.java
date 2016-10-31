@@ -43,9 +43,10 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
                                    Map<String, AliasFilter> aliasFilter,
                                    SearchPhaseController searchPhaseController, Executor executor,
                                    SearchRequest request, ActionListener<SearchResponse> listener,
-                                   GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
+                                   GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
+                                   SearchTask task) {
         super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor,
-                request, listener, shardsIts, startTime, clusterStateVersion);
+                request, listener, shardsIts, startTime, clusterStateVersion, task);
         this.searchPhaseController = searchPhaseController;
 
     }
@@ -58,7 +59,7 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
     @Override
     protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
                                          ActionListener<QueryFetchSearchResult> listener) {
-        searchTransportService.sendExecuteFetch(node, request, listener);
+        searchTransportService.sendExecuteFetch(node, request, task, listener);
     }
 
     @Override

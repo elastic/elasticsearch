@@ -14,7 +14,7 @@ GET /_cat/indices/twi*?v&s=index
 
 Might respond with:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
@@ -51,7 +51,7 @@ GET /_cat/indices?v&health=yellow
 
 Which looks like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
@@ -71,7 +71,7 @@ GET /_cat/indices?v&s=store.size:desc
 
 Which looks like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb

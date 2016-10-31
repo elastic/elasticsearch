@@ -84,19 +84,19 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         ClusterState current = clusterStateFromNodes(Collections.emptyList());
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
         assertConnected(event.nodesDelta().addedNodes());
 
-        service.disconnectFromRemovedNodes(event);
+        service.disconnectFromNodes(event.nodesDelta().removedNodes());
         assertConnectedExactlyToNodes(event.state());
 
         current = event.state();
         event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
         assertConnected(event.nodesDelta().addedNodes());
 
-        service.disconnectFromRemovedNodes(event);
+        service.disconnectFromNodes(event.nodesDelta().removedNodes());
         assertConnectedExactlyToNodes(event.state());
     }
 
@@ -110,7 +110,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         transport.randomConnectionExceptions = true;
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
 
         for (int i = 0; i < 3; i++) {
             // simulate disconnects

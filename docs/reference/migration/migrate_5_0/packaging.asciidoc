@@ -44,6 +44,16 @@ from the tar or zip distributions, and /etc/elasticsearch/jvm.options if install
 from the Debian or RPM packages. You can specify an alternative location by setting
 the environment variable `ES_JVM_OPTIONS` to the path to the file.
 
+==== Thread stack size for the Windows service
+
+Previously when installing the Windows service, the installation script
+would configure the thread stack size (this is required for the service
+daemon). As a result of moving all JVM configuration to the
+<<es-java-opts,jvm.options file>>, the service installation script no
+longer configures the thread stack size. When installing the Windows
+service, you must configure thread stack size. For additional details,
+see the <<windows-service,installation docs>>.
+
 ==== /bin/bash is now required
 
 Previously, the scripts used to start Elasticsearch and run plugin

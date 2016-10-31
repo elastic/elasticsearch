@@ -19,8 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.spell.LevensteinDistance;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
@@ -35,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
@@ -129,7 +129,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 settingUpdater.getValue(current, previous);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
-                logger.debug("failed to prepareCommit settings for [{}]", ex, settingUpdater);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
             }
         }
         // here we are exhaustive and record all settings that failed.
@@ -157,7 +157,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 try {
                     applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
-                    logger.warn("failed to prepareCommit settings for [{}]", ex, settingUpdater);
+                    logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
                     throw ex;
                 }
             }
@@ -374,6 +375,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 builder.put(setting.getKey(), setting.getRaw(defaultSettings));
             }
         }
+        for (Setting<?> setting : complexMatchers.values()) {
+            if (setting.exists(source) == false) {
+                builder.put(setting.getKey(), setting.getRaw(defaultSettings));
+            }
+        }
         return builder.build();
     }
 
@@ -492,11 +498,21 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Archives broken or unknown settings. Any setting that is not recognized or fails
-     * validation will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
-     * and remains in the settings object. This can be used to detect broken settings via APIs.
+     * Archives invalid or unknown settings. Any setting that is not recognized or fails validation
+     * will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
+     * and remains in the settings object. This can be used to detect invalid settings via APIs.
+     *
+     * @param settings        the {@link Settings} instance to scan for unknown or invalid settings
+     * @param unknownConsumer callback on unknown settings (consumer receives unknown key and its
+     *                        associated value)
+     * @param invalidConsumer callback on invalid settings (consumer receives invalid key, its
+     *                        associated value and an exception)
+     * @return a {@link Settings} instance with the unknown or invalid settings archived
      */
-    public Settings archiveUnknownOrBrokenSettings(Settings settings) {
+    public Settings archiveUnknownOrInvalidSettings(
+        final Settings settings,
+        final Consumer<Map.Entry<String, String>> unknownConsumer,
+        final BiConsumer<Map.Entry<String, String>, IllegalArgumentException> invalidConsumer) {
         Settings.Builder builder = Settings.builder();
         boolean changed = false;
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
@@ -510,10 +526,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                         builder.put(entry.getKey(), entry.getValue());
                     } else {
                         changed = true;
-                        logger.warn("found unknown setting: {} value: {} - archiving", entry.getKey(), entry.getValue());
+                        unknownConsumer.accept(entry);
                         /*
-                         * We put them back in here such that tools can check from the outside if there are any indices with broken
-                         * settings. The setting can remain there but we want users to be aware that some of their setting are broken and
+                         * We put them back in here such that tools can check from the outside if there are any indices with invalid
+                         * settings. The setting can remain there but we want users to be aware that some of their setting are invalid and
                          * they can research why and what they need to do to replace them.
                          */
                         builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
@@ -521,10 +537,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 }
             } catch (IllegalArgumentException ex) {
                 changed = true;
-                logger.warn("found invalid setting: {} value: {} - archiving",ex , entry.getKey(), entry.getValue());
+                invalidConsumer.accept(entry, ex);
                 /*
-                 * We put them back in here such that tools can check from the outside if there are any indices with broken settings. The
-                 * setting can remain there but we want users to be aware that some of their setting are broken and they can research why
+                 * We put them back in here such that tools can check from the outside if there are any indices with invalid settings. The
+                 * setting can remain there but we want users to be aware that some of their setting are invalid and they can research why
                  * and what they need to do to replace them.
                  */
                 builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());

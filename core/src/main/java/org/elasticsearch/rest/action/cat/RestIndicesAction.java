@@ -27,9 +27,10 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -39,17 +40,19 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActionListener;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestResponseListener;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -72,7 +75,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().indices(indices).metaData(true);
@@ -81,7 +84,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final IndicesOptions strictExpandIndicesOptions = IndicesOptions.strictExpand();
         clusterStateRequest.indicesOptions(strictExpandIndicesOptions);
 
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final ClusterState state = clusterStateResponse.getState();
@@ -121,6 +124,19 @@ public class RestIndicesAction extends AbstractCatAction {
                 });
             }
         });
+    }
+
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>(Arrays.asList("local", "health"));
+        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 
     @Override
@@ -315,15 +331,31 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(RestRequest request, Index[] indices, ClusterHealthResponse health, IndicesStatsResponse stats, MetaData indexMetaDatas) {
+    Table buildTable(RestRequest request, Index[] indices, ClusterHealthResponse response, IndicesStatsResponse stats, MetaData indexMetaDatas) {
+        final String healthParam = request.param("health");
+        final ClusterHealthStatus status;
+        if (healthParam != null) {
+            status = ClusterHealthStatus.fromString(healthParam);
+        } else {
+            status = null;
+        }
+
         Table table = getTableWithHeader(request);
 
         for (final Index index : indices) {
             final String indexName = index.getName();
-            ClusterIndexHealth indexHealth = health.getIndices().get(indexName);
+            ClusterIndexHealth indexHealth = response.getIndices().get(indexName);
             IndexStats indexStats = stats.getIndices().get(indexName);
             IndexMetaData indexMetaData = indexMetaDatas.getIndices().get(indexName);
             IndexMetaData.State state = indexMetaData.getState();
+
+            if (status != null) {
+                if (state == IndexMetaData.State.CLOSE ||
+                        (indexHealth == null && !ClusterHealthStatus.RED.equals(status)) ||
+                        !indexHealth.getStatus().equals(status)) {
+                    continue;
+                }
+            }
 
             table.startRow();
             table.addCell(state == IndexMetaData.State.OPEN ? (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);

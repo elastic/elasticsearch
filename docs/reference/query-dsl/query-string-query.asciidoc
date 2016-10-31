@@ -85,6 +85,11 @@ Defaults to `ROOT`.
 
 |`time_zone` | Time Zone to be applied to any range query related to dates. See also
 http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[JODA timezone].
+
+|`quote_field_suffix` | A suffix to append to fields for quoted parts of
+the query string. This allows to use a field that has a different analysis chain
+for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
+comprehensive example.
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets

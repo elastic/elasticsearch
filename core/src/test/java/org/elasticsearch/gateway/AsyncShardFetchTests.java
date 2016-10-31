@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -42,14 +41,12 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- */
 public class AsyncShardFetchTests extends ESTestCase {
-    private final DiscoveryNode node1 = new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+    private final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     private final Response response1 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = new DiscoveryNode("node2", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+    private final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");
@@ -71,7 +68,7 @@ public class AsyncShardFetchTests extends ESTestCase {
     }
 
     public void testClose() throws Exception {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
         test.addSimulation(node1.getId(), response1);
 
         // first fetch, no data, still on going
@@ -93,7 +90,7 @@ public class AsyncShardFetchTests extends ESTestCase {
     }
 
     public void testFullCircleSingleNodeSuccess() throws Exception {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
         test.addSimulation(node1.getId(), response1);
 
         // first fetch, no data, still on going
@@ -112,7 +109,7 @@ public class AsyncShardFetchTests extends ESTestCase {
     }
 
     public void testFullCircleSingleNodeFailure() throws Exception {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
         // add a failed response for node1
         test.addSimulation(node1.getId(), failure1);
 
@@ -144,7 +141,7 @@ public class AsyncShardFetchTests extends ESTestCase {
     }
 
     public void testTwoNodesOnSetup() throws Exception {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).put(node2).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         test.addSimulation(node1.getId(), response1);
         test.addSimulation(node2.getId(), response2);
 
@@ -172,7 +169,7 @@ public class AsyncShardFetchTests extends ESTestCase {
     }
 
     public void testTwoNodesOnSetupAndFailure() throws Exception {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).put(node2).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         test.addSimulation(node1.getId(), response1);
         test.addSimulation(node2.getId(), failure2);
 
@@ -198,7 +195,7 @@ public class AsyncShardFetchTests extends ESTestCase {
     }
 
     public void testTwoNodesAddedInBetween() throws Exception {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
         test.addSimulation(node1.getId(), response1);
 
         // no fetched data, 2 requests still on going
@@ -210,7 +207,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.fireSimulationAndWait(node1.getId());
 
         // now, add a second node to the nodes, it should add it to the ongoing requests
-        nodes = DiscoveryNodes.builder(nodes).put(node2).build();
+        nodes = DiscoveryNodes.builder(nodes).add(node2).build();
         test.addSimulation(node2.getId(), response2);
         // no fetch data, has a new node introduced
         fetchData = test.fetchData(nodes, emptySet());

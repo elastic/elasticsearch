@@ -39,9 +39,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class TermsShardMinDocCountIT extends ESIntegTestCase {
     private static final String index = "someindex";
     private static final String type = "testtype";

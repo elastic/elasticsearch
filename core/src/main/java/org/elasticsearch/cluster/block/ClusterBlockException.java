@@ -30,9 +30,6 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
 
-/**
- *
- */
 public class ClusterBlockException extends ElasticsearchException {
     private final Set<ClusterBlock> blocks;
 

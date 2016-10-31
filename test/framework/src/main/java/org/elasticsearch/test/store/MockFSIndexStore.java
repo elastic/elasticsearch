@@ -19,13 +19,12 @@
 
 package org.elasticsearch.test.store;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -98,7 +97,7 @@ public class MockFSIndexStore extends IndexStore {
             if (indexShard != null) {
                 Boolean remove = shardSet.remove(indexShard);
                 if (remove == Boolean.TRUE) {
-                    ESLogger logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+                    Logger logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
                     MockFSDirectoryService.checkIndex(logger, indexShard.store(), indexShard.shardId());
                 }
             }

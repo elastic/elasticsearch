@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.state;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -28,7 +29,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -38,12 +38,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SimpleIndexStateIT extends ESIntegTestCase {
-    private final ESLogger logger = Loggers.getLogger(SimpleIndexStateIT.class);
+    private final Logger logger = Loggers.getLogger(SimpleIndexStateIT.class);
 
     public void testSimpleOpenClose() {
         logger.info("--> creating test index");

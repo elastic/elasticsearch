@@ -45,6 +45,7 @@ public class CollectorResult implements ToXContent, Writeable {
     public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
     public static final String REASON_SEARCH_MULTI = "search_multi";
     public static final String REASON_SEARCH_TIMEOUT = "search_timeout";
+    public static final String REASON_SEARCH_CANCELLED = "search_cancelled";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 

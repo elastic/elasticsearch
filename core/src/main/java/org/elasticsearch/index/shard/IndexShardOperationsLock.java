@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IndexShardOperationsLock implements Closeable {
     private final ShardId shardId;
-    private final ESLogger logger;
+    private final Logger logger;
     private final ThreadPool threadPool;
 
     private static final int TOTAL_PERMITS = Integer.MAX_VALUE;
@@ -44,7 +44,7 @@ public class IndexShardOperationsLock implements Closeable {
     @Nullable private List<ActionListener<Releasable>> delayedOperations; // operations that are delayed due to relocation hand-off
     private volatile boolean closed;
 
-    public IndexShardOperationsLock(ShardId shardId, ESLogger logger, ThreadPool threadPool) {
+    public IndexShardOperationsLock(ShardId shardId, Logger logger, ThreadPool threadPool) {
         this.shardId = shardId;
         this.logger = logger;
         this.threadPool = threadPool;

@@ -30,13 +30,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -56,7 +56,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
@@ -64,26 +64,27 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
+        return channel ->
+                client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
+                        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
 
-                boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
-                if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
-                    return new BytesRestResponse(OK, builder.startObject().endObject());
-                }
+                        boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
+                        if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
+                            return new BytesRestResponse(OK, builder.startObject().endObject());
+                        }
 
-                RestStatus status = OK;
-                if (mappingsByIndex.isEmpty() && fields.length > 0) {
-                    status = NOT_FOUND;
-                }
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(status, builder);
-            }
-        });
+                        RestStatus status = OK;
+                        if (mappingsByIndex.isEmpty() && fields.length > 0) {
+                            status = NOT_FOUND;
+                        }
+                        builder.startObject();
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        return new BytesRestResponse(status, builder);
+                    }
+                });
     }
 
     /**

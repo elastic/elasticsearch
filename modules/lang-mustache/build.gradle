@@ -24,13 +24,14 @@ esplugin {
 }
 
 dependencies {
-  compile "com.github.spullara.mustache.java:compiler:0.9.1"
+  compile "com.github.spullara.mustache.java:compiler:0.9.3"
 }
 
 integTest {
   cluster {
     setting 'script.inline', 'true'
     setting 'script.stored', 'true'
+    setting 'script.max_compilations_per_minute', '1000'
     setting 'path.scripts', "${project.buildDir}/resources/test/templates"
   }
 }

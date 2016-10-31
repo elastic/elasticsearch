@@ -22,8 +22,6 @@ import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-/**
- */
 public class StoreRateLimiting {
 
     public interface Provider {
@@ -68,14 +66,14 @@ public class StoreRateLimiting {
     }
 
     public void setMaxRate(ByteSizeValue rate) {
-        if (rate.bytes() <= 0) {
+        if (rate.getBytes() <= 0) {
             actualRateLimiter = null;
         } else if (actualRateLimiter == null) {
             actualRateLimiter = rateLimiter;
-            actualRateLimiter.setMBPerSec(rate.mbFrac());
+            actualRateLimiter.setMBPerSec(rate.getMbFrac());
         } else {
             assert rateLimiter == actualRateLimiter;
-            rateLimiter.setMBPerSec(rate.mbFrac());
+            rateLimiter.setMBPerSec(rate.getMbFrac());
         }
     }
 

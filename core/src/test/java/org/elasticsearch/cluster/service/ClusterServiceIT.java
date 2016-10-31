@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.service;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -58,19 +60,15 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class ClusterServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestPlugin.class);
+        return Arrays.asList(TestPlugin.class);
     }
 
     public void testAckedUpdateTask() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
@@ -125,7 +123,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -143,10 +141,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskSameClusterState() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
@@ -196,7 +191,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -214,10 +209,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskNoAckExpected() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
@@ -270,7 +262,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -286,10 +278,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskTimeoutZero() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
@@ -344,7 +333,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -361,13 +350,10 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @TestLogging("_root:debug,action.admin.cluster.tasks:trace")
+    @TestLogging("_root:debug,org.elasticsearch.action.admin.cluster.tasks:trace")
     public void testPendingUpdateTask() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        String node_0 = internalCluster().startNode(settings);
-        internalCluster().startCoordinatingOnlyNode(settings);
+        String node_0 = internalCluster().startNode();
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node_0);
         final CountDownLatch block1 = new CountDownLatch(1);
@@ -499,7 +485,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
     public void testLocalNodeMasterListenerCallbacks() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
                 .put("discovery.initial_state_timeout", "500ms")

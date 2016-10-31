@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.junit.listeners;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -47,7 +47,8 @@ public class LoggingListener extends RunListener {
 
     @Override
     public void testRunStarted(Description description) throws Exception {
-        previousPackageLoggingMap = processTestLogging(description.getTestClass().getPackage().getAnnotation(TestLogging.class));
+        Package testClassPackage = description.getTestClass().getPackage();
+        previousPackageLoggingMap = processTestLogging(testClassPackage != null ? testClassPackage.getAnnotation(TestLogging.class) : null);
         previousClassLoggingMap = processTestLogging(description.getAnnotation(TestLogging.class));
     }
 
@@ -68,7 +69,7 @@ public class LoggingListener extends RunListener {
         previousLoggingMap = reset(previousLoggingMap);
     }
 
-    private static ESLogger resolveLogger(String loggerName) {
+    private static Logger resolveLogger(String loggerName) {
         if (loggerName.equalsIgnoreCase("_root")) {
             return ESLoggerFactory.getRootLogger();
         }
@@ -82,9 +83,9 @@ public class LoggingListener extends RunListener {
         }
         Map<String, String> previousValues = new HashMap<>();
         for (Map.Entry<String, String> entry : map.entrySet()) {
-            ESLogger esLogger = resolveLogger(entry.getKey());
-            previousValues.put(entry.getKey(), esLogger.getLevel());
-            esLogger.setLevel(entry.getValue());
+            Logger logger = resolveLogger(entry.getKey());
+            previousValues.put(entry.getKey(), logger.getLevel().toString());
+            Loggers.setLevel(logger, entry.getValue());
         }
         return previousValues;
     }
@@ -109,8 +110,8 @@ public class LoggingListener extends RunListener {
     private Map<String, String> reset(Map<String, String> map) {
         if (map != null) {
             for (Map.Entry<String, String> previousLogger : map.entrySet()) {
-                ESLogger esLogger = resolveLogger(previousLogger.getKey());
-                esLogger.setLevel(previousLogger.getValue());
+                Logger logger = resolveLogger(previousLogger.getKey());
+                Loggers.setLevel(logger, previousLogger.getValue());
             }
         }
         return null;

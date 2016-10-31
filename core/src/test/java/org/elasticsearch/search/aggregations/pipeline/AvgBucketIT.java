@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -95,7 +94,7 @@ public class AvgBucketIT extends ESIntegTestCase {
     public void testDocCountTopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                        .extendedBounds(minRandomValue, maxRandomValue))
                 .addAggregation(avgBucket("avg_bucket", "histo>_count")).execute().actionGet();
 
         assertSearchResponse(response);
@@ -133,7 +132,7 @@ public class AvgBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                                                .extendedBounds(minRandomValue, maxRandomValue))
                 .subAggregation(avgBucket("avg_bucket", "histo>_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -215,7 +214,7 @@ public class AvgBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
+                                                .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .subAggregation(avgBucket("avg_bucket", "histo>sum"))).execute().actionGet();
 
@@ -268,7 +267,7 @@ public class AvgBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
+                                                .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .subAggregation(avgBucket("avg_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
                 .execute().actionGet();
@@ -341,7 +340,7 @@ public class AvgBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                                                .extendedBounds(minRandomValue, maxRandomValue))
                 .subAggregation(avgBucket("avg_histo_bucket", "histo>_count")))
                 .addAggregation(avgBucket("avg_terms_bucket", "terms>avg_histo_bucket")).execute().actionGet();
 

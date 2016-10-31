@@ -22,7 +22,6 @@ package org.elasticsearch.recovery;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -46,7 +45,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -71,6 +70,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -87,16 +87,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-/**
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@TestLogging("_root:DEBUG,indices.recovery:TRACE,index.shard.service:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.index.shard.service:TRACE")
 public class RelocationIT extends ESIntegTestCase {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
     }
 
     public void testSimpleRelocationNoIndexing() {
@@ -136,9 +134,9 @@ public class RelocationIT extends ESIntegTestCase {
                 .add(new MoveAllocationCommand("test", 0, node_1, node_2))
                 .execute().actionGet();
 
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count again...");
@@ -199,9 +197,9 @@ public class RelocationIT extends ESIntegTestCase {
                     logger.debug("--> flushing");
                     client().admin().indices().prepareFlush().get();
                 }
-                ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+                ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-                clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+                clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
                 indexer.pauseIndexing();
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
@@ -218,7 +216,7 @@ public class RelocationIT extends ESIntegTestCase {
             for (int i = 0; i < 10; i++) {
                 try {
                     logger.info("--> START search test round {}", i + 1);
-                    SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).setNoStoredFields().execute().actionGet().getHits();
+                    SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).storedFields().execute().actionGet().getHits();
                     ranOnce = true;
                     if (hits.totalHits() != indexer.totalIndexedDocs()) {
                         int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
@@ -232,13 +230,8 @@ public class RelocationIT extends ESIntegTestCase {
                                 logger.error("Extra id [{}]", id);
                             }
                         }
-                        set.forEach(new IntProcedure() {
-
-                            @Override
-                            public void apply(int value) {
-                                logger.error("Missing id [{}]", value);
-                            }
-
+                        set.forEach((IntProcedure) value -> {
+                            logger.error("Missing id [{}]", value);
                         });
                     }
                     assertThat(hits.totalHits(), equalTo(indexer.totalIndexedDocs()));
@@ -332,7 +325,7 @@ public class RelocationIT extends ESIntegTestCase {
             indexRandom(true, true, builders2);
 
             // verify cluster was finished.
-            assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).setTimeout("30s").get().isTimedOut());
+            assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).setTimeout("30s").get().isTimedOut());
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
 
             logger.debug("--> verifying all searches return the same number of docs");
@@ -363,7 +356,7 @@ public class RelocationIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}"));
         }
         indexRandom(true, requests);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
@@ -498,7 +491,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         @Override
         public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-            if (action.equals(RecoveryTargetService.Actions.FILE_CHUNK)) {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files

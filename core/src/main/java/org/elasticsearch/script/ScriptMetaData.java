@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,7 +66,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         if (scriptAsBytes == null) {
             return null;
         }
-        return parseStoredScript(scriptAsBytes);
+        return scriptAsBytes.utf8ToString();
     }
 
     public static String parseStoredScript(BytesReference scriptAsBytes) {
@@ -78,6 +79,9 @@ public final class ScriptMetaData implements MetaData.Custom {
              XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             parser.nextToken();
             parser.nextToken();
+            if (parser.currentToken() == Token.END_OBJECT) {
+                throw new IllegalArgumentException("Empty script");
+            }
             switch (parser.currentName()) {
                 case "script":
                 case "template":
@@ -115,10 +119,8 @@ public final class ScriptMetaData implements MetaData.Custom {
                 case FIELD_NAME:
                     key = parser.currentName();
                     break;
-                case START_OBJECT:
-                    XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-                    contentBuilder.copyCurrentStructure(parser);
-                    scripts.put(key, new ScriptAsBytes(contentBuilder.bytes()));
+                case VALUE_STRING:
+                    scripts.put(key, new ScriptAsBytes(new BytesArray(parser.text())));
                     break;
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "]");
@@ -147,7 +149,7 @@ public final class ScriptMetaData implements MetaData.Custom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, ScriptAsBytes> entry : scripts.entrySet()) {
-            builder.rawField(entry.getKey(), entry.getValue().script);
+            builder.field(entry.getKey(), entry.getValue().script.utf8ToString());
         }
         return builder;
     }
@@ -188,8 +190,8 @@ public final class ScriptMetaData implements MetaData.Custom {
     @Override
     public String toString() {
         return "ScriptMetaData{" +
-                "scripts=" + scripts +
-                '}';
+            "scripts=" + scripts +
+            '}';
     }
 
     static String toKey(String language, String id) {
@@ -216,7 +218,8 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
 
         public Builder storeScript(String lang, String id, BytesReference script) {
-            scripts.put(toKey(lang, id), new ScriptAsBytes(script));
+            BytesReference scriptBytest = new BytesArray(parseStoredScript(script));
+            scripts.put(toKey(lang, id), new ScriptAsBytes(scriptBytest));
             return this;
         }
 

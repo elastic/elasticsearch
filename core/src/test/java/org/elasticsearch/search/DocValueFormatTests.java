@@ -19,11 +19,15 @@
 
 package org.elasticsearch.search;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
@@ -33,13 +37,14 @@ import org.joda.time.DateTimeZone;
 public class DocValueFormatTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        NamedWriteableRegistry registry = new NamedWriteableRegistry();
-        registry.register(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN);
-        registry.register(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new);
-        registry.register(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new);
-        registry.register(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
-        registry.register(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
-        registry.register(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
+        List<Entry> entries = new ArrayList<>();
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW));
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(entries);
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeNamedWriteable(DocValueFormat.BOOLEAN);

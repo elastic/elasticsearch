@@ -57,7 +57,7 @@ GET /my_index/_search
 {
   "query": {
     "has_parent": {
-      "type": "blog_post",
+      "parent_type": "blog_post",
         "query": {
           "term": {
             "_id": "1"

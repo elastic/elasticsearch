@@ -73,7 +73,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
 
         logger.debug("relocating index...");
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2)).get();
-        client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
+        client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).get();
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);

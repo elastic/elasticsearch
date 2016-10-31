@@ -19,6 +19,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,22 +27,38 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
+import java.util.function.Predicate;
+
+import static java.util.stream.Collectors.toSet;
 
 public abstract class AbstractRestChannel implements RestChannel {
 
+    private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
+    private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
+
     protected final RestRequest request;
     protected final boolean detailedErrorsEnabled;
+    private final String format;
+    private final String filterPath;
+    private final boolean pretty;
+    private final boolean human;
 
     private BytesStreamOutput bytesOut;
 
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
+        this.format = request.param("format", request.header("Accept"));
+        this.filterPath = request.param("filter_path", null);
+        this.pretty = request.paramAsBoolean("pretty", false);
+        this.human = request.paramAsBoolean("human", false);
     }
 
     @Override
     public XContentBuilder newBuilder() throws IOException {
-        return newBuilder(request.hasContent() ? request.content() : null, request.hasParam("filter_path"));
+        return newBuilder(request.hasContent() ? request.content() : null, true);
     }
 
     @Override
@@ -52,7 +69,7 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-        XContentType contentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
+        XContentType contentType = XContentType.fromMediaTypeOrFormat(format);
         if (contentType == null) {
             // try and guess it from the auto detect source
             if (autoDetectSource != null) {
@@ -64,13 +81,20 @@ public abstract class AbstractRestChannel implements RestChannel {
             contentType = XContentType.JSON;
         }
 
-        String[] filters = useFiltering ? request.paramAsStringArrayOrEmptyIfAll("filter_path") :  null;
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), bytesOutput(), filters);
-        if (request.paramAsBoolean("pretty", false)) {
+        Set<String> includes = Collections.emptySet();
+        Set<String> excludes = Collections.emptySet();
+        if (useFiltering) {
+            Set<String> filters = Strings.splitStringByCommaToSet(filterPath);
+            includes = filters.stream().filter(INCLUDE_FILTER).collect(toSet());
+            excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
+        }
+
+        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), bytesOutput(), includes, excludes);
+        if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
 
-        builder.humanReadable(request.paramAsBoolean("human", builder.humanReadable()));
+        builder.humanReadable(human);
         return builder;
     }
 

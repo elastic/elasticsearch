@@ -21,10 +21,10 @@
 package org.elasticsearch.common.xcontent.support.filtering;
 
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class FilterPath {
 
@@ -75,8 +75,8 @@ public class FilterPath {
         return next;
     }
 
-    public static FilterPath[] compile(String... filters) {
-        if (CollectionUtils.isEmpty(filters)) {
+    public static FilterPath[] compile(Set<String> filters) {
+        if (filters == null || filters.isEmpty()) {
             return null;
         }
 

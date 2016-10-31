@@ -19,6 +19,12 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
@@ -27,17 +33,18 @@ import com.amazonaws.services.ec2.model.Filter;
 import com.amazonaws.services.ec2.model.GroupIdentifier;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -50,9 +57,6 @@ import static java.util.Collections.disjoint;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-/**
- *
- */
 public class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     private final TransportService transportService;
@@ -71,7 +75,6 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final DiscoNodesCache discoNodes;
 
-    @Inject
     public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         super(settings);
         this.transportService = transportService;
@@ -175,7 +178,10 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                                     emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
                     } catch (Exception e) {
-                        logger.warn("failed ot add {}, address {}", e, instance.getInstanceId(), address);
+                        final String finalAddress = address;
+                        logger.warn(
+                            (Supplier<?>)
+                                () -> new ParameterizedMessage("failed to add {}, address {}", instance.getInstanceId(), finalAddress), e);
                     }
                 } else {
                     logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);

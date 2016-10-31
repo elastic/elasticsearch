@@ -23,8 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.object.DynamicTemplate;
-import org.elasticsearch.index.mapper.object.DynamicTemplate.XContentFieldType;
+import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;

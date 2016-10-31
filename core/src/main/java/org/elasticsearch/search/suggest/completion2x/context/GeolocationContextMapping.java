@@ -39,9 +39,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -208,7 +208,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
     @Override
     protected XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FIELD_PRECISION, precision);
+        builder.array(FIELD_PRECISION, precision);
         builder.field(FIELD_NEIGHBORS, neighbors);
         if (defaultLocations != null) {
             builder.startArray(FIELD_MISSING);
@@ -741,7 +741,7 @@ public class GeolocationContextMapping extends ContextMapping {
             } else {
                 builder.startObject(name);
                 builder.field(FIELD_VALUE, location);
-                builder.field(FIELD_PRECISION, precisions);
+                builder.array(FIELD_PRECISION, precisions);
                 builder.endObject();
             }
             return builder;

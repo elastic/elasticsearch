@@ -28,6 +28,7 @@ import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,7 +39,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         private String id;
         private String routing;
         private String parent;
-        private String[] fields;
+        private String[] storedFields;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private FetchSourceContext fetchSourceContext;
@@ -136,13 +137,13 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             return parent;
         }
 
-        public Item fields(String... fields) {
-            this.fields = fields;
+        public Item storedFields(String... fields) {
+            this.storedFields = fields;
             return this;
         }
 
-        public String[] fields() {
-            return this.fields;
+        public String[] storedFields() {
+            return this.storedFields;
         }
 
         public long version() {
@@ -188,17 +189,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             id = in.readString();
             routing = in.readOptionalString();
             parent = in.readOptionalString();
-            int size = in.readVInt();
-            if (size > 0) {
-                fields = new String[size];
-                for (int i = 0; i < size; i++) {
-                    fields[i] = in.readString();
-                }
-            }
+            storedFields = in.readOptionalStringArray();
             version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
 
-            fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         }
 
         @Override
@@ -208,19 +203,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeString(id);
             out.writeOptionalString(routing);
             out.writeOptionalString(parent);
-            if (fields == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(fields.length);
-                for (String field : fields) {
-                    out.writeString(field);
-                }
-            }
-
+            out.writeOptionalStringArray(storedFields);
             out.writeLong(version);
             out.writeByte(versionType.getValue());
 
-            out.writeOptionalStreamable(fetchSourceContext);
+            out.writeOptionalWriteable(fetchSourceContext);
         }
 
         @Override
@@ -233,7 +220,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             if (version != item.version) return false;
             if (fetchSourceContext != null ? !fetchSourceContext.equals(item.fetchSourceContext) : item.fetchSourceContext != null)
                 return false;
-            if (!Arrays.equals(fields, item.fields)) return false;
+            if (!Arrays.equals(storedFields, item.storedFields)) return false;
             if (!id.equals(item.id)) return false;
             if (!index.equals(item.index)) return false;
             if (routing != null ? !routing.equals(item.routing) : item.routing != null) return false;
@@ -251,7 +238,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             result = 31 * result + id.hashCode();
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
             result = 31 * result + (parent != null ? parent.hashCode() : 0);
-            result = 31 * result + (fields != null ? Arrays.hashCode(fields) : 0);
+            result = 31 * result + (storedFields != null ? Arrays.hashCode(storedFields) : 0);
             result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();
             result = 31 * result + (fetchSourceContext != null ? fetchSourceContext.hashCode() : 0);
@@ -262,8 +249,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     String preference;
     boolean realtime = true;
     boolean refresh;
-    public boolean ignoreErrorsOnGeneratedFields = false;
-
     List<Item> items = new ArrayList<>();
 
     public List<Item> getItems() {
@@ -338,11 +323,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     }
 
 
-    public MultiGetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
-        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
-        return this;
-    }
-
     public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, byte[] data, int from, int length) throws Exception {
         return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, new BytesArray(data, from, length), true);
     }
@@ -355,7 +335,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, null, data, allowExplicitIndex);
     }
 
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws Exception {
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws IOException {
         try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
             XContentParser.Token token;
             String currentFieldName = null;
@@ -386,11 +366,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             String id = null;
             String routing = defaultRouting;
             String parent = null;
-            List<String> fields = null;
+            List<String> storedFields = null;
             long version = Versions.MATCH_ANY;
             VersionType versionType = VersionType.INTERNAL;
 
-            FetchSourceContext fetchSourceContext = null;
+            FetchSourceContext fetchSourceContext = FetchSourceContext.FETCH_SOURCE;
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -410,33 +390,42 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                     } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
                         parent = parser.text();
                     } else if ("fields".equals(currentFieldName)) {
-                        fields = new ArrayList<>();
-                        fields.add(parser.text());
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Unsupported field [fields] used, expected [stored_fields] instead");
+                    } else if ("stored_fields".equals(currentFieldName)) {
+                        storedFields = new ArrayList<>();
+                        storedFields.add(parser.text());
                     } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
                         version = parser.longValue();
                     } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                         versionType = VersionType.fromString(parser.text());
                     } else if ("_source".equals(currentFieldName)) {
                         if (parser.isBooleanValue()) {
-                            fetchSourceContext = new FetchSourceContext(parser.booleanValue());
+                            fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
+                                fetchSourceContext.excludes());
                         } else if (token == XContentParser.Token.VALUE_STRING) {
-                            fetchSourceContext = new FetchSourceContext(new String[]{parser.text()});
+                            fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(),
+                                new String[]{parser.text()}, fetchSourceContext.excludes());
                         } else {
                             throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("fields".equals(currentFieldName)) {
-                        fields = new ArrayList<>();
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Unsupported field [fields] used, expected [stored_fields] instead");
+                    } else if ("stored_fields".equals(currentFieldName)) {
+                        storedFields = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            fields.add(parser.text());
+                            storedFields.add(parser.text());
                         }
                     } else if ("_source".equals(currentFieldName)) {
                         ArrayList<String> includes = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             includes.add(parser.text());
                         }
-                        fetchSourceContext = new FetchSourceContext(includes.toArray(Strings.EMPTY_ARRAY));
+                        fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(), includes.toArray(Strings.EMPTY_ARRAY)
+                            , fetchSourceContext.excludes());
                     }
 
                 } else if (token == XContentParser.Token.START_OBJECT) {
@@ -464,20 +453,20 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                             }
                         }
 
-                        fetchSourceContext = new FetchSourceContext(
+                        fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(),
                                 includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
                                 excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()]));
                     }
                 }
             }
             String[] aFields;
-            if (fields != null) {
-                aFields = fields.toArray(new String[fields.size()]);
+            if (storedFields != null) {
+                aFields = storedFields.toArray(new String[storedFields.size()]);
             } else {
                 aFields = defaultFields;
             }
-            items.add(new Item(index, type, id).routing(routing).fields(aFields).parent(parent).version(version).versionType(versionType)
-                    .fetchSourceContext(fetchSourceContext == null ? defaultFetchSource : fetchSourceContext));
+            items.add(new Item(index, type, id).routing(routing).storedFields(aFields).parent(parent).version(version).versionType(versionType)
+                    .fetchSourceContext(fetchSourceContext == FetchSourceContext.FETCH_SOURCE ? defaultFetchSource : fetchSourceContext));
         }
     }
 
@@ -491,7 +480,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             if (!token.isValue()) {
                 throw new IllegalArgumentException("ids array element should only contain ids");
             }
-            items.add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields).fetchSourceContext(defaultFetchSource).routing(defaultRouting));
+            items.add(new Item(defaultIndex, defaultType, parser.text()).storedFields(defaultFields).fetchSourceContext(defaultFetchSource).routing(defaultRouting));
         }
     }
 
@@ -510,7 +499,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         realtime = in.readBoolean();
-        ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         int size = in.readVInt();
         items = new ArrayList<>(size);
@@ -525,7 +513,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
 
         out.writeVInt(items.size());
         for (Item item : items) {

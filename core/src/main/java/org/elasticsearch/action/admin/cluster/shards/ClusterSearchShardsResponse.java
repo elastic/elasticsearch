@@ -28,8 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class ClusterSearchShardsResponse extends ActionResponse implements ToXContent {
 
     private ClusterSearchShardsGroup[] groups;

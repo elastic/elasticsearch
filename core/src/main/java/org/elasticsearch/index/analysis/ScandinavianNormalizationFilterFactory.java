@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Factory for {@link ScandinavianNormalizationFilter}
  */
-public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public ScandinavianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -38,4 +38,8 @@ public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterF
         return new ScandinavianNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
+    }
 }

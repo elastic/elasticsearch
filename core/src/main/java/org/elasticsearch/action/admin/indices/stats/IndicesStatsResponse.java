@@ -38,8 +38,6 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- */
 public class IndicesStatsResponse extends BroadcastResponse implements ToXContent {
 
     private ShardStats[] shards;

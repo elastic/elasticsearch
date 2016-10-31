@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -49,7 +49,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  * Task storing information about a currently running BulkByScroll request.
  */
 public class BulkByScrollTask extends CancellableTask {
-    private static final ESLogger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
+    private static final Logger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
 
     /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents

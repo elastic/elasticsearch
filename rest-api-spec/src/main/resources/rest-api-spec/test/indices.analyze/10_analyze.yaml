@@ -8,7 +8,8 @@ setup:
 "Basic test":
     - do:
         indices.analyze:
-          text: Foo Bar
+          body:
+            text: Foo Bar
     - length: { tokens: 2 }
     - match:     { tokens.0.token: foo }
     - match:     { tokens.1.token: bar }
@@ -17,9 +18,10 @@ setup:
 "Tokenizer and filter":
     - do:
         indices.analyze:
-          filter:      lowercase
-          text:         Foo Bar
-          tokenizer:    keyword
+          body:
+            filter:       [lowercase]
+            text:         Foo Bar
+            tokenizer:    keyword
     - length: { tokens: 1 }
     - match:     { tokens.0.token: foo bar }
 
@@ -38,9 +40,10 @@ setup:
 
     - do:
         indices.analyze:
-          field: text
           index: test
-          text: Foo Bar!
+          body:
+            field: text
+            text: Foo Bar!
     - length: { tokens: 2 }
     - match:     { tokens.0.token: Foo }
     - match:     { tokens.1.token: Bar! }
@@ -51,14 +54,6 @@ setup:
           body: { "text": "Foo Bar", "filter": ["lowercase"], "tokenizer": keyword }
     - length: {tokens: 1 }
     - match:     { tokens.0.token: foo bar }
----
-"Body params override query string":
-    - do:
-        indices.analyze:
-          text: Foo Bar
-          body: { "text": "Bar Foo", "filter": ["lowercase"], "tokenizer": keyword }
-    - length: {tokens: 1 }
-    - match:     { tokens.0.token: bar foo }
 ---
 "Array text":
     - do:

@@ -142,7 +142,7 @@
   - set: {task: task}
 
   - do:
-      reindex.rethrottle:
+      reindex_rethrottle:
         requests_per_second: -1
         task_id: $task
 
@@ -197,7 +197,7 @@
   - set: {task: task}
 
   - do:
-      reindex.rethrottle:
+      reindex_rethrottle:
         requests_per_second: 1
         task_id: $task
 

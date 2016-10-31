@@ -15,7 +15,7 @@ including array types, but adds some additional built-in types.
 ==== Def
 
 The dynamic type `def` serves as a placeholder for any other type. It adopts the behavior
-of whatever runtime type it represents. 
+of whatever runtime type it represents.
 
 [float]
 [[painless-strings]]
@@ -23,10 +23,27 @@ of whatever runtime type it represents.
 
 String constants can be declared with single quotes, to avoid escaping horrors with JSON:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def mystring = 'foo';
 ---------------------------------------------------------
+
+[float]
+[[painless-arrays]]
+==== Arrays
+
+Arrays can be subscripted starting from `0` for traditional array access or with
+negative numbers to starting from the back of the array. So the following
+returns `2`.
+
+[source,painless]
+---------------------------------------------------------
+int[] x = new int[5];
+x[0]++;
+x[-5]++;
+return x[0];
+---------------------------------------------------------
+
 
 [float]
 [[painless-lists]]
@@ -34,16 +51,18 @@ def mystring = 'foo';
 
 Lists can be created explicitly (e.g. `new ArrayList()`) or initialized similar to Groovy:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def list = [1,2,3];
 ---------------------------------------------------------
 
-Lists can also be accessed similar to arrays: they support subscript and `.length`:
+Lists can also be accessed similar to arrays. They support `.length` and
+subscripts, including negative subscripts to read from the back of the list:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def list = [1,2,3];
+list[-1] = 5
 return list[0]
 ---------------------------------------------------------
 
@@ -53,14 +72,14 @@ return list[0]
 
 Maps can be created explicitly (e.g. `new HashMap()`) or initialized similar to Groovy:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def person = ['name': 'Joe', 'age': 63];
 ---------------------------------------------------------
 
 Map keys can also be accessed as properties.
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def person = ['name': 'Joe', 'age': 63];
 person.retired = true;
@@ -69,7 +88,7 @@ return person.name
 
 Map keys can also be accessed via subscript (for keys containing special characters):
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 return map['something-absurd!']
 ---------------------------------------------------------
@@ -80,13 +99,13 @@ return map['something-absurd!']
 
 Regular expression constants are directly supported:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 Pattern p = /[aeiou]/
 ---------------------------------------------------------
 
 Patterns can only be created via this mechanism. This ensures fast performance, regular expressions
-are always constants and compiled efficiently a single time. 
+are always constants and compiled efficiently a single time.
 
 [float]
 [[modules-scripting-painless-regex-flags]]
@@ -116,7 +135,7 @@ using these characters:
 === Operators
 
 All of Java's https://docs.oracle.com/javase/tutorial/java/nutsandbolts/operators.html[operators] are
-supported with the same precedence, promotion, and semantics. 
+supported with the same precedence, promotion, and semantics.
 
 There are only a few minor differences and add-ons:
 
@@ -134,7 +153,7 @@ of the `switch` statement.
 
 In addition to Java's `enhanced for` loop, the `for in` syntax from groovy can also be used:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 for (item : list) {
   ...
@@ -147,7 +166,7 @@ for (item : list) {
 
 Functions can be declared at the beginning of the script, for example:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 boolean isNegative(def x) { x < 0 }
 ...
@@ -161,7 +180,7 @@ if (isNegative(someVar)) {
 === Lambda expressions
 Lambda expressions and method references work the same as https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html[Java's].
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 list.removeIf(item -> item == 2);
 list.removeIf((int item) -> item == 2);

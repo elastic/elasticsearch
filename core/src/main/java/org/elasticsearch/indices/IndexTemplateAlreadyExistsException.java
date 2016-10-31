@@ -25,9 +25,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexTemplateAlreadyExistsException extends ElasticsearchException {
 
     private final String name;

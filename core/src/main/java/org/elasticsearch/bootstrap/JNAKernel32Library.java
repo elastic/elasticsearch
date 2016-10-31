@@ -25,8 +25,8 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.win32.StdCallLibrary;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import java.util.List;
  */
 final class JNAKernel32Library {
 
-    private static final ESLogger logger = Loggers.getLogger(JNAKernel32Library.class);
+    private static final Logger logger = Loggers.getLogger(JNAKernel32Library.class);
 
     // Callbacks must be kept around in order to be able to be called later,
     // when the Windows ConsoleCtrlHandler sends an event.

@@ -19,12 +19,11 @@
 
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,7 +40,7 @@ public final class ClusterShardHealth implements Writeable {
     private final int unassignedShards;
     private final boolean primaryActive;
 
-    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable, final IndexMetaData indexMetaData) {
+    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
         this.shardId = shardId;
         int computeActiveShards = 0;
         int computeRelocatingShards = 0;
@@ -69,7 +68,7 @@ public final class ClusterShardHealth implements Writeable {
                 computeStatus = ClusterHealthStatus.YELLOW;
             }
         } else {
-            computeStatus = getInactivePrimaryHealth(primaryRouting, indexMetaData);
+            computeStatus = getInactivePrimaryHealth(primaryRouting);
         }
         this.status = computeStatus;
         this.activeShards = computeActiveShards;
@@ -131,28 +130,25 @@ public final class ClusterShardHealth implements Writeable {
     /**
      * Checks if an inactive primary shard should cause the cluster health to go RED.
      *
-     * Normally, an inactive primary shard in an index should cause the cluster health to be RED.  However,
-     * there are exceptions where a health status of RED is inappropriate, namely in these scenarios:
-     *   1. Index Creation.  When an index is first created, the primary shards are in the initializing state, so
-     *      there is a small window where the cluster health is RED due to the primaries not being activated yet.
-     *      However, this leads to a false sense that the cluster is in an unhealthy state, when in reality, its
-     *      simply a case of needing to wait for the primaries to initialize.
-     *   2. When a cluster is in the recovery state, and the shard never had any allocation ids assigned to it,
-     *      which indicates the index was created and before allocation of the primary occurred for this shard,
-     *      a cluster restart happened.
-     *
-     * Here, we check for these scenarios and set the cluster health to YELLOW if any are applicable.
+     * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
+     * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
+     * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
+     * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
+     * some point, cluster health should still turn RED.
      *
      * NB: this method should *not* be called on active shards nor on non-primary shards.
      */
-    public static ClusterHealthStatus getInactivePrimaryHealth(final ShardRouting shardRouting, final IndexMetaData indexMetaData) {
+    public static ClusterHealthStatus getInactivePrimaryHealth(final ShardRouting shardRouting) {
         assert shardRouting.primary() : "cannot invoke on a replica shard: " + shardRouting;
         assert shardRouting.active() == false : "cannot invoke on an active shard: " + shardRouting;
         assert shardRouting.unassignedInfo() != null : "cannot invoke on a shard with no UnassignedInfo: " + shardRouting;
+        assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-        if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO
-                && shardRouting.allocatedPostIndexCreate(indexMetaData) == false
-                && (unassignedInfo.getReason() == Reason.INDEX_CREATED || unassignedInfo.getReason() == Reason.CLUSTER_RECOVERED)) {
+        RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
+        if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO && unassignedInfo.getNumFailedAllocations() == 0
+                && (recoveryType == RecoverySource.Type.EMPTY_STORE
+                    || recoveryType == RecoverySource.Type.LOCAL_SHARDS
+                    || recoveryType == RecoverySource.Type.SNAPSHOT)) {
             return ClusterHealthStatus.YELLOW;
         } else {
             return ClusterHealthStatus.RED;

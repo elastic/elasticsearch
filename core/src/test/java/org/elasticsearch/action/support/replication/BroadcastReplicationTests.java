@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -36,7 +36,9 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -46,14 +48,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -89,19 +92,22 @@ public class BroadcastReplicationTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        LocalTransport transport = new LocalTransport(Settings.EMPTY, threadPool, new NamedWriteableRegistry(), circuitBreakerService);
+        MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY,
+            threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService, new NamedWriteableRegistry(Collections.emptyList()),
+            new NetworkService(Settings.EMPTY, Collections.emptyList()));
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService, new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService,
+                new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        clusterService.close();
-        transportService.close();
+        IOUtils.close(clusterService, transportService);
     }
 
     @AfterClass

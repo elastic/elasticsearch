@@ -24,13 +24,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collections;
+import java.util.Collection;
 
 /**
  * An internal node that connects to a remove cluster, as part of a tribe node.
  */
 class TribeClientNode extends Node {
-    TribeClientNode(Settings settings) {
-        super(new Environment(settings), Collections.<Class<? extends Plugin>>emptyList());
+    TribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        super(new Environment(settings), classpathPlugins);
     }
 }

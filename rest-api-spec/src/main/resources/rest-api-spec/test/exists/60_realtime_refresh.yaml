@@ -26,18 +26,18 @@
           index:    test_1
           type:     test
           id:       1
-          realtime: 1
+          realtime: 0
 
- - is_true: ''
-
+ - is_false: ''
+ 
  - do:
       exists:
           index:    test_1
           type:     test
           id:       1
-          realtime: 0
+          realtime: 1
 
- - is_false: ''
+ - is_true: ''
 
  - do:
       exists:

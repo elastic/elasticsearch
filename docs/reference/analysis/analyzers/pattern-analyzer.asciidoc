@@ -5,6 +5,21 @@ The `pattern` analyzer uses a regular expression to split the text into terms.
 The regular expression should match the *token separators*  not the tokens
 themselves. The regular expression defaults to `\W+` (or all non-word characters).
 
+[WARNING]
+.Beware of Pathological Regular Expressions
+========================================
+
+The pattern analyzer uses
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+
+A badly written regular expression could run very slowly or even throw a
+StackOverflowError and cause the node it is running on to exit suddenly.
+
+Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+
+========================================
+
+
 [float]
 === Definition
 
@@ -154,15 +169,10 @@ The `pattern` analyzer accepts the following parameters:
 
     Should terms be lowercased or not. Defaults to `true`.
 
-`max_token_length`::
-
-    The maximum token length. If a token is seen that exceeds this length then
-    it is split at `max_token_length` intervals. Defaults to `255`.
-
 `stopwords`::
 
     A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `_none_`.
+    list of stop words.  Defaults to `\_none_`.
 
 `stopwords_path`::
 

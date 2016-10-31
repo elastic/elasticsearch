@@ -34,12 +34,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -129,11 +128,11 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
-            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -157,11 +156,11 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 .put("index.blocks.write", true)
                 .put("index.similarity.default.type", "BM25")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
-                .build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+                .build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -181,7 +180,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, LocalTransportAddress.buildUnique(), emptyMap(),
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA))), Version.CURRENT);
     }
 
@@ -191,7 +190,9 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         validateIndexName("index#name", "must not contain '#'");
 
-        validateIndexName("_indexname", "must not start with '_'");
+        validateIndexName("_indexname", "must not start with '_', '-', or '+'");
+        validateIndexName("-indexname", "must not start with '_', '-', or '+'");
+        validateIndexName("+indexname", "must not start with '_', '-', or '+'");
 
         validateIndexName("INDEXNAME", "must be lowercase");
 
@@ -201,22 +202,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     private void validateIndexName(String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
-            () -> getCreateIndexService().validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+            () -> MetaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
                 .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
-    }
-
-    private MetaDataCreateIndexService getCreateIndexService() {
-        return new MetaDataCreateIndexService(
-            Settings.EMPTY,
-            null,
-            null,
-            null,
-            null,
-            new HashSet<>(),
-            null,
-            null,
-            null,
-            null);
     }
 }

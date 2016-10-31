@@ -27,12 +27,13 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.HashMap;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractStringProcessorTestCase extends ESTestCase {
 
-    protected abstract AbstractStringProcessor newProcessor(String field);
+    protected abstract AbstractStringProcessor newProcessor(String field, boolean ignoreMissing);
 
     protected String modifyInput(String input) {
         return input;
@@ -44,45 +45,60 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldValue = RandomDocumentPicks.randomString(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
-        Processor processor = newProcessor(fieldName);
+        Processor processor = newProcessor(fieldName, randomBoolean());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult(fieldValue)));
     }
 
     public void testFieldNotFound() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = newProcessor(fieldName);
+        Processor processor = newProcessor(fieldName, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        try {
-            processor.execute(ingestDocument);
-            fail("processor should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
-        }
+        Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
+    }
+
+    public void testFieldNotFoundWithIgnoreMissing() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        Processor processor = newProcessor(fieldName, true);
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
     public void testNullValue() throws Exception {
-        Processor processor = newProcessor("field");
+        Processor processor = newProcessor("field", false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        try {
-            processor.execute(ingestDocument);
-            fail("processor should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field [field] is null, cannot process it."));
-        }
+        Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("field [field] is null, cannot process it."));
+    }
+
+    public void testNullValueWithIgnoreMissing() throws Exception {
+        Processor processor = newProcessor("field", true);
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
     public void testNonStringValue() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = newProcessor(fieldName);
+        Processor processor = newProcessor(fieldName, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(fieldName, randomInt());
-        try {
-            processor.execute(ingestDocument);
-            fail("processor should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field [" + fieldName +
-                    "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
-        }
+        Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("field [" + fieldName +
+            "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+    }
+
+    public void testNonStringValueWithIgnoreMissing() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        Processor processor = newProcessor(fieldName, true);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        ingestDocument.setFieldValue(fieldName, randomInt());
+        Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("field [" + fieldName +
+            "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
     }
 }

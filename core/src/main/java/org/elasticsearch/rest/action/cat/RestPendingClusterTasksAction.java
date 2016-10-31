@@ -26,12 +26,10 @@ import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -48,17 +46,20 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
         pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
-        client.admin().cluster().pendingClusterTasks(pendingClusterTasksRequest, new RestResponseListener<PendingClusterTasksResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(PendingClusterTasksResponse pendingClusterTasks) throws Exception {
-                Table tab = buildTable(request, pendingClusterTasks);
-                return RestTable.buildResponse(tab, channel);
-            }
-        });
+        return channel ->
+                client.admin()
+                        .cluster()
+                        .pendingClusterTasks(pendingClusterTasksRequest, new RestResponseListener<PendingClusterTasksResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(PendingClusterTasksResponse pendingClusterTasks) throws Exception {
+                                Table tab = buildTable(request, pendingClusterTasks);
+                                return RestTable.buildResponse(tab, channel);
+                            }
+                        });
     }
 
     @Override

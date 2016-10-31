@@ -23,7 +23,7 @@ work. The `reverse` analyzer is used only in the last example.
 
 [source,js]
 --------------------------------------------------
-POST test
+PUT test
 {
   "settings": {
     "index": {
@@ -71,12 +71,12 @@ POST test
     }
   }
 }
-POST test/test
+POST test/test?refresh=true
 {"title": "noble warriors"}
-POST test/test
+POST test/test?refresh=true
 {"title": "nobel prize"}
-POST _refresh
 --------------------------------------------------
+// CONSOLE
 // TESTSETUP
 
 Once you have the analyzers and mappings set up you can use the `phrase`
@@ -84,7 +84,7 @@ suggester in the same spot you'd use the `term` suggester:
 
 [source,js]
 --------------------------------------------------
-POST _suggest?pretty -d'
+POST _suggest
 {
   "text": "noble prize",
   "simple_phrase": {
@@ -125,7 +125,7 @@ can contain misspellings (See parameter descriptions below).
       "options" : [ {
         "text" : "nobel prize",
         "highlighted": "<em>nobel</em> prize",
-        "score" : 0.40765354
+        "score" : 0.5962314
       }]
     }
   ]
@@ -314,7 +314,7 @@ The direct generators support the following parameters:
     The suggest mode controls what suggestions are included on the suggestions
     generated on each shard. All values other than `always` can be thought of
     as an optimization to generate fewer suggestions to test on each shard and
-    are not rechecked at when combining the suggestions generated on each
+    are not rechecked when combining the suggestions generated on each
     shard. Thus `missing` will generate suggestions for terms on shards that do
     not contain them even other shards do contain them. Those should be
     filtered out using `confidence`. Three possible values can be specified:

@@ -71,9 +71,11 @@ public class ThreadPoolStatsTests extends ESTestCase {
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L));
 
-
+            ThreadPoolStats threadPoolStats = new ThreadPoolStats(stats);
             try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os)) {
-                new ThreadPoolStats(stats).toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.startObject();
+                threadPoolStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
             }
 
             try (XContentParser parser = XContentType.JSON.xContent().createParser(os.bytes())) {
@@ -81,7 +83,11 @@ public class ThreadPoolStatsTests extends ESTestCase {
                 assertNull(token);
 
                 token = parser.nextToken();
-                assertThat(token, equalTo(XContentParser.Token.VALUE_STRING));
+                assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+
+                token = parser.nextToken();
+                assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+                assertThat(parser.currentName(), equalTo(ThreadPoolStats.Fields.THREAD_POOL));
 
                 token = parser.nextToken();
                 assertThat(token, equalTo(XContentParser.Token.START_OBJECT));

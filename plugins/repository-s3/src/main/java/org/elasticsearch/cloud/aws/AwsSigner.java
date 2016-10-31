@@ -21,12 +21,12 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.SignerFactory;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 
 public class AwsSigner {
 
-    private static final ESLogger logger = Loggers.getLogger(AwsSigner.class);
+    private static final Logger logger = Loggers.getLogger(AwsSigner.class);
 
     private AwsSigner() {
 

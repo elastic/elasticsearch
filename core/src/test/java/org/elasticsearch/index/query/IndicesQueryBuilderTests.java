@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -50,23 +51,18 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
     }
 
     @Override
-    protected void doAssertLuceneQuery(IndicesQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(IndicesQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         Query expected;
         if (queryBuilder.indices().length == 1 && getIndex().getName().equals(queryBuilder.indices()[0])) {
-            expected = queryBuilder.innerQuery().toQuery(context);
+            expected = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
         } else {
-            expected = queryBuilder.noMatchQuery().toQuery(context);
+            expected = queryBuilder.noMatchQuery().toQuery(context.getQueryShardContext());
         }
         assertEquals(expected, query);
     }
 
     public void testIllegalArguments() {
-        try {
-            new IndicesQueryBuilder(null, "index");
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new IndicesQueryBuilder(null, "index"));
 
         expectThrows(IllegalArgumentException.class, () -> new IndicesQueryBuilder(new MatchAllQueryBuilder(), (String[]) null));
         expectThrows(IllegalArgumentException.class, () -> new IndicesQueryBuilder(new MatchAllQueryBuilder(), new String[0]));

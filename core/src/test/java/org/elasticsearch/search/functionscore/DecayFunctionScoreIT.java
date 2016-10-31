@@ -47,6 +47,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -76,7 +77,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class DecayFunctionScoreIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
     private final QueryBuilder baseQuery = constantScoreQuery(termQuery("test", "value"));

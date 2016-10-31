@@ -38,9 +38,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     final ValuesSource.Numeric valuesSource;

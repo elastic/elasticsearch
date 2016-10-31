@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.transport.TransportAddressSerializers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
@@ -40,7 +39,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -96,7 +94,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * @param version          the version of the node
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), Collections.emptySet(), version);
+        this(id, address, Collections.emptyMap(), EnumSet.allOf(Role.class), version);
     }
 
     /**
@@ -137,7 +135,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
      */
     public DiscoveryNode(String nodeName, String nodeId, TransportAddress address,
                          Map<String, String> attributes, Set<Role> roles, Version version) {
-        this(nodeName, nodeId, UUIDs.randomBase64UUID(), address.getHost(), address.getAddress(), address, attributes, roles, version);
+        this(nodeName, nodeId, UUIDs.randomBase64UUID(), address.getAddress(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**
@@ -217,7 +215,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         this.ephemeralId = in.readString().intern();
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
-        this.address = TransportAddressSerializers.addressFromStream(in);
+        this.address = new TransportAddress(in);
         int size = in.readVInt();
         this.attributes = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
@@ -242,7 +240,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         out.writeString(ephemeralId);
         out.writeString(hostName);
         out.writeString(hostAddress);
-        addressToStream(out, address);
+        address.writeTo(out);
         out.writeVInt(attributes.size());
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
             out.writeString(entry.getKey());

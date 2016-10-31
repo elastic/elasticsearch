@@ -27,20 +27,20 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.io.IOException;
+import org.junit.After;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -63,10 +63,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class SimpleIndexTemplateIT extends ESIntegTestCase {
+
+    @After
+    public void cleanupTemplates() {
+        client().admin().indices().prepareDeleteTemplate("*").get();
+    }
 
     public void testSimpleIndexTemplateTests() throws Exception {
         // clean all templates setup by the framework.
@@ -113,7 +115,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
 
         // index something into test_index, will match on both templates
-        client().prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test_index", "type1", "1")
+                .setSource("field1", "value1", "field2", "value 2")
+                .setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test_index")
@@ -126,7 +130,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
-        client().prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("text_index", "type1", "1")
+                .setSource("field1", "value1", "field2", "value 2")
+                .setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         // now only match on one template (template_1)
@@ -164,9 +170,12 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         logger.info("--> explicitly delete template_1");
         admin().indices().prepareDeleteTemplate("template_1").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(1 + existingTemplates));
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().containsKey("template_2"), equalTo(true));
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().containsKey("template_1"), equalTo(false));
+
+        ClusterState state = admin().cluster().prepareState().execute().actionGet().getState();
+
+        assertThat(state.metaData().templates().size(), equalTo(1 + existingTemplates));
+        assertThat(state.metaData().templates().containsKey("template_2"), equalTo(true));
+        assertThat(state.metaData().templates().containsKey("template_1"), equalTo(false));
 
 
         logger.info("--> put template_1 back");
@@ -181,11 +190,13 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         logger.info("--> delete template*");
         admin().indices().prepareDeleteTemplate("template*").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(existingTemplates));
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(),
+                   equalTo(existingTemplates));
 
         logger.info("--> delete * with no templates, make sure we don't get a failure");
         admin().indices().prepareDeleteTemplate("*").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(0));
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(),
+                   equalTo(0));
     }
 
     public void testThatGetIndexTemplatesWorks() throws Exception {
@@ -193,6 +204,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
                 .setOrder(0)
+                .setVersion(123)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
                         .startObject("field2").field("type", "keyword").field("store", true).endObject()
@@ -205,9 +217,11 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getTemplate1Response.getIndexTemplates().get(0), is(notNullValue()));
         assertThat(getTemplate1Response.getIndexTemplates().get(0).getTemplate(), is("te*"));
         assertThat(getTemplate1Response.getIndexTemplates().get(0).getOrder(), is(0));
+        assertThat(getTemplate1Response.getIndexTemplates().get(0).getVersion(), is(123));
 
         logger.info("--> get non-existing-template");
-        GetIndexTemplatesResponse getTemplate2Response = client().admin().indices().prepareGetTemplates("non-existing-template").execute().actionGet();
+        GetIndexTemplatesResponse getTemplate2Response =
+            client().admin().indices().prepareGetTemplates("non-existing-template").execute().actionGet();
         assertThat(getTemplate2Response.getIndexTemplates(), hasSize(0));
     }
 
@@ -348,7 +362,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         .filter(QueryBuilders.termsQuery("_type",  "typeX", "typeY", "typeZ")))
                 .get();
 
-        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
+        assertAcked(prepareCreate("test_index")
+                        .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
         ensureGreen();
 
         client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
@@ -582,7 +597,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setOrder(0)
                 .addMapping("test", "field", "type=text")
                 .addAlias(new Alias("alias1").filter(termQuery("field", "value"))).get();
-        // Indexing into b should succeed, because the field mapping for field 'field' is defined in the _default_ mapping and the test type exists.
+        // Indexing into b should succeed, because the field mapping for field 'field' is defined in the _default_ mapping and
+        //  the test type exists.
         client().admin().indices().preparePutTemplate("template2")
                 .setTemplate("b*")
                 .setOrder(0)
@@ -688,5 +704,21 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     }
 
+    public void testOrderAndVersion() {
+        int order = randomInt();
+        Integer version = randomBoolean() ? randomInt() : null;
+
+        assertAcked(client().admin().indices().preparePutTemplate("versioned_template")
+                                              .setTemplate("te*")
+                                              .setVersion(version)
+                                              .setOrder(order)
+                                              .addMapping("test", "field", "type=text")
+                                              .get());
+
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("versioned_template").get();
+        assertThat(response.getIndexTemplates().size(), equalTo(1));
+        assertThat(response.getIndexTemplates().get(0).getVersion(), equalTo(version));
+        assertThat(response.getIndexTemplates().get(0).getOrder(), equalTo(order));
+    }
 
 }

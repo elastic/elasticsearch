@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
@@ -83,6 +84,11 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
     private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
     private final String name;
     private final Supplier<Value> valueSupplier;
+    /**
+     * Should this parser ignore unknown fields? This should generally be set to true only when parsing responses from external systems,
+     * never when parsing requests from users.
+     */
+    private final boolean ignoreUnknownFields;
 
     /**
      * Creates a new ObjectParser instance with a name. This name is used to reference the parser in exceptions and messages.
@@ -96,9 +102,21 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
      */
-    public ObjectParser(String name, Supplier<Value> valueSupplier) {
+    public ObjectParser(String name, @Nullable Supplier<Value> valueSupplier) {
+        this(name, false, valueSupplier);
+    }
+
+    /**
+     * Creates a new ObjectParser instance which a name.
+     * @param name the parsers name, used to reference the parser in exceptions and messages.
+     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing
+     *      responses from external systems, never when parsing requests from users.
+     * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
+     */
+    public ObjectParser(String name, boolean ignoreUnknownFields, @Nullable Supplier<Value> valueSupplier) {
         this.name = name;
         this.valueSupplier = valueSupplier;
+        this.ignoreUnknownFields = ignoreUnknownFields;
     }
 
     /**
@@ -144,9 +162,13 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
                 if (currentFieldName == null) {
                     throw new IllegalStateException("[" + name  + "] no field found");
                 }
-                assert fieldParser != null;
-                fieldParser.assertSupports(name, token, currentFieldName, context.getParseFieldMatcher());
-                parseSub(parser, fieldParser, currentFieldName, value, context);
+                if (fieldParser == null) {
+                    assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
+                    parser.skipChildren(); // noop if parser points to a value, skips children if parser is start object or start array
+                } else {
+                    fieldParser.assertSupports(name, token, currentFieldName, context.getParseFieldMatcher());
+                    parseSub(parser, fieldParser, currentFieldName, value, context);
+                }
                 fieldParser = null;
             }
         }
@@ -169,6 +191,12 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         void parse(XContentParser parser, Value value, Context context) throws IOException;
     }
     public void declareField(Parser<Value, Context> p, ParseField parseField, ValueType type) {
+        if (parseField == null) {
+            throw new IllegalArgumentException("[parseField] is required");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("[type] is required");
+        }
         FieldParser fieldParser = new FieldParser(p, type.supportedTokens(), parseField, type);
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
             fieldParserMap.putIfAbsent(fieldValue, fieldParser);
@@ -178,6 +206,12 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
     @Override
     public <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
             ValueType type) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("[consumer] is required");
+        }
+        if (parser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
         declareField((p, v, c) -> consumer.accept(v, parser.parse(p, c)), parseField, type);
     }
 
@@ -362,7 +396,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
 
     private FieldParser getParser(String fieldName) {
         FieldParser<Value> parser = fieldParserMap.get(fieldName);
-        if (parser == null) {
+        if (parser == null && false == ignoreUnknownFields) {
             throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
         }
         return parser;

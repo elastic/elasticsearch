@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.SearchEquivalenceTestBase;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.FilterFunction;
@@ -31,6 +32,14 @@ import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
+    static {
+        try {
+            Class.forName("org.elasticsearch.test.ESTestCase");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
+        BootstrapForTesting.ensureInitialized();
+    }
 
     public void testMinScoreAllIncluded() throws Exception {
         Term term = randomTerm();

@@ -534,7 +534,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Try to cancel main task using action name
         CancelTasksRequest request = new CancelTasksRequest();
-        request.setNodesIds(testNodes[0].discoveryNode.getId());
+        request.setNodes(testNodes[0].discoveryNode.getId());
         request.setReason("Testing Cancellation");
         request.setActions(actionName);
         CancelTasksResponse response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request)
@@ -736,13 +736,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         ListTasksResponse response = testNodes[0].transportListTasksAction.execute(listTasksRequest).get();
         assertEquals(testNodes.length + 1, response.getTasks().size());
 
-        // First group by node
-        DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-        for (TestNode testNode : this.testNodes) {
-            discoNodes.put(testNode.discoveryNode);
-        }
-        response.setDiscoveryNodes(discoNodes.build());
-        Map<String, Object> byNodes = serialize(response, new ToXContent.MapParams(Collections.singletonMap("group_by", "nodes")));
+        Map<String, Object> byNodes = serialize(response, true);
         byNodes = (Map<String, Object>) byNodes.get("nodes");
         // One element on the top level
         assertEquals(testNodes.length, byNodes.size());
@@ -756,7 +750,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         // Group by parents
-        Map<String, Object> byParent = serialize(response, new ToXContent.MapParams(Collections.singletonMap("group_by", "parents")));
+        Map<String, Object> byParent = serialize(response, false);
         byParent = (Map<String, Object>) byParent.get("tasks");
         // One element on the top level
         assertEquals(1, byParent.size()); // Only one top level task
@@ -769,10 +763,15 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    private Map<String, Object> serialize(ToXContent response, ToXContent.Params params) throws IOException {
+    private Map<String, Object> serialize(ListTasksResponse response, boolean byParents) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
-        response.toXContent(builder, params);
+        if (byParents) {
+            DiscoveryNodes nodes = testNodes[0].clusterService.state().nodes();
+            response.toXContentGroupedByNode(builder, ToXContent.EMPTY_PARAMS, nodes);
+        } else {
+            response.toXContentGroupedByParents(builder, ToXContent.EMPTY_PARAMS);
+        }
         builder.endObject();
         builder.flush();
         logger.info(builder.string());

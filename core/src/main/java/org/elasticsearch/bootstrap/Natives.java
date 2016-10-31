@@ -19,7 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.nio.file.Path;
@@ -32,7 +32,7 @@ final class Natives {
     /** no instantiation */
     private Natives() {}
 
-    private static final ESLogger logger = Loggers.getLogger(Natives.class);
+    private static final Logger logger = Loggers.getLogger(Natives.class);
 
     // marker to determine if the JNA class files are available to the JVM
     static final boolean JNA_AVAILABLE;

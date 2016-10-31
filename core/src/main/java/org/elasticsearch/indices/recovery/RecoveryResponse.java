@@ -27,9 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 class RecoveryResponse extends TransportResponse {
 
     List<String> phase1FileNames = new ArrayList<>();

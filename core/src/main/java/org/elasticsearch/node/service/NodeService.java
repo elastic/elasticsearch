@@ -44,8 +44,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- */
 public class NodeService extends AbstractComponent implements Closeable {
 
     private final ThreadPool threadPool;

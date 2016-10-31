@@ -22,19 +22,16 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +47,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField TEXT = new ParseField("text");
         public static final ParseField FIELD = new ParseField("field");
         public static final ParseField TOKENIZER = new ParseField("tokenizer");
-        public static final ParseField TOKEN_FILTERS = new ParseField("filter", "token_filter");
+        public static final ParseField TOKEN_FILTERS = new ParseField("filter");
         public static final ParseField CHAR_FILTERS = new ParseField("char_filter");
         public static final ParseField EXPLAIN = new ParseField("explain");
         public static final ParseField ATTRIBUTES = new ParseField("attributes");
@@ -66,43 +63,16 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-
-        String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
-        analyzeRequest.text(texts);
-        analyzeRequest.analyzer(request.param("analyzer"));
-        analyzeRequest.field(request.param("field"));
-        if (request.hasParam("tokenizer")) {
-            analyzeRequest.tokenizer(request.param("tokenizer"));
-        }
-        for (String filter : request.paramAsStringArray("filter", request.paramAsStringArray("token_filter", Strings.EMPTY_ARRAY))) {
-            analyzeRequest.addTokenFilter(filter);
-        }
-        for (String charFilter : request.paramAsStringArray("char_filter", Strings.EMPTY_ARRAY)) {
-            analyzeRequest.addTokenFilter(charFilter);
-        }
-        analyzeRequest.explain(request.paramAsBoolean("explain", false));
-        analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
 
-        if (RestActions.hasBodyContent(request)) {
-            XContentType type = RestActions.guessBodyContentType(request);
-            if (type == null) {
-                if (texts == null || texts.length == 0) {
-                    texts = new String[]{ RestActions.getRestContent(request).utf8ToString() };
-                    analyzeRequest.text(texts);
-                }
-            } else {
-                // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
-                buildFromContent(RestActions.getRestContent(request), analyzeRequest, parseFieldMatcher);
-            }
-        }
+        buildFromContent(RestActions.getRestContent(request), analyzeRequest, parseFieldMatcher);
 
-        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
+    static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Malformed content, must start with an object");
@@ -144,7 +114,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                                 analyzeRequest.addTokenFilter(parser.map());
                             } else {
                                 throw new IllegalArgumentException(currentFieldName
-                                        + " array element should contain token_filter's name or setting");
+                                        + " array element should contain filter's name or setting");
                             }
                         }
                     } else if (parseFieldMatcher.match(currentFieldName, Fields.CHAR_FILTERS)

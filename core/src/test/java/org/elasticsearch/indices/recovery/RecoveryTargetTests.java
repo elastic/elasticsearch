@@ -20,18 +20,20 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.File;
 import org.elasticsearch.indices.recovery.RecoveryState.Index;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Timer;
 import org.elasticsearch.indices.recovery.RecoveryState.Translog;
-import org.elasticsearch.indices.recovery.RecoveryState.Type;
 import org.elasticsearch.indices.recovery.RecoveryState.VerifyIndex;
 import org.elasticsearch.test.ESTestCase;
 
@@ -339,7 +341,7 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testStageSequenceEnforcement() {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+        final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
             Version.CURRENT);
         Stage[] stages = Stage.values();
         int i = randomIntBetween(0, stages.length - 1);
@@ -351,8 +353,10 @@ public class RecoveryTargetTests extends ESTestCase {
         stages[i] = stages[j];
         stages[j] = t;
         try {
-            RecoveryState state = new RecoveryState(
-                    new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
+                randomBoolean(), ShardRoutingState.INITIALIZING);
+            RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
+                shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
             for (Stage stage : stages) {
                 state.setStage(stage);
             }
@@ -366,8 +370,10 @@ public class RecoveryTargetTests extends ESTestCase {
         i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
-        RecoveryState state = new RecoveryState(new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode,
-                discoveryNode);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
+            randomBoolean(), ShardRoutingState.INITIALIZING);
+        RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
+            shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
         for (Stage stage : list) {
             state.setStage(stage);
         }

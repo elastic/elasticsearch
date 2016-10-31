@@ -25,10 +25,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
+
+import java.io.IOException;
 
 public class RestGetPipelineAction extends BaseRestHandler {
 
@@ -40,9 +41,9 @@ public class RestGetPipelineAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest restRequest, RestChannel channel, NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
     }
 }

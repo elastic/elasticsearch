@@ -40,7 +40,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(SettingsListenerPlugin.class);
+        return Arrays.asList(SettingsListenerPlugin.class);
     }
 
     public static class SettingsListenerPlugin extends Plugin {

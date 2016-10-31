@@ -16,11 +16,19 @@ include::key.asciidoc[]
 
 [source,sh]
 -------------------------
-wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
 -------------------------
 
 [[deb-repo]]
 ==== Installing from the APT repository
+
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
 
 You may need to install the `apt-transport-https` package on Debian before proceeding:
 
@@ -29,12 +37,26 @@ You may need to install the `apt-transport-https` package on Debian before proce
 sudo apt-get install apt-transport-https
 --------------------------------------------------
 
-Save the repository definition to  +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+:
+Save the repository definition to  +/etc/apt/sources.list.d/elastic-{major-version}.list+:
+
+ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://packages.elastic.co/elasticsearch/{major-version}/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
+
+endif::[]
+
+ifeval::["{release-state}"=="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+--------------------------------------------------
+
+endif::[]
+
 
 [WARNING]
 ==================================================
@@ -63,25 +85,37 @@ If two entries exist for the same Elasticsearch repository, you will see an erro
 
 ["literal",subs="attributes,callouts"]
 
-Duplicate sources.list entry https://packages.elastic.co/elasticsearch/{major-version}/debian/ ...`
+Duplicate sources.list entry https://artifacts.elastic.co/packages/{major-version}/apt/ ...`
 
 Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
 ==================================================
+
+endif::[]
 
 
 [[install-deb]]
 ==== Download and install the Debian package manually
 
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
 The Debian package for Elastisearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/deb/elasticsearch/{version}/elasticsearch-{version}.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb
 sha1sum elasticsearch-{version}.deb <1>
 sudo dpkg -i elasticsearch-{version}.deb
 --------------------------------------------
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://download.elastics.co/elasticsearch/release/org/elasticsearch/distribution/deb/elasticsearch/{version}/elasticsearch-{version}.deb.sha1[published SHA].
+    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb.sha1[published SHA].
+
+endif::[]
 
 include::init-systemd.asciidoc[]
 

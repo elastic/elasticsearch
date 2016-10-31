@@ -9,8 +9,10 @@ The following returns the mapping of the field `text` only:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/_mapping/tweet/field/text'
+GET /twitter/_mapping/tweet/field/message
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 For which the response is (assuming `text` is a default string field):
 
@@ -18,18 +20,28 @@ For which the response is (assuming `text` is a default string field):
 --------------------------------------------------
 {
    "twitter": {
-      "tweet": {
-         "text": {
-            "full_name": "text",
-            "mapping": {
-               "text": { "type": "text" }
+      "mappings": {
+         "tweet": {
+            "message": {
+               "full_name": "message",
+               "mapping": {
+                  "message": {
+                     "type": "text",
+                     "fields": {
+                        "keyword": {
+                           "type": "keyword",
+                           "ignore_above": 256
+                        }
+                     }
+                  }
+               }
             }
          }
       }
    }
 }
 --------------------------------------------------
-
+// TESTRESPONSE
 
 
 [float]
@@ -44,12 +56,15 @@ following are some examples:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter,kimchy/_mapping/field/message'
+GET /twitter,kimchy/_mapping/field/message
 
-curl -XGET 'http://localhost:9200/_all/_mapping/tweet,book/field/message,user.id'
+GET /_all/_mapping/tweet,book/field/message,user.id
 
-curl -XGET 'http://localhost:9200/_all/_mapping/tw*/field/*.id'
+GET /_all/_mapping/tw*/field/*.id
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+// TEST[s/^/PUT kimchy\nPUT book\n/]
 
 [float]
 === Specifying fields

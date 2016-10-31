@@ -19,8 +19,8 @@
 package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -47,7 +47,7 @@ import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TE
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final ESLogger logger = Loggers.getLogger(ESTestCase.class);
+    protected final Logger logger = Loggers.getLogger(ESTestCase.class);
 
     @Override
     public void testStarted(Description description) throws Exception {

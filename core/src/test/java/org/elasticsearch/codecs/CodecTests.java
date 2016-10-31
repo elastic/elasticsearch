@@ -47,18 +47,25 @@ public class CodecTests extends ESSingleNodeTestCase {
     }
 
     public void testAcceptPostingsFormat() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "keyword").field("postings_format", Codec.getDefault().postingsFormat().getName()).endObject().endObject()
-                .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
             if (v.onOrAfter(Version.V_2_0_0) == false) {
                 // no need to test, we don't support upgrading from these versions
                 continue;
             }
-            IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
+            IndexService indexService = createIndex("test-" + i++,
+                    Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
+                String mapping = XContentFactory.jsonBuilder().startObject()
+                        .startObject("type")
+                            .startObject("properties")
+                                .startObject("field")
+                                    .field("type", v.onOrAfter(Version.V_5_0_0_alpha1) ? "keyword" : "string")
+                                    .field("postings_format", Codec.getDefault().postingsFormat().getName())
+                                .endObject()
+                            .endObject()
+                        .endObject().endObject().string();
                 parser.parse("type", new CompressedXContent(mapping));
                 if (v.onOrAfter(Version.V_2_0_0_beta1)) {
                     fail("Elasticsearch 2.0 should not support custom postings formats");
@@ -74,17 +81,24 @@ public class CodecTests extends ESSingleNodeTestCase {
     }
 
     public void testAcceptDocValuesFormat() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "keyword").field("doc_values_format", Codec.getDefault().docValuesFormat().getName()).endObject().endObject()
-                .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
             if (v.onOrAfter(Version.V_2_0_0) == false) {
                 // no need to test, we don't support upgrading from these versions
                 continue;
             }
-            IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
+            IndexService indexService = createIndex("test-" + i++,
+                    Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+            String mapping = XContentFactory.jsonBuilder().startObject()
+                    .startObject("type")
+                        .startObject("properties")
+                            .startObject("field")
+                                .field("type", v.onOrAfter(Version.V_5_0_0_alpha1) ? "keyword" : "string")
+                                .field("doc_values_format", Codec.getDefault().docValuesFormat().getName())
+                            .endObject()
+                        .endObject()
+                    .endObject().endObject().string();
             try {
                 parser.parse("type", new CompressedXContent(mapping));
                 if (v.onOrAfter(Version.V_2_0_0_beta1)) {

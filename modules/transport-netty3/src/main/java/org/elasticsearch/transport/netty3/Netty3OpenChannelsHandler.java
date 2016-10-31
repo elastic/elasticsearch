@@ -19,8 +19,8 @@
 
 package org.elasticsearch.transport.netty3;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.jboss.netty.channel.Channel;
@@ -42,9 +42,9 @@ public class Netty3OpenChannelsHandler implements ChannelUpstreamHandler, Releas
     final CounterMetric openChannelsMetric = new CounterMetric();
     final CounterMetric totalChannelsMetric = new CounterMetric();
 
-    final ESLogger logger;
+    final Logger logger;
 
-    public Netty3OpenChannelsHandler(ESLogger logger) {
+    public Netty3OpenChannelsHandler(Logger logger) {
         this.logger = logger;
     }
 

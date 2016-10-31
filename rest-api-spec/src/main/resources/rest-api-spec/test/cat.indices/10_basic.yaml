@@ -71,6 +71,47 @@
                 $/
 
 ---
+"Test cat indices using health status":
+
+  - do:
+      cluster.health: {}
+
+  - set: { number_of_data_nodes: count }
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: $count
+
+  - do:
+      cat.indices:
+        health: green
+        h: index
+
+  - match:
+      $body: |
+                /^(foo)$/
+
+  - do:
+      cat.indices:
+        health: yellow
+        h: index
+
+  - match:
+      $body: |
+               /^(bar)$/
+
+---
 "Test cat indices using wildcards":
 
   - do:
@@ -116,3 +157,61 @@
   - match:
       $body: |
                /^(ba(r|z) \n?){2}$/
+
+---
+"Test cat indices sort":
+  - skip:
+      version: " - 5.0.99"
+      reason:  sorting was introduced in 5.1.0
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.close:
+        index: bar
+
+  - do:
+      cat.indices:
+        h: [status, index]
+        s: [status, index]
+
+  - match:
+      $body: |
+            /^ close \s+ bar\n
+               open \s+ baz\n
+               open \s+ foo\n
+            $/
+
+  - do:
+      cat.indices:
+        h: [status, index]
+        s: [status, "index:desc"]
+
+  - match:
+      $body: |
+            /^ close \s+ bar\n
+               open \s+ foo\n
+               open \s+ baz\n
+            $/

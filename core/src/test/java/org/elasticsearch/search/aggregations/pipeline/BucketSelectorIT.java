@@ -26,11 +26,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -189,7 +187,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -222,7 +220,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -255,7 +253,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -278,7 +276,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -310,7 +308,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -344,7 +342,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -377,7 +375,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -410,7 +408,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -449,7 +447,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -482,7 +480,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(0));
@@ -504,7 +502,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -531,7 +529,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                         histogram("inner_histo")
                                                 .field(FIELD_1_NAME)
                                                 .interval(1)
-                                                .extendedBounds(new ExtendedBounds(1L, 4L))
+                                                .extendedBounds(1L, 4L)
                                 .minDocCount(0)
                                 .subAggregation(derivative("derivative", "_count")
                                 .gapPolicy(GapPolicy.INSERT_ZEROS))))
@@ -539,7 +537,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -547,7 +545,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("1"));
+        assertThat(bucket.getKeyAsString(), equalTo("1.0"));
         Histogram innerHisto = bucket.getAggregations().get("inner_histo");
         assertThat(innerHisto, notNullValue());
         List<? extends Histogram.Bucket> innerBuckets = innerHisto.getBuckets();
@@ -564,7 +562,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("2"));
+        assertThat(bucket.getKeyAsString(), equalTo("2.0"));
         innerHisto = bucket.getAggregations().get("inner_histo");
         assertThat(innerHisto, notNullValue());
         innerBuckets = innerHisto.getBuckets();
@@ -580,7 +578,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
         }
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("3"));
+        assertThat(bucket.getKeyAsString(), equalTo("3.0"));
         innerHisto = bucket.getAggregations().get("inner_histo");
         assertThat(innerHisto, notNullValue());
         innerBuckets = innerHisto.getBuckets();

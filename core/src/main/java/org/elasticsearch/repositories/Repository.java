@@ -23,14 +23,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
@@ -47,7 +45,7 @@ import java.util.List;
  * <ul>
  * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
  * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link Repository#snapshotShard(IndexShard, SnapshotId, IndexCommit, IndexShardSnapshotStatus)}
+ * <li>Data nodes call {@link Repository#snapshotShard(IndexShard, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
  * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
@@ -88,15 +86,14 @@ public interface Repository extends LifecycleComponent {
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException;
+    MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<IndexId> indices) throws IOException;
 
     /**
-     * Returns the list of snapshots currently stored in the repository that match the given predicate on the snapshot name.
-     * To get all snapshots, the predicate filter should return true regardless of the input.
-     *
-     * @return snapshot list
+     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
+     * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
+     * if there was an error in reading the data.
      */
-    List<SnapshotId> getSnapshots();
+    RepositoryData getRepositoryData();
 
     /**
      * Starts snapshotting process
@@ -105,7 +102,7 @@ public interface Repository extends LifecycleComponent {
      * @param indices    list of indices to be snapshotted
      * @param metaData   cluster metadata
      */
-    void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData);
+    void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData);
 
     /**
      * Finalizes snapshotting process
@@ -113,12 +110,14 @@ public interface Repository extends LifecycleComponent {
      * This method is called on master after all shards are snapshotted.
      *
      * @param snapshotId    snapshot id
+     * @param indices       list of indices in the snapshot
+     * @param startTime     start time of the snapshot
      * @param failure       global failure reason or null
      * @param totalShards   total number of shards
      * @param shardFailures list of shard failures
      * @return snapshot description
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
+    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
 
     /**
      * Deletes snapshot
@@ -173,7 +172,7 @@ public interface Repository extends LifecycleComponent {
     /**
      * Creates a snapshot of the shard based on the index commit point.
      * <p>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#snapshotIndex} method.
+     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireIndexCommit} method.
      * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
@@ -181,10 +180,11 @@ public interface Repository extends LifecycleComponent {
      *
      * @param shard               shard to be snapshotted
      * @param snapshotId          snapshot id
+     * @param indexId             id for the index being snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
      */
-    void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
+    void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
 
     /**
      * Restores snapshot of the shard.
@@ -194,20 +194,22 @@ public interface Repository extends LifecycleComponent {
      * @param shard           the shard to restore the index into
      * @param snapshotId      snapshot id
      * @param version         version of elasticsearch that created this snapshot
+     * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState);
+    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id
      * @param version    version of elasticsearch that created this snapshot
+     * @param indexId    the snapshotted index id for the shard to get status for
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId);
+    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
 
 
 }

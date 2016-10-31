@@ -217,11 +217,15 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
+@test "[$GROUP] install discovery-file plugin" {
+    install_and_check_plugin discovery file
+}
+
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.15-beta1.jar so that the test does
+    # we specify the version on the poi-3.15.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.15-beta1.jar poi-ooxml-3.15-beta1.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.15.jar poi-ooxml-3.15.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {
@@ -263,10 +267,6 @@ fi
     install_and_check_plugin lang python jython-standalone-*.jar
 }
 
-@test "[$GROUP] install mapper-attachments plugin" {
-    install_and_check_plugin mapper attachments
-}
-
 @test "[$GROUP] install murmur3 mapper plugin" {
     install_and_check_plugin mapper murmur3
 }
@@ -300,7 +300,7 @@ fi
 }
 
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
-    "$ESHOME/bin/elasticsearch-plugin" list > /tmp/installed
+    "$ESHOME/bin/elasticsearch-plugin" list | cut -d'@' -f1 > /tmp/installed
     compare_plugins_list "/tmp/installed" "'plugins list'"
 }
 
@@ -353,6 +353,10 @@ fi
     remove_plugin discovery-ec2
 }
 
+@test "[$GROUP] remove discovery-file plugin" {
+    remove_plugin discovery-file
+}
+
 @test "[$GROUP] remove ingest-attachment plugin" {
     remove_plugin ingest-attachment
 }
@@ -371,10 +375,6 @@ fi
 
 @test "[$GROUP] remove python plugin" {
     remove_plugin lang-python
-}
-
-@test "[$GROUP] remove mapper-attachments plugin" {
-    remove_plugin mapper-attachments
 }
 
 @test "[$GROUP] remove murmur3 mapper plugin" {

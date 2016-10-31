@@ -28,9 +28,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class DateRangeParser extends RangeParser {
 
     public DateRangeParser() {

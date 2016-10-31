@@ -152,3 +152,49 @@
   - is_false: nodes.$master.fs.data.0.path
   - is_true:  nodes.$master.fs.data.0.type
   - is_true:  nodes.$master.fs.data.0.total_in_bytes
+
+---
+"Nodes Stats filtered using both includes and excludes filters":
+  - do:
+      cluster.state: {}
+
+  # Get master node id
+  - set: { master_node: master }
+
+  # Nodes Stats with "nodes" field but no JVM stats
+  - do:
+      nodes.stats:
+        filter_path: [ "nodes", "-nodes.*.jvm", "-nodes.*.indices" ]
+
+  - is_false: cluster_name
+  - is_true:  nodes
+  - is_true:  nodes.$master.name
+  - is_true:  nodes.$master.os
+  - is_false: nodes.$master.indices
+  - is_false: nodes.$master.jvm
+
+  # Nodes Stats with "nodes.*.indices" field and sub-fields but no indices segments
+  - do:
+      nodes.stats:
+        filter_path: "nodes.*.indices,-nodes.*.indices.segments"
+
+  - is_false: cluster_name
+  - is_true:  nodes
+  - is_false: nodes.$master.name
+  - is_true:  nodes.$master.indices
+  - is_true:  nodes.$master.indices.docs
+  - is_false: nodes.$master.indices.segments
+
+  # Nodes Stats with "nodes.*.fs.data.t*" fields but no "type" field
+  - do:
+      nodes.stats:
+        filter_path: "nodes.*.fs.data.t*,-**.type"
+
+  - is_false: cluster_name
+  - is_true:  nodes
+  - is_false: nodes.$master.name
+  - is_false: nodes.$master.indices
+  - is_false: nodes.$master.jvm
+  - is_true:  nodes.$master.fs.data
+  - is_false: nodes.$master.fs.data.0.type
+  - is_true:  nodes.$master.fs.data.0.total_in_bytes

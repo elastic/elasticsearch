@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -72,8 +71,6 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1,
             Property.Dynamic, Property.NodeScope);
 
-
-    @Inject
     public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);

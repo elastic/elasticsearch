@@ -43,9 +43,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-/**
- *
- */
 public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
         extends AbstractAggregationBuilder<AB> {
 
@@ -376,8 +373,11 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     private SearchScript createScript(Script script, SearchContext context) {
-        return script == null ? null
-                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+        if (script == null) {
+            return null;
+        } else {
+            return context.getQueryShardContext().getSearchScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+        }
     }
 
     private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

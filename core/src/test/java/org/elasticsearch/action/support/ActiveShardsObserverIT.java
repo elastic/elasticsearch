@@ -67,7 +67,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         Settings settings = settingsBuilder.build();
         CreateIndexResponse response = prepareCreate("test-idx")
                                            .setSettings(settings)
-                                           .setWaitForActiveShards(ActiveShardCount.from(0))
+                                           .setWaitForActiveShards(ActiveShardCount.NONE)
                                            .get();
         assertTrue(response.isAcknowledged());
     }
@@ -83,7 +83,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         final String indexName = "test-idx";
         assertFalse(prepareCreate(indexName)
                        .setSettings(settings)
-                       .setWaitForActiveShards(ActiveShardCount.from(randomIntBetween(numDataNodes + 1, numReplicas + 1)))
+                       .setWaitForActiveShards(randomIntBetween(numDataNodes + 1, numReplicas + 1))
                        .setTimeout("100ms")
                        .get()
                        .isShardsAcked());
@@ -97,8 +97,9 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                                 .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
                                 .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), internalCluster().numDataNodes() + randomIntBetween(0, 3))
                                 .build();
-        ActiveShardCount waitForActiveShards = ActiveShardCount.from(randomIntBetween(0, internalCluster().numDataNodes()));
-        assertAcked(prepareCreate(indexName).setSettings(settings).setWaitForActiveShards(waitForActiveShards).get());
+        assertAcked(prepareCreate(indexName).setSettings(settings)
+                        .setWaitForActiveShards(randomIntBetween(0, internalCluster().numDataNodes()))
+                        .get());
     }
 
     public void testCreateIndexWaitsForAllActiveShards() throws Exception {

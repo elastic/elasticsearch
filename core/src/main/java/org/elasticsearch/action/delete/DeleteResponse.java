@@ -39,17 +39,17 @@ public class DeleteResponse extends DocWriteResponse {
     }
 
     public DeleteResponse(ShardId shardId, String type, String id, long version, boolean found) {
-        super(shardId, type, id, version, found ? Operation.DELETE : Operation.NOOP);
+        super(shardId, type, id, version, found ? Result.DELETED : Result.NOT_FOUND);
     }
 
     @Override
     public RestStatus status() {
-        return operation == Operation.DELETE ? super.status() : RestStatus.NOT_FOUND;
+        return result == Result.DELETED ? super.status() : RestStatus.NOT_FOUND;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("found", operation == Operation.DELETE);
+        builder.field("found", result == Result.DELETED);
         super.toXContent(builder, params);
         return builder;
     }
@@ -62,7 +62,7 @@ public class DeleteResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",operation=").append(getOperation().getLowercase());
+        builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
     }

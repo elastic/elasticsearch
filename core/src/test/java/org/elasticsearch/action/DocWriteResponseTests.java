@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.DocWriteResponse.Operation;
+import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.not;
 
 public class DocWriteResponseTests extends ESTestCase {
     public void testGetLocation() {
-        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0, Operation.CREATE) {
+        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0, Result.CREATED) {
             // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
         };
         assertEquals("/index/type/id", response.getLocation(null));
@@ -48,7 +48,7 @@ public class DocWriteResponseTests extends ESTestCase {
      * is true. We can't assert this in the yaml tests because "not found" is also "false" there....
      */
     public void testToXContentDoesntIncludeForcedRefreshUnlessForced() throws IOException {
-        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0, Operation.CREATE) {
+        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0, Result.CREATED) {
          // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
         };
         response.setShardInfo(new ShardInfo(1, 1));

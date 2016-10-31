@@ -28,12 +28,10 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -50,14 +48,14 @@ public class RestFielddataAction extends AbstractCatAction {
     }
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.clear();
         nodesStatsRequest.indices(true);
         String[] fields = request.paramAsStringArray("fields", null);
         nodesStatsRequest.indices().fieldDataFields(fields == null ? new String[] {"*"} : fields);
 
-        client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
+        return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(NodesStatsResponse nodeStatses) throws Exception {
                 return RestTable.buildResponse(buildTable(request, nodeStatses), channel);

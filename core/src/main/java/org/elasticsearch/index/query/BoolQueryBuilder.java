@@ -338,10 +338,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
                 }
-                if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "expected [END_OBJECT] but got [{}], possibly too many query clauses", parser.currentToken());
-                }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     switch (currentFieldName) {

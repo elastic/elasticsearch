@@ -27,7 +27,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -41,7 +41,9 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
 
     private SearchRequest request;
     private boolean simulate = false;
-    private ScriptService.ScriptType scriptType;
+    private boolean explain = false;
+    private boolean profile = false;
+    private ScriptType scriptType;
     private String script;
     private Map<String, Object> scriptParams;
 
@@ -69,11 +71,27 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         this.simulate = simulate;
     }
 
-    public ScriptService.ScriptType getScriptType() {
+    public boolean isExplain() {
+        return explain;
+    }
+
+    public void setExplain(boolean explain) {
+        this.explain = explain;
+    }
+
+    public boolean isProfile() {
+        return profile;
+    }
+
+    public void setProfile(boolean profile) {
+        this.profile = profile;
+    }
+
+    public ScriptType getScriptType() {
         return scriptType;
     }
 
-    public void setScriptType(ScriptService.ScriptType scriptType) {
+    public void setScriptType(ScriptType scriptType) {
         this.scriptType = scriptType;
     }
 
@@ -123,7 +141,9 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         super.readFrom(in);
         request = in.readOptionalStreamable(SearchRequest::new);
         simulate = in.readBoolean();
-        scriptType = ScriptService.ScriptType.readFrom(in);
+        explain = in.readBoolean();
+        profile = in.readBoolean();
+        scriptType = ScriptType.readFrom(in);
         script = in.readOptionalString();
         if (in.readBoolean()) {
             scriptParams = in.readMap();
@@ -135,7 +155,9 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         super.writeTo(out);
         out.writeOptionalStreamable(request);
         out.writeBoolean(simulate);
-        ScriptService.ScriptType.writeTo(scriptType, out);
+        out.writeBoolean(explain);
+        out.writeBoolean(profile);
+        ScriptType.writeTo(scriptType, out);
         out.writeOptionalString(script);
         boolean hasParams = scriptParams != null;
         out.writeBoolean(hasParams);

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.store;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -49,7 +49,7 @@ public class IndexStoreConfig {
     private volatile StoreRateLimiting.Type rateLimitingType;
     private volatile ByteSizeValue rateLimitingThrottle;
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
-    private final ESLogger logger;
+    private final Logger logger;
     public IndexStoreConfig(Settings settings) {
         logger = Loggers.getLogger(IndexStoreConfig.class, settings);
         // we don't limit by default (we default to CMS's auto throttle instead):

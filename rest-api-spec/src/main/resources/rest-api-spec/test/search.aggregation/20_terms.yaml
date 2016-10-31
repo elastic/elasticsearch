@@ -47,30 +47,30 @@ setup:
         type: test
         id: 3
         body: { "str": "bcd" }
-      
+
   - do:
       indices.refresh: {}
-    
+
   - do:
       search:
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
 
   - match: { hits.total: 3 }
-  
+
   - length: { aggregations.str_terms.buckets: 2 }
-  
+
   - match: { aggregations.str_terms.buckets.0.key: "abc" }
-  
+
   - is_false: aggregations.str_terms.buckets.0.key_as_string
-  
+
   - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
-  
+
   - match: { aggregations.str_terms.buckets.1.key: "bcd" }
-  
+
   - is_false: aggregations.str_terms.buckets.1.key_as_string
-  
+
   - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
-  
+
 ---
 "IP test":
   - do:
@@ -112,9 +112,9 @@ setup:
   - match: { aggregations.ip_terms.buckets.0.doc_count: 2 }
 
   - match: { aggregations.ip_terms.buckets.1.key: "127.0.0.1" }
-  
+
   - is_false: aggregations.ip_terms.buckets.1.key_as_string
-  
+
   - match: { aggregations.ip_terms.buckets.1.doc_count: 1 }
 
   - do:
@@ -142,7 +142,7 @@ setup:
       search:
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
 
-  
+
 
 ---
 "Boolean test":
@@ -327,7 +327,7 @@ setup:
   - match: { aggregations.date_terms.buckets.1.key_as_string: "2014-09-01T00:00:00.000Z" }
 
   - match: { aggregations.date_terms.buckets.1.doc_count: 1 }
-  
+
   - do:
       search:
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "include" : [ "2016-05-03" ] } } } }
@@ -335,11 +335,11 @@ setup:
   - match: { hits.total: 3 }
 
   - length: { aggregations.date_terms.buckets: 1 }
-  
+
   - match: { aggregations.date_terms.buckets.0.key_as_string: "2016-05-03T00:00:00.000Z" }
-  
-  - match: { aggregations.date_terms.buckets.0.doc_count: 2 }  
-  
+
+  - match: { aggregations.date_terms.buckets.0.doc_count: 2 }
+
   - do:
       search:
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "exclude" : [ "2016-05-03" ] } } } }
@@ -347,7 +347,7 @@ setup:
   - match: { hits.total: 3 }
 
   - length: { aggregations.date_terms.buckets: 1 }
-  
+
   - match: { aggregations.date_terms.buckets.0.key_as_string: "2014-09-01T00:00:00.000Z" }
 
-  - match: { aggregations.date_terms.buckets.0.doc_count: 1 }  
+  - match: { aggregations.date_terms.buckets.0.doc_count: 1 }

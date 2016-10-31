@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
@@ -26,7 +27,6 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
@@ -48,7 +48,7 @@ public enum GlobalOrdinalsBuilder {
     /**
      * Build global ordinals for the provided {@link IndexReader}.
      */
-    public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData, IndexSettings indexSettings, CircuitBreakerService breakerService, ESLogger logger) throws IOException {
+    public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData, IndexSettings indexSettings, CircuitBreakerService breakerService, Logger logger) throws IOException {
         assert indexReader.leaves().size() > 1;
         long startTimeNS = System.nanoTime();
 

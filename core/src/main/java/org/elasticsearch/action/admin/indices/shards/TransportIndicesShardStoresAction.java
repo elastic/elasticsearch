@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.shards;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -41,7 +42,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.gateway.AsyncShardFetch;
@@ -94,14 +94,13 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         logger.trace("using cluster state version [{}] to determine shards", state.version());
         // collect relevant shard ids of the requested indices for fetching store infos
         for (String index : concreteIndices) {
-            IndexMetaData indexMetaData = state.metaData().index(index);
             IndexRoutingTable indexShardRoutingTables = routingTables.index(index);
             if (indexShardRoutingTables == null) {
                 continue;
             }
             for (IndexShardRoutingTable routing : indexShardRoutingTables) {
                 final int shardId = routing.shardId().id();
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing, indexMetaData);
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing);
                 if (request.shardStatuses().contains(shardHealth.getStatus())) {
                     shardIdsToFetch.add(routing.shardId());
                 }
@@ -151,7 +150,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
         private class InternalAsyncFetch extends AsyncShardFetch<NodeGatewayStartedShards> {
 
-            InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, TransportNodesListGatewayStartedShards action) {
+            InternalAsyncFetch(Logger logger, String type, ShardId shardId, TransportNodesListGatewayStartedShards action) {
                 super(logger, type, shardId, action);
             }
 

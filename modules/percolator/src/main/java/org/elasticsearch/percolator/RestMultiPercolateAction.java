@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.support.IndicesOptions;
@@ -24,11 +25,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestToXContentListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -53,14 +55,13 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest restRequest, final RestChannel restChannel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
         multiPercolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, multiPercolateRequest.indicesOptions()));
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         multiPercolateRequest.documentType(restRequest.param("type"));
         multiPercolateRequest.add(RestActions.getRestContent(restRequest), allowExplicitIndex);
-        client.execute(MultiPercolateAction.INSTANCE, multiPercolateRequest,
-                new RestToXContentListener<MultiPercolateResponse>(restChannel));
+        return channel -> client.execute(MultiPercolateAction.INSTANCE, multiPercolateRequest, new RestToXContentListener<>(channel));
     }
 
 }

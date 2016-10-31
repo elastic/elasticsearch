@@ -27,20 +27,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-/**
- *
- */
 public class RestAliasAction extends AbstractCatAction {
 
     @Inject
@@ -52,13 +47,13 @@ public class RestAliasAction extends AbstractCatAction {
 
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(request.param("alias")) :
                 new GetAliasesRequest();
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
-        client.admin().indices().getAliases(getAliasesRequest, new RestResponseListener<GetAliasesResponse>(channel) {
+        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestResponseListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response) throws Exception {
                 Table tab = buildTable(request, response);

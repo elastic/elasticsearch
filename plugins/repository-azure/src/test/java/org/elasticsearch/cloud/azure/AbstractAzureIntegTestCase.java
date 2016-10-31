@@ -23,6 +23,7 @@ import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -32,6 +33,6 @@ public abstract class AbstractAzureIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AzureRepositoryPlugin.class);
+        return Arrays.asList(AzureRepositoryPlugin.class);
     }
 }

@@ -21,26 +21,35 @@ package org.elasticsearch.monitor.process;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class ProcessInfo implements Streamable, ToXContent {
+public class ProcessInfo implements Writeable, ToXContent {
 
-    long refreshInterval;
+    private final long refreshInterval;
+    private final long id;
+    private final boolean mlockall;
 
-    private long id;
-
-    private boolean mlockall;
-
-    ProcessInfo() {
-    }
-
-    public ProcessInfo(long id, boolean mlockall) {
+    public ProcessInfo(long id, boolean mlockall, long refreshInterval) {
         this.id = id;
         this.mlockall = mlockall;
+        this.refreshInterval = refreshInterval;
+    }
+
+    public ProcessInfo(StreamInput in) throws IOException {
+        refreshInterval = in.readLong();
+        id = in.readLong();
+        mlockall = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(refreshInterval);
+        out.writeLong(id);
+        out.writeBoolean(mlockall);
     }
 
     public long refreshInterval() {
@@ -78,25 +87,5 @@ public class ProcessInfo implements Streamable, ToXContent {
         builder.field(Fields.MLOCKALL, mlockall);
         builder.endObject();
         return builder;
-    }
-
-    public static ProcessInfo readProcessInfo(StreamInput in) throws IOException {
-        ProcessInfo info = new ProcessInfo();
-        info.readFrom(in);
-        return info;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        refreshInterval = in.readLong();
-        id = in.readLong();
-        mlockall = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(refreshInterval);
-        out.writeLong(id);
-        out.writeBoolean(mlockall);
     }
 }

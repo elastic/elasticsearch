@@ -19,8 +19,9 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentLocation;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -34,10 +35,10 @@ import static org.junit.Assert.fail;
  */
 public class LessThanOrEqualToAssertion  extends Assertion {
 
-    private static final ESLogger logger = Loggers.getLogger(LessThanOrEqualToAssertion.class);
+    private static final Logger logger = Loggers.getLogger(LessThanOrEqualToAssertion.class);
 
-    public LessThanOrEqualToAssertion(String field, Object expectedValue) {
-        super(field, expectedValue);
+    public LessThanOrEqualToAssertion(XContentLocation location, String field, Object expectedValue) {
+        super(location, field, expectedValue);
     }
 
     @Override

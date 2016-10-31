@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -69,6 +70,6 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestAwsS3Service.TestPlugin.class);
+        return Arrays.asList(TestAwsS3Service.TestPlugin.class);
     }
 }

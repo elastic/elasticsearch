@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
@@ -48,18 +49,16 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     private static final String NAME = "suggest";
 
-    private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
-        @Override
-        public int compare(Option first, Option second) {
-            int cmp = Float.compare(second.getScore(), first.getScore());
-            if (cmp != 0) {
-                return cmp;
-            }
-            return first.getText().compareTo(second.getText());
-         }
-    };
+    public static final Comparator<Option> COMPARATOR = (first, second) -> {
+        int cmp = Float.compare(second.getScore(), first.getScore());
+        if (cmp != 0) {
+            return cmp;
+        }
+        return first.getText().compareTo(second.getText());
+     };
 
     private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
+    private boolean hasScoreDocs;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
@@ -68,7 +67,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
+        // we sort suggestions by their names to ensure iteration over suggestions are consistent
+        // this is needed as we need to fill in suggestion docs in SearchPhaseController#sortDocs
+        // in the same order as we enrich the suggestions with fetch results in SearchPhaseController#merge
+        suggestions.sort((o1, o2) -> o1.getName().compareTo(o2.getName()));
         this.suggestions = suggestions;
+        this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
     @Override
@@ -95,6 +99,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
         }
         return (T) suggestMap.get(name);
+    }
+
+    /**
+     * Whether any suggestions had query hits
+     */
+    public boolean hasScoreDocs() {
+        return hasScoreDocs;
     }
 
     @Override
@@ -125,6 +136,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             suggestion.readFrom(in);
             suggestions.add(suggestion);
         }
+        hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
     @Override
@@ -160,18 +172,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return result;
     }
 
-    public static Map<String, List<Suggest.Suggestion>> group(Map<String, List<Suggest.Suggestion>> groupedSuggestions, Suggest suggest) {
-        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggest) {
-            List<Suggestion> list = groupedSuggestions.get(suggestion.getName());
-            if (list == null) {
-                list = new ArrayList<>();
-                groupedSuggestions.put(suggestion.getName(), list);
-            }
-            list.add(suggestion);
-        }
-        return groupedSuggestions;
-    }
-
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
         for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
@@ -191,6 +191,16 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             reduced.add(reduce);
         }
         return reduced;
+    }
+
+    /**
+     * @return only suggestions of type <code>suggestionType</code> contained in this {@link Suggest} instance
+     */
+    public <T extends Suggestion> List<T> filter(Class<T> suggestionType) {
+         return suggestions.stream()
+            .filter(suggestion -> suggestion.getClass() == suggestionType)
+            .map(suggestion -> (T) suggestion)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -236,6 +246,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          */
         public String getName() {
             return name;
+        }
+
+        /**
+         * @return The number of requested suggestion option size
+         */
+        public int getSize() {
+            return size;
         }
 
         /**
@@ -330,7 +347,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             builder.endArray();
             return builder;
         }
-
 
         /**
          * Represents a part from the suggest text with suggested options.

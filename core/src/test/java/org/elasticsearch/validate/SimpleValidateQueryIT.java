@@ -49,9 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 @ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
 public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testSimpleValidateQuery() throws Exception {

@@ -49,6 +49,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))), equalTo(newHashSet("testXXX", "testXYY", "kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "+testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))), equalTo(newHashSet("testXXX", "-testXXX")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "+testY*"))), equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testX*"))), equalTo(newHashSet("testXXX")));
     }
 
     public void testConvertWildcardsTests() {
@@ -62,7 +66,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("-kuku"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("-kuku"))), equalTo(newHashSet("-kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+test*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testX*", "+testYYY"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testYYY", "+testX*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));

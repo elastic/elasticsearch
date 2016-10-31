@@ -32,9 +32,6 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import java.io.IOException;
 import java.util.Arrays;
 
-/**
- *
- */
 public class GeoPolygonQuery extends Query {
 
     private final GeoPoint[] points;

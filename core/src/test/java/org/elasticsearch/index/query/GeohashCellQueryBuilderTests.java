@@ -24,11 +24,14 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery.Builder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Point;
@@ -39,7 +42,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder> {
 
@@ -63,7 +65,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     }
 
     @Override
-    protected void doAssertLuceneQuery(Builder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(Builder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.neighbors()) {
             assertThat(query, instanceOf(TermsQuery.class));
         } else {
@@ -88,43 +90,30 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     @Override
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testToQuery();
+        Version version = createShardContext().indexVersionCreated();
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            super.testToQuery();
+        }
     }
 
     public void testNullField() {
-        try {
-            if (randomBoolean()) {
-                new Builder(null, new GeoPoint());
-            } else {
-                new Builder("", new GeoPoint());
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("fieldName must not be null"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Builder(null, new GeoPoint()));
+        assertEquals("fieldName must not be null", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new Builder("", new GeoPoint()));
+        assertEquals("fieldName must not be null", e.getMessage());
     }
 
     public void testNullGeoPoint() {
-        try {
-            if (randomBoolean()) {
-                new Builder(GEO_POINT_FIELD_NAME, (GeoPoint) null);
-            } else {
-                new Builder(GEO_POINT_FIELD_NAME, "");
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("geohash or point must be defined"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Builder(GEO_POINT_FIELD_NAME, (GeoPoint) null));
+        assertEquals("geohash or point must be defined", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new Builder(GEO_POINT_FIELD_NAME, ""));
+        assertEquals("geohash or point must be defined", e.getMessage());
     }
 
     public void testInvalidPrecision() {
         GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        try {
-            builder.precision(-1);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("precision must be greater than 0"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
+        assertThat(e.getMessage(), containsString("precision must be greater than 0"));
     }
 
     public void testLocationParsing() throws IOException {
@@ -157,7 +146,10 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testMustRewrite();
+        Version version = createShardContext().indexVersionCreated();
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            super.testMustRewrite();
+        }
     }
 
     public void testIgnoreUnmapped() throws IOException {

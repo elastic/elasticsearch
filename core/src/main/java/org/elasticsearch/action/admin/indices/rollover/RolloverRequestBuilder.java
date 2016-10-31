@@ -90,4 +90,13 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         this.request.setWaitForActiveShards(waitForActiveShards);
         return this;
     }
+
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public RolloverRequestBuilder waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
 }

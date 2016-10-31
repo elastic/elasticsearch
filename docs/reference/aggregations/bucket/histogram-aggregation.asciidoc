@@ -11,19 +11,10 @@ To make this more formal, here is the rounding function that is used:
 
 [source,java]
 --------------------------------------------------
-rem = value % interval
-if (rem < 0) {
-    rem += interval
-}
-bucket_key = value - rem
+bucket_key = Math.floor((value - offset) / interval) * interval + offset
 --------------------------------------------------
 
-From the rounding function above it can be seen that the intervals themselves **must** be integers.
-
-WARNING: Currently, values are cast to integers before being bucketed, which
-might cause negative floating-point values to fall into the wrong bucket. For
-instance, `-4.5` with an interval of `2` would be cast to `-4`, and so would
-end up in the `-4 <= val < -2` bucket instead of the `-6 <= val < -4` bucket.
+The `interval` must be a positive decimal, while the `offset` must be a decimal in `[0, interval[`.
 
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
@@ -236,12 +227,14 @@ a multi-value metrics aggregation, and in case of a single-value metrics aggrega
 
 The path must be defined in the following form:
 
+// https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+[source,ebnf]
 --------------------------------------------------
-AGG_SEPARATOR       :=  '>'
-METRIC_SEPARATOR    :=  '.'
-AGG_NAME            :=  <the name of the aggregation>
-METRIC              :=  <the name of the metric (in case of multi-value metrics aggregation)>
-PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR><METRIC>]
+AGG_SEPARATOR       =  '>' ;
+METRIC_SEPARATOR    =  '.' ;
+AGG_NAME            =  <the name of the aggregation> ;
+METRIC              =  <the name of the metric (in case of multi-value metrics aggregation)> ;
+PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
 --------------------------------------------------
 
 [source,js]

@@ -42,12 +42,13 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
+import org.elasticsearch.index.mapper.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -315,9 +316,10 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             origin = context.nowInMillis();
         } else {
             if (dateFieldType instanceof LegacyDateFieldMapper.DateFieldType) {
-                origin = ((LegacyDateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null);
+                origin = ((LegacyDateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null,
+                        context);
             } else {
-                origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null);
+                origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null, context);
             }
         }
 

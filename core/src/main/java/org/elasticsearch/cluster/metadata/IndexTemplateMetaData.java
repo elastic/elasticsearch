@@ -21,7 +21,9 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -37,11 +39,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
-/**
- *
- */
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
     public static final IndexTemplateMetaData PROTO = IndexTemplateMetaData.builder("").build();
@@ -49,6 +49,26 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     private final String name;
 
     private final int order;
+
+    /**
+     * The version is an arbitrary number managed by the user so that they can easily and quickly verify the existence of a given template.
+     * Expected usage:
+     * <pre><code>
+     * PUT /_template/my_template
+     * {
+     *   "template": "my_index-*",
+     *   "mappings": { ... },
+     *   "version": 1
+     * }
+     * </code></pre>
+     * Then, some process from the user can occasionally verify that the template exists with the appropriate version without having to
+     * check the template's content:
+     * <pre><code>
+     * GET /_template/my_template?filter_path=*.version
+     * </code></pre>
+     */
+    @Nullable
+    private final Integer version;
 
     private final String template;
 
@@ -61,10 +81,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
 
-    public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableOpenMap<String, CompressedXContent> mappings,
-                                 ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+    public IndexTemplateMetaData(String name, int order, Integer version,
+                                 String template, Settings settings,
+                                 ImmutableOpenMap<String, CompressedXContent> mappings,
+                                 ImmutableOpenMap<String, AliasMetaData> aliases,
+                                 ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
         this.name = name;
         this.order = order;
+        this.version = version;
         this.template = template;
         this.settings = settings;
         this.mappings = mappings;
@@ -82,6 +106,16 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     public int getOrder() {
         return order();
+    }
+
+    @Nullable
+    public Integer getVersion() {
+        return version();
+    }
+
+    @Nullable
+    public Integer version() {
+        return version;
     }
 
     public String getName() {
@@ -150,13 +184,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         if (!settings.equals(that.settings)) return false;
         if (!template.equals(that.template)) return false;
 
-        return true;
+        return Objects.equals(version, that.version);
     }
 
     @Override
     public int hashCode() {
         int result = name.hashCode();
         result = 31 * result + order;
+        result = 31 * result + Objects.hashCode(version);
         result = 31 * result + template.hashCode();
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
@@ -184,6 +219,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
             builder.putCustom(type, customIndexMetaData);
         }
+        if (in.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
+            builder.version(in.readOptionalVInt());
+        }
         return builder.build();
     }
 
@@ -207,6 +245,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
+            out.writeOptionalVInt(version);
+        }
     }
 
     public static class Builder {
@@ -219,6 +260,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         private String name;
 
         private int order;
+
+        private Integer version;
 
         private String template;
 
@@ -240,6 +283,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         public Builder(IndexTemplateMetaData indexTemplateMetaData) {
             this.name = indexTemplateMetaData.name();
             order(indexTemplateMetaData.order());
+            version(indexTemplateMetaData.version());
             template(indexTemplateMetaData.template());
             settings(indexTemplateMetaData.settings());
 
@@ -250,6 +294,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         public Builder order(int order) {
             this.order = order;
+            return this;
+        }
+
+        public Builder version(Integer version) {
+            this.version = version;
             return this;
         }
 
@@ -312,14 +361,18 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
 
         public IndexTemplateMetaData build() {
-            return new IndexTemplateMetaData(name, order, template, settings, mappings.build(), aliases.build(), customs.build());
+            return new IndexTemplateMetaData(name, order, version, template, settings, mappings.build(), aliases.build(), customs.build());
         }
 
         @SuppressWarnings("unchecked")
-        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
+                throws IOException {
             builder.startObject(indexTemplateMetaData.name());
 
             builder.field("order", indexTemplateMetaData.order());
+            if (indexTemplateMetaData.version() != null) {
+                builder.field("version", indexTemplateMetaData.version());
+            }
             builder.field("template", indexTemplateMetaData.template());
 
             builder.startObject("settings");
@@ -380,7 +433,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings.Builder templateSettingsBuilder = Settings.builder();
-                        templateSettingsBuilder.put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+                        templateSettingsBuilder.put(
+                            SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered()))
+                                                 .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -388,7 +443,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                 currentFieldName = parser.currentName();
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
+                                Map<String, Object> mappingSource =
+                                    MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
                                 builder.putMapping(mappingType, XContentFactory.jsonBuilder().map(mappingSource).string());
                             }
                         }
@@ -428,6 +484,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                         builder.template(parser.text());
                     } else if ("order".equals(currentFieldName)) {
                         builder.order(parser.intValue());
+                    } else if ("version".equals(currentFieldName)) {
+                        builder.version(parser.intValue());
                     }
                 }
             }

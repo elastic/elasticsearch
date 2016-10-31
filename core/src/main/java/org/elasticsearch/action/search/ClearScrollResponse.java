@@ -31,8 +31,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- */
 public class ClearScrollResponse extends ActionResponse implements StatusToXContent {
 
     private boolean succeeded;

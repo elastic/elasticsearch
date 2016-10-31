@@ -80,7 +80,7 @@ public final class AppendProcessor extends AbstractProcessor {
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
                 "field", field, templateService);
-            return new AppendProcessor(processorTag, templateService.compile(field), ValueSource.wrap(value, templateService));
+            return new AppendProcessor(processorTag, compiledTemplate, ValueSource.wrap(value, templateService));
         }
     }
 }

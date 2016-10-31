@@ -27,18 +27,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.AcknowledgedRestListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-/**
- *
- */
 public class RestPutMappingAction extends BaseRestHandler {
 
 
@@ -68,7 +66,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.content().utf8ToString());
@@ -76,6 +74,6 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
-        client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestListener<PutMappingResponse>(channel));
+        return channel -> client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestListener<PutMappingResponse>(channel));
     }
 }

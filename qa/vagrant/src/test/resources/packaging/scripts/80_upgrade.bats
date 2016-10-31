@@ -37,6 +37,11 @@ load os_package
 # Cleans everything for the 1st execution
 setup() {
     skip_not_dpkg_or_rpm
+
+    sameVersion="false"
+    if [ "$(cat upgrade_from_version)" == "$(cat version)" ]; then
+        sameVersion="true"
+    fi
 }
 
 @test "[UPGRADE] install old version" {
@@ -49,11 +54,7 @@ setup() {
 }
 
 @test "[UPGRADE] check elasticsearch version is old version" {
-    curl -s localhost:9200 | grep \"number\"\ :\ \"$(cat upgrade_from_version)\" || {
-        echo "Installed an unexpected version:"
-        curl -s localhost:9200
-        false
-    }
+    check_elasticsearch_version "$(cat upgrade_from_version)"
 }
 
 @test "[UPGRADE] index some documents into a few indexes" {
@@ -79,7 +80,11 @@ setup() {
 }
 
 @test "[UPGRADE] install version under test" {
-    install_package -u
+    if [ "$sameVersion" == "true" ]; then
+        install_package -f
+    else
+        install_package -u
+    fi
 }
 
 @test "[UPGRADE] start version under test" {
@@ -88,12 +93,7 @@ setup() {
 }
 
 @test "[UPGRADE] check elasticsearch version is version under test" {
-    local versionToCheck=$(cat version | sed -e 's/-SNAPSHOT//')
-    curl -s localhost:9200 | grep \"number\"\ :\ \"$versionToCheck\" || {
-        echo "Installed an unexpected version:"
-        curl -s localhost:9200
-        false
-    }
+    check_elasticsearch_version "$(cat version)"
 }
 
 @test "[UPGRADE] verify that the documents are there after restart" {

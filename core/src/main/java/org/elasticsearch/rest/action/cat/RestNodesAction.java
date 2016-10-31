@@ -35,7 +35,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -54,13 +53,11 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActionListener;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
@@ -83,13 +80,13 @@ public class RestNodesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
@@ -238,19 +235,11 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostAddress());
-            if (node.getAddress() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
-            } else {
-                table.addCell("-");
-            }
+            table.addCell(node.getAddress().address().getPort());
             final HttpInfo httpInfo = info == null ? null : info.getHttp();
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
-                if (transportAddress instanceof InetSocketTransportAddress) {
-                    table.addCell(NetworkAddress.format(((InetSocketTransportAddress)transportAddress).address()));
-                } else {
-                    table.addCell(transportAddress.toString());
-                }
+                table.addCell(NetworkAddress.format(transportAddress.address()));
             } else {
                 table.addCell("-");
             }

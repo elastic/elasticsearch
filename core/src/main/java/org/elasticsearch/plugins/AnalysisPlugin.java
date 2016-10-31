@@ -45,6 +45,10 @@ import static java.util.Collections.emptyMap;
  *     }
  * }
  * }</pre>
+ *
+ * Elasticsearch doesn't have any automatic mechanism to share these components between indexes. If any component is heavy enough to warrant
+ * such sharing then it is the Pugin's responsibility to do it in their {@link AnalysisProvider} implementation. We recommend against doing
+ * this unless absolutely necessary because it can be difficult to get the caching right given things like behavior changes across versions.
  */
 public interface AnalysisPlugin {
     /**

@@ -19,18 +19,15 @@
 package org.elasticsearch.search.aggregations.metrics.max;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
 public class MaxParser extends NumericValuesSourceParser {
 
     public MaxParser() {
@@ -38,8 +35,8 @@ public class MaxParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
     }
 

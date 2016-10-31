@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +47,6 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 
 public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketScriptPipelineAggregationBuilder> {
     public static final String NAME = "bucket_script";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private final Script script;
     private final Map<String, String> bucketsPathsMap;
@@ -181,7 +179,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
                 } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher());
+                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
@@ -203,7 +201,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher());
+                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     Map<String, Object> map = parser.map();
                     bucketsPathsMap = new HashMap<>();

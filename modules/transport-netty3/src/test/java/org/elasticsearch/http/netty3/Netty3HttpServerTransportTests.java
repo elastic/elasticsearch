@@ -22,8 +22,10 @@ package org.elasticsearch.http.netty3;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.netty3.cors.Netty3CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -102,5 +104,18 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
         assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
         assertThat(corsConfig.allowedRequestMethods().stream().map(HttpMethod::getName).collect(Collectors.toSet()), equalTo(methods));
         transport.close();
+    }
+
+    public void testBindUnavailableAddress() {
+        try (Netty3HttpServerTransport transport = new Netty3HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool)) {
+            transport.start();
+            TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
+            try (Netty3HttpServerTransport otherTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays,
+                threadPool)) {
+                BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
+                assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
+            }
+        }
     }
 }

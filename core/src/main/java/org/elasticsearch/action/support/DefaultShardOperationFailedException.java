@@ -31,9 +31,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
-/**
- *
- */
 public class DefaultShardOperationFailedException implements ShardOperationFailedException {
 
     private String index;

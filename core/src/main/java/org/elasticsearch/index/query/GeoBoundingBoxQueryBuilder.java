@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -37,11 +38,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper.LegacyGeoPointFieldType;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
-import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
-import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxQuery;
+import org.elasticsearch.index.search.geo.LegacyInMemoryGeoBoundingBoxQuery;
+import org.elasticsearch.index.search.geo.LegacyIndexedGeoBoundingBoxQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -297,7 +299,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == true || indexCreatedBeforeV2_0) {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) || indexCreatedBeforeV2_0) {
             return null;
         }
 
@@ -359,7 +361,10 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {
+        if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            return LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
+                luceneTopLeft.getLon(), luceneBottomRight.getLon());
+        } else if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {
             // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
             // if index created V_2_3 > use prefix encoded postings format
             final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
@@ -371,12 +376,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         Query query;
         switch(type) {
             case INDEXED:
-                GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
-                query = IndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType);
+                LegacyGeoPointFieldType geoFieldType = ((LegacyGeoPointFieldType) fieldType);
+                query = LegacyIndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType, context);
                 break;
             case MEMORY:
                 IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-                query = new InMemoryGeoBoundingBoxQuery(luceneTopLeft, luceneBottomRight, indexFieldData);
+                query = new LegacyInMemoryGeoBoundingBoxQuery(luceneTopLeft, luceneBottomRight, indexFieldData);
                 break;
             default:
                 // Someone extended the type enum w/o adjusting this switch statement.

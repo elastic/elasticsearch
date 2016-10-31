@@ -19,13 +19,13 @@
 
 package org.elasticsearch.transport.netty3;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkService.TcpSettings;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,7 +45,6 @@ import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
@@ -94,7 +92,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
 
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
-            (s) -> Integer.toString(EsExecutors.boundedNumberOfProcessors(s) * 2),
+            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope, Property.Shared);
 
     public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
@@ -111,9 +109,9 @@ public class Netty3Transport extends TcpTransport<Channel> {
             "transport.netty.receive_predictor_size",
             settings -> {
                 long defaultReceiverPredictor = 512 * 1024;
-                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
+                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes() > 0) {
                     // we can guess a better default...
-                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / WORKER_COUNT.get(settings));
+                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()) / WORKER_COUNT.get(settings));
                     defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
                 }
                 return new ByteSizeValue(defaultReceiverPredictor).toString();
@@ -138,7 +136,6 @@ public class Netty3Transport extends TcpTransport<Channel> {
     protected volatile ClientBootstrap clientBootstrap;
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
 
-    @Inject
     public Netty3Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                            NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("netty3", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
@@ -149,11 +146,11 @@ public class Netty3Transport extends TcpTransport<Channel> {
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         this.receivePredictorMin = NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
         this.receivePredictorMax = NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
-        if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
-            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
+        if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
+            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.getBytes());
         } else {
-            receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(),
-                (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+            receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.getBytes(),
+                (int) receivePredictorMin.getBytes(), (int) receivePredictorMax.getBytes());
         }
     }
 
@@ -213,13 +210,13 @@ public class Netty3Transport extends TcpTransport<Channel> {
         clientBootstrap.setOption("keepAlive", tcpKeepAlive);
 
         ByteSizeValue tcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);
-        if (tcpSendBufferSize.bytes() > 0) {
-            clientBootstrap.setOption("sendBufferSize", tcpSendBufferSize.bytes());
+        if (tcpSendBufferSize.getBytes() > 0) {
+            clientBootstrap.setOption("sendBufferSize", tcpSendBufferSize.getBytes());
         }
 
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        if (tcpReceiveBufferSize.bytes() > 0) {
-            clientBootstrap.setOption("receiveBufferSize", tcpReceiveBufferSize.bytes());
+        if (tcpReceiveBufferSize.getBytes() > 0) {
+            clientBootstrap.setOption("receiveBufferSize", tcpReceiveBufferSize.getBytes());
         }
 
         clientBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
@@ -254,13 +251,13 @@ public class Netty3Transport extends TcpTransport<Channel> {
 
         ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size",
             TCP_SEND_BUFFER_SIZE.get(settings));
-        if (fallbackTcpSendBufferSize.bytes() >= 0) {
+        if (fallbackTcpSendBufferSize.getBytes() >= 0) {
             fallbackSettingsBuilder.put("tcp_send_buffer_size", fallbackTcpSendBufferSize);
         }
 
         ByteSizeValue fallbackTcpBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size",
             TCP_RECEIVE_BUFFER_SIZE.get(settings));
-        if (fallbackTcpBufferSize.bytes() >= 0) {
+        if (fallbackTcpBufferSize.getBytes() >= 0) {
             fallbackSettingsBuilder.put("tcp_receive_buffer_size", fallbackTcpBufferSize);
         }
 
@@ -286,8 +283,8 @@ public class Netty3Transport extends TcpTransport<Channel> {
                 receivePredictorMax);
         }
 
-        final ThreadFactory bossFactory = daemonThreadFactory(this.settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX, name);
-        final ThreadFactory workerFactory = daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX, name);
+        final ThreadFactory bossFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_BOSS_THREAD_NAME_PREFIX, name);
+        final ThreadFactory workerFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX, name);
         final ServerBootstrap serverBootstrap;
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
@@ -307,11 +304,11 @@ public class Netty3Transport extends TcpTransport<Channel> {
         if (!"default".equals(tcpKeepAlive)) {
             serverBootstrap.setOption("child.keepAlive", Booleans.parseBoolean(tcpKeepAlive, null));
         }
-        if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
-            serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
+        if (tcpSendBufferSize != null && tcpSendBufferSize.getBytes() > 0) {
+            serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.getBytes());
         }
-        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
-            serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
+        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.getBytes() > 0) {
+            serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.getBytes());
         }
         serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
@@ -334,7 +331,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
     }
 
     protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
+        InetSocketAddress address = node.getAddress().address();
         ChannelFuture connect = clientBootstrap.connect(address);
         connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
         if (!connect.isSuccess()) {
@@ -354,7 +351,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
             int numConnections = connectionsPerNodeBulk + connectionsPerNodePing + connectionsPerNodeRecovery + connectionsPerNodeReg
                 + connectionsPerNodeState;
             ArrayList<ChannelFuture> connections = new ArrayList<>();
-            InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
+            InetSocketAddress address = node.getAddress().address();
             for (int i = 0; i < numConnections; i++) {
                 connections.add(clientBootstrap.connect(address));
             }
@@ -419,11 +416,11 @@ public class Netty3Transport extends TcpTransport<Channel> {
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline channelPipeline = Channels.pipeline();
             Netty3SizeHeaderFrameDecoder sizeHeader = new Netty3SizeHeaderFrameDecoder();
-            if (nettyTransport.maxCumulationBufferCapacity.bytes() >= 0) {
-                if (nettyTransport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+            if (nettyTransport.maxCumulationBufferCapacity.getBytes() >= 0) {
+                if (nettyTransport.maxCumulationBufferCapacity.getBytes() > Integer.MAX_VALUE) {
                     sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
                 } else {
-                    sizeHeader.setMaxCumulationBufferCapacity((int) nettyTransport.maxCumulationBufferCapacity.bytes());
+                    sizeHeader.setMaxCumulationBufferCapacity((int) nettyTransport.maxCumulationBufferCapacity.getBytes());
                 }
             }
             if (nettyTransport.maxCompositeBufferComponents != -1) {
@@ -457,11 +454,11 @@ public class Netty3Transport extends TcpTransport<Channel> {
             ChannelPipeline channelPipeline = Channels.pipeline();
             channelPipeline.addLast("openChannels", nettyTransport.serverOpenChannels);
             Netty3SizeHeaderFrameDecoder sizeHeader = new Netty3SizeHeaderFrameDecoder();
-            if (nettyTransport.maxCumulationBufferCapacity.bytes() > 0) {
-                if (nettyTransport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+            if (nettyTransport.maxCumulationBufferCapacity.getBytes() > 0) {
+                if (nettyTransport.maxCumulationBufferCapacity.getBytes() > Integer.MAX_VALUE) {
                     sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
                 } else {
-                    sizeHeader.setMaxCumulationBufferCapacity((int) nettyTransport.maxCumulationBufferCapacity.bytes());
+                    sizeHeader.setMaxCumulationBufferCapacity((int) nettyTransport.maxCumulationBufferCapacity.getBytes());
                 }
             }
             if (nettyTransport.maxCompositeBufferComponents != -1) {
@@ -493,19 +490,9 @@ public class Netty3Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close) {
+    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) {
         final ChannelFuture future = channel.write(Netty3Utils.toChannelBuffer(reference));
-        if (close) {
-            future.addListener(f -> {
-                try {
-                    sendListener.run();
-                } finally {
-                    f.getChannel().close();
-                }
-            });
-        } else {
-            future.addListener(future1 -> sendListener.run());
-        }
+        future.addListener(future1 -> sendListener.run());
     }
 
     @Override
@@ -554,7 +541,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
                 try {
                     serverBootstrap.releaseExternalResources();
                 } catch (Exception e) {
-                    logger.debug("Error closing serverBootstrap for profile [{}]", e, name);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("Error closing serverBootstrap for profile [{}]", name), e);
                 }
             }
             serverBootstraps.clear();

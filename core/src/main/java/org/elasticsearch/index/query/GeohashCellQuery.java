@@ -35,8 +35,9 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,7 +84,7 @@ public class GeohashCellQuery {
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Query create(QueryShardContext context, BaseGeoPointFieldMapper.GeoPointFieldType fieldType,
+    public static Query create(QueryShardContext context, BaseGeoPointFieldMapper.LegacyGeoPointFieldType fieldType,
                                String geohash, @Nullable List<CharSequence> geohashes) {
         MappedFieldType geoHashMapper = fieldType.geoHashFieldType();
         if (geoHashMapper == null) {
@@ -241,11 +242,14 @@ public class GeohashCellQuery {
                 }
             }
 
-            if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+            if (fieldType instanceof LatLonPointFieldMapper.LatLonPointFieldType) {
+                throw new QueryShardException(context, "failed to parse [{}] query. "
+                    + "geo_point field no longer supports geohash_cell queries", NAME);
+            } else if (!(fieldType instanceof BaseGeoPointFieldMapper.LegacyGeoPointFieldType)) {
                 throw new QueryShardException(context, "failed to parse [{}] query. field [{}] is not a geo_point field", NAME, fieldName);
             }
 
-            BaseGeoPointFieldMapper.GeoPointFieldType geoFieldType = ((BaseGeoPointFieldMapper.GeoPointFieldType) fieldType);
+            BaseGeoPointFieldMapper.LegacyGeoPointFieldType geoFieldType = ((BaseGeoPointFieldMapper.LegacyGeoPointFieldType) fieldType);
             if (!geoFieldType.isGeoHashPrefixEnabled()) {
                 throw new QueryShardException(context, "failed to parse [{}] query. [geohash_prefix] is not enabled for field [{}]", NAME,
                         fieldName);

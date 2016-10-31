@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -38,9 +39,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartIT extends ESIntegTestCase {
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
@@ -77,7 +75,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(2, settings).get();
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
 
         logger.info("--> add two more nodes");
         internalCluster().startNodesAsync(2, settings).get();
@@ -86,7 +84,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         setMinimumMasterNodes(3);
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("5"));
 
         logger.info("--> refreshing and checking data");
         refresh();
@@ -97,14 +95,14 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         // now start shutting nodes down
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("4"));
 
         // going down to 3 nodes. note that the min_master_node may not be in effect when we shutdown the 4th
         // node, but that's OK as it is set to 3 before.
         setMinimumMasterNodes(2);
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
 
         logger.info("--> stopped two nodes, verifying data");
         refresh();
@@ -115,14 +113,14 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         // closing the 3rd node
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("2"));
 
         // closing the 2nd node
         setMinimumMasterNodes(1);
         internalCluster().stopRandomDataNode();
 
         // make sure the cluster state is yellow, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForYellowStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("1"));
 
         logger.info("--> one node left, verifying data");
         refresh();
@@ -151,7 +149,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state.prettyPrint(), recoveryState.getType() != RecoveryState.Type.PRIMARY_RELOCATION);
+            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state.prettyPrint(), recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
@@ -159,7 +157,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-           assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode()+ "-- \nbefore: \n" + state.prettyPrint() + "\nafter: \n" + afterState.prettyPrint(), recoveryState.getType() != RecoveryState.Type.PRIMARY_RELOCATION);
+           assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode()+ "-- \nbefore: \n" + state.prettyPrint() + "\nafter: \n" + afterState.prettyPrint(), recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
         }
     }
 }

@@ -27,9 +27,6 @@ import java.util.BitSet;
 
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class ArrayUtilsTests extends ESTestCase {
     public void testBinarySearch() throws Exception {
         for (int j = 0; j < 100; j++) {

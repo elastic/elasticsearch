@@ -18,6 +18,9 @@ sudo bin/elasticsearch-plugin install repository-azure
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-azure/repository-azure-{version}.zip.
+
 [[repository-azure-remove]]
 [float]
 ==== Removal

@@ -113,11 +113,42 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     public void testLookupRemoteVersion() throws Exception {
-        sourceWithMockedRemoteCall(false, "main/0_20_5.json").lookupRemoteVersion(v -> assertEquals(Version.fromString("0.20.5"), v));
-        sourceWithMockedRemoteCall(false, "main/0_90_13.json").lookupRemoteVersion(v -> assertEquals(Version.fromString("0.90.13"), v));
-        sourceWithMockedRemoteCall(false, "main/1_7_5.json").lookupRemoteVersion(v -> assertEquals(Version.fromString("1.7.5"), v));
-        sourceWithMockedRemoteCall(false, "main/2_3_3.json").lookupRemoteVersion(v -> assertEquals(Version.V_2_3_3, v));
-        sourceWithMockedRemoteCall(false, "main/5_0_0_alpha_3.json").lookupRemoteVersion(v -> assertEquals(Version.V_5_0_0_alpha3, v));
+        AtomicBoolean called = new AtomicBoolean();
+        sourceWithMockedRemoteCall(false, "main/0_20_5.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.fromString("0.20.5"), v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/0_90_13.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.fromString("0.90.13"), v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/1_7_5.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.fromString("1.7.5"), v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/2_3_3.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.V_2_3_3, v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/5_0_0_alpha_3.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.V_5_0_0_alpha3, v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/with_unknown_fields.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.V_5_0_0_alpha3, v);
+            called.set(true);
+        });
+        assertTrue(called.get());
     }
 
     public void testParseStartOk() throws Exception {
@@ -161,7 +192,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     /**
-     * Test for parsing _ttl, _timestamp, and _routing.
+     * Test for parsing _ttl, _timestamp, _routing, and _parent.
      */
     public void testParseScrollFullyLoaded() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
@@ -176,6 +207,24 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         });
         assertTrue(called.get());
     }
+
+    /**
+     * Test for parsing _ttl, _routing, and _parent. _timestamp isn't available.
+     */
+    public void testParseScrollFullyLoadedFrom1_7() throws Exception {
+        AtomicBoolean called = new AtomicBoolean();
+        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doStartNextScroll("", timeValueMillis(0), r -> {
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
+            assertEquals((Long) 1234L, r.getHits().get(0).getTTL());
+            assertNull(r.getHits().get(0).getTimestamp()); // Not available from 1.7
+            assertEquals("testrouting", r.getHits().get(0).getRouting());
+            assertEquals("testparent", r.getHits().get(0).getParent());
+            called.set(true);
+        });
+        assertTrue(called.get());
+    }
+
 
     /**
      * Versions of Elasticsearch before 2.1.0 don't support sort:_doc and instead need to use search_type=scan. Scan doesn't return

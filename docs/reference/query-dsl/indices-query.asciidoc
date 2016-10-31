@@ -1,6 +1,8 @@
 [[query-dsl-indices-query]]
 === Indices Query
 
+deprecated[5.0.0, Search on the '_index' field instead]
+
 The `indices` query is useful in cases where a search is executed across
 multiple indices. It allows to specify a list of index names and an inner
 query that is only executed for indices matching names on that list.
@@ -20,7 +22,8 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE 
+// CONSOLE
+// TEST[warning:indices query is deprecated. Instead search on the '_index' field]
 
 You can use the `index` field to provide a single index.
 

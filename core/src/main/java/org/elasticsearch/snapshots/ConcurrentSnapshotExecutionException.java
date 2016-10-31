@@ -25,7 +25,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 /**
- * Thrown when a user tries to start multiple snapshots at the same time
+ * Thrown when a user tries to multiple conflicting snapshot/restore operations at the same time.
  */
 public class ConcurrentSnapshotExecutionException extends SnapshotException {
 

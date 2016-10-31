@@ -431,25 +431,33 @@ public abstract class StreamInput extends InputStream {
         return map;
     }
 
+    /**
+     * Read a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
+     * <pre><code>
+     * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+     * </code></pre>
+     *
+     * @param keyReader The key reader
+     * @param valueReader The value reader
+     * @return Never {@code null}.
+     */
+    public <K, V> Map<K, List<V>> readMapOfLists(final Writeable.Reader<K> keyReader, final Writeable.Reader<V> valueReader)
+            throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return Collections.emptyMap();
+        }
+        final Map<K, List<V>> map = new HashMap<>(size);
+        for (int i = 0; i < size; ++i) {
+            map.put(keyReader.read(this), readList(valueReader));
+        }
+        return map;
+    }
+
     @Nullable
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
-    }
-
-    /**
-     * Read a map of strings to string lists.
-     */
-    public Map<String, List<String>> readMapOfLists() throws IOException {
-        int size = readVInt();
-        if (size == 0) {
-            return Collections.emptyMap();
-        }
-        Map<String, List<String>> map = new HashMap<>(size);
-        for (int i = 0; i < size; ++i) {
-            map.put(readString(), readList(StreamInput::readString));
-        }
-        return map;
     }
 
     @SuppressWarnings({"unchecked"})

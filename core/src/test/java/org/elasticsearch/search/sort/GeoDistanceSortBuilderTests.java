@@ -20,8 +20,7 @@
 package org.elasticsearch.search.sort;
 
 
-import org.apache.lucene.queryparser.xml.builders.MatchAllDocsQueryBuilder;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -33,11 +32,12 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -110,7 +110,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
-        MappedFieldType clone = GeoPointFieldMapper.Defaults.FIELD_TYPE.clone();
+        MappedFieldType clone = LatLonPointFieldMapper.Defaults.FIELD_TYPE.clone();
         clone.setName(name);
         return clone;
     }
@@ -182,7 +182,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     @Override
     protected void sortFieldAssertions(GeoDistanceSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
-        assertEquals(SortField.Type.CUSTOM, sortField.getType());
         assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
         assertEquals(builder.fieldName(), sortField.getField());
     }
@@ -471,5 +470,41 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     @Override
     protected GeoDistanceSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         return GeoDistanceSortBuilder.fromXContent(context, fieldName);
+    }
+
+    public void testCommonCaseIsOptimized() throws IOException {
+        // make sure the below tests test something...
+        assertFalse(SortField.class.equals(LatLonDocValuesField.newDistanceSort("random_field_name", 3.5, 2.1).getClass()));
+
+        QueryShardContext context = createMockShardContext();
+        // The common case should use LatLonDocValuesField.newDistanceSort
+        GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder("", new GeoPoint(3.5, 2.1));
+        SortFieldAndFormat sort = builder.build(context);
+        assertEquals(LatLonDocValuesField.newDistanceSort("random_field_name", 3.5, 2.1).getClass(), sort.field.getClass());
+
+        // however this might be disabled by fancy options
+        builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1), new GeoPoint(3.0, 4));
+        sort = builder.build(context);
+        assertEquals(SortField.class, sort.field.getClass()); // 2 points -> plain SortField with a custom comparator
+
+        builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
+        builder.unit(DistanceUnit.KILOMETERS);
+        sort = builder.build(context);
+        assertEquals(SortField.class, sort.field.getClass()); // km rather than m -> plain SortField with a custom comparator
+
+        builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
+        builder.order(SortOrder.DESC);
+        sort = builder.build(context);
+        assertEquals(SortField.class, sort.field.getClass()); // descending means the max value should be considered rather than min
+
+        builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
+        builder.setNestedPath("some_nested_path");
+        sort = builder.build(context);
+        assertEquals(SortField.class, sort.field.getClass()); // can't use LatLon optimized sorting with nested fields
+
+        builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
+        builder.order(SortOrder.DESC);
+        sort = builder.build(context);
+        assertEquals(SortField.class, sort.field.getClass()); // can't use LatLon optimized sorting with DESC sorting
     }
 }

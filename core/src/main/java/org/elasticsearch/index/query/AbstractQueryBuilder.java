@@ -26,10 +26,12 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -289,5 +291,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             throw new IllegalArgumentException(message);
         }
         return value;
+    }
+
+    protected static void throwParsingExceptionOnMultipleFields(String queryName, XContentLocation contentLocation,
+                                                                String processedFieldName, String currentFieldName) {
+        if (processedFieldName != null) {
+            throw new ParsingException(contentLocation, "[" + queryName + "] query doesn't support multiple fields, found ["
+                    + processedFieldName + "] and [" + currentFieldName + "]");
+        }
     }
 }

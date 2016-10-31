@@ -20,6 +20,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
@@ -39,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
@@ -63,15 +65,13 @@ public class MetaDataMappingService extends AbstractComponent {
 
     final ClusterStateTaskExecutor<RefreshTask> refreshExecutor = new RefreshTaskExecutor();
     final ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> putMappingExecutor = new PutMappingExecutor();
-    private final NodeServicesProvider nodeServicesProvider;
 
 
     @Inject
-    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeServicesProvider nodeServicesProvider) {
+    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.nodeServicesProvider = nodeServicesProvider;
     }
 
     static class RefreshTask {
@@ -144,7 +144,7 @@ public class MetaDataMappingService extends AbstractComponent {
             IndexService indexService = indicesService.indexService(indexMetaData.getIndex());
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
+                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
                 removeIndex = true;
                 for (ObjectCursor<MappingMetaData> metaData : indexMetaData.getMappings().values()) {
                     // don't apply the default mapping, it has been applied when the mapping was created
@@ -193,7 +193,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
             }
         } catch (Exception e) {
-            logger.warn("[{}] failed to refresh-mapping in cluster state", e, index);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to refresh-mapping in cluster state", index), e);
         }
         return dirty;
     }
@@ -207,7 +207,7 @@ public class MetaDataMappingService extends AbstractComponent {
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
-            (source, e) -> logger.warn("failure during [{}]", e, source)
+                (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failure during [{}]", source), e)
         );
     }
 
@@ -227,8 +227,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 // if the index does not exists we create it once, add all types to the mapper service and
                                 // close it later once we are done with mapping update
                                 indicesToClose.add(indexMetaData.getIndex());
-                                IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData,
-                                    Collections.emptyList());
+                                IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
                                 // add mappings for all types, we need them for cross-type validation
                                 for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
                                     indexService.mapperService().merge(mapping.value.type(), mapping.value.source(),

@@ -38,8 +38,8 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -55,8 +55,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class NestedAggregatorTests extends ESSingleNodeTestCase {
     public void testResetRootDocId() throws Exception {
         Directory directory = newDirectory();

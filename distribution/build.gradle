@@ -132,13 +132,6 @@ subprojects {
   // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
   project.group = "org.elasticsearch.distribution.${project.name}"
   project.archivesBaseName = 'elasticsearch'
-  apply plugin: 'com.bmuschko.nexus'
-  // we must create our own install task, because it is only added when the java plugin is added
-  task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
-    configuration = configurations.archives
-    MavenRepositoryHandlerConvention repositoriesHandler = (MavenRepositoryHandlerConvention)getRepositories().getConvention().getPlugin(MavenRepositoryHandlerConvention)
-    repositoriesHandler.mavenInstaller()
-  }
 
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
@@ -191,16 +184,11 @@ subprojects {
    /*****************************************************************************
    *                           Publishing setup                                *
    *****************************************************************************/
-  BuildPlugin.configurePomGeneration(project)
-  apply plugin: 'nebula.info-scm'
-  apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
-  publishing {
-    publications {
-      nebula {
-        artifactId 'elasticsearch'
-      }
-    }
+  if (['zip', 'integ-test-zip'].contains(it.name)) {
+    BuildPlugin.configurePomGeneration(project)
+    apply plugin: 'nebula.info-scm'
+    apply plugin: 'nebula.maven-base-publish'
+    apply plugin: 'nebula.maven-scm'
   }
 }
 
@@ -212,6 +200,8 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
     into("elasticsearch-${version}") {
       with libFiles
       into('config') {
+        dirMode 0750
+        fileMode 0660
         with configFiles
       }
       into('bin') {
@@ -254,6 +244,12 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
  * 3. ospackage really wants to suck up some of the debian control scripts
  *    directly from the filesystem. It doesn't want to process them through
  *    MavenFilteringHack or any other copy-style action.
+ *
+ * The following commands are useful when it comes to check the user/group
+ * and files permissions set within the RPM and DEB packages:
+ *
+ *    rpm -qlp --dump path/to/elasticsearch.rpm
+ *    dpkg -c path/to/elasticsearch.deb
  */
 configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
   integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
@@ -288,14 +284,12 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     dependsOn createEtc, createEtcScripts
     with configFiles
     into "${packagingFiles}/etc/elasticsearch"
-    fileMode 0640
-    dirMode 0750
     /* Explicitly declare the output files so this task doesn't consider itself
       up to date when the directory is created, which it would by default. And
       that'll happen when createEtc runs. */
     outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
     outputs.file "${packagingFiles}/etc/elasticsearch/jvm.options"
-    outputs.file "${packagingFiles}/etc/elasticsearch/logging.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/log4j2.properties"
   }
 
   task createPidDir(type: EmptyDirTask) {
@@ -375,9 +369,10 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
 
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
-    configurationFile '/etc/elasticsearch/logging.yml'
+    configurationFile '/etc/elasticsearch/log4j2.properties'
     into('/etc/elasticsearch') {
-      fileMode 0750
+      dirMode 0750
+      fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
@@ -399,35 +394,35 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     }
     configurationFile '/etc/init.d/elasticsearch'
     into('/etc/init.d') {
-      fileMode 0755
+      fileMode 0750
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/init.d/elasticsearch"
     }
     configurationFile project.expansions['path.env']
     into(new File(project.expansions['path.env']).getParent()) {
-      fileMode 0644
-      dirMode 0755
       fileType CONFIG | NOREPLACE
+      fileMode 0660
       from "${project.packagingFiles}/env/elasticsearch"
     }
 
     /**
      * Suck up all the empty directories that we need to install into the path.
      */
-    Closure suckUpEmptyDirectories = { path, u, g ->
+    Closure suckUpEmptyDirectories = { path, u, g, mode ->
       into(path) {
-        fileMode 0755
         from "${packagingFiles}/${path}"
         includeEmptyDirs true
         createDirectoryEntry true
         user u
         permissionGroup g
+        dirMode mode
+        fileMode mode
       }
     }
-    suckUpEmptyDirectories('/var/run', 'elasticsearch', 'elasticsearch')
-    suckUpEmptyDirectories('/var/log', 'elasticsearch', 'elasticsearch')
-    suckUpEmptyDirectories('/var/lib', 'elasticsearch', 'elasticsearch')
-    suckUpEmptyDirectories('/usr/share/elasticsearch', 'root', 'root')
+    suckUpEmptyDirectories('/var/run', 'elasticsearch', 'elasticsearch', 0755)
+    suckUpEmptyDirectories('/var/log', 'elasticsearch', 'elasticsearch', 0750)
+    suckUpEmptyDirectories('/var/lib', 'elasticsearch', 'elasticsearch', 0750)
+    suckUpEmptyDirectories('/usr/share/elasticsearch', 'root', 'root', 0755)
   }
 }
 
@@ -479,6 +474,8 @@ task run(type: RunTask) {
  * </dl>
  */
 Map<String, String> expansionsForDistribution(distributionType) {
+  final String defaultHeapSize = "2g"
+
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
   Map<String, Object> expansions = [
@@ -488,6 +485,7 @@ Map<String, String> expansionsForDistribution(distributionType) {
     'path.conf': [
       'tar': '$ES_HOME/config',
       'zip': '$ES_HOME/config',
+      'integ-test-zip': '$ES_HOME/config',
       'def': '/etc/elasticsearch',
     ],
     'path.env': [
@@ -498,8 +496,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': '',
     ],
 
-    'heap.min': "256m",
-    'heap.max': "2g",
+    'heap.min': defaultHeapSize,
+    'heap.max': defaultHeapSize,
 
     'stopping.timeout': [
       'rpm': 86400,

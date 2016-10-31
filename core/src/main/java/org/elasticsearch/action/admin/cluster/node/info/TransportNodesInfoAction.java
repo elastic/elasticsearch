@@ -36,9 +36,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequest,
                                                                    NodesInfoResponse,
                                                                    TransportNodesInfoAction.NodeInfoRequest,

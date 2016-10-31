@@ -25,11 +25,9 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -119,6 +117,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     @Override
     public void preCollection() throws IOException {
+        collector.preCollection();
     }
 
     @Override
@@ -145,7 +144,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
         this.selectedBuckets = hash;
 
-        collector.preCollection();
         boolean needsScores = collector.needsScores();
         Weight weight = null;
         if (needsScores) {

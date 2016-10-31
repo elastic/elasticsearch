@@ -4,7 +4,7 @@
 experimental[]
 
 A sibling pipeline aggregation which identifies the bucket(s) with the maximum value of a specified metric in a sibling aggregation
-and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must 
+and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must
 be a multi-bucket aggregation.
 
 ==== Syntax
@@ -34,7 +34,9 @@ The following snippet calculates the maximum of the total monthly `sales`:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search
 {
+    "size": 0,
     "aggs" : {
         "sales_per_month" : {
             "date_histogram" : {
@@ -57,7 +59,10 @@ The following snippet calculates the maximum of the total monthly `sales`:
     }
 }
 --------------------------------------------------
-<1> `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the 
+// CONSOLE
+// TEST[setup:sales]
+
+<1> `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the
 `sales_per_month` date histogram.
 
 And the following may be the response:
@@ -65,6 +70,10 @@ And the following may be the response:
 [source,js]
 --------------------------------------------------
 {
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
    "aggregations": {
       "sales_per_month": {
          "buckets": [
@@ -73,7 +82,7 @@ And the following may be the response:
                "key": 1420070400000,
                "doc_count": 3,
                "sales": {
-                  "value": 550
+                  "value": 550.0
                }
             },
             {
@@ -81,7 +90,7 @@ And the following may be the response:
                "key": 1422748800000,
                "doc_count": 2,
                "sales": {
-                  "value": 60
+                  "value": 60.0
                }
             },
             {
@@ -89,18 +98,20 @@ And the following may be the response:
                "key": 1425168000000,
                "doc_count": 2,
                "sales": {
-                  "value": 375
+                  "value": 375.0
                }
             }
          ]
       },
       "max_monthly_sales": {
           "keys": ["2015/01/01 00:00:00"], <1>
-          "value": 550
+          "value": 550.0
       }
    }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 <1> `keys` is an array of strings since the maximum value may be present in multiple buckets
-

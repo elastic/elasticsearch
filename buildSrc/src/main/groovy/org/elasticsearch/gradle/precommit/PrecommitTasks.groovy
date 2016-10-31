@@ -147,6 +147,9 @@ class PrecommitTasks {
                 checkstyleTask.dependsOn(task)
                 task.dependsOn(copyCheckstyleConf)
                 task.inputs.file(checkstyleSuppressions)
+                task.reports {
+                    html.enabled false
+                }
             }
         }
         return checkstyleTask

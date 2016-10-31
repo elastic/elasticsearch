@@ -141,7 +141,7 @@ public class FsProbeTests extends ESTestCase {
                 " 253       1 dm-1 112 0 4624 13 0 0 0 0 0 5 13",
                 " 253       2 dm-2 48045 0 714866 49369 1372291 0 64128568 33730766 0 1058347 33782056"));
 
-        final FsInfo previous = new FsInfo(System.currentTimeMillis(), first, null);
+        final FsInfo previous = new FsInfo(System.currentTimeMillis(), first, new FsInfo.Path[0]);
         final FsInfo.IoStats second = probe.ioStats(devicesNumbers, previous);
         assertNotNull(second);
         assertThat(second.devicesStats[0].majorDeviceNumber, equalTo(253));

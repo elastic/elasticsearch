@@ -23,7 +23,7 @@ GET my_index/_search
 {
   "query": {
     "match": {
-      "_all": "john smith 1970"
+      "_all": "john smith new york"
     }
   }
 }
@@ -72,7 +72,7 @@ GET _search
 {
   "query": {
     "query_string": {
-      "query": "john smith 1970"
+      "query": "john smith new york"
     }
   }
 }
@@ -84,7 +84,7 @@ requests>> (which is rewritten to a `query_string` query internally):
 
 [source,js]
 --------------------------------
-GET _search?q=john+smith+1970
+GET _search?q=john+smith+new+york
 --------------------------------
 
 Other queries, such as the <<query-dsl-match-query,`match`>> and

@@ -60,10 +60,8 @@ final class PSubBrace extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        if (!write) {
-            setup(writer, globals);
-            load(writer, globals);
-        }
+        setup(writer, globals);
+        load(writer, globals);
     }
 
     @Override
@@ -84,6 +82,7 @@ final class PSubBrace extends AStoreable {
     @Override
     void setup(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
+        writeIndexFlip(writer, MethodWriter::arrayLength);
     }
 
     @Override

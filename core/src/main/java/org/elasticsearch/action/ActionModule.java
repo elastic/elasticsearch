@@ -20,7 +20,6 @@
 package org.elasticsearch.action;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -209,6 +208,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.action.RestFieldStatsAction;
+import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
@@ -271,7 +272,6 @@ import org.elasticsearch.rest.action.admin.indices.RestTypesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpgradeAction;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
-import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
 import org.elasticsearch.rest.action.cat.RestAllocationAction;
@@ -288,28 +288,28 @@ import org.elasticsearch.rest.action.cat.RestSegmentsAction;
 import org.elasticsearch.rest.action.cat.RestShardsAction;
 import org.elasticsearch.rest.action.cat.RestSnapshotAction;
 import org.elasticsearch.rest.action.cat.RestTasksAction;
+import org.elasticsearch.rest.action.cat.RestTemplatesAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
-import org.elasticsearch.rest.action.delete.RestDeleteAction;
-import org.elasticsearch.rest.action.explain.RestExplainAction;
-import org.elasticsearch.rest.action.fieldstats.RestFieldStatsAction;
-import org.elasticsearch.rest.action.get.RestGetAction;
-import org.elasticsearch.rest.action.get.RestGetSourceAction;
-import org.elasticsearch.rest.action.get.RestHeadAction;
-import org.elasticsearch.rest.action.get.RestMultiGetAction;
-import org.elasticsearch.rest.action.index.RestIndexAction;
+import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.elasticsearch.rest.action.document.RestDeleteAction;
+import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestGetSourceAction;
+import org.elasticsearch.rest.action.document.RestHeadAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
+import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
+import org.elasticsearch.rest.action.document.RestTermVectorsAction;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
-import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
+import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
-import org.elasticsearch.rest.action.suggest.RestSuggestAction;
-import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
-import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
-import org.elasticsearch.rest.action.update.RestUpdateAction;
+import org.elasticsearch.rest.action.search.RestSuggestAction;
 
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
@@ -335,7 +335,7 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins, ingestEnabled);
-        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, resolver);
+        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<String> headers = actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()).collect(Collectors.toSet());
         restController = new RestController(settings, headers);
@@ -546,7 +546,7 @@ public class ActionModule extends AbstractModule {
         registerRestHandler(handlers, RestHeadAction.Source.class);
         registerRestHandler(handlers, RestMultiGetAction.class);
         registerRestHandler(handlers, RestDeleteAction.class);
-        registerRestHandler(handlers, org.elasticsearch.rest.action.count.RestCountAction.class);
+        registerRestHandler(handlers, org.elasticsearch.rest.action.document.RestCountAction.class);
         registerRestHandler(handlers, RestSuggestAction.class);
         registerRestHandler(handlers, RestTermVectorsAction.class);
         registerRestHandler(handlers, RestMultiTermVectorsAction.class);
@@ -604,6 +604,7 @@ public class ActionModule extends AbstractModule {
         registerRestHandler(handlers, RestNodeAttrsAction.class);
         registerRestHandler(handlers, RestRepositoriesAction.class);
         registerRestHandler(handlers, RestSnapshotAction.class);
+        registerRestHandler(handlers, RestTemplatesAction.class);
         for (ActionPlugin plugin : actionPlugins) {
             for (Class<? extends RestHandler> handler : plugin.getRestHandlers()) {
                 registerRestHandler(handlers, handler);
@@ -663,5 +664,9 @@ public class ActionModule extends AbstractModule {
                 }
             }
         }
+    }
+
+    public RestController getRestController() {
+        return restController;
     }
 }

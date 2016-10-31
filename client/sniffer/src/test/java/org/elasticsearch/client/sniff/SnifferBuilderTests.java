@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.sniff;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientTestCase;
@@ -31,7 +31,7 @@ import static org.junit.Assert.fail;
 public class SnifferBuilderTests extends RestClientTestCase {
 
     public void testBuild() throws Exception {
-        int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
+        int numNodes = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
@@ -46,14 +46,14 @@ public class SnifferBuilderTests extends RestClientTestCase {
             }
 
             try {
-                Sniffer.builder(client).setSniffIntervalMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client).setSniffIntervalMillis(RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffIntervalMillis must be greater than 0", e.getMessage());
             }
 
             try {
-                Sniffer.builder(client).setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client).setSniffAfterFailureDelayMillis(RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffAfterFailureDelayMillis must be greater than 0", e.getMessage());
@@ -74,10 +74,10 @@ public class SnifferBuilderTests extends RestClientTestCase {
 
             SnifferBuilder builder = Sniffer.builder(client);
             if (getRandom().nextBoolean()) {
-                builder.setSniffIntervalMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
+                builder.setSniffIntervalMillis(RandomNumbers.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
             }
             if (getRandom().nextBoolean()) {
-                builder.setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
+                builder.setSniffAfterFailureDelayMillis(RandomNumbers.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
             }
             if (getRandom().nextBoolean()) {
                 builder.setHostsSniffer(new MockHostsSniffer());

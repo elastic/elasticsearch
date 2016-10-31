@@ -20,6 +20,9 @@ NOTE: The plugin requires new permission to be installed in order to work
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-gcs/repository-gcs-{version}.zip.
+
 [[repository-gcs-remove]]
 [float]
 ==== Removal
@@ -131,6 +134,7 @@ A service account file looks like this:
   "client_x509_cert_url": "..."
 }
 ----
+// NOTCONSOLE
 
 This file must be copied in the `config` directory of the elasticsearch installation and on
 every node of the cluster.

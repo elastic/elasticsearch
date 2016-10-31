@@ -28,23 +28,10 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
-import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
-import org.elasticsearch.index.mapper.object.DynamicTemplate.XContentFieldType;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.StringFieldMapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -340,17 +327,13 @@ final class DocumentParser {
             return;
         }
         XContentParser parser = context.parser();
-
-        String currentFieldName = parser.currentName();
-        if (atRoot && MapperService.isMetadataField(currentFieldName)) {
-            throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
-        }
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
             return;
         }
 
+        String currentFieldName = parser.currentName();
         if (token.isValue()) {
             throw new MapperParsingException("object mapping for [" + mapper.name() + "] tried to parse field [" + currentFieldName + "] as object, but found a concrete value");
         }
@@ -358,6 +341,12 @@ final class DocumentParser {
         ObjectMapper.Nested nested = mapper.nested();
         if (nested.isNested()) {
             context = nestedContext(context, mapper);
+        }
+
+        // update the default value of include_in_all if necessary
+        Boolean includeInAll = mapper.includeInAll();
+        if (includeInAll != null) {
+            context = context.setIncludeInAllDefault(includeInAll);
         }
 
         // if we are at the end of the previous object, advance
@@ -384,6 +373,9 @@ final class DocumentParser {
                 parseArray(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {
+                    throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
+                }
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, mapper, currentFieldName);
             } else if (token == null) {

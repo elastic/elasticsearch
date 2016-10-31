@@ -31,7 +31,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
@@ -216,7 +215,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
             IOUtils.close(reader, secondReader, writer, dir, cache);
         }
         IndicesRequestCache cache = new IndicesRequestCache(Settings.builder()
-            .put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.bytes()+1 +"b")
+            .put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes()+1 +"b")
             .build());
         AtomicBoolean indexShard = new AtomicBoolean(true);
         ShardRequestCache requestCacheStats = new ShardRequestCache();

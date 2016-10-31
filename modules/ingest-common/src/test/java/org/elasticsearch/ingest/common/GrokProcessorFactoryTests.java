@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class GrokProcessorFactoryTests extends ESTestCase {
@@ -42,6 +43,22 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getMatchField(), equalTo("_field"));
         assertThat(processor.getGrok(), notNullValue());
+        assertThat(processor.isIgnoreMissing(), is(false));
+    }
+
+    public void testBuildWithIgnoreMissing() throws Exception {
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap());
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
+        config.put("ignore_missing", true);
+        String processorTag = randomAsciiOfLength(10);
+        GrokProcessor processor = factory.create(null, processorTag, config);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getGrok(), notNullValue());
+        assertThat(processor.isIgnoreMissing(), is(true));
     }
 
     public void testBuildMissingField() throws Exception {

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -162,7 +162,7 @@ public class IngestActionFilterTests extends ESTestCase {
         PipelineStore store = mock(PipelineStore.class);
 
         Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value2"));
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", randomInt(), new CompoundProcessor(processor)));
         executionService = new PipelineExecutionService(store, threadPool);
         IngestService ingestService = mock(IngestService.class);
         when(ingestService.getPipelineExecutionService()).thenReturn(executionService);
@@ -174,7 +174,7 @@ public class IngestActionFilterTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             if (rarely()) {
-                ActionRequest request;
+                DocWriteRequest request;
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_type", "_id");
                 } else {
@@ -196,7 +196,7 @@ public class IngestActionFilterTests extends ESTestCase {
         verifyZeroInteractions(actionListener);
 
         int assertedRequests = 0;
-        for (ActionRequest actionRequest : bulkRequest.requests()) {
+        for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 assertThat(indexRequest.sourceAsMap().size(), equalTo(2));

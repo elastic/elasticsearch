@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -35,12 +35,12 @@ class AssertingSearcher extends Engine.Searcher {
     private RuntimeException firstReleaseStack;
     private final Object lock = new Object();
     private final int initialRefCount;
-    private final ESLogger logger;
+    private final Logger logger;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     AssertingSearcher(IndexSearcher indexSearcher, final Engine.Searcher wrappedSearcher,
                              ShardId shardId,
-                             ESLogger logger) {
+                             Logger logger) {
         super(wrappedSearcher.source(), indexSearcher);
         // we only use the given index searcher here instead of the IS of the wrapped searcher. the IS might be a wrapped searcher
         // with a wrapped reader.

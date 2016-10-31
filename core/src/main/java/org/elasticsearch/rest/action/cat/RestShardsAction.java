@@ -36,13 +36,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActionListener;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestResponseListener;
+
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -62,13 +62,13 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).metaData(true).routingTable(true).indices(indices);
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
@@ -104,6 +104,8 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("unassigned.at", "alias:ua;default:false;desc:time shard became unassigned (UTC)");
         table.addCell("unassigned.for", "alias:uf;default:false;text-align:right;desc:time has been unassigned");
         table.addCell("unassigned.details", "alias:ud;default:false;desc:additional details as to why the shard became unassigned");
+
+        table.addCell("recoverysource.type", "alias:rs;default:false;desc:recovery source type");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
 
@@ -238,6 +240,12 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
                 table.addCell(null);
                 table.addCell(null);
+                table.addCell(null);
+            }
+
+            if (shard.recoverySource() != null) {
+                table.addCell(shard.recoverySource().getType().toString().toLowerCase(Locale.ROOT));
+            } else {
                 table.addCell(null);
             }
 

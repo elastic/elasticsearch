@@ -29,9 +29,9 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.ingest.IngestTestPlugin;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -97,7 +97,7 @@ public class CancelTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), numDocs);
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
-        // Scroll 1 by 1 so that cancellation is easier to control
+        // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 
         // Allow a random number of the documents minus 1
@@ -192,11 +192,11 @@ public class CancelTests extends ReindexTestCase {
 
         @Override
         public void onIndexModule(IndexModule indexModule) {
-            indexModule.addIndexOperationListener(new BlockingDeleteListener());
+            indexModule.addIndexOperationListener(new BlockingOperationListener());
         }
     }
 
-    public static class BlockingDeleteListener implements IndexingOperationListener {
+    public static class BlockingOperationListener implements IndexingOperationListener {
 
         @Override
         public Engine.Index preIndex(Engine.Index index) {

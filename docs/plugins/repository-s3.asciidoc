@@ -4,6 +4,8 @@
 The S3 repository plugin adds support for using S3 as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
+*If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
+
 [[repository-s3-install]]
 [float]
 ==== Installation
@@ -17,6 +19,9 @@ sudo bin/elasticsearch-plugin install repository-s3
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-s3/repository-s3-{version}.zip.
 
 [[repository-s3-remove]]
 [float]
@@ -299,6 +304,7 @@ IAM in conjunction with pre-existing S3 buckets. Here is an example policy which
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 You may further restrict the permissions by specifying a prefix within the bucket, in this example, named "foo".
 
@@ -342,6 +348,7 @@ You may further restrict the permissions by specifying a prefix within the bucke
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a
@@ -359,6 +366,7 @@ specific bucket like this:
    ]
 }
 ----
+// NOTCONSOLE
 
 [[repository-s3-endpoint]]
 ===== Using other S3 endpoint

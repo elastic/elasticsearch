@@ -41,9 +41,9 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -196,7 +196,7 @@ public class GoogleCloudStorageBlobStore extends AbstractComponent implements Bl
             } catch (GoogleJsonResponseException e) {
                 GoogleJsonError error = e.getDetails();
                 if ((e.getStatusCode() == HTTP_NOT_FOUND) || ((error != null) && (error.getCode() == HTTP_NOT_FOUND))) {
-                    throw new FileNotFoundException(e.getMessage());
+                    throw new NoSuchFileException(e.getMessage());
                 }
                 throw e;
             }
@@ -227,6 +227,9 @@ public class GoogleCloudStorageBlobStore extends AbstractComponent implements Bl
      * @param blobName name of the blob
      */
     void deleteBlob(String blobName) throws IOException {
+        if (!blobExists(blobName)) {
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+        }
         doPrivileged(() -> client.objects().delete(bucket, blobName).execute());
     }
 

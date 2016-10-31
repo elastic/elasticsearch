@@ -868,14 +868,14 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (analyzer == null) {
             qpSettings.defaultAnalyzer(context.getMapperService().searchAnalyzer());
         } else {
-            NamedAnalyzer namedAnalyzer = context.getAnalysisService().analyzer(analyzer);
+            NamedAnalyzer namedAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (namedAnalyzer == null) {
                 throw new QueryShardException(context, "[query_string] analyzer [" + analyzer + "] not found");
             }
             qpSettings.forceAnalyzer(namedAnalyzer);
         }
         if (quoteAnalyzer != null) {
-            NamedAnalyzer namedAnalyzer = context.getAnalysisService().analyzer(quoteAnalyzer);
+            NamedAnalyzer namedAnalyzer = context.getIndexAnalyzers().get(quoteAnalyzer);
             if (namedAnalyzer == null) {
                 throw new QueryShardException(context, "[query_string] quote_analyzer [" + quoteAnalyzer + "] not found");
             }

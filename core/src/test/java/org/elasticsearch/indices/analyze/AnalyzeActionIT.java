@@ -32,15 +32,11 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 
-/**
- *
- */
 public class AnalyzeActionIT extends ESIntegTestCase {
     public void testSimpleAnalyzerTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
@@ -76,18 +72,11 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
-        try {
-            client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get();
-            fail("shouldn't get here");
-        } catch (IllegalArgumentException ex) {
-            //all good
-        }
-        try {
-            client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get();
-            fail("shouldn't get here");
-        } catch (IllegalArgumentException ex) {
-            //all good
-        }
+        expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get());
+
+        expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get());
     }
 
     public void testAnalyzeWithNoIndex() throws Exception {
@@ -450,18 +439,13 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testNonExistTokenizer() {
-        try {
-            AnalyzeResponse analyzeResponse = client().admin().indices()
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices()
                 .prepareAnalyze("this is a test")
                 .setAnalyzer("not_exist_analyzer")
-                .get();
-            fail("shouldn't get here");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
-
-        }
-
+                .get()
+        );
+        assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
     }
 
     public void testCustomTokenFilterInRequest() throws Exception {

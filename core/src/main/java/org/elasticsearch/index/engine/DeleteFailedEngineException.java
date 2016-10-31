@@ -24,9 +24,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class DeleteFailedEngineException extends EngineException {
 
     public DeleteFailedEngineException(ShardId shardId, Engine.Delete delete, Throwable cause) {

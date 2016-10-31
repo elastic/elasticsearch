@@ -29,9 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class MergeStats implements Streamable, ToXContent {
 
     private long total;

@@ -83,7 +83,6 @@ install_jvm_example() {
     #just make sure that everything is the same as the parent bin dir, which was properly set up during install
     bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
     bin_owner=$(find "$ESHOME/bin" -maxdepth 0 -printf "%g")
-    bin_privileges=$(find "$ESHOME/bin" -maxdepth 0 -printf "%m")
     assert_file "$ESHOME/bin/jvm-example" d $bin_user $bin_owner 755
     assert_file "$ESHOME/bin/jvm-example/test" f $bin_user $bin_owner 755
 
@@ -92,8 +91,15 @@ install_jvm_example() {
     config_user=$(find "$ESCONFIG" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
     # directories should user the user file-creation mask
-    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner 755
-    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner 644
+    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner 750
+    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner 660
+
+    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/jvm-example/example.yaml"
+    [ $status = 1 ]
+    [[ "$output" == *"Permission denied"* ]] || {
+        echo "Expected permission denied but found $output:"
+        false
+    }
 
     echo "Running jvm-example's bin script...."
     "$ESHOME/bin/jvm-example/test" | grep test

@@ -25,11 +25,12 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -43,10 +44,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,14 +63,18 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -98,6 +108,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -129,11 +140,26 @@ import static org.hamcrest.Matchers.equalTo;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
+    private static final AtomicInteger portGenerator = new AtomicInteger();
+
+    @AfterClass
+    public static void resetPortCounter() {
+        portGenerator.set(0);
+    }
+
+
     static {
+        System.setProperty("log4j.shutdownHookEnabled", "false");
+        // we can not shutdown logging when tests are running or the next test that runs within the
+        // same JVM will try to initialize logging after a security manager has been installed and
+        // this will fail
+        System.setProperty("es.log4j.shutdownEnabled", "false");
+        System.setProperty("log4j2.disable.jmx", "true");
+        System.setProperty("log4j.skipJansi", "true"); // jython has this crazy shaded Jansi version that log4j2 tries to load
         BootstrapForTesting.ensureInitialized();
     }
 
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = Loggers.getLogger(getClass());
 
     // -----------------------------------------------------------------
     // Suite and test case setup/cleanup.
@@ -163,6 +189,14 @@ public abstract class ESTestCase extends LuceneTestCase {
             super.afterAlways(errors);
         }
     });
+
+    /**
+     * Generates a new transport address using {@link TransportAddress#META_ADDRESS} with an incrementing port number.
+     * The port number starts at 0 and is reset after each test suite run.
+     */
+    public static TransportAddress buildNewFakeTransportAddress() {
+        return new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet());
+    }
 
     /**
      * Called when a test fails, supplying the errors it generated. Not called when the test fails because assumptions are violated.
@@ -254,7 +288,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @see #scaledRandomIntBetween(int, int)
      */
     public static int randomIntBetween(int min, int max) {
-        return RandomInts.randomIntBetween(random(), min, max);
+        return RandomNumbers.randomIntBetween(random(), min, max);
     }
 
     /**
@@ -296,6 +330,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static int randomInt() {
         return random().nextInt();
+    }
+
+    public static long randomPositiveLong() {
+        long randomLong;
+        do {
+            randomLong = randomLong();
+        } while (randomLong == Long.MIN_VALUE);
+        return Math.abs(randomLong);
     }
 
     public static float randomFloat() {
@@ -715,6 +757,22 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Create a copy of an original {@link Writeable} object by running it through a {@link BytesStreamOutput} and
+     * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
+     * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
+     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
+     */
+    public static <T extends Writeable> T copyWriteable(T original, NamedWriteableRegistry namedWritabelRegistry,
+            Writeable.Reader<T> reader) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            original.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWritabelRegistry)) {
+                return reader.read(in);
+            }
+        }
+    }
+
+    /**
      * Returns true iff assertions for elasticsearch packages are enabled
      */
     public static boolean assertionsEnabled() {
@@ -797,35 +855,37 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
-    public static AnalysisService createAnalysisService(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
+    public static TestAnalysis createTestAnalysis(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
             throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        return createAnalysisService(index, nodeSettings, settings, analysisPlugins);
+        return createTestAnalysis(index, nodeSettings, settings, analysisPlugins);
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
-    public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings,
-            AnalysisPlugin... analysisPlugins) throws IOException {
+    public static TestAnalysis createTestAnalysis(Index index, Settings nodeSettings, Settings settings,
+                                                  AnalysisPlugin... analysisPlugins) throws IOException {
         Settings indexSettings = Settings.builder().put(settings)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        return createAnalysisService(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
+        return createTestAnalysis(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
-    public static AnalysisService createAnalysisService(IndexSettings indexSettings, Settings nodeSettings,
-            AnalysisPlugin... analysisPlugins) throws IOException {
+    public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings,
+                                                  AnalysisPlugin... analysisPlugins) throws IOException {
         Environment env = new Environment(nodeSettings);
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
-        final AnalysisService analysisService = analysisModule.getAnalysisRegistry()
-                .build(indexSettings);
-        return analysisService;
+        AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
+        return new TestAnalysis(analysisRegistry.build(indexSettings),
+            analysisRegistry.buildTokenFilterFactories(indexSettings),
+            analysisRegistry.buildTokenizerFactories(indexSettings),
+            analysisRegistry.buildCharFilterFactories(indexSettings));
     }
 
     public static ScriptModule newTestScriptModule() {
@@ -835,13 +895,14 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         Environment environment = new Environment(settings);
-        return new ScriptModule(settings, environment, null, singletonList(new MockScriptEngine()), emptyList());
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+        return new ScriptModule(settings, environment, null, singletonList(scriptEngine), emptyList());
     }
 
     /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */
     public static IndicesModule newTestIndicesModule(Map<String, Mapper.TypeParser> extraMappers,
                                                      Map<String, MetadataFieldMapper.TypeParser> extraMetadataMappers) {
-        return new IndicesModule(new NamedWriteableRegistry(), Collections.singletonList(
+        return new IndicesModule(Collections.singletonList(
             new MapperPlugin() {
                 @Override
                 public Map<String, Mapper.TypeParser> getMappers() {
@@ -853,5 +914,28 @@ public abstract class ESTestCase extends LuceneTestCase {
                 }
             }
         ));
+    }
+
+    /**
+     * This cute helper class just holds all analysis building blocks that are used
+     * to build IndexAnalyzers. This is only for testing since in production we only need the
+     * result and we don't even expose it there.
+     */
+    public static final class TestAnalysis {
+
+        public final IndexAnalyzers indexAnalyzers;
+        public final Map<String, TokenFilterFactory> tokenFilter;
+        public final Map<String, TokenizerFactory> tokenizer;
+        public final Map<String, CharFilterFactory> charFilter;
+
+        public TestAnalysis(IndexAnalyzers indexAnalyzers,
+                            Map<String, TokenFilterFactory> tokenFilter,
+                            Map<String, TokenizerFactory> tokenizer,
+                            Map<String, CharFilterFactory> charFilter) {
+            this.indexAnalyzers = indexAnalyzers;
+            this.tokenFilter = tokenFilter;
+            this.tokenizer = tokenizer;
+            this.charFilter = charFilter;
+        }
     }
 }

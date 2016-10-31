@@ -29,9 +29,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public class StoreFileMetaData implements Writeable {
 
     public static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_5_0_0;

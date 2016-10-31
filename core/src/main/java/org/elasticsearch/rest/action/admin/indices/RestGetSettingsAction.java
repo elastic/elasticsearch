@@ -32,11 +32,12 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -58,7 +59,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
@@ -68,7 +69,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
 
-        client.admin().indices().getSettings(getSettingsRequest, new RestBuilderListener<GetSettingsResponse>(channel) {
+        return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestBuilderListener<GetSettingsResponse>(channel) {
 
             @Override
             public RestResponse buildResponse(GetSettingsResponse getSettingsResponse, XContentBuilder builder) throws Exception {
@@ -94,4 +95,5 @@ public class RestGetSettingsAction extends BaseRestHandler {
             }
         });
     }
+
 }

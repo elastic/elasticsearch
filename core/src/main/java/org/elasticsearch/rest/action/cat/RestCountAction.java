@@ -29,13 +29,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -59,7 +57,7 @@ public class RestCountAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest countRequest = new SearchRequest(indices);
         String source = request.param("source");
@@ -73,7 +71,7 @@ public class RestCountAction extends AbstractCatAction {
                 searchSourceBuilder.query(queryBuilder);
             }
         }
-        client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
+        return channel -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, countResponse), channel);

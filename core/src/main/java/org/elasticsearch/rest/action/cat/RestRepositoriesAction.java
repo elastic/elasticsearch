@@ -26,12 +26,10 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -46,17 +44,20 @@ public class RestRepositoriesAction extends AbstractCatAction {
     }
 
     @Override
-    protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {
+    protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
 
-        client.admin().cluster().getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
-                return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
-            }
-        });
+        return channel ->
+                client.admin()
+                        .cluster()
+                        .getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
+                                return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
+                            }
+                        });
     }
 
     @Override

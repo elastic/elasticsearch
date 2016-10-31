@@ -56,7 +56,7 @@ GET /_search/template
 [float]
 ===== Converting parameters to JSON
 
-The `{{toJson}}parameter{{/toJson}}` function can be used to convert parameters
+The `{{#toJson}}parameter{{/toJson}}` function can be used to convert parameters
 like maps and array to their JSON representation:
 
 [source,js]
@@ -485,6 +485,42 @@ GET /_render/template/<template_name>
   }
 }
 ------------------------------------------
+
+[float]
+===== Explain
+
+You can use `explain` parameter when running a template:
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+  "file": "my_template",
+  "params": {
+    "status": [ "pending", "published" ]
+  },
+  "explain": true
+}
+------------------------------------------
+
+
+[float]
+===== Profiling
+
+You can use `profile` parameter when running a template:
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+  "file": "my_template",
+  "params": {
+    "status": [ "pending", "published" ]
+  },
+  "profile": true
+}
+------------------------------------------
+
 
 [[multi-search-template]]
 == Multi Search Template

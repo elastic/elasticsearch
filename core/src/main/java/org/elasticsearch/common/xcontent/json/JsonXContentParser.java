@@ -31,9 +31,6 @@ import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.nio.CharBuffer;
 
-/**
- *
- */
 public class JsonXContentParser extends AbstractXContentParser {
 
     final JsonParser parser;
@@ -87,11 +84,6 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public BytesRef utf8Bytes() throws IOException {
-        // Tentative workaround for https://github.com/elastic/elasticsearch/issues/8629
-        // TODO: Remove this when we upgrade jackson to 2.6.x.
-        if (parser.getTextLength() == 0) {
-            return new BytesRef();
-        }
         return new BytesRef(CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength()));
     }
 

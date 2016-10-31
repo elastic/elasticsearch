@@ -69,7 +69,7 @@ GET /my_locations/location/_search
 ==== Accepted Formats
 
 In much the same way the `geo_point` type can accept different
-representation of the geo point, the filter can accept it as well:
+representations of the geo point, the filter can accept it as well:
 
 [float]
 ===== Lat Lon As Properties
@@ -199,7 +199,7 @@ The following are options allowed on the filter:
     before the distance check. Defaults to `memory` which will do in memory
     checks. Can also have values of `indexed` to use indexed value check (make
     sure the `geo_point` type index lat lon in this case), or `none` which
-    disables bounding box optimization.
+    disables bounding box optimization. deprecated[2.2]
 
 `_name`::
 

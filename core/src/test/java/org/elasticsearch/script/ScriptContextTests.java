@@ -25,9 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -43,7 +41,9 @@ public class ScriptContextTests extends ESTestCase {
             .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
             .build();
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MockScriptEngine()));
+
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
         List<ScriptContext.Plugin> customContexts = Arrays.asList(
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
@@ -56,7 +56,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public void testCustomGlobalScriptContextSettings() throws Exception {
         ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        for (ScriptType scriptType : ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), Collections.emptyMap());
@@ -69,7 +69,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public void testCustomScriptContextSettings() throws Exception {
         ScriptService scriptService = makeScriptService();
-        Script script = new Script("1", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, null);
+        Script script = new Script("1", ScriptType.INLINE, MockScriptEngine.NAME, null);
         try {
             scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), Collections.emptyMap());
             fail("script compilation should have been rejected");
@@ -85,7 +85,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public void testUnknownPluginScriptContext() throws Exception {
         ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        for (ScriptType scriptType : ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), Collections.emptyMap());
@@ -104,7 +104,7 @@ public class ScriptContextTests extends ESTestCase {
             }
         };
         ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        for (ScriptType scriptType : ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, context, Collections.emptyMap());

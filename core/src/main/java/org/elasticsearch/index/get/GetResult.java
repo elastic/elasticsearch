@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -41,8 +42,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
-/**
- */
 public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     private String index;
@@ -229,7 +228,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         builder.field(Fields.FOUND, exists);
 
         if (source != null) {
-            XContentHelper.writeRawField("_source", source, builder, params);
+            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
 
         if (!otherFields.isEmpty()) {

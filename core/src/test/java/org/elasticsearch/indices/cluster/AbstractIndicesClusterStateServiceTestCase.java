@@ -30,17 +30,16 @@ import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndex;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.Shard;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -55,7 +54,9 @@ import java.util.concurrent.ConcurrentMap;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Abstract base class for tests against {@link IndicesClusterStateService}
@@ -87,7 +88,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.getNodes().getLocalNodeId());
         if (localRoutingNode != null) {
             if (enableRandomFailures == false) {
-                assertTrue("failed shard cache should be empty", failedShardsCache.isEmpty());
+                assertThat("failed shard cache should be empty", failedShardsCache.values(), empty());
             }
             // check that all shards in local routing nodes have been allocated
             for (ShardRouting shardRouting : localRoutingNode) {
@@ -162,7 +163,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         private volatile Map<String, MockIndexService> indices = emptyMap();
 
         @Override
-        public synchronized MockIndexService createIndex(NodeServicesProvider nodeServicesProvider, IndexMetaData indexMetaData,
+        public synchronized MockIndexService createIndex(IndexMetaData indexMetaData,
                                                          List<IndexEventListener> buildInIndexListener) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
             indices = newMapBuilder(indices).put(indexMetaData.getIndexUUID(), indexService).immutableMap();
@@ -207,10 +208,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public MockIndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState,
-                                          RecoveryTargetService recoveryTargetService,
-                                          RecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                                          NodeServicesProvider nodeServicesProvider, Callback<IndexShard.ShardFailure> onShardFailure)
-            throws IOException {
+                                          PeerRecoveryTargetService recoveryTargetService,
+                                          PeerRecoveryTargetService.RecoveryListener recoveryListener,
+                                          RepositoriesService repositoriesService,
+                                          Callback<IndexShard.ShardFailure> onShardFailure) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
@@ -260,6 +261,9 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public void updateMetaData(IndexMetaData indexMetaData) {
             indexSettings.updateIndexMetaData(indexMetaData);
+            for (MockIndexShard shard: shards.values()) {
+                shard.updateTerm(indexMetaData.primaryTerm(shard.shardId().id()));
+            }
         }
 
         @Override
@@ -269,7 +273,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         public synchronized MockIndexShard createShard(ShardRouting routing) throws IOException {
             failRandomly();
-            MockIndexShard shard = new MockIndexShard(routing);
+            MockIndexShard shard = new MockIndexShard(routing, indexSettings.getIndexMetaData().primaryTerm(routing.shardId().id()));
             shards = newMapBuilder(shards).put(routing.id(), shard).immutableMap();
             return shard;
         }
@@ -302,9 +306,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
     protected class MockIndexShard implements IndicesClusterStateService.Shard {
         private volatile ShardRouting shardRouting;
         private volatile RecoveryState recoveryState;
+        private volatile long term;
 
-        public MockIndexShard(ShardRouting shardRouting) {
+        public MockIndexShard(ShardRouting shardRouting, long term) {
             this.shardRouting = shardRouting;
+            this.term = term;
         }
 
         @Override
@@ -330,9 +336,21 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public void updateRoutingEntry(ShardRouting shardRouting) throws IOException {
             failRandomly();
-            assert this.shardId().equals(shardRouting.shardId());
-            assert this.shardRouting.isSameAllocation(shardRouting);
+            assertThat(this.shardId(), equalTo(shardRouting.shardId()));
+            assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));
+            if (this.shardRouting.active()) {
+                assertTrue("and active shard must stay active, current: " + this.shardRouting + ", got: " + shardRouting,
+                    shardRouting.active());
+            }
             this.shardRouting = shardRouting;
+        }
+
+        public void updateTerm(long newTerm) {
+            assertThat("term can only be incremented: " + shardRouting, newTerm, greaterThanOrEqualTo(term));
+            if (shardRouting.primary() && shardRouting.active()) {
+                assertThat("term can not be changed on an active primary shard: " + shardRouting, newTerm, equalTo(term));
+            }
+            this.term = newTerm;
         }
     }
 }

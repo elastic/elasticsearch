@@ -23,8 +23,11 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * The super class for an expression that can store a value in local memory.
@@ -100,4 +103,21 @@ abstract class AStoreable extends AExpression {
      * Called to store a storabable to local memory.
      */
     abstract void store(MethodWriter writer, Globals globals);
+
+    /**
+     * Writes the opcodes to flip a negative array index (meaning slots from the end of the array) into a 0-based one (meaning slots from
+     * the start of the array).
+     */
+    static void writeIndexFlip(MethodWriter writer, Consumer<MethodWriter> writeGetLength) {
+        Label noFlip = new Label();
+        // Everywhere when it says 'array' below that could also be a list
+        // The stack after each instruction:       array, unnormalized_index
+        writer.dup();                           // array, unnormalized_index, unnormalized_index
+        writer.ifZCmp(Opcodes.IFGE, noFlip);    // array, unnormalized_index
+        writer.swap();                          // negative_index, array
+        writer.dupX1();                         // array, negative_index, array
+        writeGetLength.accept(writer);          // array, negative_index, length
+        writer.visitInsn(Opcodes.IADD);         // array, noralized_index
+        writer.mark(noFlip);                    // array, noralized_index
+    }
 }

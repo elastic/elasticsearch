@@ -22,7 +22,6 @@ package org.elasticsearch.transport.netty4;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -64,12 +63,12 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         threadPool = new ThreadPool(settings);
         NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
-        nettyTransport = new Netty4Transport(settings, threadPool, networkService, bigArrays, new NamedWriteableRegistry(),
-            new NoneCircuitBreakerService());
+        nettyTransport = new Netty4Transport(settings, threadPool, networkService, bigArrays,
+            new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         nettyTransport.start();
 
         TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(boundAddresses);
+        TransportAddress transportAddress = (TransportAddress) randomFrom(boundAddresses);
         port = transportAddress.address().getPort();
         host = transportAddress.address().getAddress();
     }

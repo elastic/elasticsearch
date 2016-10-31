@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -34,7 +33,6 @@ import java.io.IOException;
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
     static final Type TYPE = new Type(NAME);
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public RangeAggregationBuilder(String name) {
         super(name, InternalRange.FACTORY);
@@ -116,6 +114,8 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     @Override
     protected RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
+        Range[] ranges = processRanges(context, config);
         return new RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
     }

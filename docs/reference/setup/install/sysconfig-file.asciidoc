@@ -40,7 +40,7 @@
 `CONF_DIR`::
 
     Configuration file directory (which needs to include `elasticsearch.yml`
-    and `logging.yml` files), defaults to `/etc/elasticsearch`.
+    and `log4j2.properties` files), defaults to `/etc/elasticsearch`.
 
 `ES_JAVA_OPTS`::
 

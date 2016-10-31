@@ -122,6 +122,8 @@ final class SSubEachIterable extends AStatement {
             writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
         }
 
+        block.continu = begin;
+        block.brake = end;
         block.write(writer, globals);
 
         writer.goTo(begin);

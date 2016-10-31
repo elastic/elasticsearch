@@ -30,6 +30,7 @@ integTest {
   cluster {
     setting 'script.inline', 'true'
     setting 'script.stored', 'true'
+    setting 'script.max_compilations_per_minute', '1000'
   }
 }
 

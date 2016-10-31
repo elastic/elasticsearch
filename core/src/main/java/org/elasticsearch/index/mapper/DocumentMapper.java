@@ -32,20 +32,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -59,9 +47,6 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
-/**
- *
- */
 public class DocumentMapper implements ToXContent {
 
     public static class Builder {
@@ -159,11 +144,11 @@ public class DocumentMapper implements ToXContent {
         }
         MapperUtils.collect(this.mapping.root, newObjectMappers, newFieldMappers);
 
-        final AnalysisService analysisService = mapperService.analysisService();
+        final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
         this.fieldMappers = new DocumentFieldMappers(newFieldMappers,
-                analysisService.defaultIndexAnalyzer(),
-                analysisService.defaultSearchAnalyzer(),
-                analysisService.defaultSearchQuoteAnalyzer());
+                indexAnalyzers.getDefaultIndexAnalyzer(),
+                indexAnalyzers.getDefaultSearchAnalyzer(),
+                indexAnalyzers.getDefaultSearchQuoteAnalyzer());
 
         Map<String, ObjectMapper> builder = new HashMap<>();
         for (ObjectMapper objectMapper : newObjectMappers) {

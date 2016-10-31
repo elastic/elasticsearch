@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.LongHashSet;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
@@ -84,7 +84,7 @@ public class HistogramIT extends ESIntegTestCase {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
             scripts.put("_value + 1", vars -> {
-                long value = (long) vars.get("_value");
+                double value = (double) vars.get("_value");
                 return value + 1L;
             });
 
@@ -377,7 +377,7 @@ public class HistogramIT extends ESIntegTestCase {
                 }
             }
             assertThat(sum.getValue(), equalTo((double) s));
-            assertEquals(propertiesKeys[i], (long) i * interval);
+            assertEquals(propertiesKeys[i], (double) i * interval);
             assertThat(propertiesDocCounts[i], equalTo(valueCounts[i]));
             assertThat(propertiesCounts[i], equalTo((double) s));
         }
@@ -762,7 +762,7 @@ public class HistogramIT extends ESIntegTestCase {
                         histogram("histo")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .interval(interval)
-                                .extendedBounds(new ExtendedBounds((long) -1 * 2 * interval, (long) valueCounts.length * interval)))
+                                .extendedBounds(-1 * 2 * interval, valueCounts.length * interval))
                 .get();
 
         assertSearchResponse(response);
@@ -853,7 +853,7 @@ public class HistogramIT extends ESIntegTestCase {
                             .field(SINGLE_VALUED_FIELD_NAME)
                             .interval(interval)
                             .minDocCount(0)
-                            .extendedBounds(new ExtendedBounds(boundsMin, boundsMax)))
+                            .extendedBounds(boundsMin, boundsMax))
                     .execute().actionGet();
 
             if (invalidBoundsError) {
@@ -861,7 +861,7 @@ public class HistogramIT extends ESIntegTestCase {
                 return;
             }
 
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             if (invalidBoundsError) {
                 // expected
                 return;
@@ -930,7 +930,7 @@ public class HistogramIT extends ESIntegTestCase {
                             .field(SINGLE_VALUED_FIELD_NAME)
                             .interval(interval)
                             .minDocCount(0)
-                            .extendedBounds(new ExtendedBounds(boundsMin, boundsMax)))
+                            .extendedBounds(boundsMin, boundsMax))
                     .execute().actionGet();
 
             if (invalidBoundsError) {
@@ -938,7 +938,7 @@ public class HistogramIT extends ESIntegTestCase {
                 return;
             }
 
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             if (invalidBoundsError) {
                 // expected
                 return;
@@ -973,7 +973,66 @@ public class HistogramIT extends ESIntegTestCase {
                     .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).execute().actionGet();
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("[interval] must be 1 or greater for histogram aggregation [histo]"));
+            assertThat(e.toString(), containsString("[interval] must be >0 for histogram aggregation [histo]"));
         }
+    }
+
+    public void testDecimalIntervalAndOffset() throws Exception {
+        assertAcked(prepareCreate("decimal_values").addMapping("type", "d", "type=float").get());
+        indexRandom(true,
+                client().prepareIndex("decimal_values", "type", "1").setSource("d", -0.6),
+                client().prepareIndex("decimal_values", "type", "2").setSource("d", 0.1));
+
+        SearchResponse r = client().prepareSearch("decimal_values")
+                .addAggregation(histogram("histo").field("d").interval(0.7).offset(0.05))
+                .get();
+        assertSearchResponse(r);
+
+        Histogram histogram = r.getAggregations().get("histo");
+        List<Bucket> buckets = histogram.getBuckets();
+        assertEquals(2, buckets.size());
+        assertEquals(-0.65, (double) buckets.get(0).getKey(), 0.01d);
+        assertEquals(1, buckets.get(0).getDocCount());
+        assertEquals(0.05, (double) buckets.get(1).getKey(), 0.01d);
+        assertEquals(1, buckets.get(1).getDocCount());
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=float")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("d", -0.6),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource("d", 0.1));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(histogram("histo").field("d")
+                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())).interval(0.7).offset(0.05)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(histogram("histo").field("d").interval(0.7).offset(0.05))
+                .get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 }

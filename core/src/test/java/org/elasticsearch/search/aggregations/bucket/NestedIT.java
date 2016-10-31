@@ -468,7 +468,7 @@ public class NestedIT extends ESIntegTestCase {
 
         client().prepareIndex("idx4", "product", "1").setSource(jsonBuilder().startObject()
                     .field("name", "product1")
-                    .field("categories", "1", "2", "3", "4")
+                    .array("categories", "1", "2", "3", "4")
                     .startArray("property")
                         .startObject().field("id", 1).endObject()
                         .startObject().field("id", 2).endObject()
@@ -477,7 +477,7 @@ public class NestedIT extends ESIntegTestCase {
                 .endObject()).get();
         client().prepareIndex("idx4", "product", "2").setSource(jsonBuilder().startObject()
                 .field("name", "product2")
-                .field("categories", "1", "2")
+                .array("categories", "1", "2")
                 .startArray("property")
                 .startObject().field("id", 1).endObject()
                 .startObject().field("id", 5).endObject()

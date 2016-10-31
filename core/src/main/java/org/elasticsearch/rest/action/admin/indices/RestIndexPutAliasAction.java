@@ -20,20 +20,18 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -60,7 +58,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String alias = request.param("name");
         Map<String, Object> filter = null;
@@ -103,12 +101,9 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
-        String[] aliases = new String[]{alias};
-        IndicesAliasesRequest.AliasActions aliasAction = new AliasActions(AliasAction.Type.ADD, indices, aliases);
-        indicesAliasesRequest.addAliasAction(aliasAction);
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
 
-
+        IndicesAliasesRequest.AliasActions aliasAction = AliasActions.add().indices(indices).alias(alias);
         if (routing != null) {
             aliasAction.routing(routing);
         }
@@ -121,6 +116,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         if (filter != null) {
             aliasAction.filter(filter);
         }
-        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
+        indicesAliasesRequest.addAliasAction(aliasAction);
+        return channel -> client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<>(channel));
     }
 }

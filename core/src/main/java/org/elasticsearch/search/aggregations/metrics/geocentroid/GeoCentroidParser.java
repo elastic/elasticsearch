@@ -20,10 +20,9 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -40,8 +39,8 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
     }
 

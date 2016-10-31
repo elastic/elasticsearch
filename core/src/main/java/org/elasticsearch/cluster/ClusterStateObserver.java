@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class ClusterStateObserver {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
 
     public final ChangePredicate MATCH_ALL_CHANGES_PREDICATE = new EventPredicate() {
 
@@ -58,7 +58,7 @@ public class ClusterStateObserver {
     volatile boolean timedOut;
 
 
-    public ClusterStateObserver(ClusterService clusterService, ESLogger logger, ThreadContext contextHolder) {
+    public ClusterStateObserver(ClusterService clusterService, Logger logger, ThreadContext contextHolder) {
         this(clusterService, new TimeValue(60000), logger, contextHolder);
     }
 
@@ -67,7 +67,7 @@ public class ClusterStateObserver {
      *                       will fail any existing or new #waitForNextChange calls. Set to null
      *                       to wait indefinitely
      */
-    public ClusterStateObserver(ClusterService clusterService, @Nullable TimeValue timeout, ESLogger logger, ThreadContext contextHolder) {
+    public ClusterStateObserver(ClusterService clusterService, @Nullable TimeValue timeout, Logger logger, ThreadContext contextHolder) {
         this.clusterService = clusterService;
         this.lastObservedState = new AtomicReference<>(new ObservedState(clusterService.state()));
         this.timeOutValue = timeout;

@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -56,12 +57,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return installPlugin ? pluginList(IngestTestPlugin.class) : Collections.emptyList();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Collections.singletonList(TestSeedPlugin.class);
+        return installPlugin ? Arrays.asList(IngestTestPlugin.class) : Collections.emptyList();
     }
 
     public void testFailPipelineCreation() throws Exception {

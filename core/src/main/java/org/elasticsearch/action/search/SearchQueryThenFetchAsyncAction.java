@@ -20,37 +20,45 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySearchResultProvider> {
 
     final AtomicArray<FetchSearchResult> fetchResults;
     final AtomicArray<IntArrayList> docIdsToLoad;
+    private final SearchPhaseController searchPhaseController;
 
-    SearchQueryThenFetchAsyncAction(ESLogger logger, SearchTransportService searchService,
-                                            ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                            SearchPhaseController searchPhaseController, ThreadPool threadPool,
-                                            SearchRequest request, ActionListener<SearchResponse> listener) {
-        super(logger, searchService, clusterService, indexNameExpressionResolver, searchPhaseController, threadPool, request, listener);
+    SearchQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
+                                    Function<String, DiscoveryNode> nodeIdToDiscoveryNode, Map<String,
+        AliasFilter> aliasFilter,
+                                    SearchPhaseController searchPhaseController, Executor executor,
+                                    SearchRequest request, ActionListener<SearchResponse> listener,
+                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
+                                    SearchTask task) {
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor, request, listener,
+            shardsIts, startTime, clusterStateVersion, task);
+        this.searchPhaseController = searchPhaseController;
         fetchResults = new AtomicArray<>(firstResults.length());
         docIdsToLoad = new AtomicArray<>(firstResults.length());
     }
@@ -63,27 +71,26 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     @Override
     protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
                                          ActionListener<QuerySearchResultProvider> listener) {
-        searchTransportService.sendExecuteQuery(node, request, listener);
+        searchTransportService.sendExecuteQuery(node, request, task, listener);
     }
 
     @Override
     protected void moveToSecondPhase() throws Exception {
-        boolean useScroll = request.scroll() != null;
-        sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
-        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
+        final boolean isScrollRequest = request.scroll() != null;
+        sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, firstResults);
+        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardDocs);
 
         if (docIdsToLoad.asList().isEmpty()) {
             finishHim();
             return;
         }
 
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(
-            request, sortedShardList, firstResults.length()
-        );
+        final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
+            searchPhaseController.getLastEmittedDocPerShard(firstResults.asList(), sortedShardDocs, firstResults.length()) : null;
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             QuerySearchResultProvider queryResult = firstResults.get(entry.index);
-            DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
+            DiscoveryNode node = nodeIdToDiscoveryNode.apply(queryResult.shardTarget().nodeId());
             ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), entry, lastEmittedDocPerShard);
             executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
         }
@@ -91,7 +98,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
 
     void executeFetch(final int shardIndex, final SearchShardTarget shardTarget, final AtomicInteger counter,
                       final ShardFetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
-        searchTransportService.sendExecuteFetch(node, fetchSearchRequest, new ActionListener<FetchSearchResult>() {
+        searchTransportService.sendExecuteFetch(node, fetchSearchRequest, task, new ActionListener<FetchSearchResult>() {
             @Override
             public void onResponse(FetchSearchResult result) {
                 result.shardTarget(shardTarget);
@@ -116,7 +123,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     void onFetchFailure(Exception e, ShardFetchSearchRequest fetchSearchRequest, int shardIndex, SearchShardTarget shardTarget,
                         AtomicInteger counter) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute fetch phase", e, fetchSearchRequest.id());
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
         }
         this.addShardFailure(shardIndex, shardTarget, e);
         successfulOps.decrementAndGet();
@@ -126,15 +133,13 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     }
 
     private void finishHim() {
-        threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
+        getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults,
+                final boolean isScrollRequest = request.scroll() != null;
+                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedShardDocs, firstResults,
                     fetchResults);
-                String scrollId = null;
-                if (request.scroll() != null) {
-                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults);
-                }
+                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(request.searchType(), firstResults) : null;
                 listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps,
                     successfulOps.get(), buildTookInMillis(), buildShardFailures()));
                 releaseIrrelevantSearchContexts(firstResults, docIdsToLoad);

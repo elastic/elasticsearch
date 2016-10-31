@@ -23,7 +23,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.UUIDs;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.OldIndexUtils;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -215,7 +215,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             assertTrue("[" + path + "] missing index dir: " + src.toString(), Files.exists(src));
             final Path indicesPath = randomFrom(nodeEnvironment.nodePaths()).indicesPath;
             logger.info("--> injecting index [{}] into [{}]", indexName, indicesPath);
-            OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, indicesPath);
+            OldIndexUtils.copyIndex(logger, src, indexName, indicesPath);
             IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
 
             // ensure old index folder is deleted

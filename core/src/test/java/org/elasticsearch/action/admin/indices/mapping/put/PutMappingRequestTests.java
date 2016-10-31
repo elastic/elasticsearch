@@ -57,4 +57,11 @@ public class PutMappingRequestTests extends ESTestCase {
             "Validation Failed: 1: either concrete index or unresolved indices can be set," +
                 " concrete index: [[foo/bar]] and indices: [myindex];");
     }
+
+    public void testBuildFromSimplifiedDef() {
+        // test that method rejects input where input varargs fieldname/properites are not paired correctly
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> PutMappingRequest.buildFromSimplifiedDef("type", "only_field"));
+        assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
+    }
 }

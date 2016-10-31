@@ -19,9 +19,9 @@
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -30,9 +30,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
 public class ValueCountParser extends AnyValuesSourceParser {
 
     public ValueCountParser() {
@@ -40,8 +37,8 @@ public class ValueCountParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
     }
 

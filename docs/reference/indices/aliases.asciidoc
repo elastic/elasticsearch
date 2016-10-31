@@ -22,9 +22,9 @@ POST /_aliases
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT test1\n/]
+// TEST[s/^/PUT test1\nPUT test2\n/]
 
-An alias can also be removed, for example:
+And here is removing that same alias:
 
 [source,js]
 --------------------------------------------------
@@ -48,7 +48,7 @@ POST /_aliases
 {
     "actions" : [
         { "remove" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test1", "alias" : "alias2" } }
+        { "add" : { "index" : "test2", "alias" : "alias1" } }
     ]
 }
 --------------------------------------------------
@@ -108,6 +108,25 @@ current indices that match, it will not automatically update as new
 indices that match this pattern are added/removed.
 
 It is an error to index to an alias which points to more than one index.
+
+It is also possible to swap an index with an alias in one operation:
+
+[source,js]
+--------------------------------------------------
+PUT test     <1>
+PUT test_2   <2>
+POST /_aliases
+{
+    "actions" : [
+        { "add":  { "index": "test_2", "alias": "test" } },
+        { "remove_index": { "index": "test" } }  <3>
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+<1> An index we've added by mistake
+<2> The index we should have added
+<3> `remove_index` is just like <<indices-delete-index>>
 
 [float]
 [[filtered]]

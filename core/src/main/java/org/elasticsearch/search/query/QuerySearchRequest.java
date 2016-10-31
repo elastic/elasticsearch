@@ -22,19 +22,19 @@ package org.elasticsearch.search.query;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 import static org.elasticsearch.search.dfs.AggregatedDfs.readAggregatedDfs;
 
-/**
- *
- */
 public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
     private long id;
@@ -84,5 +84,10 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
         out.writeLong(id);
         dfs.writeTo(out);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
 }

@@ -22,9 +22,6 @@ package org.elasticsearch.common.transport;
 import java.net.ConnectException;
 import java.nio.channels.ClosedChannelException;
 
-/**
- *
- */
 public class NetworkExceptionHelper {
 
     public static boolean isConnectException(Throwable e) {

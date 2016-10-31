@@ -14,7 +14,7 @@ QueryBuilder qb = scriptQuery(
 
 If you have stored on each data node a script named `myscript.painless` with:
 
-[source,js]
+[source,painless]
 --------------------------------------------------
 doc['num1'].value > params.param1
 --------------------------------------------------
@@ -35,5 +35,3 @@ QueryBuilder qb = scriptQuery(
 <2> Script type: either `ScriptType.FILE`, `ScriptType.INLINE` or `ScriptType.INDEXED`
 <3> Scripting engine
 <4> Parameters as a `Map` of `<String, Object>`
-
-

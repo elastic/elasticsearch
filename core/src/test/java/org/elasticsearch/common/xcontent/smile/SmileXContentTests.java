@@ -19,8 +19,13 @@
 
 package org.elasticsearch.common.xcontent.smile;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.dataformat.smile.SmileFactory;
+
 import org.elasticsearch.common.xcontent.BaseXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.ByteArrayOutputStream;
 
 public class SmileXContentTests extends BaseXContentTestCase {
 
@@ -29,4 +34,9 @@ public class SmileXContentTests extends BaseXContentTestCase {
         return XContentType.SMILE;
     }
 
+    public void testBigInteger() throws Exception {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        JsonGenerator generator = new SmileFactory().createGenerator(os);
+        doTestBigInteger(generator, os);
+    }
 }

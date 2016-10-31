@@ -23,13 +23,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -42,8 +48,6 @@ import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class FieldStatsTests extends ESSingleNodeTestCase {
     public void testByte() {
         testNumberRange("field1", "byte", 12, 18);
@@ -512,5 +516,53 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(response.getAllFieldStats().size(), equalTo(1));
         assertThat(response.getAllFieldStats().get("_type").isSearchable(), equalTo(true));
         assertThat(response.getAllFieldStats().get("_type").isAggregatable(), equalTo(true));
+    }
+
+    public void testSerialization() throws IOException {
+        for (int i = 0; i < 20; i++) {
+            assertSerialization(randomFieldStats());
+        }
+    }
+
+    /**
+     * creates a random field stats which does not guarantee that {@link FieldStats#maxValue} is greater than {@link FieldStats#minValue}
+     **/
+    private FieldStats randomFieldStats() throws UnknownHostException {
+        int type = randomInt(5);
+        switch (type) {
+            case 0:
+                return new FieldStats.Long(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(), randomLong(), randomLong());
+            case 1:
+                return new FieldStats.Double(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(), randomDouble(), randomDouble());
+            case 2:
+                return new FieldStats.Date(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(), Joda.forPattern("basicDate"),
+                    new Date().getTime(), new Date().getTime());
+            case 3:
+                return new FieldStats.Text(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    new BytesRef(randomAsciiOfLength(10)), new BytesRef(randomAsciiOfLength(20)));
+            case 4:
+                return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    InetAddress.getByName("::1"), InetAddress.getByName("::1"));
+            case 5:
+                return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    InetAddress.getByName("1.2.3.4"), InetAddress.getByName("1.2.3.4"));
+            default:
+                throw new IllegalArgumentException("Invalid type");
+        }
+    }
+
+    private void assertSerialization(FieldStats stats) throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        stats.writeTo(output);
+        output.flush();
+        FieldStats deserializedStats = FieldStats.readFrom(output.bytes().streamInput());
+        assertThat(stats, equalTo(deserializedStats));
+        assertThat(stats.hashCode(), equalTo(deserializedStats.hashCode()));
     }
 }

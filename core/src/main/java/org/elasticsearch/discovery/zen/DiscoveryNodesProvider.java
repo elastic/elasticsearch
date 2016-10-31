@@ -21,9 +21,6 @@ package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 
-/**
- *
- */
 public interface DiscoveryNodesProvider {
 
     DiscoveryNodes nodes();

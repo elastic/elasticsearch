@@ -19,12 +19,9 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.locationtech.spatial4j.context.SpatialContext;
-import org.locationtech.spatial4j.distance.DistanceUtils;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
-
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -48,9 +45,11 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -59,12 +58,17 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.BeforeClass;
+import org.locationtech.spatial4j.context.SpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -89,14 +93,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
 public class GeoFilterIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
     private static boolean intersectSupport;
@@ -431,8 +432,10 @@ public class GeoFilterIT extends ESIntegTestCase {
             String name = hit.getId();
             if (version.before(Version.V_2_2_0)) {
                 point.resetFromString(hit.fields().get("pin").getValue().toString());
-            } else {
+            } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 point.resetFromIndexHash(hit.fields().get("pin").getValue());
+            } else {
+                point.resetFromString(hit.getFields().get("pin").getValue());
             }
             double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
@@ -444,7 +447,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
     }
 
-    public void testGeohashCellFilter() throws IOException {
+    public void testLegacyGeohashCellFilter() throws IOException {
         String geohash = randomhash(10);
         logger.info("Testing geohash_cell filter for [{}]", geohash);
 
@@ -455,8 +458,11 @@ public class GeoFilterIT extends ESIntegTestCase {
         logger.info("Parent Neighbors {}", parentNeighbors);
 
         ensureYellow();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
-        client().admin().indices().prepareCreate("locations").addMapping("location", "pin", "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
+        client().admin().indices().prepareCreate("locations").setSettings(settings).addMapping("location", "pin",
+            "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
 
         // Index a pin
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();
@@ -561,7 +567,10 @@ public class GeoFilterIT extends ESIntegTestCase {
             strategy.makeQuery(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
-            ESLoggerFactory.getLogger(GeoFilterIT.class.getName()).info("Unsupported spatial operation {}", e, relation);
+            final SpatialOperation finalRelation = relation;
+            ESLoggerFactory
+                .getLogger(GeoFilterIT.class.getName())
+                .info((Supplier<?>) () -> new ParameterizedMessage("Unsupported spatial operation {}", finalRelation), e);
             return false;
         }
     }

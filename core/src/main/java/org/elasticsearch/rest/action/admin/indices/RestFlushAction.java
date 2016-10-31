@@ -29,20 +29,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
-/**
- *
- */
 public class RestFlushAction extends BaseRestHandler {
 
     @Inject
@@ -56,12 +54,12 @@ public class RestFlushAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
         flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));
         flushRequest.waitIfOngoing(request.paramAsBoolean("wait_if_ongoing", flushRequest.waitIfOngoing()));
-        client.admin().indices().flush(flushRequest, new RestBuilderListener<FlushResponse>(channel) {
+        return channel -> client.admin().indices().flush(flushRequest, new RestBuilderListener<FlushResponse>(channel) {
             @Override
             public RestResponse buildResponse(FlushResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

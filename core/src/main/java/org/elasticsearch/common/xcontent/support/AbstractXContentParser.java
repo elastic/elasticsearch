@@ -31,9 +31,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public abstract class AbstractXContentParser implements XContentParser {
 
     // Currently this is not a setting that can be changed and is a policy
@@ -300,16 +297,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         } else if (token == XContentParser.Token.VALUE_STRING) {
             return parser.text();
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            XContentParser.NumberType numberType = parser.numberType();
-            if (numberType == XContentParser.NumberType.INT) {
-                return parser.intValue();
-            } else if (numberType == XContentParser.NumberType.LONG) {
-                return parser.longValue();
-            } else if (numberType == XContentParser.NumberType.FLOAT) {
-                return parser.floatValue();
-            } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                return parser.doubleValue();
-            }
+            return parser.numberValue();
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             return parser.booleanValue();
         } else if (token == XContentParser.Token.START_OBJECT) {

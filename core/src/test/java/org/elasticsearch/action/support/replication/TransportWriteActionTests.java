@@ -62,12 +62,12 @@ public class TransportWriteActionTests extends ESTestCase {
         noRefreshCall(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond);
     }
 
-    private <Result, Response> void noRefreshCall(ThrowingBiFunction<TestAction, TestRequest, Result> action,
+    private <Result, Response> void noRefreshCall(ThrowingTriFunction<TestAction, TestRequest, IndexShard, Result> action,
                                         BiConsumer<Result, CapturingActionListener<Response>> responder)
             throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
-        Result result = action.apply(new TestAction(), request);
+        Result result = action.apply(new TestAction(), request, indexShard);
         CapturingActionListener<Response> listener = new CapturingActionListener<>();
         responder.accept(result, listener);
         assertNotNull(listener.response);
@@ -83,12 +83,12 @@ public class TransportWriteActionTests extends ESTestCase {
         immediateRefresh(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond, r -> {});
     }
 
-    private <Result, Response> void immediateRefresh(ThrowingBiFunction<TestAction, TestRequest, Result> action,
+    private <Result, Response> void immediateRefresh(ThrowingTriFunction<TestAction, TestRequest, IndexShard, Result> action,
                                                      BiConsumer<Result, CapturingActionListener<Response>> responder,
                                                      Consumer<Response> responseChecker) throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        Result result = action.apply(new TestAction(), request);
+        Result result = action.apply(new TestAction(), request, indexShard);
         CapturingActionListener<Response> listener = new CapturingActionListener<>();
         responder.accept(result, listener);
         assertNotNull(listener.response);
@@ -106,12 +106,12 @@ public class TransportWriteActionTests extends ESTestCase {
         waitForRefresh(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond, (r, forcedRefresh) -> {});
     }
 
-    private <Result, Response> void waitForRefresh(ThrowingBiFunction<TestAction, TestRequest, Result> action,
+    private <Result, Response> void waitForRefresh(ThrowingTriFunction<TestAction, TestRequest, IndexShard, Result> action,
                                                    BiConsumer<Result, CapturingActionListener<Response>> responder,
                                          BiConsumer<Response, Boolean> resultChecker) throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        Result result = action.apply(new TestAction(), request);
+        Result result = action.apply(new TestAction(), request, indexShard);
         CapturingActionListener<Response> listener = new CapturingActionListener<>();
         responder.accept(result, listener);
         assertNull(listener.response); // Haven't reallresponded yet
@@ -130,13 +130,10 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private class TestAction extends TransportWriteAction<TestRequest, TestResponse> {
         protected TestAction() {
-            super(Settings.EMPTY, "test", mock(TransportService.class), null, null, null, null, new ActionFilters(new HashSet<>()),
-                    new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new, ThreadPool.Names.SAME);
-        }
-
-        @Override
-        protected IndexShard indexShard(TestRequest request) {
-            return indexShard;
+            super(Settings.EMPTY, "test",
+                    new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null), null, null, null,
+                    null, new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new,
+                    ThreadPool.Names.SAME);
         }
 
         @Override
@@ -184,7 +181,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
     }
 
-    private interface ThrowingBiFunction<A, B, R> {
-        R apply(A a, B b) throws Exception;
+    private interface ThrowingTriFunction<A, B, C, R> {
+        R apply(A a, B b, C c) throws Exception;
     }
 }

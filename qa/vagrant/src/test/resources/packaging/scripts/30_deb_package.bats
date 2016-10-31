@@ -94,6 +94,11 @@ setup() {
     run_elasticsearch_tests
 }
 
+@test "[DEB] verify package installation after start" {
+    # Checks that the startup scripts didn't change the permissions
+    verify_package_installation
+}
+
 ##################################
 # Uninstall DEB package
 ##################################
@@ -127,13 +132,21 @@ setup() {
     # see postrm file
     assert_file_not_exist "/var/log/elasticsearch"
     assert_file_not_exist "/usr/share/elasticsearch/plugins"
+    assert_file_not_exist "/usr/share/elasticsearch/modules"
     assert_file_not_exist "/var/run/elasticsearch"
+
+    # Those directories are removed by the package manager
+    assert_file_not_exist "/usr/share/elasticsearch/bin"
+    assert_file_not_exist "/usr/share/elasticsearch/lib"
+    assert_file_not_exist "/usr/share/elasticsearch/modules"
+    assert_file_not_exist "/usr/share/elasticsearch/modules/lang-painless"
 
     # The configuration files are still here
     assert_file_exist "/etc/elasticsearch"
+    assert_file_exist "/etc/elasticsearch/scripts"
     assert_file_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_exist "/etc/elasticsearch/jvm.options"
-    assert_file_exist "/etc/elasticsearch/logging.yml"
+    assert_file_exist "/etc/elasticsearch/log4j2.properties"
 
     # The env file is still here
     assert_file_exist "/etc/default/elasticsearch"
@@ -152,9 +165,10 @@ setup() {
 @test "[DEB] verify package purge" {
     # all remaining files are deleted by the purge
     assert_file_not_exist "/etc/elasticsearch"
+    assert_file_not_exist "/etc/elasticsearch/scripts"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
-    assert_file_not_exist "/etc/elasticsearch/logging.yml"
+    assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
 
     assert_file_not_exist "/etc/default/elasticsearch"
 

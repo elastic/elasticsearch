@@ -37,7 +37,5 @@ public final class BootstrapSettings {
         Setting.boolSetting("bootstrap.seccomp", true, Property.NodeScope);
     public static final Setting<Boolean> CTRLHANDLER_SETTING =
         Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
-    public static final Setting<Boolean> IGNORE_SYSTEM_BOOTSTRAP_CHECKS =
-            Setting.boolSetting("bootstrap.ignore_system_bootstrap_checks", false, Property.NodeScope);
 
 }

@@ -25,6 +25,8 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.AbstractObjectParser.ContextParser;
+import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -42,6 +44,27 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ConstructingObjectParserTests extends ESTestCase {
     private static final ParseFieldMatcherSupplier MATCHER = () -> ParseFieldMatcher.STRICT;
+
+    public void testNullDeclares() {
+        ConstructingObjectParser<Void, ParseFieldMatcherSupplier> objectParser = new ConstructingObjectParser<>("foo", a -> null);
+        Exception e = expectThrows(IllegalArgumentException.class,
+                () -> objectParser.declareField(null, (r, c) -> null, new ParseField("test"), ObjectParser.ValueType.STRING));
+        assertEquals("[consumer] is required", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
+                (o, v) -> {}, (ContextParser<ParseFieldMatcherSupplier, Object>) null,
+                new ParseField("test"), ObjectParser.ValueType.STRING));
+        assertEquals("[parser] is required", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
+                (o, v) -> {}, (NoContextParser<Object>) null,
+                new ParseField("test"), ObjectParser.ValueType.STRING));
+        assertEquals("[parser] is required", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
+                (o, v) -> {}, (r, c) -> null, null, ObjectParser.ValueType.STRING));
+        assertEquals("[parseField] is required", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
+                (o, v) -> {}, (r, c) -> null, new ParseField("test"), null));
+        assertEquals("[type] is required", e.getMessage());
+    }
 
     /**
      * Builds the object in random order and parses it.
@@ -259,6 +282,25 @@ public class ConstructingObjectParserTests extends ESTestCase {
             result = parser.apply(xcontent, MATCHER);
         }
         assertTrue(result.fooSet);
+    }
+
+    public void testIgnoreUnknownFields() throws IOException {
+        XContentParser parser = XContentType.JSON.xContent().createParser(
+                  "{\n"
+                + "  \"test\" : \"foo\",\n"
+                + "  \"junk\" : 2\n"
+                + "}");
+        class TestStruct {
+            public final String test;
+            public TestStruct(String test) {
+                this.test = test;
+            }
+        }
+        ConstructingObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ConstructingObjectParser<>("foo", true, a ->
+                new TestStruct((String) a[0]));
+        objectParser.declareString(constructorArg(), new ParseField("test"));
+        TestStruct s = objectParser.apply(parser, MATCHER);
+        assertEquals(s.test, "foo");
     }
 
     private static class HasCtorArguments implements ToXContent {

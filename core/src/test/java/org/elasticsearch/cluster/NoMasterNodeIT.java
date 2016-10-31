@@ -29,12 +29,13 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -46,11 +47,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-/**
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class NoMasterNodeIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
+    }
+
     public void testNoMasterActions() throws Exception {
         // note, sometimes, we want to check with the fact that an index gets created, sometimes not...
         boolean autoCreateIndex = randomBoolean();
@@ -117,12 +122,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         checkWriteAction(
                 false, timeout,
                 client().prepareUpdate("test", "type1", "1")
-                        .setScript(new Script("test script", ScriptService.ScriptType.INLINE, null, null)).setTimeout(timeout));
+                        .setScript(new Script("test script", ScriptType.INLINE, null, null)).setTimeout(timeout));
 
         checkWriteAction(
                 autoCreateIndex, timeout,
                 client().prepareUpdate("no_index", "type1", "1")
-                        .setScript(new Script("test script", ScriptService.ScriptType.INLINE, null, null)).setTimeout(timeout));
+                        .setScript(new Script("test script", ScriptType.INLINE, null, null)).setTimeout(timeout));
 
 
         checkWriteAction(false, timeout,

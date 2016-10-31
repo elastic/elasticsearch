@@ -34,7 +34,7 @@ import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.Map;
 
-class Netty4HttpRequest extends RestRequest {
+public class Netty4HttpRequest extends RestRequest {
 
     private final FullHttpRequest request;
     private final Channel channel;

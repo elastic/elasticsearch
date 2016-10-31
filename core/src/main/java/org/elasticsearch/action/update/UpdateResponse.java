@@ -40,13 +40,13 @@ public class UpdateResponse extends DocWriteResponse {
      * Constructor to be used when a update didn't translate in a write.
      * For example: update script with operation set to none
      */
-    public UpdateResponse(ShardId shardId, String type, String id, long version, Operation operation) {
-        this(new ShardInfo(0, 0), shardId, type, id, version, operation);
+    public UpdateResponse(ShardId shardId, String type, String id, long version, Result result) {
+        this(new ShardInfo(0, 0), shardId, type, id, version, result);
     }
 
     public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id,
-                          long version, Operation operation) {
-        super(shardId, type, id, version, operation);
+                          long version, Result result) {
+        super(shardId, type, id, version, result);
         setShardInfo(shardInfo);
     }
 
@@ -60,7 +60,7 @@ public class UpdateResponse extends DocWriteResponse {
 
     @Override
     public RestStatus status() {
-        return this.operation == Operation.CREATE ? RestStatus.CREATED : super.status();
+        return this.result == Result.CREATED ? RestStatus.CREATED : super.status();
     }
 
     @Override
@@ -106,7 +106,7 @@ public class UpdateResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",operation=").append(getOperation().getLowercase());
+        builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
     }

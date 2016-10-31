@@ -1,9 +1,20 @@
 [[modules-snapshots]]
 == Snapshot And Restore
 
-The snapshot and restore module allows to create snapshots of individual indices or an entire cluster into a remote
-repository. At the time of the initial release only shared file system repository was supported, but now a range of
-backends are available via officially supported repository plugins.
+The snapshot and restore module allows to create snapshots of individual
+indices or an entire cluster into a remote repository like shared file system,
+S3, or HDFS. These snapshots are great for backups because they can be restored
+relatively quickly but they are not archival because they can only be restored
+to versions of Elasticsearch that can read the index. That means that:
+
+* A snapshot of an index created in 2.x can be restored to 5.x.
+* A snapshot of an index created in 1.x can be restored to 2.x.
+* A snapshot of an index created in 1.x can **not** be restored to 5.x.
+
+To restore a snapshot of an index created in 1.x to 5.x you can restore it to
+a 2.x cluster and use <<reindex-from-remote,reindex-from-remote>> to rebuild
+the index in a 5.x cluster. This is as time consuming as restoring from
+archival copies of the original data.
 
 [float]
 === Repositories
@@ -38,7 +49,7 @@ which returns:
   "my_backup": {
     "type": "fs",
     "settings": {
-      "compress": "true",
+      "compress": true,
       "location": "/mount/backups/my_backup"
     }
   }
@@ -219,7 +230,7 @@ specifying the list of indices in the body of the snapshot request.
 PUT /_snapshot/my_backup/snapshot_1
 {
   "indices": "index_1,index_2",
-  "ignore_unavailable": "true",
+  "ignore_unavailable": true,
   "include_global_state": false
 }
 -----------------------------------
@@ -277,7 +288,7 @@ GET /_snapshot/my_backup/_all
 -----------------------------------
 // CONSOLE
 
-The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unvailable` can be used to
+The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unavailable` can be used to
 return all snapshots that are currently available.
 
 A currently running snapshot can be retrieved using the following command:
@@ -340,7 +351,7 @@ with associated indices
 POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
-  "ignore_unavailable": "true",
+  "ignore_unavailable": true,
   "include_global_state": true,
   "rename_pattern": "index_(.+)",
   "rename_replacement": "restored_index_$1"
@@ -396,8 +407,7 @@ Please note, that some settings such as `index.number_of_shards` cannot be chang
 The information stored in a snapshot is not tied to a particular cluster or a cluster name. Therefore it's possible to
 restore a snapshot made from one cluster into another cluster. All that is required is registering the repository
 containing the snapshot in the new cluster and starting the restore process. The new cluster doesn't have to have the
-same size or topology.  However, the version of the new cluster should be the same or newer than the cluster that was
-used to create the snapshot.
+same size or topology.  However, the version of the new cluster should be the same or newer (only 1 major version newer) than the cluster that was used to create the snapshot.  For example, you can restore a 1.x snapshot to a 2.x cluster, but not a 1.x snapshot to a 5.x cluster.
 
 If the new cluster has a smaller size additional considerations should be made. First of all it's necessary to make sure
 that new cluster have enough capacity to store all indices in the snapshot. It's possible to change indices settings
@@ -499,6 +509,12 @@ running snapshot was executed by mistake, or takes unusually long, it can be ter
 The snapshot delete operation checks if the deleted snapshot is currently running and if it does, the delete operation stops
 that snapshot before deleting the snapshot data from the repository.
 
+[source,sh]
+-----------------------------------
+DELETE /_snapshot/my_backup/snapshot_1
+-----------------------------------
+// CONSOLE
+
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
 be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed
 from the cluster as a result of this operation.
@@ -511,5 +527,3 @@ well as the global metadata were readable. The restore operation requires the gl
 the index level blocks are ignored during restore because indices are essentially recreated during restore.
 Please note that a repository content is not part of the cluster and therefore cluster blocks don't affect internal
 repository operations such as listing or deleting snapshots from an already registered repository.
-
-

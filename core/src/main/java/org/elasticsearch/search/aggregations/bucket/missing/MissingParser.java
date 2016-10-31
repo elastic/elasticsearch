@@ -19,9 +19,9 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -35,8 +35,8 @@ public class MissingParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
     }
 

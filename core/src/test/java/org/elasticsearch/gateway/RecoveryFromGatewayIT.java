@@ -51,6 +51,7 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -75,7 +76,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
     public void testOneNodeRecoverFromGateway() throws Exception {
@@ -416,7 +417,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         client().admin().indices().prepareForceMerge("test").setMaxNumSegments(100).get(); // just wait for merges
-        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
+        client().admin().indices().prepareFlush().setForce(true).get();
 
         boolean useSyncIds = randomBoolean();
         if (useSyncIds == false) {

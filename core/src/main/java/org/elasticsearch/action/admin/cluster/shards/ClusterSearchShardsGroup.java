@@ -30,8 +30,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- */
 public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     private ShardId shardId;

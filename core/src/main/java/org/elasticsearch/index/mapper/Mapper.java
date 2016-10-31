@@ -22,15 +22,14 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class Mapper implements ToXContent, Iterable<Mapper> {
@@ -40,6 +39,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
         private final ContentPath contentPath;
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath) {
+            Objects.requireNonNull(indexSettings, "indexSettings is required");
             this.contentPath = contentPath;
             this.indexSettings = indexSettings;
         }
@@ -48,16 +48,11 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             return this.contentPath;
         }
 
-        @Nullable
         public Settings indexSettings() {
             return this.indexSettings;
         }
 
-        @Nullable
         public Version indexCreatedVersion() {
-            if (indexSettings == null) {
-                return null;
-            }
             return Version.indexCreated(indexSettings);
         }
     }
@@ -86,7 +81,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             private final String type;
 
-            private final AnalysisService analysisService;
+            private final IndexAnalyzers indexAnalyzers;
 
             private final Function<String, SimilarityProvider> similarityLookupService;
 
@@ -100,11 +95,11 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             private final QueryShardContext queryShardContext;
 
-            public ParserContext(String type, AnalysisService analysisService, Function<String, SimilarityProvider> similarityLookupService,
+            public ParserContext(String type, IndexAnalyzers indexAnalyzers, Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
                                  Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher, QueryShardContext queryShardContext) {
                 this.type = type;
-                this.analysisService = analysisService;
+                this.indexAnalyzers = indexAnalyzers;
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
@@ -117,8 +112,8 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
                 return type;
             }
 
-            public AnalysisService analysisService() {
-                return analysisService;
+            public IndexAnalyzers getIndexAnalyzers() {
+                return indexAnalyzers;
             }
 
             public SimilarityProvider getSimilarity(String name) {
@@ -160,7 +155,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.type(), in.analysisService, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher(), in.queryShardContext());
+                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher(), in.queryShardContext());
                 }
             }
 
@@ -172,6 +167,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
     private final String simpleName;
 
     public Mapper(String simpleName) {
+        Objects.requireNonNull(simpleName);
         this.simpleName = simpleName;
     }
 

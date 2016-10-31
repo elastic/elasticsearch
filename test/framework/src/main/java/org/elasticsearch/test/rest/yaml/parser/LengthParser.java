@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.section.LengthAssertion;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ public class LengthParser implements ClientYamlTestFragmentParser<LengthAssertio
 
     @Override
     public LengthAssertion parse(ClientYamlTestSuiteParseContext parseContext) throws IOException, ClientYamlTestParseException {
+        XContentLocation location = parseContext.parser().getTokenLocation();
         Tuple<String,Object> stringObjectTuple = parseContext.parseTuple();
         assert stringObjectTuple.v2() != null;
         int value;
@@ -43,6 +45,6 @@ public class LengthParser implements ClientYamlTestFragmentParser<LengthAssertio
             }
 
         }
-        return new LengthAssertion(stringObjectTuple.v1(), value);
+        return new LengthAssertion(location, stringObjectTuple.v1(), value);
     }
 }

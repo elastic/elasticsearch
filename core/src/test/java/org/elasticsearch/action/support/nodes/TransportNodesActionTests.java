@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -177,7 +176,8 @@ public class TransportNodesActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
+        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);
@@ -190,7 +190,7 @@ public class TransportNodesActionTests extends ESTestCase {
                 attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(i, attributes, roles);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
             discoveryNodes.add(node);
         }
         discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());
@@ -236,7 +236,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
         String node = "node_" + nodeId;
-        return new DiscoveryNode(node, node, LocalTransportAddress.buildUnique(), attributes, roles, Version.CURRENT);
+        return new DiscoveryNode(node, node, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
     }
 
     private static class TestTransportNodesAction

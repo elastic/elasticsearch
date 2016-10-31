@@ -41,7 +41,9 @@ import java.util.Locale;
 public enum GeoDistance implements Writeable {
     /**
      * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
+     * @deprecated use {@link GeoUtils#planeDistance}
      */
+    @Deprecated
     PLANE {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
@@ -63,7 +65,11 @@ public enum GeoDistance implements Writeable {
 
     /**
      * Calculates distance factor.
+     * Note: {@code calculate} is simply returning the RHS of the spherical law of cosines from 2 lat,lon points.
+     * {@code normalize} also returns the RHS of the spherical law of cosines for a given distance
+     * @deprecated use {@link SloppyMath#haversinMeters} to get distance in meters, law of cosines is being removed
      */
+    @Deprecated
     FACTOR {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
@@ -85,7 +91,9 @@ public enum GeoDistance implements Writeable {
     },
     /**
      * Calculates distance as points on a globe.
+     * @deprecated use {@link GeoUtils#arcDistance}
      */
+    @Deprecated
     ARC {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
@@ -143,6 +151,7 @@ public enum GeoDistance implements Writeable {
      * Default {@link GeoDistance} function. This method should be used, If no specific function has been selected.
      * This is an alias for <code>SLOPPY_ARC</code>
      */
+    @Deprecated
     public static final GeoDistance DEFAULT = SLOPPY_ARC;
 
     public abstract double normalize(double distance, DistanceUnit unit);

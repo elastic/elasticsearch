@@ -106,7 +106,7 @@ public class ShadowEngine extends Engine {
 
 
     @Override
-    public boolean index(Index index) throws EngineException {
+    public void index(Index index) throws EngineException {
         throw new UnsupportedOperationException(shardId + " index operation not allowed on shadow engine");
     }
 
@@ -191,7 +191,8 @@ public class ShadowEngine extends Engine {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
-            ensureOpen();
+            // This means there's a bug somewhere: don't suppress it
+            throw new AssertionError(e);
         } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
@@ -205,7 +206,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public IndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
+    public IndexCommit acquireIndexCommit(boolean flushFirst) throws EngineException {
         throw new UnsupportedOperationException("Can not take snapshot from a shadow engine");
     }
 

@@ -34,8 +34,6 @@ import java.nio.file.Path;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class ShardPathTests extends ESTestCase {
     public void testLoadShardPath() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
@@ -66,9 +64,8 @@ public class ShardPathTests extends ESTestCase {
             assumeTrue("This test tests multi data.path but we only got one", paths.length > 1);
             int id = randomIntBetween(1, 10);
             ShardStateMetaData.FORMAT.write(new ShardStateMetaData(id, true, indexUUID, AllocationId.newInitializing()), paths);
-            ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings));
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings)));
             assertThat(e.getMessage(), containsString("more than one shard state found"));
         }
     }
@@ -83,9 +80,8 @@ public class ShardPathTests extends ESTestCase {
             Path path = randomFrom(paths);
             int id = randomIntBetween(1, 10);
             ShardStateMetaData.FORMAT.write(new ShardStateMetaData(id, true, "0xDEADBEEF", AllocationId.newInitializing()), path);
-            ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings));
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings)));
             assertThat(e.getMessage(), containsString("expected: foobar on shard path"));
         }
     }
@@ -93,12 +89,8 @@ public class ShardPathTests extends ESTestCase {
     public void testIllegalCustomDataPath() {
         Index index = new Index("foo", "foo");
         final Path path = createTempDir().resolve(index.getUUID()).resolve("0");
-        try {
-            new ShardPath(true, path, path, new ShardId(index, 0));
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("shard state path must be different to the data path when using custom data paths"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new ShardPath(true, path, path, new ShardId(index, 0)));
+        assertThat(e.getMessage(), is("shard state path must be different to the data path when using custom data paths"));
     }
 
     public void testValidCtor() {

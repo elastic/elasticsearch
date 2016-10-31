@@ -23,11 +23,11 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +40,7 @@ import org.junit.BeforeClass;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -58,7 +59,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
 
-@ESIntegTestCase.SuppressLocalMode
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
@@ -78,7 +78,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(GceDiscoveryPlugin.class, TestPlugin.class);
+        return Arrays.asList(GceDiscoveryPlugin.class, TestPlugin.class);
     }
 
     @Override
@@ -125,7 +125,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
         httpsServer.createContext("/compute/v1/projects/testproject/zones/primaryzone/instances", (s) -> {
             Headers headers = s.getResponseHeaders();
             headers.add("Content-Type", "application/json; charset=UTF-8");
-            ESLogger logger = Loggers.getLogger(GceDiscoverTests.class);
+            Logger logger = Loggers.getLogger(GceDiscoverTests.class);
             try {
                 Path[] files = FileSystemUtils.files(logDir);
                 StringBuilder builder = new StringBuilder("{\"id\": \"dummy\",\"items\":[");

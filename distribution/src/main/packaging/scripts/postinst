@@ -103,7 +103,7 @@ chmod 0750 /etc/elasticsearch
 chmod 0750 /etc/elasticsearch/scripts
 
 if [ -f /etc/sysconfig/elasticsearch ]; then
-   chmod 0644 /etc/sysconfig/elasticsearch
+   chmod 0660 /etc/sysconfig/elasticsearch
 fi
 
 ${scripts.footer}

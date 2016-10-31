@@ -29,16 +29,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
-/**
- *
- */
 public class ClusterStateToStringTests extends ESAllocationTestCase {
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
@@ -50,7 +46,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test_idx"))
                 .build();
 
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(new DiscoveryNode("node_foo", LocalTransportAddress.buildUnique(),
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(new DiscoveryNode("node_foo", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT)).localNodeId("node_foo").masterNodeId("node_foo").build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes)

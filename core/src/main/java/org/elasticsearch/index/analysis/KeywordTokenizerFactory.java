@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int bufferSize;

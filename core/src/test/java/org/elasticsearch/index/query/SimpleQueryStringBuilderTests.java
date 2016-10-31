@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -27,7 +29,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -69,6 +73,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         }
         if (randomBoolean()) {
             result.defaultOperator(randomFrom(Operator.values()));
+        }
+        if (randomBoolean()) {
+            result.quoteFieldSuffix(TestUtil.randomSimpleString(random()));
         }
         if (randomBoolean()) {
             Set<SimpleQueryStringFlag> flagSet = new HashSet<>();
@@ -179,42 +186,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testFieldCannotBeNull() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.field(null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("supplied field is null or empty."));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.field(null));
+        assertEquals("supplied field is null or empty", e.getMessage());
     }
 
     public void testFieldCannotBeNullAndWeighted() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.field(null, AbstractQueryBuilder.DEFAULT_BOOST);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("supplied field is null or empty."));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.field(null, AbstractQueryBuilder.DEFAULT_BOOST));
+        assertEquals("supplied field is null or empty", e.getMessage());
     }
 
     public void testFieldCannotBeEmpty() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.field("");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("supplied field is null or empty."));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.field(""));
+        assertEquals("supplied field is null or empty", e.getMessage());
     }
 
     public void testFieldCannotBeEmptyAndWeighted() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.field("", AbstractQueryBuilder.DEFAULT_BOOST);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("supplied field is null or empty."));
-        }
+        IllegalArgumentException  e = expectThrows(IllegalArgumentException.class, () -> qb.field("", AbstractQueryBuilder.DEFAULT_BOOST));
+        assertEquals("supplied field is null or empty", e.getMessage());
     }
 
     /**
@@ -223,12 +214,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * */
     public void testFieldsCannotBeSetToNull() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.fields(null);
-            fail("Expected NullPointerException");
-        } catch (NullPointerException e) {
-            assertThat(e.getMessage(), is("fields cannot be null"));
-        }
+        NullPointerException e = expectThrows(NullPointerException.class, () -> qb.fields(null));
+        assertEquals("fields cannot be null", e.getMessage());
     }
 
     public void testDefaultFieldParsing() throws IOException {
@@ -261,7 +248,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * actual functionality of query parsing.
      */
     @Override
-    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, notNullValue());
 
         if ("".equals(queryBuilder.value())) {
@@ -353,6 +340,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "    \"lenient\" : false,\n" +
                 "    \"analyze_wildcard\" : false,\n" +
                 "    \"locale\" : \"und\",\n" +
+                "    \"quote_field_suffix\" : \".quote\",\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -363,6 +351,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, "\"fried eggs\" +(eggplant | potato) -frittata", parsed.value());
         assertEquals(json, 2, parsed.fields().size());
         assertEquals(json, "snowball", parsed.analyzer());
+        assertEquals(json, ".quote", parsed.quoteFieldSuffix());
     }
 
     public void testMinimumShouldMatch() throws IOException {

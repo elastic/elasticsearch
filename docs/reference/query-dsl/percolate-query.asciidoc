@@ -19,7 +19,7 @@ PUT /my-index
         "doctype": {
             "properties": {
                 "message": {
-                    "type": "string"
+                    "type": "text"
                 }
             }
         },
@@ -51,7 +51,7 @@ Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/1
+PUT /my-index/queries/1?refresh
 {
     "query" : {
         "match" : {
@@ -88,7 +88,7 @@ The above request will yield the following response:
 [source,js]
 --------------------------------------------------
 {
-  "took": 5,
+  "took": 13,
   "timed_out": false,
   "_shards": {
     "total": 5,
@@ -116,6 +116,7 @@ The above request will yield the following response:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
 
 <1> The query with id `1` matches our document.
 
@@ -179,9 +180,11 @@ Index response:
     "successful": 1,
     "failed": 0
   },
-  "created": true
+  "created": true,
+  "result": "created"
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 Percolating an existing document, using the index response as basis to build to new search request:
 
@@ -226,7 +229,7 @@ Save a query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/1
+PUT /my-index/queries/1?refresh
 {
     "query" : {
         "match" : {
@@ -242,7 +245,7 @@ Save another query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/2
+PUT /my-index/queries/2?refresh
 {
     "query" : {
         "match" : {
@@ -284,7 +287,7 @@ This will yield the following response.
 [source,js]
 --------------------------------------------------
 {
-  "took": 83,
+  "took": 7,
   "timed_out": false,
   "_shards": {
     "total": 5,
@@ -335,6 +338,7 @@ This will yield the following response.
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 7,/"took": "$body.took",/]
 
 Instead of the query in the search request highlighting the percolator hits, the percolator queries are highlighting
 the document defined in the `percolate` query.

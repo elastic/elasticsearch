@@ -28,7 +28,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -36,9 +36,6 @@ import org.junit.Before;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- *
- */
 public class PythonScriptEngineTests extends ESTestCase {
     private PythonScriptEngineService se;
 
@@ -54,7 +51,7 @@ public class PythonScriptEngineTests extends ESTestCase {
 
     public void testSimpleEquation() {
         Map<String, Object> vars = new HashMap<String, Object>();
-        Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testSimpleEquation", "python", se.compile(null, "1 + 2", Collections.emptyMap())), vars).run();
+        Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testSimpleEquation", "python", se.compile(null, "1 + 2", Collections.emptyMap())), vars).run();
         assertThat(((Number) o).intValue(), equalTo(3));
     }
 
@@ -65,13 +62,13 @@ public class PythonScriptEngineTests extends ESTestCase {
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
         Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).put("l", Arrays.asList("2", "1")).map();
         vars.put("obj1", obj1);
-        Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testMapAccess", "python", se.compile(null, "obj1", Collections.emptyMap())), vars).run();
+        Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testMapAccess", "python", se.compile(null, "obj1", Collections.emptyMap())), vars).run();
         assertThat(o, instanceOf(Map.class));
         obj1 = (Map<String, Object>) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
 
-        o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testMapAccess", "python", se.compile(null, "obj1['l'][0]", Collections.emptyMap())), vars).run();
+        o = se.executable(new CompiledScript(ScriptType.INLINE, "testMapAccess", "python", se.compile(null, "obj1['l'][0]", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("2"));
     }
 
@@ -84,7 +81,7 @@ public class PythonScriptEngineTests extends ESTestCase {
         ctx.put("obj1", obj1);
         vars.put("ctx", ctx);
 
-        ExecutableScript executable = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testObjectInterMap", "python",
+        ExecutableScript executable = se.executable(new CompiledScript(ScriptType.INLINE, "testObjectInterMap", "python",
                 se.compile(null, "ctx['obj2'] = { 'prop2' : 'value2' }; ctx['obj1']['prop1'] = 'uvalue1'", Collections.emptyMap())), vars);
         executable.run();
         ctx = (Map<String, Object>) executable.unwrap(vars.get("ctx"));
@@ -104,15 +101,15 @@ public class PythonScriptEngineTests extends ESTestCase {
 //        Object o = se.execute(se.compile("l.length"), vars);
 //        assertThat(((Number) o).intValue(), equalTo(4));
 
-        Object o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testAccessListInScript", "python", se.compile(null, "l[0]", Collections.emptyMap())), vars).run();
+        Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessListInScript", "python", se.compile(null, "l[0]", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("1"));
 
-        o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testAccessListInScript", "python", se.compile(null, "l[3]", Collections.emptyMap())), vars).run();
+        o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessListInScript", "python", se.compile(null, "l[3]", Collections.emptyMap())), vars).run();
         obj1 = (Map<String, Object>) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
 
-        o = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testAccessListInScript", "python", se.compile(null, "l[3]['prop1']", Collections.emptyMap())), vars).run();
+        o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessListInScript", "python", se.compile(null, "l[3]['prop1']", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("value1"));
     }
 
@@ -122,7 +119,7 @@ public class PythonScriptEngineTests extends ESTestCase {
         vars.put("ctx", ctx);
         Object compiledScript = se.compile(null, "ctx['value']", Collections.emptyMap());
 
-        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testChangingVarsCrossExecution1", "python", compiledScript), vars);
+        ExecutableScript script = se.executable(new CompiledScript(ScriptType.INLINE, "testChangingVarsCrossExecution1", "python", compiledScript), vars);
         ctx.put("value", 1);
         Object o = script.run();
         assertThat(((Number) o).intValue(), equalTo(1));
@@ -137,7 +134,7 @@ public class PythonScriptEngineTests extends ESTestCase {
         Map<String, Object> ctx = new HashMap<String, Object>();
         Object compiledScript = se.compile(null, "value", Collections.emptyMap());
 
-        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testChangingVarsCrossExecution2", "python", compiledScript), vars);
+        ExecutableScript script = se.executable(new CompiledScript(ScriptType.INLINE, "testChangingVarsCrossExecution2", "python", compiledScript), vars);
         script.setNextVar("value", 1);
         Object o = script.run();
         assertThat(((Number) o).intValue(), equalTo(1));

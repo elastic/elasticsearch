@@ -10,15 +10,18 @@ all indices:
 
 [source,js]
 --------------------------------------------------
-curl localhost:9200/_stats
+GET /_stats
 --------------------------------------------------
+// CONSOLE
 
 Specific index stats can be retrieved using:
 
 [source,js]
 --------------------------------------------------
-curl localhost:9200/index1,index2/_stats
+GET /index1,index2/_stats
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index1\nPUT index2\n/]
 
 By default, all stats are returned, returning only specific stats can be
 specified as well in the URI. Those stats can be any of:
@@ -74,12 +77,14 @@ Here are some samples:
 [source,js]
 --------------------------------------------------
 # Get back stats for merge and refresh only for all indices
-curl 'localhost:9200/_stats/merge,refresh'
+GET /_stats/merge,refresh
 # Get back stats for type1 and type2 documents for the my_index index
-curl 'localhost:9200/my_index/_stats/indexing?types=type1,type2
+GET /my_index/_stats/indexing?types=type1,type2
 # Get back just search stats for group1 and group2
-curl 'localhost:9200/_stats/search?groups=group1,group2
+GET /_stats/search?groups=group1,group2
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]
 
 The stats returned are aggregated on the index level, with
 `primaries` and `total` aggregations, where `primaries` are the values for only the
@@ -91,4 +96,3 @@ Note, as shards move around the cluster, their stats will be cleared as
 they are created on other nodes. On the other hand, even though a shard
 "left" a node, that node will still retain the stats that shard
 contributed to.
-

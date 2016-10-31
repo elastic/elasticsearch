@@ -36,7 +36,7 @@ public class SetSectionParser implements ClientYamlTestFragmentParser<SetSection
         String currentFieldName = null;
         XContentParser.Token token;
 
-        SetSection setSection = new SetSection();
+        SetSection setSection = new SetSection(parser.getTokenLocation());
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

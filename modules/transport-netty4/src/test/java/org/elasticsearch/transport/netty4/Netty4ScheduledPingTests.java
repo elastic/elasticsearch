@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -62,17 +63,18 @@ public class Netty4ScheduledPingTests extends ESTestCase {
 
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
 
-        NamedWriteableRegistry registryA = new NamedWriteableRegistry();
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
         final Netty4Transport nettyA = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
-            BigArrays.NON_RECYCLING_INSTANCE, registryA, circuitBreakerService);
-        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
+            BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
+        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
-        NamedWriteableRegistry registryB = new NamedWriteableRegistry();
         final Netty4Transport nettyB = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
-            BigArrays.NON_RECYCLING_INSTANCE, registryB, circuitBreakerService);
-        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
+            BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
+        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
 
         serviceB.start();
         serviceB.acceptIncomingRequests();

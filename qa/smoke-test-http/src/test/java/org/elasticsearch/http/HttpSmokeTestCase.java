@@ -28,6 +28,7 @@ import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -61,7 +62,6 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("netty.assert.buglevel", false)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
                 .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
@@ -69,19 +69,18 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class, BogusPlugin.class);
+        return Arrays.asList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class, BogusPlugin.class);
+        return Arrays.asList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class);
     }
 
     @Override
     protected Settings transportClientSettings() {
         return Settings.builder()
                 .put(super.transportClientSettings())
-                .put("netty.assert.buglevel", false)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, clientTypeKey)
                 .build();
     }
@@ -89,20 +88,6 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     @Override
     protected boolean ignoreExternalCluster() {
         return true;
-    }
-
-    public static final class BogusPlugin extends Plugin {
-
-        // this runs without the permission from the netty modules so it will fail since reindex can't set the property
-        // to make it still work we disable that check but need to register the setting first
-        private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL =
-                Setting.boolSetting("netty.assert.buglevel", true, Setting.Property.NodeScope);
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(ASSERT_NETTY_BUGLEVEL);
-        }
-
     }
 
 }

@@ -64,6 +64,10 @@ public final class AllTermQuery extends Query {
         this.term = term;
     }
 
+    public Term getTerm() {
+        return term;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (sameClassAs(obj) == false) {

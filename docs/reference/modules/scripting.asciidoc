@@ -5,12 +5,7 @@ The scripting module enables you to use scripts to evaluate custom
 expressions. For example, you could use a script to return "script fields"
 as part of a search request or evaluate a custom score for a query.
 
-TIP: Elasticsearch now has a built-in scripting language called _Painless_
-that provides a more secure alternative for implementing
-scripts for Elasticsearch. We encourage you to try it out --
-for more information, see <<modules-scripting-painless, Painless Scripting Language>>.
-
-The default scripting language is http://groovy-lang.org/[groovy].
+The default scripting language is <<modules-scripting-painless, `Painless`>>.
 Additional `lang` plugins enable you to run scripts written in other languages.
 Everywhere a script can be used, you can include a `lang` parameter
 to specify the language of the script.

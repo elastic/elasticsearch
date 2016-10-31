@@ -1,0 +1,44 @@
+setup:
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { foo: bar }
+  - do:
+      indices.refresh:
+          index: [test]
+
+---
+"Stored fields":
+  - do:
+      search:
+        index: test
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._type
+  - is_true: hits.hits.0._source
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: []
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._type
+  - is_false: hits.hits.0._source
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: "_none_"
+
+  - is_false: hits.hits.0._id
+  - is_false: hits.hits.0._type
+  - is_false: hits.hits.0._source
+

@@ -32,18 +32,20 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -52,10 +54,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.fd.FaultDetection;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.discovery.zen.FaultDetection;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
@@ -131,7 +133,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).name());
+                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings));
                     }
                 }
             }
@@ -143,12 +145,18 @@ public final class ClusterSettings extends AbstractScopedSettings {
             for (String key : value.getAsMap().keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());
+                if ("level".equals(component)) {
+                    continue;
+                }
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
-                    ESLoggerFactory.getRootLogger().setLevel(rootLevel == null ? ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings)
-                            .name() : rootLevel);
+                    if (rootLevel == null) {
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                    } else {
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                    }
                 } else {
-                    ESLoggerFactory.getLogger(component).setLevel(value.get(key));
+                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
                 }
             }
         }
@@ -193,14 +201,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
+                    SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
-                    SnapshotInProgressAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING,
                     DestructiveOperations.REQUIRES_NAME_SETTING,
                     DiscoverySettings.PUBLISH_TIMEOUT_SETTING,
                     DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,
@@ -217,7 +225,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                     NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                     NetworkModule.HTTP_TYPE_SETTING,
-                    NetworkModule.TRANSPORT_SERVICE_TYPE_SETTING,
                     NetworkModule.TRANSPORT_TYPE_SETTING,
                     HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                     HttpTransportSettings.SETTING_CORS_ENABLED,
@@ -300,6 +307,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
                     ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
+                    ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
                     IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
                     IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
@@ -319,7 +327,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NodeEnvironment.NODE_ID_SEED_SETTING,
                     DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
-                    DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING,
+                    DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING,
                     FaultDetection.PING_RETRIES_SETTING,
                     FaultDetection.PING_TIMEOUT_SETTING,
                     FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING,
@@ -337,6 +345,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
+                    SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                     Node.WRITE_PORTS_FIELD_SETTING,
                     Node.NODE_NAME_SETTING,
                     Node.NODE_DATA_SETTING,
@@ -388,7 +397,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.MEMORY_LOCK_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
-                    BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,

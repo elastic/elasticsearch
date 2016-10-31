@@ -348,9 +348,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-/**
- *
- */
 public abstract class AbstractClient extends AbstractComponent implements Client {
 
     private final ThreadPool threadPool;

@@ -45,7 +45,7 @@ public class JvmStatsTests extends ESTestCase {
         assertNotNull(mem);
         for (ByteSizeValue heap : Arrays.asList(mem.getHeapCommitted(), mem.getHeapMax(), mem.getHeapUsed(), mem.getNonHeapCommitted())) {
             assertNotNull(heap);
-            assertThat(heap.bytes(), greaterThanOrEqualTo(0L));
+            assertThat(heap.getBytes(), greaterThanOrEqualTo(0L));
         }
         assertNotNull(mem.getHeapUsedPercent());
         assertThat(mem.getHeapUsedPercent(), anyOf(equalTo((short) -1), greaterThanOrEqualTo((short) 0)));
@@ -78,9 +78,9 @@ public class JvmStatsTests extends ESTestCase {
                 assertTrue(Strings.hasText(bufferPool.getName()));
                 assertThat(bufferPool.getCount(), greaterThanOrEqualTo(0L));
                 assertNotNull(bufferPool.getTotalCapacity());
-                assertThat(bufferPool.getTotalCapacity().bytes(), greaterThanOrEqualTo(0L));
+                assertThat(bufferPool.getTotalCapacity().getBytes(), greaterThanOrEqualTo(0L));
                 assertNotNull(bufferPool.getUsed());
-                assertThat(bufferPool.getUsed().bytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
+                assertThat(bufferPool.getUsed().getBytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
             }
         }
 

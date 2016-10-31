@@ -21,7 +21,9 @@ package org.elasticsearch.painless;
 
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class StringTests extends ScriptTestCase {
 
@@ -182,7 +184,7 @@ public class StringTests extends ScriptTestCase {
         });
         assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
     }
-    
+
     public void testDefConcat() {
         assertEquals("a" + (byte)2, exec("def x = 'a'; def y = (byte)2; return x + y"));
         assertEquals("a" + (short)2, exec("def x = 'a'; def y = (short)2; return x + y"));
@@ -205,7 +207,7 @@ public class StringTests extends ScriptTestCase {
             exec("def x = null; def y = null; return x + y");
         });
     }
-    
+
     public void testDefCompoundAssignment() {
         assertEquals("a" + (byte)2, exec("def x = 'a'; x += (byte)2; return x"));
         assertEquals("a" + (short)2, exec("def x = 'a'; x  += (short)2; return x"));
@@ -220,6 +222,17 @@ public class StringTests extends ScriptTestCase {
         expectScriptThrows(NullPointerException.class, () -> {
             exec("def x = null; def y = null; x += y");
         });
+    }
+
+    public void testComplexCompoundAssignment() {
+        Map<String, Object> params = new HashMap<>();
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("_id", "somerandomid");
+        params.put("ctx", ctx);
+
+        assertEquals("somerandomid.somerandomid", exec("ctx._id += '.' + ctx._id", params, false));
+        assertEquals("somerandomid.somerandomid", exec("String x = 'somerandomid'; x += '.' + x"));
+        assertEquals("somerandomid.somerandomid", exec("def x = 'somerandomid'; x += '.' + x"));
     }
 
     public void testAppendStringIntoMap() {

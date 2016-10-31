@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class UpdateSettingsAction extends Action<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
 
     public static final UpdateSettingsAction INSTANCE = new UpdateSettingsAction();

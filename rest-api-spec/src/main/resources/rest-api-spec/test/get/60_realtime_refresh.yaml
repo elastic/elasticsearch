@@ -22,6 +22,14 @@
           body:    { foo: bar }
 
  - do:
+      catch:        missing
+      get:
+          index:    test_1
+          type:     test
+          id:       1
+          realtime: 0
+
+ - do:
       get:
           index:    test_1
           type:     test
@@ -29,14 +37,6 @@
           realtime: 1
 
  - is_true: found
-
- - do:
-      catch:        missing
-      get:
-          index:    test_1
-          type:     test
-          id:       1
-          realtime: 0
 
  - do:
       get:

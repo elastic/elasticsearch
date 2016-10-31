@@ -37,7 +37,7 @@ List<String> availableBoxes = [
     'sles-12',
     'ubuntu-1204',
     'ubuntu-1404',
-    'ubuntu-1504'
+    'ubuntu-1604'
 ]
 
 String vagrantBoxes = getProperties().get('vagrant.boxes', 'sample')
@@ -90,7 +90,14 @@ configurations {
 }
 
 repositories {
-  mavenCentral()
+  mavenCentral() // Try maven central first, it'll have releases before 5.0.0
+  /* Setup a repository that tries to download from
+    https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]
+    which should work for 5.0.0+. This isn't a real ivy repository but gradle
+    is fine with that */
+  ivy {
+    artifactPattern "https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
+  }
 }
 
 dependencies {
@@ -122,13 +129,21 @@ task stop {
 
 Set<String> getVersions() {
   Node xml
-  new URL('http://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+  new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
     xml = new XmlParser().parse(s)
   }
-  return new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /2\.\d\.\d/ })
+  Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /[5]\.\d\.\d/ })
+  if (versions.isEmpty() == false) {
+    return versions;
+  }
+
+  // If no version is found, we run the tests with the current version
+  return Collections.singleton(project.version);
 }
 
 task updatePackagingTestUpgradeFromVersions {
+  group 'Verification'
+  description 'Update file containing options for the\n    "starting" version in the "upgrade from" packaging tests.'
   doLast {
     Set<String> versions = getVersions()
     new File(project.projectDir, 'versions').text = versions.join('\n') + '\n'
@@ -140,9 +155,10 @@ task verifyPackagingTestUpgradeFromVersions {
     String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
     if (maybeUpdateFromVersions == null) {
       Set<String> versions = getVersions()
-      Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
+      Set<String> actualVersions = new TreeSet<>(Arrays.asList(upgradeFromVersions))
       if (!versions.equals(actualVersions)) {
-        throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
+        throw new GradleException("out-of-date versions " + actualVersions +
+          ", expected " + versions + "; run gradle updatePackagingTestUpgradeFromVersions")
       }
     }
   }
@@ -236,7 +252,7 @@ for (String box : availableBoxes) {
 
   Task up = tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
     boxName box
-    /* Its important that we try to reprovision the box even if it already
+    /* It's important that we try to reprovision the box even if it already
       exists. That way updates to the vagrant configuration take automatically.
       That isn't to say that the updates will always be compatible. Its ok to
       just destroy the boxes if they get busted but that is a manual step

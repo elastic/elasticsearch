@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.ttl;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
@@ -46,9 +46,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
@@ -197,7 +197,8 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
 
     private void purgeShards(List<IndexShard> shardsToPurge) {
         for (IndexShard shardToPurge : shardsToPurge) {
-            Query query = shardToPurge.mapperService().fullName(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false, true);
+            Query query = shardToPurge.mapperService().fullName(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false,
+                    true, null);
             Engine.Searcher searcher = shardToPurge.acquireSearcher("indices_ttl");
             try {
                 logger.debug("[{}][{}] purging shard", shardToPurge.routingEntry().index(), shardToPurge.routingEntry().id());
@@ -237,6 +238,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
     private class ExpiredDocsCollector extends SimpleCollector {
         private LeafReaderContext context;
         private List<DocToPurge> docsToPurge = new ArrayList<>();
+        private NumericDocValues versions;
 
         public ExpiredDocsCollector() {
         }
@@ -256,7 +258,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
                 FieldsVisitor fieldsVisitor = new FieldsVisitor(false);
                 context.reader().document(doc, fieldsVisitor);
                 Uid uid = fieldsVisitor.uid();
-                final long version = Versions.loadVersion(context.reader(), new Term(UidFieldMapper.NAME, uid.toBytesRef()));
+                final long version = versions == null ? Versions.NOT_FOUND : versions.get(doc);
                 docsToPurge.add(new DocToPurge(uid.type(), uid.id(), version, fieldsVisitor.routing()));
             } catch (Exception e) {
                 logger.trace("failed to collect doc", e);
@@ -266,6 +268,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
         @Override
         public void doSetNextReader(LeafReaderContext context) throws IOException {
             this.context = context;
+            this.versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
         }
 
         public List<DocToPurge> getDocsToPurge() {

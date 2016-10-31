@@ -19,11 +19,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -80,8 +80,6 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     private volatile int concurrentIncomingRecoveries;
     private volatile int concurrentOutgoingRecoveries;
 
-
-    @Inject
     public ThrottlingAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.primariesInitialRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.get(settings);
@@ -114,7 +112,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary() && shardRouting.unassigned()) {
-            assert initializingShard(shardRouting, node.nodeId()).isPeerRecovery() == false;
+            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() != RecoverySource.Type.PEER;
             // primary is unassigned, means we are going to do recovery from store, snapshot or local shards
             // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
 
@@ -135,7 +133,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             }
         } else {
             // Peer recovery
-            assert initializingShard(shardRouting, node.nodeId()).isPeerRecovery();
+            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;
 
             // Allocating a shard to this node will increase the incoming recoveries
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
@@ -188,11 +186,11 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         } else if (shardRouting.relocating()) {
             initializingShard = shardRouting.cancelRelocation()
                 .relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
-                .buildTargetRelocatingShard();
+                .getTargetRelocatingShard();
         } else {
             assert shardRouting.started();
             initializingShard = shardRouting.relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
-                .buildTargetRelocatingShard();
+                .getTargetRelocatingShard();
         }
         assert initializingShard.initializing();
         return initializingShard;

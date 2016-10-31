@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
@@ -31,15 +30,12 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- */
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;
@@ -52,7 +48,7 @@ final class LocalShardSnapshot implements Closeable {
         store.incRef();
         boolean success = false;
         try {
-            indexCommit = shard.snapshotIndex(true);
+            indexCommit = shard.acquireIndexCommit(true);
             success = true;
         } finally {
             if (success == false) {
@@ -87,7 +83,7 @@ final class LocalShardSnapshot implements Closeable {
             }
 
             @Override
-            public void renameFile(String source, String dest) throws IOException {
+            public void rename(String source, String dest) throws IOException {
                 throw new UnsupportedOperationException("this directory is read-only");
             }
 
@@ -120,7 +116,7 @@ final class LocalShardSnapshot implements Closeable {
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
             try {
-                shard.releaseSnapshot(indexCommit);
+                shard.releaseIndexCommit(indexCommit);
             } finally {
                 store.decRef();
             }

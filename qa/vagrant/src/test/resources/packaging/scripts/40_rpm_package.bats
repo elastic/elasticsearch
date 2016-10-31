@@ -89,6 +89,11 @@ setup() {
     run_elasticsearch_tests
 }
 
+@test "[RPM] verify package installation after start" {
+    # Checks that the startup scripts didn't change the permissions
+    verify_package_installation
+}
+
 @test "[RPM] remove package" {
     # User installed scripts aren't removed so we'll just get them ourselves
     rm -rf $ESSCRIPTS
@@ -116,12 +121,20 @@ setup() {
     # see postrm file
     assert_file_not_exist "/var/log/elasticsearch"
     assert_file_not_exist "/usr/share/elasticsearch/plugins"
+    assert_file_not_exist "/usr/share/elasticsearch/modules"
     assert_file_not_exist "/var/run/elasticsearch"
 
+    # Those directories are removed by the package manager
+    assert_file_not_exist "/usr/share/elasticsearch/bin"
+    assert_file_not_exist "/usr/share/elasticsearch/lib"
+    assert_file_not_exist "/usr/share/elasticsearch/modules"
+    assert_file_not_exist "/usr/share/elasticsearch/modules/lang-painless"
+
     assert_file_not_exist "/etc/elasticsearch"
+    assert_file_not_exist "/etc/elasticsearch/scripts"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
-    assert_file_not_exist "/etc/elasticsearch/logging.yml"
+    assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"
@@ -137,10 +150,14 @@ setup() {
     rpm -qe 'elasticsearch'
 }
 
+@test "[RPM] verify package reinstallation" {
+    verify_package_installation
+}
+
 @test "[RPM] reremove package" {
     echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
     echo "# ping" >> "/etc/elasticsearch/jvm.options"
-    echo "# ping" >> "/etc/elasticsearch/logging.yml"
+    echo "# ping" >> "/etc/elasticsearch/log4j2.properties"
     echo "# ping" >> "/etc/elasticsearch/scripts/script"
     rpm -e 'elasticsearch'
 }
@@ -157,14 +174,20 @@ setup() {
     # see postrm file
     assert_file_not_exist "/var/log/elasticsearch"
     assert_file_not_exist "/usr/share/elasticsearch/plugins"
+    assert_file_not_exist "/usr/share/elasticsearch/modules"
     assert_file_not_exist "/var/run/elasticsearch"
+
+    assert_file_not_exist "/usr/share/elasticsearch/bin"
+    assert_file_not_exist "/usr/share/elasticsearch/lib"
+    assert_file_not_exist "/usr/share/elasticsearch/modules"
+    assert_file_not_exist "/usr/share/elasticsearch/modules/lang-painless"
 
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_exist "/etc/elasticsearch/elasticsearch.yml.rpmsave"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_exist "/etc/elasticsearch/jvm.options.rpmsave"
-    assert_file_not_exist "/etc/elasticsearch/logging.yml"
-    assert_file_exist "/etc/elasticsearch/logging.yml.rpmsave"
+    assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
+    assert_file_exist "/etc/elasticsearch/log4j2.properties.rpmsave"
     # older versions of rpm behave differently and preserve the
     # directory but do not append the ".rpmsave" suffix
     test -e "/etc/elasticsearch/scripts" || test -e "/etc/elasticsearch/scripts.rpmsave"

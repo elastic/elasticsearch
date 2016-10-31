@@ -47,7 +47,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -72,7 +71,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING =
         Setting.boolSetting("index.requests.cache.enable", true, Property.Dynamic, Property.IndexScope);
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE =
-        Setting.byteSizeSetting("indices.requests.cache.size", "1%", Property.NodeScope);
+        Setting.memorySizeSetting("indices.requests.cache.size", "1%", Property.NodeScope);
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE =
         Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), Property.NodeScope);
 
@@ -86,11 +85,11 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         super(settings);
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
-        long sizeInBytes = size.bytes();
+        long sizeInBytes = size.getBytes();
         CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.<Key, Value>builder()
             .setMaximumWeight(sizeInBytes).weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed()).removalListener(this);
         if (expire != null) {
-            cacheBuilder.setExpireAfterAccess(TimeUnit.MILLISECONDS.toNanos(expire.millis()));
+            cacheBuilder.setExpireAfterAccess(expire);
         }
         cache = cacheBuilder.build();
     }

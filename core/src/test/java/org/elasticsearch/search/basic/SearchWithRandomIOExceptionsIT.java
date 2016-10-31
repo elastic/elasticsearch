@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
@@ -48,7 +49,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -98,7 +99,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type", "init" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
-            client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute().get();
+            client().admin().indices().prepareFlush("test").execute().get();
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                 .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
@@ -137,7 +138,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             added[i] = false;
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i)).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
-                if (indexResponse.getOperation() == DocWriteResponse.Operation.CREATE) {
+                if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;
                     added[i] = true;
                 }

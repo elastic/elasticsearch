@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,15 +34,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.function.Supplier;
 
-/**
- *
- */
 public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final ClusterService clusterService;
@@ -52,13 +50,11 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final Supplier<Integer> minimumMasterNodesProvider;
     private final IndicesService indicesService;
-    private final NodeServicesProvider nodeServicesProvider;
 
     public Gateway(Settings settings, ClusterService clusterService, GatewayMetaState metaState,
                    TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
-                   NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
+                   IndicesService indicesService) {
         super(settings);
-        this.nodeServicesProvider = nodeServicesProvider;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.metaState = metaState;
@@ -135,10 +131,13 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     try {
                         if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
                             // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
-                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData, electedIndexMetaData);
+                            indicesService.verifyIndexMetadata(electedIndexMetaData, electedIndexMetaData);
                         }
                     } catch (Exception e) {
-                        logger.warn("recovering index {} failed - recovering as closed", e, electedIndexMetaData.getIndex());
+                        final Index electedIndex = electedIndexMetaData.getIndex();
+                        logger.warn(
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndex), e);
                         electedIndexMetaData = IndexMetaData.builder(electedIndexMetaData).state(IndexMetaData.State.CLOSE).build();
                     }
 
@@ -147,11 +146,33 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
             }
         }
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        metaDataBuilder.persistentSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.persistentSettings()));
-        metaDataBuilder.transientSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.transientSettings()));
+        metaDataBuilder.persistentSettings(
+            clusterSettings.archiveUnknownOrInvalidSettings(
+                metaDataBuilder.persistentSettings(),
+                e -> logUnknownSetting("persistent", e),
+                (e, ex) -> logInvalidSetting("persistent", e, ex)));
+        metaDataBuilder.transientSettings(
+            clusterSettings.archiveUnknownOrInvalidSettings(
+                metaDataBuilder.transientSettings(),
+                e -> logUnknownSetting("transient", e),
+                (e, ex) -> logInvalidSetting("transient", e, ex)));
         ClusterState.Builder builder = ClusterState.builder(clusterService.getClusterName());
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
+    }
+
+    private void logUnknownSetting(String settingType, Map.Entry<String, String> e) {
+        logger.warn("ignoring unknown {} setting: [{}] with value [{}]; archiving", settingType, e.getKey(), e.getValue());
+    }
+
+    private void logInvalidSetting(String settingType, Map.Entry<String, String> e, IllegalArgumentException ex) {
+        logger.warn(
+            (org.apache.logging.log4j.util.Supplier<?>)
+                () -> new ParameterizedMessage("ignoring invalid {} setting: [{}] with value [{}]; archiving",
+                    settingType,
+                    e.getKey(),
+                    e.getValue()),
+            ex);
     }
 
     @Override

@@ -19,8 +19,13 @@
 
 package org.elasticsearch.common.xcontent.json;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.common.xcontent.BaseXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.ByteArrayOutputStream;
 
 public class JsonXContentTests extends BaseXContentTestCase {
 
@@ -29,4 +34,9 @@ public class JsonXContentTests extends BaseXContentTestCase {
         return XContentType.JSON;
     }
 
+    public void testBigInteger() throws Exception {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        JsonGenerator generator = new JsonFactory().createGenerator(os);
+        doTestBigInteger(generator, os);
+    }
 }

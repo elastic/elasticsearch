@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
@@ -41,20 +42,18 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.startsWith;
 
-
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
     @Override
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        ScriptService scriptService = node().injector().getInstance(ScriptService.class);
-        return new TestSearchContext(threadPool, bigArrays, scriptService, indexService) {
+        return new TestSearchContext(threadPool, bigArrays, indexService) {
             @Override
             public ShardSearchRequest request() {
                 return new ShardSearchRequest() {
                     @Override
                     public ShardId shardId() {
-                        return null;
+                        return new ShardId(indexService.index(), 0);
                     }
 
                     @Override
@@ -83,8 +82,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                     }
 
                     @Override
-                    public String[] filteringAliases() {
-                        return new String[0];
+                    public QueryBuilder filteringAliases() {
+                        return null;
                     }
 
                     @Override
@@ -129,8 +128,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("foo");
         // Turning off document logging doesn't log source[]
         SearchContext searchContext = createSearchContext(index);
-        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(index.index(), searchContext, 10, true);
-        assertThat(p.toString(), startsWith(index.index().toString()));
+        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10, true);
+        assertThat(p.toString(), startsWith("[foo][0]"));
     }
 
     public void testReformatSetting() {

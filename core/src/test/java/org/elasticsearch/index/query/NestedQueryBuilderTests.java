@@ -21,18 +21,16 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -53,6 +51,9 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        String geoFieldMapping = (mapperService.getIndexSettings().getIndexVersionCreated()
+            .before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) ?
+            LEGACY_GEO_POINT_FIELD_MAPPING : "type=geo_point";
         mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
                 STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
@@ -60,7 +61,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object",
-                GEO_POINT_FIELD_NAME, GEO_POINT_FIELD_MAPPING,
+                GEO_POINT_FIELD_NAME, geoFieldMapping,
                 "nested1", "type=nested"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
@@ -88,7 +89,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
         QueryBuilder innerQueryBuilder = queryBuilder.query();
         assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
         ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
@@ -96,9 +97,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         if (queryBuilder.innerHit() != null) {
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
-            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(context);
+            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
 
-            SearchContext searchContext = SearchContext.current();
             assertNotNull(searchContext);
             Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
             InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
@@ -174,36 +174,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, ScoreMode.Avg, parsed.scoreMode());
-    }
-
-    /**
-     * override superclass test, because here we need to take care that mutation doesn't happen inside
-     * `inner_hits` structure, because we don't parse them yet and so no exception will be triggered
-     * for any mutation there.
-     */
-    @Override
-    public void testUnknownObjectException() throws IOException {
-        String validQuery = createTestQueryBuilder().toString();
-        assertThat(validQuery, containsString("{"));
-        int endPosition = validQuery.indexOf("inner_hits");
-        if (endPosition == -1) {
-            endPosition = validQuery.length() - 1;
-        }
-        for (int insertionPosition = 0; insertionPosition < endPosition; insertionPosition++) {
-            if (validQuery.charAt(insertionPosition) == '{') {
-                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : " +
-                        validQuery.substring(insertionPosition) + "}";
-                try {
-                    parseQuery(testQuery);
-                    fail("some parsing exception expected for query: " + testQuery);
-                } catch (ParsingException | ElasticsearchParseException e) {
-                    // different kinds of exception wordings depending on location
-                    // of mutation, so no simple asserts possible here
-                } catch (JsonParseException e) {
-                    // mutation produced invalid json
-                }
-            }
-        }
     }
 
     @Override

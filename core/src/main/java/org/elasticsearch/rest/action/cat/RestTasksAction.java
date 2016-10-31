@@ -29,20 +29,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.tasks.TaskInfo;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
@@ -63,13 +64,28 @@ public class RestTasksAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        client.admin().cluster().listTasks(generateListTasksRequest(request), new RestResponseListener<ListTasksResponse>(channel) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+        return channel ->
+                client.admin().cluster().listTasks(generateListTasksRequest(request), new RestResponseListener<ListTasksResponse>(channel) {
             @Override
             public RestResponse buildResponse(ListTasksResponse listTasksResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, listTasksResponse), channel);
             }
         });
+    }
+
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>();
+        responseParams.add("detailed");
+        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 
     @Override
@@ -98,7 +114,7 @@ public class RestTasksAction extends AbstractCatAction {
 
         // Task detailed info
         if (detailed) {
-            table.addCell("description", "default:false;alias:desc;desc:task action");
+            table.addCell("description", "default:true;alias:desc;desc:task action");
         }
         table.endHeaders();
         return table;
@@ -128,11 +144,7 @@ public class RestTasksAction extends AbstractCatAction {
         // Node information. Note that the node may be null because it has left the cluster between when we got this response and now.
         table.addCell(fullId ? nodeId : Strings.substring(nodeId, 0, 4));
         table.addCell(node == null ? "-" : node.getHostAddress());
-        if (node != null && node.getAddress() instanceof InetSocketTransportAddress) {
-            table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
-        } else {
-            table.addCell("-");
-        }
+        table.addCell(node.getAddress().address().getPort());
         table.addCell(node == null ? "-" : node.getName());
         table.addCell(node == null ? "-" : node.getVersion().toString());
 
@@ -142,7 +154,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.endRow();
     }
 
-    private void buildGroups(Table table, boolean detailed, boolean fullId, List<TaskGroup> taskGroups) {
+    private void buildGroups(Table table, boolean fullId, boolean detailed, List<TaskGroup> taskGroups) {
         DiscoveryNodes discoveryNodes = clusterService.state().nodes();
         List<TaskGroup> sortedGroups = new ArrayList<>(taskGroups);
         sortedGroups.sort((o1, o2) -> Long.compare(o1.getTaskInfo().getStartTime(), o2.getTaskInfo().getStartTime()));

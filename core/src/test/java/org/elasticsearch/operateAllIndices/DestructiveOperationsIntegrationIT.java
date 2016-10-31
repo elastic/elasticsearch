@@ -26,8 +26,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DestructiveOperationsIntegrationIT extends ESIntegTestCase {
     // One test for test performance, since cluster scope is test

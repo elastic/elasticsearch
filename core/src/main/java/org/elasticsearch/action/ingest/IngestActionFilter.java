@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -90,7 +93,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     void processIndexRequest(Task task, String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest) {
 
         executionService.executeIndexRequest(indexRequest, t -> {
-            logger.error("failed to execute pipeline [{}]", t, indexRequest.getPipeline());
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute pipeline [{}]", indexRequest.getPipeline()), t);
             listener.onFailure(t);
         }, success -> {
             // TransportIndexAction uses IndexRequest and same action name on the node that receives the request and the node that
@@ -105,7 +108,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         executionService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, exception) -> {
-            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", exception, indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id());
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]", indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
             bulkRequestModifier.markCurrentItemAsFailed(exception);
         }, (exception) -> {
             if (exception != null) {
@@ -132,7 +135,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         return Integer.MAX_VALUE;
     }
 
-    static final class BulkRequestModifier implements Iterator<ActionRequest<?>> {
+    static final class BulkRequestModifier implements Iterator<DocWriteRequest> {
 
         final BulkRequest bulkRequest;
         final Set<Integer> failedSlots;
@@ -148,7 +151,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
 
         @Override
-        public ActionRequest next() {
+        public DocWriteRequest next() {
             return bulkRequest.requests().get(++currentSlot);
         }
 
@@ -163,13 +166,13 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             } else {
                 BulkRequest modifiedBulkRequest = new BulkRequest();
                 modifiedBulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
-                modifiedBulkRequest.consistencyLevel(bulkRequest.consistencyLevel());
+                modifiedBulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 modifiedBulkRequest.timeout(bulkRequest.timeout());
 
                 int slot = 0;
                 originalSlots = new int[bulkRequest.requests().size() - failedSlots.size()];
                 for (int i = 0; i < bulkRequest.requests().size(); i++) {
-                    ActionRequest request = bulkRequest.requests().get(i);
+                    DocWriteRequest request = bulkRequest.requests().get(i);
                     if (failedSlots.contains(i) == false) {
                         modifiedBulkRequest.add(request);
                         originalSlots[slot++] = i;
@@ -205,7 +208,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             // 3) Continue with the next request in the bulk.
             failedSlots.add(currentSlot);
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
-            itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType().lowercase(), failure));
+            itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType(), failure));
         }
 
     }

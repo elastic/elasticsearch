@@ -22,6 +22,9 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,12 +32,10 @@ import java.util.Objects;
 /**
  * SnapshotId - snapshot name + snapshot UUID
  */
-public final class SnapshotId implements Writeable {
+public final class SnapshotId implements Writeable, ToXContent {
 
-    /**
-     * This value is for older snapshots that don't have a UUID.
-     */
-    public static final String UNASSIGNED_UUID = "_na_";
+    private static final String NAME = "name";
+    private static final String UUID = "uuid";
 
     private final String name;
     private final String uuid;
@@ -113,6 +114,37 @@ public final class SnapshotId implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(uuid);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(NAME, name);
+        builder.field(UUID, uuid);
+        builder.endObject();
+        return builder;
+    }
+
+    public static SnapshotId fromXContent(XContentParser parser) throws IOException {
+        // the new format from 5.0 which contains the snapshot name and uuid
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            String name = null;
+            String uuid = null;
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String currentFieldName = parser.currentName();
+                parser.nextToken();
+                if (NAME.equals(currentFieldName)) {
+                    name = parser.text();
+                } else if (UUID.equals(currentFieldName)) {
+                    uuid = parser.text();
+                }
+            }
+            return new SnapshotId(name, uuid);
+        } else {
+            // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
+            final String name = parser.text();
+            return new SnapshotId(name, name);
+        }
     }
 
 }

@@ -29,8 +29,10 @@ import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -344,11 +346,11 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     public void testParseDoSectionWithHeaders() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "headers:\n" +
-                        "    Authorization: \"thing one\"\n" +
-                        "    Content-Type: \"application/json\"\n" +
-                        "indices.get_warmer:\n" +
-                        "    index: test_index\n" +
-                        "    name: test_warmer"
+                "    Authorization: \"thing one\"\n" +
+                "    Content-Type: \"application/json\"\n" +
+                "indices.get_warmer:\n" +
+                "    index: test_index\n" +
+                "    name: test_warmer"
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
@@ -381,9 +383,9 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     public void testParseDoSectionMultivaluedField() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "indices.get_field_mapping:\n" +
-                        "        index: test_index\n" +
-                        "        type: test_type\n" +
-                        "        field: [ text , text1 ]"
+                "        index: test_index\n" +
+                "        type: test_type\n" +
+                "        field: [ text , text1 ]"
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
@@ -398,6 +400,46 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertThat(doSection.getApiCallSection().getParams().get("field"), equalTo("text,text1"));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
         assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
+    }
+
+    public void testParseDoSectionExpectedWarnings() throws Exception {
+        parser = YamlXContent.yamlXContent.createParser(
+                "indices.get_field_mapping:\n" +
+                "        index: test_index\n" +
+                "        type: test_type\n" +
+                "warnings:\n" +
+                "    - some test warning they are typically pretty long\n" +
+                "    - some other test warning somtimes they have [in] them"
+        );
+
+        DoSectionParser doSectionParser = new DoSectionParser();
+        DoSection doSection = doSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+
+        assertThat(doSection.getCatch(), nullValue());
+        assertThat(doSection.getApiCallSection(), notNullValue());
+        assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_field_mapping"));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
+        assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
+        assertThat(doSection.getApiCallSection().getParams().get("type"), equalTo("test_type"));
+        assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
+        assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
+        assertThat(doSection.getExpectedWarningHeaders(), equalTo(Arrays.asList(
+                "some test warning they are typically pretty long",
+                "some other test warning somtimes they have [in] them")));
+
+        parser = YamlXContent.yamlXContent.createParser(
+                "indices.get_field_mapping:\n" +
+                "        index: test_index\n" +
+                "warnings:\n" +
+                "    - just one entry this time"
+        );
+
+        doSection = doSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        assertThat(doSection.getCatch(), nullValue());
+        assertThat(doSection.getApiCallSection(), notNullValue());
+        assertThat(doSection.getExpectedWarningHeaders(), equalTo(singletonList(
+                "just one entry this time")));
+
     }
 
     private static void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {

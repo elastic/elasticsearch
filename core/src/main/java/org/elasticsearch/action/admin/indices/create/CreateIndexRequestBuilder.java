@@ -269,4 +269,13 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
         request.waitForActiveShards(waitForActiveShards);
         return this;
     }
+
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public CreateIndexRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
 }

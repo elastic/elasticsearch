@@ -19,7 +19,13 @@
   - gte: { nodes.count.ingest: 0}
   - gte: { nodes.count.coordinating_only: 0}
   - is_true: nodes.os
+  - is_true: nodes.os.mem.total_in_bytes
+  - is_true: nodes.os.mem.free_in_bytes
+  - is_true: nodes.os.mem.used_in_bytes
+  - gte: { nodes.os.mem.free_percent: 0 }
+  - gte: { nodes.os.mem.used_percent: 0 }
   - is_true: nodes.process
   - is_true: nodes.jvm
   - is_true: nodes.fs
   - is_true: nodes.plugins
+  - is_true: nodes.network_types

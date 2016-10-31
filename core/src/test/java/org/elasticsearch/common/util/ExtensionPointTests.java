@@ -18,49 +18,45 @@
  */
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ExtensionPointTests extends ESTestCase {
 
     public void testClassSet() {
-        final ExtensionPoint.ClassSet<AllocationDecider> allocationDeciders = new ExtensionPoint.ClassSet<>("allocation_decider", AllocationDecider.class, AllocationDeciders.class);
-        allocationDeciders.registerExtension(TestAllocationDecider.class);
+        final ExtensionPoint.ClassSet<TestBaseClass> allocationDeciders = new ExtensionPoint.ClassSet<>("test_class", TestBaseClass.class, Consumer.class);
+        allocationDeciders.registerExtension(TestImpl.class);
         Injector injector = new ModulesBuilder().add(new Module() {
             @Override
             public void configure(Binder binder) {
-                binder.bind(Settings.class).toInstance(Settings.EMPTY);
-                binder.bind(Consumer.class).asEagerSingleton();
                 allocationDeciders.bind(binder);
             }
         }).createInjector();
-        assertEquals(1, TestAllocationDecider.instances.get());
+        assertEquals(1, TestImpl.instances.get());
 
     }
+
+    public static class TestBaseClass {}
 
     public static class Consumer {
         @Inject
-        public Consumer(Set<AllocationDecider> deciders, TestAllocationDecider other) {
-            // we require the TestAllocationDecider more than once to ensure it's bound as a singleton
+        public Consumer(Set<TestBaseClass> deciders, TestImpl other) {
+            // we require the TestImpl more than once to ensure it's bound as a singleton
         }
     }
 
-    public static class TestAllocationDecider extends AllocationDecider {
+    public static class TestImpl extends TestBaseClass {
         static final AtomicInteger instances = new AtomicInteger(0);
 
         @Inject
-        public TestAllocationDecider(Settings settings) {
-            super(settings);
+        public TestImpl() {
             instances.incrementAndGet();
         }
     }

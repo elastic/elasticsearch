@@ -31,8 +31,6 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD;
 
-/**
- */
 public class MatrixStatsParser extends NumericValuesSourceParser {
 
     public MatrixStatsParser() {

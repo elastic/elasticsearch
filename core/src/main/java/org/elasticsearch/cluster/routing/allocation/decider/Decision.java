@@ -53,7 +53,7 @@ public abstract class Decision implements ToXContent {
      * @param explanationParams additional parameters for the decision
      * @return new {@link Decision} instance
      */
-    public static Decision single(Type type, String label, String explanation, Object... explanationParams) {
+    public static Decision single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
         return new Single(type, label, explanation, explanationParams);
     }
 
@@ -138,6 +138,18 @@ public abstract class Decision implements ToXContent {
                     throw new IllegalArgumentException("Invalid Type [" + type + "]");
             }
         }
+
+        public boolean higherThan(Type other) {
+            if (this == NO) {
+                return false;
+            } else if (other == NO) {
+                return true;
+            } else if (other == THROTTLE && this == YES) {
+                return true;
+            }
+            return false;
+        }
+
     }
 
     /**
@@ -146,6 +158,9 @@ public abstract class Decision implements ToXContent {
      */
     public abstract Type type();
 
+    /**
+     * Get the description label for this decision.
+     */
     @Nullable
     public abstract String label();
 

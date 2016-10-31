@@ -21,19 +21,19 @@ package org.elasticsearch.http.netty3;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -125,7 +125,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             Setting.intSetting("http.netty.max_composite_buffer_components", -1, Property.NodeScope, Property.Shared);
 
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count",
-            (s) -> Integer.toString(EsExecutors.boundedNumberOfProcessors(s) * 2),
+            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), Property.NodeScope, Property.Shared);
 
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
@@ -147,9 +147,9 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         Setting.byteSizeSetting("transport.netty.receive_predictor_size",
             settings -> {
                 long defaultReceiverPredictor = 512 * 1024;
-                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
+                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes() > 0) {
                     // we can guess a better default...
-                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / SETTING_HTTP_WORKER_COUNT.get
+                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()) / SETTING_HTTP_WORKER_COUNT.get
                             (settings));
                     defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
                 }
@@ -216,7 +216,6 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
     private final Netty3CorsConfig corsConfig;
 
-    @Inject
     public Netty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool) {
         super(settings);
         this.networkService = networkService;
@@ -246,11 +245,11 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         ByteSizeValue receivePredictorMin = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
         ByteSizeValue receivePredictorMax = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
-        if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
-            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
+        if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
+            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.getBytes());
         } else {
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory(
-                (int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+                (int) receivePredictorMin.getBytes(), (int) receivePredictorMin.getBytes(), (int) receivePredictorMax.getBytes());
         }
 
         this.compression = SETTING_HTTP_COMPRESSION.get(settings);
@@ -260,7 +259,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         this.corsConfig = buildCorsConfig(settings);
 
         // validate max content length
-        if (maxContentLength.bytes() > Integer.MAX_VALUE) {
+        if (maxContentLength.getBytes() > Integer.MAX_VALUE) {
             logger.warn("maxContentLength[{}] set to high value, resetting it to [100mb]", maxContentLength);
             maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB);
         }
@@ -282,34 +281,42 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
     @Override
     protected void doStart() {
-        this.serverOpenChannels = new Netty3OpenChannelsHandler(logger);
-        if (blockingServer) {
-            serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker"))
-            ));
-        } else {
-            serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker")),
-                workerCount));
-        }
-        serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
+        boolean success = false;
+        try {
+            this.serverOpenChannels = new Netty3OpenChannelsHandler(logger);
+            if (blockingServer) {
+                serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX))
+                ));
+            } else {
+                serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)),
+                    workerCount));
+            }
+            serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
 
-        serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
-        serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
-        if (tcpSendBufferSize.bytes() > 0) {
+            serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
+            serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
+            if (tcpSendBufferSize.getBytes() > 0) {
 
-            serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
+                serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.getBytes());
+            }
+            if (tcpReceiveBufferSize.getBytes() > 0) {
+                serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.getBytes());
+            }
+            serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
+            serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
+            serverBootstrap.setOption("reuseAddress", reuseAddress);
+            serverBootstrap.setOption("child.reuseAddress", reuseAddress);
+            this.boundAddress = createBoundHttpAddress();
+            success = true;
+        } finally {
+            if (success == false) {
+                doStop();  // otherwise we leak threads since we never moved to started
+            }
         }
-        if (tcpReceiveBufferSize.bytes() > 0) {
-            serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
-        }
-        serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
-        serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
-        serverBootstrap.setOption("reuseAddress", reuseAddress);
-        serverBootstrap.setOption("child.reuseAddress", reuseAddress);
-        this.boundAddress = createBoundHttpAddress();
     }
 
     private BoundTransportAddress createBoundHttpAddress() {
@@ -321,7 +328,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             throw new BindHttpException("Failed to resolve host [" + Arrays.toString(bindHosts) + "]", e);
         }
 
-        List<InetSocketTransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
+        List<TransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
         for (InetAddress address : hostAddresses) {
             boundAddresses.add(bindAddress(address));
         }
@@ -335,15 +342,15 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
         final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
         final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
-        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new InetSocketTransportAddress(publishAddress));
+        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
     }
 
     // package private for tests
-    static int resolvePublishPort(Settings settings, List<InetSocketTransportAddress> boundAddresses, InetAddress publishInetAddress) {
+    static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
         int publishPort = SETTING_HTTP_PUBLISH_PORT.get(settings);
 
         if (publishPort < 0) {
-            for (InetSocketTransportAddress boundAddress : boundAddresses) {
+            for (TransportAddress boundAddress : boundAddresses) {
                 InetAddress boundInetAddress = boundAddress.address().getAddress();
                 if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
                     publishPort = boundAddress.getPort();
@@ -355,7 +362,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         // if no matching boundAddress found, check if there is a unique port for all bound addresses
         if (publishPort < 0) {
             final IntSet ports = new IntHashSet();
-            for (InetSocketTransportAddress boundAddress : boundAddresses) {
+            for (TransportAddress boundAddress : boundAddresses) {
                 ports.add(boundAddress.getPort());
             }
             if (ports.size() == 1) {
@@ -400,33 +407,30 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
                       .build();
     }
 
-    private InetSocketTransportAddress bindAddress(final InetAddress hostAddress) {
+    private TransportAddress bindAddress(final InetAddress hostAddress) {
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        boolean success = port.iterate(new PortsRange.PortCallback() {
-            @Override
-            public boolean onPortNumber(int portNumber) {
-                try {
-                    synchronized (serverChannels) {
-                        Channel channel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
-                        serverChannels.add(channel);
-                        boundSocket.set((InetSocketAddress) channel.getLocalAddress());
-                    }
-                } catch (Exception e) {
-                    lastException.set(e);
-                    return false;
+        boolean success = port.iterate(portNumber -> {
+            try {
+                synchronized (serverChannels) {
+                    Channel channel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
+                    serverChannels.add(channel);
+                    boundSocket.set((InetSocketAddress) channel.getLocalAddress());
                 }
-                return true;
+            } catch (Exception e) {
+                lastException.set(e);
+                return false;
             }
+            return true;
         });
         if (!success) {
-            throw new BindHttpException("Failed to bind to [" + port + "]", lastException.get());
+            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
         }
 
         if (logger.isDebugEnabled()) {
             logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
         }
-        return new InetSocketTransportAddress(boundSocket.get());
+        return new TransportAddress(boundSocket.get());
     }
 
     @Override
@@ -466,7 +470,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         if (boundTransportAddress == null) {
             return null;
         }
-        return new HttpInfo(boundTransportAddress, maxContentLength.bytes());
+        return new HttpInfo(boundTransportAddress, maxContentLength.getBytes());
     }
 
     @Override
@@ -495,10 +499,18 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
                 return;
             }
             if (!NetworkExceptionHelper.isCloseConnectionException(e.getCause())) {
-                logger.warn("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Caught exception while handling client http traffic, closing connection {}",
+                        ctx.getChannel()),
+                    e.getCause());
                 ctx.getChannel().close();
             } else {
-                logger.debug("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.debug(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Caught exception while handling client http traffic, closing connection {}",
+                        ctx.getChannel()),
+                    e.getCause());
                 ctx.getChannel().close();
             }
         }
@@ -523,15 +535,15 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             ChannelPipeline pipeline = Channels.pipeline();
             pipeline.addLast("openChannels", transport.serverOpenChannels);
             HttpRequestDecoder requestDecoder = new HttpRequestDecoder(
-                    (int) transport.maxInitialLineLength.bytes(),
-                    (int) transport.maxHeaderSize.bytes(),
-                    (int) transport.maxChunkSize.bytes()
+                    (int) transport.maxInitialLineLength.getBytes(),
+                    (int) transport.maxHeaderSize.getBytes(),
+                    (int) transport.maxChunkSize.getBytes()
             );
-            if (transport.maxCumulationBufferCapacity.bytes() >= 0) {
-                if (transport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+            if (transport.maxCumulationBufferCapacity.getBytes() >= 0) {
+                if (transport.maxCumulationBufferCapacity.getBytes() > Integer.MAX_VALUE) {
                     requestDecoder.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
                 } else {
-                    requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.bytes());
+                    requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.getBytes());
                 }
             }
             if (transport.maxCompositeBufferComponents != -1) {
@@ -539,7 +551,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             }
             pipeline.addLast("decoder", requestDecoder);
             pipeline.addLast("decoder_compress", new HttpContentDecompressor());
-            HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.bytes());
+            HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.getBytes());
             if (transport.maxCompositeBufferComponents != -1) {
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }

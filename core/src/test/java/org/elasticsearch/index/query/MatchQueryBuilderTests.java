@@ -24,23 +24,27 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -119,7 +123,20 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected Map<String, MatchQueryBuilder> getAlternateVersions() {
+        Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        String contentString = "{\n" +
+                "    \"match\" : {\n" +
+                "        \"" + matchQuery.fieldName() + "\" : \"" + matchQuery.value() + "\"\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, matchQuery);
+        return alternateVersions;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
         assertThat(query, notNullValue());
 
         if (query instanceof MatchAllDocsQuery) {
@@ -144,7 +161,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                     .or(instanceOf(PointRangeQuery.class)));
             break;
         }
-
+        QueryShardContext context = searchContext.getQueryShardContext();
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
@@ -297,13 +314,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertSerialization(qb);
 
         // Now check with strict parsing an exception is thrown
-        try {
-            parseQuery(json, ParseFieldMatcher.STRICT);
-            fail("Expected query to fail with strict parsing");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
+        assertThat(e.getMessage(),
+                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
     }
 
     public void testLegacyMatchPhraseQuery() throws IOException {
@@ -334,13 +347,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertSerialization(qb);
 
         // Now check with strict parsing an exception is thrown
-        try {
-            parseQuery(json, ParseFieldMatcher.STRICT);
-            fail("Expected query to fail with strict parsing");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
+        assertThat(e.getMessage(),
+                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
     }
 
     public void testLegacyFuzzyMatchQuery() throws IOException {
@@ -365,13 +374,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertThat(qb, equalTo(expectedQB));
 
         // Now check with strict parsing an exception is thrown
-        try {
-            parseQuery(json, ParseFieldMatcher.STRICT);
-            fail("Expected query to fail with strict parsing");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    containsString("Deprecated field [" + type + "] used, expected [match] instead"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
+        assertThat(e.getMessage(), containsString("Deprecated field [" + type + "] used, expected [match] instead"));
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {
@@ -399,11 +403,51 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]", e.getMessage());
         query.lenient(true);
         query.toQuery(context); // no exception
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"query\" : \"this is a test\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"query\" : \"this is a test\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+
+        String shortJson = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : \"this is a test\",\n" +
+                "    \"message2\" : \"this is a test\"\n" +
+                "  }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testParseFailsWithTermsArray() throws Exception {
+        String json1 = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"query\" : [\"term1\", \"term2\"]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        expectThrows(ParsingException.class, () -> parseQuery(json1));
+
+        String json2 = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : [\"term1\", \"term2\"]\n" +
+                "  }\n" +
+                "}";
+        expectThrows(IllegalStateException.class, () -> parseQuery(json2));
     }
 }

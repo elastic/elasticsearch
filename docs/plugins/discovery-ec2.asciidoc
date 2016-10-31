@@ -3,6 +3,8 @@
 
 The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
 
+*If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
+
 [[discovery-ec2-install]]
 [float]
 ==== Installation
@@ -16,6 +18,9 @@ sudo bin/elasticsearch-plugin install discovery-ec2
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/discovery-ec2/discovery-ec2-{version}.zip.
 
 [[discovery-ec2-remove]]
 [float]
@@ -140,7 +145,7 @@ discovery:
 You must also set `cloud.aws.region` if you are not using default AWS region. See <<discovery-ec2-usage-region>> for details.
 
 The ec2 discovery is using the same credentials as the rest of the AWS services provided by this plugin (`repositories`).
-See <<discovery-ec2-usage>> for details. 
+See <<discovery-ec2-usage>> for details.
 
 The following are a list of settings (prefixed with `discovery.ec2`) that can further control the discovery:
 
@@ -227,6 +232,7 @@ Management Console. It should look similar to this.
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 [[discovery-ec2-filtering]]
 ===== Filtering by Tags
@@ -267,7 +273,7 @@ When selecting disk please be aware of the following order of preference:
 * http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html[Instance Store] - When running clusters of larger size and with replicas the ephemeral nature of Instance Store is ideal since Elasticsearch can tolerate the loss of shards. With Instance Store one gets the performance benefit of having disk physically attached to the host running the instance and also the cost benefit of avoiding paying extra for EBS.
 
 
-Prefer https://aws.amazon.com/amazon-linux-ami/[Amazon Linux AMIs] as since Elasticsearch runs on the JVM, OS dependencies are very minimal and one can benefit from the lightweight nature, support, and performance tweaks specific to EC2 that the Amazon Linux AMIs offer. 
+Prefer https://aws.amazon.com/amazon-linux-ami/[Amazon Linux AMIs] as since Elasticsearch runs on the JVM, OS dependencies are very minimal and one can benefit from the lightweight nature, support, and performance tweaks specific to EC2 that the Amazon Linux AMIs offer.
 
 ===== Networking
 * Networking throttling takes place on smaller instance types in both the form of https://lab.getbase.com/how-we-discovered-limitations-on-the-aws-tcp-stack/[bandwidth and number of connections]. Therefore if large number of connections are needed and networking is becoming a bottleneck, avoid https://aws.amazon.com/ec2/instance-types/[instance types] with networking labeled as `Moderate` or `Low`.

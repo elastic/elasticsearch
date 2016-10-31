@@ -19,11 +19,11 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -56,7 +56,7 @@ public class ReusePeerRecoverySharedTest {
      *            should this use synced flush? can't use synced from in the bwc
      *            tests
      */
-    public static void testCase(Settings indexSettings, Runnable restartCluster, ESLogger logger, boolean useSyncIds) {
+    public static void testCase(Settings indexSettings, Runnable restartCluster, Logger logger, boolean useSyncIds) {
         /*
          * prevent any rebalance actions during the peer recovery if we run into
          * a relocation the reuse count will be 0 and this fails the test. We
@@ -80,7 +80,7 @@ public class ReusePeerRecoverySharedTest {
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("30s").get();
         // just wait for merges
         client().admin().indices().prepareForceMerge("test").setMaxNumSegments(100).get();
-        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
+        client().admin().indices().prepareFlush().setForce(true).get();
 
         if (useSyncIds == false) {
             logger.info("--> disabling allocation while the cluster is shut down");

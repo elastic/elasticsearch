@@ -21,9 +21,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.tasks.Task;
 
-/**
- *
- */
 public interface TransportRequestHandler<T extends TransportRequest> {
 
     /**

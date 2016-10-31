@@ -53,6 +53,7 @@ import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
 import org.elasticsearch.index.analysis.MappingCharFilterFactory;
+import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
@@ -93,7 +94,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-/** 
+/**
  * Alerts us if new analyzers are added to lucene, so we don't miss them.
  * <p>
  * If we don't want to expose one for a specific reason, just map it to Void.
@@ -115,11 +116,11 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("thai",          ThaiTokenizerFactory.class)
         .put("uax29urlemail", UAX29URLEmailTokenizerFactory.class)
         .put("whitespace",    WhitespaceTokenizerFactory.class)
-        
+
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
         .put("wikipedia",     Void.class)
         .immutableMap();
-    
+
     static final Map<String,Class<?>> KNOWN_TOKENFILTERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
         .put("apostrophe",                ApostropheFilterFactory.class)
@@ -184,6 +185,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class)
         .put("serbiannormalization",      SerbianNormalizationFilterFactory.class)
         .put("shingle",                   ShingleTokenFilterFactory.class)
+        .put("minhash",                   MinHashTokenFilterFactory.class)
         .put("snowballporter",            SnowballTokenFilterFactory.class)
         .put("soraninormalization",       SoraniNormalizationFilterFactory.class)
         .put("soranistem",                StemmerTokenFilterFactory.class)
@@ -199,7 +201,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
         .put("worddelimiter",             WordDelimiterTokenFilterFactory.class)
-                
+
         // TODO: these tokenfilters are not yet exposed: useful?
 
         // suggest stop
@@ -228,14 +230,15 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("fingerprint",               Void.class)
         // for tee-sinks
         .put("daterecognizer",            Void.class)
+
         .immutableMap();
-    
+
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
         .put("htmlstrip",      HtmlStripCharFilterFactory.class)
         .put("mapping",        MappingCharFilterFactory.class)
         .put("patternreplace", PatternReplaceCharFilterFactory.class)
-                
+
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian
         .put("persian",        Void.class)

@@ -23,9 +23,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
 
     public IndicesExistsRequestBuilder(ElasticsearchClient client, IndicesExistsAction action, String... indices) {

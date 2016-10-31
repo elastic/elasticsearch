@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -89,47 +89,48 @@ public abstract class AbstractTermsParser extends AnyValuesSourceParser {
                                                                                        Map<ParseField, Object> otherOptions);
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
-        if (incExcParser.token(currentFieldName, token, parser, parseFieldMatcher, otherOptions)) {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
+        if (incExcParser.token(currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
             return true;
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            if (parseFieldMatcher.match(currentFieldName, EXECUTION_HINT_FIELD_NAME)) {
+            if (context.matchField(currentFieldName, EXECUTION_HINT_FIELD_NAME)) {
                 otherOptions.put(EXECUTION_HINT_FIELD_NAME, parser.text());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, SubAggCollectionMode.KEY)) {
-                otherOptions.put(SubAggCollectionMode.KEY, SubAggCollectionMode.parse(parser.text(), parseFieldMatcher));
+            } else if (context.matchField(currentFieldName, SubAggCollectionMode.KEY)) {
+                otherOptions.put(SubAggCollectionMode.KEY, SubAggCollectionMode.parse(parser.text(), context.getParseFieldMatcher()));
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, REQUIRED_SIZE_FIELD_NAME)) {
+            } else if (context.matchField(currentFieldName, REQUIRED_SIZE_FIELD_NAME)) {
                 otherOptions.put(REQUIRED_SIZE_FIELD_NAME, parser.intValue());
                 return true;
-            } else if (parseSpecial(aggregationName, parser, parseFieldMatcher, token, currentFieldName, otherOptions)) {
+            } else if (parseSpecial(aggregationName, context, token, currentFieldName, otherOptions)) {
                 return true;
             }
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            if (parseFieldMatcher.match(currentFieldName, REQUIRED_SIZE_FIELD_NAME)) {
+            if (context.matchField(currentFieldName, REQUIRED_SIZE_FIELD_NAME)) {
                 otherOptions.put(REQUIRED_SIZE_FIELD_NAME, parser.intValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, SHARD_SIZE_FIELD_NAME)) {
+            } else if (context.matchField(currentFieldName, SHARD_SIZE_FIELD_NAME)) {
                 otherOptions.put(SHARD_SIZE_FIELD_NAME, parser.intValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, MIN_DOC_COUNT_FIELD_NAME)) {
+            } else if (context.matchField(currentFieldName, MIN_DOC_COUNT_FIELD_NAME)) {
                 otherOptions.put(MIN_DOC_COUNT_FIELD_NAME, parser.longValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, SHARD_MIN_DOC_COUNT_FIELD_NAME)) {
+            } else if (context.matchField(currentFieldName, SHARD_MIN_DOC_COUNT_FIELD_NAME)) {
                 otherOptions.put(SHARD_MIN_DOC_COUNT_FIELD_NAME, parser.longValue());
                 return true;
-            } else if (parseSpecial(aggregationName, parser, parseFieldMatcher, token, currentFieldName, otherOptions)) {
+            } else if (parseSpecial(aggregationName, context, token, currentFieldName, otherOptions)) {
                 return true;
             }
-        } else if (parseSpecial(aggregationName, parser, parseFieldMatcher, token, currentFieldName, otherOptions)) {
+        } else if (parseSpecial(aggregationName, context, token, currentFieldName, otherOptions)) {
             return true;
         }
         return false;
     }
 
-    public abstract boolean parseSpecial(String aggregationName, XContentParser parser, ParseFieldMatcher parseFieldMatcher,
-            XContentParser.Token token, String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException;
+    public abstract boolean parseSpecial(String aggregationName, XContentParseContext context,
+                                         Token token, String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException;
 
     protected abstract TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds();
 

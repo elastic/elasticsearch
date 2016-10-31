@@ -25,11 +25,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -46,13 +47,14 @@ import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable {
 
     protected SortOrder order = SortOrder.ASC;
+
+    // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
+    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
+    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
 
     private static final Map<String, Parser<?>> PARSERS;
     static {
@@ -197,6 +199,16 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
             nested = new Nested(rootDocumentsFilter,  innerDocumentsQuery);
         }
         return nested;
+    }
+
+    protected static QueryBuilder parseNestedFilter(XContentParser parser, QueryParseContext context) {
+        try {
+            QueryBuilder builder = context.parseInnerQueryBuilder().orElseThrow(() -> new ParsingException(parser.getTokenLocation(),
+                    "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element."));
+            return builder;
+        } catch (Exception e) {
+            throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element.", e);
+        }
     }
 
     @FunctionalInterface

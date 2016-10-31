@@ -49,8 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
 public class CompoundAnalysisTests extends ESTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
         Settings settings = getJsonSettings();
@@ -61,9 +59,7 @@ public class CompoundAnalysisTests extends ESTestCase {
                 return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
             }
         }));
-        AnalysisService analysisService = analysisModule.getAnalysisRegistry().build(idxSettings);
-
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("dict_dec");
+        TokenFilterFactory filterFactory = analysisModule.getAnalysisRegistry().buildTokenFilterFactories(idxSettings).get("dict_dec");
         MatcherAssert.assertThat(filterFactory, instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
     }
 
@@ -85,9 +81,8 @@ public class CompoundAnalysisTests extends ESTestCase {
                 return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
             }
         }));
-        AnalysisService analysisService = analysisModule.getAnalysisRegistry().build(idxSettings);
-
-        Analyzer analyzer = analysisService.analyzer(analyzerName).analyzer();
+        IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
+        Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", text, 1.0f);

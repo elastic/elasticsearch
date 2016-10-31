@@ -48,7 +48,7 @@ public class TasksRequestBuilder<
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setNodesIds(String... nodesIds) {
-        request.setNodesIds(nodesIds);
+        request.setNodes(nodesIds);
         return (RequestBuilder) this;
     }
 

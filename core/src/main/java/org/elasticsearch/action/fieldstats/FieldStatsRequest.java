@@ -35,8 +35,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- */
 public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
 
     public static final String DEFAULT_LEVEL = "cluster";
@@ -90,7 +88,7 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
                         break;
                     case START_OBJECT:
                         if ("index_constraints".equals(fieldName)) {
-                            parseIndexContraints(indexConstraints, parser);
+                            parseIndexConstraints(indexConstraints, parser);
                         } else {
                             throw new IllegalArgumentException("unknown field [" + fieldName + "]");
                         }
@@ -117,8 +115,8 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
         this.indexConstraints = indexConstraints.toArray(new IndexConstraint[indexConstraints.size()]);
     }
 
-    private void parseIndexContraints(List<IndexConstraint> indexConstraints,
-                                      XContentParser parser) throws IOException {
+    private static void parseIndexConstraints(List<IndexConstraint> indexConstraints,
+                                       XContentParser parser) throws IOException {
         Token token = parser.currentToken();
         assert token == Token.START_OBJECT;
         String field = null;
@@ -213,5 +211,4 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
         out.writeString(level);
         out.writeBoolean(useCache);
     }
-
 }

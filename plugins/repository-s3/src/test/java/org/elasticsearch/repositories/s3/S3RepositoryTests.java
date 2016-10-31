@@ -58,7 +58,7 @@ public class S3RepositoryTests extends ESTestCase {
         @Override
         protected void doClose() {}
         @Override
-        public AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+        public AmazonS3 client(Settings repositorySettings, String endpoint, Protocol protocol, String region, Integer maxRetries,
                                boolean useThrottleRetries, Boolean pathStyleAccess) {
             return new DummyS3Client();
         }
@@ -104,4 +104,17 @@ public class S3RepositoryTests extends ESTestCase {
         Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, new DummyS3Service()));
         assertThat(e.getMessage(), containsString(msg));
     }
+
+    public void testBasePathSetting() throws IOException {
+        RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
+            .put(Repository.BASE_PATH_SETTING.getKey(), "/foo/bar").build());
+        S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, new DummyS3Service());
+        assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
+
+        metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
+        Settings settings = Settings.builder().put(Repositories.BASE_PATH_SETTING.getKey(), "/foo/bar").build();
+        s3repo = new S3Repository(metadata, settings, new DummyS3Service());
+        assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
+    }
+
 }

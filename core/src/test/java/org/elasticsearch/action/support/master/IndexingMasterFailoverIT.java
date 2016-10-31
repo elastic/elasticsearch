@@ -23,12 +23,13 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
-import org.elasticsearch.test.disruption.NetworkPartition;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
+import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
@@ -42,8 +43,12 @@ import java.util.concurrent.CyclicBarrier;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class IndexingMasterFailoverIT extends ESIntegTestCase {
+
+    @Override
+    protected boolean addMockZenPings() {
+        return false;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -98,7 +103,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 for (int i = 0; i < 10; i++) {
                     // index data with mapping changes
                     IndexResponse response = client(dataNode).prepareIndex("myindex", "mytype").setSource("field_" + i, "val").get();
-                    assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
+                    assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                 }
             }
         });
@@ -112,7 +117,9 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         otherNodes.remove(master);
 
-        NetworkPartition partition = new NetworkDisconnectPartition(Collections.singleton(master), otherNodes, random());
+        NetworkDisruption partition = new NetworkDisruption(
+            new TwoPartitions(Collections.singleton(master), otherNodes),
+            new NetworkDisconnect());
         internalCluster().setDisruptionScheme(partition);
 
         logger.info("--> disrupting network");

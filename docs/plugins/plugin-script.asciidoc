@@ -53,7 +53,7 @@ sudo bin/elasticsearch-plugin install analysis-icu
 This command will install the version of the plugin that matches your
 Elasticsearch version and also show a progress bar while downloading.
 
-[float]
+[[plugin-management-custom-url]]
 === Custom URL or file system
 
 A plugin can also be downloaded directly from a custom location by specifying the URL:
@@ -140,25 +140,6 @@ sudo bin/elasticsearch-plugin -Epath.conf=/path/to/custom/config/dir install <pl
 
 You can also set the `CONF_DIR` environment variable to the custom config
 directory path.
-
-[float]
-=== Timeout settings
-
-By default, the `plugin` script will wait indefinitely when downloading before
-failing. The timeout parameter can be used to explicitly specify how long it
-waits. Here is some examples of setting it to different values:
-
-[source,shell]
------------------------------------
-# Wait for 30 seconds before failing
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 30s
-
-# Wait for 1 minute before failing
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 1m
-
-# Wait forever (default)
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 0
------------------------------------
 
 [float]
 === Proxy settings

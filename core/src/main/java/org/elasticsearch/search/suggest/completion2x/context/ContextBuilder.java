@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest.completion2x.context;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperParsingException;
 
 import java.util.Map;
 import java.util.Map.Entry;

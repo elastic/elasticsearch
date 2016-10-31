@@ -24,9 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent implements TokenFilterFactory {
 
     private final String name;

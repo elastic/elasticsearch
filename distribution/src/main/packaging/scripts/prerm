@@ -79,12 +79,13 @@ if [ "$REMOVE_SERVICE" = "true" ]; then
     if command -v update-rc.d >/dev/null; then
         update-rc.d elasticsearch remove >/dev/null || true
     fi
+
+    SCRIPTS_DIR="/etc/elasticsearch/scripts"
+    # delete the scripts directory if and only if empty
+    if [ -d "$SCRIPTS_DIR" ]; then
+        rmdir --ignore-fail-on-non-empty "$SCRIPTS_DIR"
+    fi
 fi
 
-SCRIPTS_DIR="/etc/elasticsearch/scripts"
-# delete the scripts directory if and only if empty
-if [ -d "$SCRIPTS_DIR" ]; then
-    rmdir --ignore-fail-on-non-empty "$SCRIPTS_DIR"
-fi
 
 ${scripts.footer}

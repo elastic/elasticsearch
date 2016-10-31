@@ -89,7 +89,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testBasicGeo() throws Exception {
@@ -190,7 +190,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             .startObject("context")
             .startObject("location")
             .field("type", "geo")
-            .field("precision", precision)
+            .array("precision", precision)
             .endObject()
             .endObject()
             .endObject().endObject()
@@ -209,7 +209,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             .startObject("context")
             .startObject("location")
             .field("type", "geo")
-            .field("precision", precision)
+            .array("precision", precision)
             .endObject()
             .endObject()
             .endObject().endObject()
@@ -314,7 +314,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             { "pizza - treptow", "pizza", "food" } };
 
         for (int i = 0; i < locations.length; i++) {
-            XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).field("input", input[i])
+            XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).array("input", input[i])
                 .startObject("context").field("st", locations[i]).endObject().field("payload", locations[i])
                 .endObject().endObject();
             client().prepareIndex(INDEX, TYPE, "" + i).setSource(source).execute().actionGet();
@@ -343,7 +343,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             .addMapping(TYPE, createMapping(TYPE, ContextBuilder.category("st"))));
 
         for (int i = 0; i < HEROS.length; i++) {
-            XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).field("input", HEROS[i])
+            XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).array("input", HEROS[i])
                 .startObject("context").field("st", i%3).endObject()
                 .startObject("payload").field("group", i % 3).field("id", i).endObject()
                 .endObject().endObject();
@@ -376,12 +376,12 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
         XContentBuilder doc1 = jsonBuilder();
         doc1.startObject().startObject("suggest_field")
             .field("input", "backpack_red")
-            .startObject("context").field("color", "red", "all_colors").endObject()
+            .startObject("context").array("color", "red", "all_colors").endObject()
             .endObject().endObject();
         XContentBuilder doc2 = jsonBuilder();
         doc2.startObject().startObject("suggest_field")
             .field("input", "backpack_green")
-            .startObject("context").field("color", "green", "all_colors").endObject()
+            .startObject("context").array("color", "green", "all_colors").endObject()
             .endObject().endObject();
 
         client().prepareIndex(INDEX, TYPE, "1")
@@ -451,7 +451,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             client().prepareIndex(INDEX, TYPE, "" + i)
                 .setSource(
                     jsonBuilder().startObject().field("category", Integer.toString(i % 3)).startObject(FIELD)
-                        .field("input", HEROS[i])
+                        .array("input", HEROS[i])
                         .startObject("context").endObject().field("payload", Integer.toString(i % 3))
                         .endObject().endObject()).execute().actionGet();
         }
@@ -508,7 +508,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             client().prepareIndex(INDEX, TYPE, "" + i)
                 .setSource(
                     jsonBuilder().startObject().startArray("category").value(Integer.toString(i % 3)).value("other").endArray()
-                        .startObject(FIELD).field("input", HEROS[i]).startObject("context").endObject()
+                        .startObject(FIELD).array("input", HEROS[i]).startObject("context").endObject()
                         .field("payload", Integer.toString(i % 3)).endObject().endObject()).execute().actionGet();
         }
 
@@ -535,7 +535,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             client().prepareIndex(INDEX, TYPE, "" + i)
                 .setSource(
                     jsonBuilder().startObject().field("categoryA").value("" + (char) ('0' + (i % 3))).field("categoryB")
-                        .value("" + (char) ('A' + (i % 3))).startObject(FIELD).field("input", HEROS[i])
+                        .value("" + (char) ('A' + (i % 3))).startObject(FIELD).array("input", HEROS[i])
                         .startObject("context").endObject().field("payload", ((char) ('0' + (i % 3))) + "" + (char) ('A' + (i % 3)))
                         .endObject().endObject()).execute().actionGet();
         }
@@ -561,7 +561,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
 
         for (int i = 0; i < HEROS.length; i++) {
             String source = jsonBuilder().startObject().field("categoryA", "" + (char) ('0' + (i % 3)))
-                .field("categoryB", "" + (char) ('a' + (i % 3))).startObject(FIELD).field("input", HEROS[i])
+                .field("categoryB", "" + (char) ('a' + (i % 3))).startObject(FIELD).array("input", HEROS[i])
                 .startObject("context").endObject().startObject("payload").field("categoryA", "" + (char) ('0' + (i % 3)))
                 .field("categoryB", "" + (char) ('a' + (i % 3))).endObject().endObject().endObject().string();
             client().prepareIndex(INDEX, TYPE, "" + i).setSource(source).execute().actionGet();
@@ -599,7 +599,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             String type = types[i % types.length];
             client().prepareIndex(INDEX, type, "" + i)
                 .setSource(
-                    jsonBuilder().startObject().startObject(FIELD).field("input", HEROS[i])
+                    jsonBuilder().startObject().startObject(FIELD).array("input", HEROS[i])
                         .startObject("context").endObject().field("payload", type).endObject().endObject()).execute().actionGet();
         }
 

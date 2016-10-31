@@ -1,0 +1,22 @@
+[[analysis-minhash-tokenfilter]]
+=== Minhash Token Filter
+
+A token filter of type `min_hash` hashes each token of the token stream and divides
+the resulting hashes into buckets, keeping the lowest-valued hashes per
+bucket. It then returns these hashes as tokens.
+
+The following are settings that can be set for a `min_hash` token filter.
+
+[cols="<,<", options="header",]
+|=======================================================================
+|Setting |Description
+|`hash_count` |The number of hashes to hash the token stream with. Defaults to `1`.
+
+|`bucket_count` |The number of buckets to divide the minhashes into. Defaults to `512`.
+
+|`hash_set_size` |The number of minhashes to keep per bucket. Defaults to `1`.
+
+|`with_rotation` |Whether or not to fill empty buckets with the value of the first non-empty
+bucket to its circular right. Only takes effect if hash_set_size is equal to one.
+Defaults to `true` if bucket_count is greater than one, else `false`.
+|=======================================================================

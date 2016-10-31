@@ -19,9 +19,9 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -39,7 +39,7 @@ import java.util.Map;
  */
 public class ClientYamlTestExecutionContext {
 
-    private static final ESLogger logger = Loggers.getLogger(ClientYamlTestExecutionContext.class);
+    private static final Logger logger = Loggers.getLogger(ClientYamlTestExecutionContext.class);
 
     private final Stash stash = new Stash();
 
@@ -75,8 +75,10 @@ public class ClientYamlTestExecutionContext {
             response = e.getRestTestResponse();
             throw e;
         } finally {
+            // if we hit a bad exception the response is null
+            Object repsponseBody = response != null ? response.getBody() : null;
             //we always stash the last response body
-            stash.stashValue("body", response.getBody());
+            stash.stashValue("body", repsponseBody);
         }
     }
 

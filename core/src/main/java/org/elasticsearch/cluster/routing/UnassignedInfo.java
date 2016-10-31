@@ -108,7 +108,11 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         /**
          * Unassigned as a result of a failed primary while the replica was initializing.
          */
-        PRIMARY_FAILED
+        PRIMARY_FAILED,
+        /**
+         * Unassigned after forcing an empty primary
+         */
+        FORCED_EMPTY_PRIMARY
     }
 
     /**
@@ -181,15 +185,15 @@ public final class UnassignedInfo implements ToXContent, Writeable {
             }
         }
 
-        public static AllocationStatus fromDecision(Decision decision) {
+        public static AllocationStatus fromDecision(Decision.Type decision) {
             Objects.requireNonNull(decision);
-            switch (decision.type()) {
+            switch (decision) {
                 case NO:
                     return DECIDERS_NO;
                 case THROTTLE:
                     return DECIDERS_THROTTLED;
                 default:
-                    throw new IllegalArgumentException("no allocation attempt from decision[" + decision.type() + "]");
+                    throw new IllegalArgumentException("no allocation attempt from decision[" + decision + "]");
             }
         }
 

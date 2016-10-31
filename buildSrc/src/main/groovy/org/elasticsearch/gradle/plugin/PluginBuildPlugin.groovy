@@ -49,19 +49,14 @@ public class PluginBuildPlugin extends BuildPlugin {
         project.afterEvaluate {
             boolean isModule = project.path.startsWith(':modules:')
             String name = project.pluginProperties.extension.name
-            project.jar.baseName = name
-            project.bundlePlugin.baseName = name
+            project.archivesBaseName = name
 
             if (project.pluginProperties.extension.hasClientJar) {
                 // for plugins which work with the transport client, we copy the jar
                 // file to a new name, copy the nebula generated pom to the same name,
                 // and generate a different pom for the zip
-                project.signArchives.enabled = false
                 addClientJarPomGeneration(project)
                 addClientJarTask(project)
-                if (isModule == false) {
-                    addZipPomGeneration(project)
-                }
             } else {
                 // no client plugin, so use the pom file from nebula, without jar, for the zip
                 project.ext.set("nebulaPublish.maven.jar", false)
@@ -97,8 +92,8 @@ public class PluginBuildPlugin extends BuildPlugin {
             // with a full elasticsearch server that includes optional deps
             provided "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
             provided "com.vividsolutions:jts:${project.versions.jts}"
-            provided "log4j:log4j:${project.versions.log4j}"
-            provided "log4j:apache-log4j-extras:${project.versions.log4j}"
+            provided "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
+            provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
             provided "net.java.dev.jna:jna:${project.versions.jna}"
         }
     }
@@ -152,7 +147,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     /** Adds a task to move jar and associated files to a "-client" name. */
     protected static void addClientJarTask(Project project) {
         Task clientJar = project.tasks.create('clientJar')
-        clientJar.dependsOn('generatePomFileForJarPublication', project.jar, project.javadocJar, project.sourcesJar)
+        clientJar.dependsOn(project.jar, 'generatePomFileForClientJarPublication', project.javadocJar, project.sourcesJar)
         clientJar.doFirst {
             Path jarFile = project.jar.outputs.files.singleFile.toPath()
             String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
@@ -179,7 +174,10 @@ public class PluginBuildPlugin extends BuildPlugin {
     static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
 
     /** Find the reponame. */
-    protected static String urlFromOrigin(String origin) {
+    static String urlFromOrigin(String origin) {
+        if (origin == null) {
+            return null // best effort, the url doesnt really matter, it is just required by maven central
+        }
         if (origin.startsWith('https')) {
             return origin
         }
@@ -197,9 +195,9 @@ public class PluginBuildPlugin extends BuildPlugin {
 
         project.publishing {
             publications {
-                jar(MavenPublication) {
+                clientJar(MavenPublication) {
                     from project.components.java
-                    artifactId = artifactId + '-client'
+                    artifactId = project.pluginProperties.extension.name + '-client'
                     pom.withXml { XmlProvider xml ->
                         Node root = xml.asNode()
                         root.appendNode('name', project.pluginProperties.extension.name)
@@ -213,7 +211,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
     }
 
-    /** Adds a task to generate a*/
+    /** Adds a task to generate a pom file for the zip distribution. */
     protected void addZipPomGeneration(Project project) {
         project.plugins.apply(MavenPublishPlugin.class)
 
@@ -221,7 +219,19 @@ public class PluginBuildPlugin extends BuildPlugin {
             publications {
                 zip(MavenPublication) {
                     artifact project.bundlePlugin
-                    pom.packaging = 'pom'
+                }
+                /* HUGE HACK: the underlying maven publication library refuses to deploy any attached artifacts
+                 * when the packaging type is set to 'pom'. But Sonatype's OSS repositories require source files
+                 * for artifacts that are of type 'zip'. We already publish the source and javadoc for Elasticsearch
+                 * under the various other subprojects. So here we create another publication using the same
+                 * name that has the "real" pom, and rely on the fact that gradle will execute the publish tasks
+                 * in alphabetical order. This lets us publish the zip file and even though the pom says the
+                 * type is 'pom' instead of 'zip'. We cannot setup a dependency between the tasks because the
+                 * publishing tasks are created *extremely* late in the configuration phase, so that we cannot get
+                 * ahold of the actual task. Furthermore, this entire hack only exists so we can make publishing to
+                 * maven local work, since we publish to maven central externally. */
+                zipReal(MavenPublication) {
+                    artifactId = project.pluginProperties.extension.name
                     pom.withXml { XmlProvider xml ->
                         Node root = xml.asNode()
                         root.appendNode('name', project.pluginProperties.extension.name)

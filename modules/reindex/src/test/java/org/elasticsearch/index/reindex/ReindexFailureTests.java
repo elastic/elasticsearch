@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.action.index.IndexRequest.OpType.CREATE;
+import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -108,7 +108,11 @@ public class ReindexFailureTests extends ReindexTestCase {
                 attempt++;
             } catch (ExecutionException e) {
                 logger.info("Triggered a reindex failure on the {} attempt", attempt);
-                assertThat(e.getMessage(), either(containsString("all shards failed")).or(containsString("No search context found")));
+                assertThat(e.getMessage(),
+                        either(containsString("all shards failed"))
+                        .or(containsString("No search context found"))
+                        .or(containsString("no such index"))
+                        );
                 return;
             }
         }

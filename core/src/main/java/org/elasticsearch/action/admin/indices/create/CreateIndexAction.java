@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class CreateIndexAction extends Action<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
 
     public static final CreateIndexAction INSTANCE = new CreateIndexAction();

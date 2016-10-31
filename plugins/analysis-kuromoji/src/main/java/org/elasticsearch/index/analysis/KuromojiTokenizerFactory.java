@@ -31,8 +31,6 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.IOException;
 import java.io.Reader;
 
-/**
- */
 public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
     private static final String USER_DICT_OPTION = "user_dictionary";

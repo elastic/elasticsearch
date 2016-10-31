@@ -39,21 +39,21 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LegacyByteFieldMapper;
+import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper;
+import org.elasticsearch.index.mapper.LegacyFloatFieldMapper;
+import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper;
+import org.elasticsearch.index.mapper.LegacyLongFieldMapper;
+import org.elasticsearch.index.mapper.LegacyShortFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyByteFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyShortFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -119,7 +119,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             fieldType = new LegacyByteFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
             if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
-                fieldType =  new GeoPointFieldMapperLegacy.Builder(fieldName).docValues(docValues).build(context).fieldType();
+                fieldType =  new LegacyGeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
             } else {
                 fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
             }

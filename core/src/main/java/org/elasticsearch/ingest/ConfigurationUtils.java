@@ -107,15 +107,14 @@ public final class ConfigurationUtils {
             value.getClass().getName() + "]");
     }
 
-
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
      * If the property value isn't of type int a {@link ElasticsearchParseException} is thrown.
      * If the property is missing an {@link ElasticsearchParseException} is thrown
      */
-    public static int readIntProperty(String processorType, String processorTag, Map<String, Object> configuration,
-                                      String propertyName, int defaultValue) {
+    public static Integer readIntProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                          String propertyName, Integer defaultValue) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
             return defaultValue;
@@ -225,7 +224,13 @@ public final class ConfigurationUtils {
 
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, String reason) {
-        ElasticsearchParseException exception = new ElasticsearchParseException("[" + propertyName + "] " + reason);
+        String msg;
+        if (propertyName == null) {
+           msg = reason;
+        } else {
+            msg = "[" + propertyName + "] " + reason;
+        }
+        ElasticsearchParseException exception = new ElasticsearchParseException(msg);
         addHeadersToException(exception, processorType, processorTag, propertyName);
         return exception;
     }

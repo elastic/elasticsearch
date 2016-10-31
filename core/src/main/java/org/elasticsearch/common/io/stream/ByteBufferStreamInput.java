@@ -22,8 +22,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-/**
- */
 public class ByteBufferStreamInput extends StreamInput {
 
     private final ByteBuffer buffer;

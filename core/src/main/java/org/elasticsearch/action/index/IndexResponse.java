@@ -20,6 +20,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -39,12 +40,12 @@ public class IndexResponse extends DocWriteResponse {
     }
 
     public IndexResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        super(shardId, type, id, version, created ? Operation.CREATE : Operation.INDEX);
+        super(shardId, type, id, version, created ? Result.CREATED : Result.UPDATED);
     }
 
     @Override
     public RestStatus status() {
-        return operation == Operation.CREATE ? RestStatus.CREATED : super.status();
+        return result == Result.CREATED ? RestStatus.CREATED : super.status();
     }
 
     @Override
@@ -55,15 +56,15 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",operation=").append(getOperation().getLowercase());
-        builder.append(",shards=").append(getShardInfo());
+        builder.append(",result=").append(getResult().getLowercase());
+        builder.append(",shards=").append(Strings.toString(getShardInfo(), true));
         return builder.append("]").toString();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         super.toXContent(builder, params);
-        builder.field("created", operation == Operation.CREATE);
+        builder.field("created", result == Result.CREATED);
         return builder;
     }
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.common.blobstore.url;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -108,8 +107,4 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
-    @Override
-    public void writeBlob(String blobName, BytesReference data) throws IOException {
-        throw new UnsupportedOperationException("URL repository doesn't support this operation");
-    }
 }

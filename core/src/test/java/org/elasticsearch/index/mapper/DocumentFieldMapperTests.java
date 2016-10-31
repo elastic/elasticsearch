@@ -28,6 +28,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
     private static class FakeAnalyzer extends Analyzer {
 
         private final String output;
-        
+
         public FakeAnalyzer(String output) {
             this.output = output;
         }
@@ -63,7 +64,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             };
             return new TokenStreamComponents(tokenizer);
         }
-        
+
     }
 
     static class FakeFieldType extends TermBasedFieldType {
@@ -71,11 +72,11 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         public FakeFieldType() {
             super();
         }
-        
+
         FakeFieldType(FakeFieldType other) {
             super(other);
         }
-        
+
         @Override
         public MappedFieldType clone() {
             return new FakeFieldType(this);
@@ -85,7 +86,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         public String typeName() {
             return "fake";
         }
-        
+
     }
 
     static class FakeFieldMapper extends FieldMapper {
@@ -104,15 +105,15 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         protected String contentType() {
             return null;
         }
-        
+
     }
 
     public void testAnalyzers() throws IOException {
         FakeFieldType fieldType1 = new FakeFieldType();
         fieldType1.setName("field1");
-        fieldType1.setIndexAnalyzer(new NamedAnalyzer("foo", new FakeAnalyzer("index")));
-        fieldType1.setSearchAnalyzer(new NamedAnalyzer("bar", new FakeAnalyzer("search")));
-        fieldType1.setSearchQuoteAnalyzer(new NamedAnalyzer("baz", new FakeAnalyzer("search_quote")));
+        fieldType1.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new FakeAnalyzer("index")));
+        fieldType1.setSearchAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new FakeAnalyzer("search")));
+        fieldType1.setSearchQuoteAnalyzer(new NamedAnalyzer("baz", AnalyzerScope.INDEX, new FakeAnalyzer("search_quote")));
         FieldMapper fieldMapper1 = new FakeFieldMapper("field1", fieldType1);
 
         FakeFieldType fieldType2 = new FakeFieldType();

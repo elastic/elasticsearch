@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,7 +44,7 @@ import java.util.Objects;
  */
 public final class Script implements ToXContent, Writeable {
 
-    public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
+    public static final String DEFAULT_SCRIPT_LANG = "painless";
 
     private String script;
     private ScriptType type;
@@ -60,7 +61,7 @@ public final class Script implements ToXContent, Writeable {
         this(script, ScriptType.INLINE, null, null);
     }
 
-    public Script(String script, ScriptType type, @Nullable String lang, @Nullable Map<String, ?> params) {
+    public Script(String script, ScriptType type, String lang, @Nullable Map<String, ?> params) {
         this(script, type, lang, params, null);
     }
 
@@ -78,14 +79,14 @@ public final class Script implements ToXContent, Writeable {
      *                      when serializing the script back to xcontent.
      */
     @SuppressWarnings("unchecked")
-    public Script(String script, ScriptType type, @Nullable String lang, @Nullable Map<String, ?> params,
+    public Script(String script, ScriptType type, String lang, @Nullable Map<String, ?> params,
                   @Nullable XContentType  contentType) {
         if (contentType != null && type != ScriptType.INLINE) {
             throw new IllegalArgumentException("The parameter contentType only makes sense for inline scripts");
         }
         this.script = Objects.requireNonNull(script);
         this.type = Objects.requireNonNull(type);
-        this.lang = lang;
+        this.lang = lang == null ? DEFAULT_SCRIPT_LANG : lang;
         this.params = (Map<String, Object>) params;
         this.contentType = contentType;
     }
@@ -135,7 +136,7 @@ public final class Script implements ToXContent, Writeable {
      * @return The type of script -- inline, stored, or file.
      */
     public ScriptType getType() {
-        return type == null ? DEFAULT_TYPE : type;
+        return type;
     }
 
     /**
@@ -189,6 +190,14 @@ public final class Script implements ToXContent, Writeable {
         return parse(parser, parseFieldMatcher, null);
     }
 
+    public static Script parse(XContentParser parser, QueryParseContext context) {
+        try {
+            return parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+        } catch (IOException e) {
+            throw new ParsingException(parser.getTokenLocation(), "Error parsing [" + ScriptField.SCRIPT.getPreferredName() + "] field", e);
+        }
+    }
+
     public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, @Nullable String lang) throws IOException {
         XContentParser.Token token = parser.currentToken();
         // If the parser hasn't yet been pushed to the first token, do it now
@@ -196,7 +205,7 @@ public final class Script implements ToXContent, Writeable {
             token = parser.nextToken();
         }
         if (token == XContentParser.Token.VALUE_STRING) {
-            return new Script(parser.text());
+            return new Script(parser.text(), ScriptType.INLINE, lang, null);
         }
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("expected a string value or an object, but found [{}] instead", token);

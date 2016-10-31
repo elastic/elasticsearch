@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -31,14 +34,13 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.TTLFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -60,7 +62,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
 
-    public ClientScrollableHitSource(ESLogger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
+    public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
             Consumer<Exception> fail, ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, fail);
         this.client = client;
@@ -105,7 +107,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("Failed to clear scroll [{}]", e, scrollId);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
             }
         });
     }
@@ -144,11 +146,13 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                     if (retries.hasNext()) {
                         retryCount += 1;
                         TimeValue delay = retries.next();
-                        logger.trace("retrying rejected search after [{}]", e, delay);
+                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                         countSearchRetry.run();
                         threadPool.schedule(delay, ThreadPool.Names.SAME, this);
                     } else {
-                        logger.warn("giving up on search because we retried [{}] times without success", e, retryCount);
+                        logger.warn(
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                "giving up on search because we retried [{}] times without success", retryCount), e);
                         fail.accept(e);
                     }
                 } else {
@@ -242,7 +246,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         public Long getTTL() {
             return fieldValue(TTLFieldMapper.NAME);
         }
-        
+
         private <T> T fieldValue(String fieldName) {
             SearchHitField field = delegate.field(fieldName);
             return field == null ? null : field.value();

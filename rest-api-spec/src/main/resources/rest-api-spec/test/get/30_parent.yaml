@@ -25,7 +25,7 @@ setup:
           type:    test
           id:      1
           parent:  中文
-          fields:  [_parent, _routing]
+          stored_fields:  [_parent, _routing]
 
  - match:   { _id:      "1"}
  - match:   { _parent: 中文 }

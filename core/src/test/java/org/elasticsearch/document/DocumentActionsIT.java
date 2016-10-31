@@ -33,9 +33,11 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
 import static org.elasticsearch.client.Requests.getRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
@@ -50,7 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class DocumentActionsIT extends ESIntegTestCase {
     protected void createIndex() {
-        createIndex(getConcreteIndexName());
+        ElasticsearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).addMapping("type1", "name", "type=keyword,store=true"));
     }
 
     protected String getConcreteIndexName() {
@@ -102,7 +104,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
         logger.info("Get [type1/1] with script");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "type1", "1").setFields("name").execute().actionGet();
+            getResult = client().prepareGet("test", "type1", "1").setStoredFields("name").execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat(getResult.isExists(), equalTo(true));
             assertThat(getResult.getSourceAsBytes(), nullValue());
@@ -190,31 +192,31 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems().length, equalTo(5));
 
         assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[0].getOpType(), equalTo("index"));
+        assertThat(bulkResponse.getItems()[0].getOpType(), equalTo(OpType.INDEX));
         assertThat(bulkResponse.getItems()[0].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[0].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[0].getId(), equalTo("1"));
 
         assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[1].getOpType(), equalTo(OpType.CREATE));
         assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[1].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
 
         assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo("index"));
+        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo(OpType.INDEX));
         assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[2].getType(), equalTo("type1"));
         String generatedId3 = bulkResponse.getItems()[2].getId();
 
         assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[3].getOpType(), equalTo("delete"));
+        assertThat(bulkResponse.getItems()[3].getOpType(), equalTo(OpType.DELETE));
         assertThat(bulkResponse.getItems()[3].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[3].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[3].getId(), equalTo("1"));
 
         assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("index"));
+        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo(OpType.INDEX));
         assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
 

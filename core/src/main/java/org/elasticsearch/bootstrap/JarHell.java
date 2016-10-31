@@ -19,14 +19,15 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.FileVisitResult;
@@ -74,9 +75,9 @@ public class JarHell {
      * Checks the current classpath for duplicate classes
      * @throws IllegalStateException if jar hell was found
      */
-    public static void checkJarHell() throws Exception {
+    public static void checkJarHell() throws IOException, URISyntaxException {
         ClassLoader loader = JarHell.class.getClassLoader();
-        ESLogger logger = Loggers.getLogger(JarHell.class);
+        Logger logger = Loggers.getLogger(JarHell.class);
         if (logger.isDebugEnabled()) {
             logger.debug("java.class.path: {}", System.getProperty("java.class.path"));
             logger.debug("sun.boot.class.path: {}", System.getProperty("sun.boot.class.path"));
@@ -86,7 +87,7 @@ public class JarHell {
         }
         checkJarHell(parseClassPath());
     }
-    
+
     /**
      * Parses the classpath into an array of URLs
      * @return array of URLs
@@ -149,8 +150,8 @@ public class JarHell {
      * @throws IllegalStateException if jar hell was found
      */
     @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
-    public static void checkJarHell(URL urls[]) throws Exception {
-        ESLogger logger = Loggers.getLogger(JarHell.class);
+    public static void checkJarHell(URL urls[]) throws URISyntaxException, IOException {
+        Logger logger = Loggers.getLogger(JarHell.class);
         // we don't try to be sneaky and use deprecated/internal/not portable stuff
         // like sun.boot.class.path, and with jigsaw we don't yet have a way to get
         // a "list" at all. So just exclude any elements underneath the java home
@@ -168,7 +169,7 @@ public class JarHell {
             if (path.toString().endsWith(".jar")) {
                 if (!seenJars.add(path)) {
                     logger.debug("excluding duplicate classpath element: {}", path);
-                    continue; // we can't fail because of sheistiness with joda-time
+                    continue;
                 }
                 logger.debug("examining jar: {}", path);
                 try (JarFile file = new JarFile(path.toString())) {
@@ -271,12 +272,6 @@ public class JarHell {
                         "class: " + clazz + System.lineSeparator() +
                         "exists multiple times in jar: " + jarpath + " !!!!!!!!!");
             } else {
-                if (clazz.startsWith("org.apache.log4j")) {
-                    return; // go figure, jar hell for what should be System.out.println...
-                }
-                if (clazz.equals("org.joda.time.base.BaseDateTime")) {
-                    return; // apparently this is intentional... clean this up
-                }
                 throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                         "class: " + clazz + System.lineSeparator() +
                         "jar1: " + previous + System.lineSeparator() +

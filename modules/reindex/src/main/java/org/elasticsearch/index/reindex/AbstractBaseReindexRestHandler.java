@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.GenericAction;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +32,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.tasks.LoggingTaskListener;
@@ -46,25 +47,20 @@ public abstract class AbstractBaseReindexRestHandler<
                 A extends GenericAction<Request, BulkIndexByScrollResponse>
             > extends BaseRestHandler {
 
-    protected final IndicesQueriesRegistry indicesQueriesRegistry;
-    protected final AggregatorParsers aggParsers;
-    protected final Suggesters suggesters;
+    protected final SearchRequestParsers searchRequestParsers;
     private final ClusterService clusterService;
     private final A action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, IndicesQueriesRegistry indicesQueriesRegistry,
-                                             AggregatorParsers aggParsers, Suggesters suggesters,
+    protected AbstractBaseReindexRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
                                              ClusterService clusterService, A action) {
         super(settings);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.aggParsers = aggParsers;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
         this.clusterService = clusterService;
         this.action = action;
     }
 
-    protected void handleRequest(RestRequest request, RestChannel channel, NodeClient client,
-                                 boolean includeCreated, boolean includeUpdated) throws IOException {
+    protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client,
+                                                   boolean includeCreated, boolean includeUpdated) throws IOException {
         // Build the internal request
         Request internal = setCommonOptions(request, buildRequest(request));
 
@@ -74,10 +70,9 @@ public abstract class AbstractBaseReindexRestHandler<
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
-            client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
-            return;
+            return channel -> client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
         } else {
-            internal.setShouldPersistResult(true);
+            internal.setShouldStoreResult(true);
         }
 
         /*
@@ -87,10 +82,9 @@ public abstract class AbstractBaseReindexRestHandler<
          */
         ActionRequestValidationException validationException = internal.validate();
         if (validationException != null) {
-            channel.sendResponse(new BytesRestResponse(channel, validationException));
-            return;
+            throw validationException;
         }
-        sendTask(channel, client.executeLocally(action, internal, LoggingTaskListener.instance()));
+        return sendTask(client.executeLocally(action, internal, LoggingTaskListener.instance()));
     }
 
     /**
@@ -108,9 +102,9 @@ public abstract class AbstractBaseReindexRestHandler<
         request.setRefresh(restRequest.paramAsBoolean("refresh", request.isRefresh()));
         request.setTimeout(restRequest.paramAsTime("timeout", request.getTimeout()));
 
-        String consistency = restRequest.param("consistency");
-        if (consistency != null) {
-            request.setConsistency(WriteConsistencyLevel.fromString(consistency));
+        String waitForActiveShards = restRequest.param("wait_for_active_shards");
+        if (waitForActiveShards != null) {
+            request.setWaitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
 
         Float requestsPerSecond = parseRequestsPerSecond(restRequest);
@@ -120,13 +114,15 @@ public abstract class AbstractBaseReindexRestHandler<
         return request;
     }
 
-    private void sendTask(RestChannel channel, Task task) throws IOException {
-        try (XContentBuilder builder = channel.newBuilder()) {
-            builder.startObject();
-            builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
-            builder.endObject();
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
-        }
+    private RestChannelConsumer sendTask(Task task) throws IOException {
+        return channel -> {
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
+                builder.endObject();
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            }
+        };
     }
 
     /**

@@ -41,7 +41,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -106,7 +105,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher());
+                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -116,7 +115,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher());
+                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -134,18 +133,17 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getScriptService(), context.lookup());
+        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
     }
 
     static class ScriptQuery extends Query {
 
-        private final Script script;
+        final Script script;
+        final SearchScript searchScript;
 
-        private final SearchScript searchScript;
-
-        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptQuery(Script script, SearchScript searchScript) {
             this.script = script;
-            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            this.searchScript = searchScript;
         }
 
         @Override
@@ -159,17 +157,23 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
+            // TODO: Do this if/when we can assume scripts are pure functions
+            // and they have a reliable equals impl
+            /*if (this == obj)
                 return true;
             if (sameClassAs(obj) == false)
                 return false;
             ScriptQuery other = (ScriptQuery) obj;
-            return Objects.equals(script, other.script);
+            return Objects.equals(script, other.script);*/
+            return this == obj;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classHash(), script);
+            // TODO: Do this if/when we can assume scripts are pure functions
+            // and they have a reliable equals impl
+            // return Objects.hash(classHash(), script);
+            return System.identityHashCode(this);
         }
 
         @Override
@@ -216,4 +220,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     protected boolean doEquals(ScriptQueryBuilder other) {
         return Objects.equals(script, other.script);
     }
+
+
 }

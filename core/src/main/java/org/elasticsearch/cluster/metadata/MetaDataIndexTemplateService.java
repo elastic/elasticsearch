@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -32,11 +33,11 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
@@ -62,16 +63,19 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     private final AliasValidator aliasValidator;
     private final IndicesService indicesService;
     private final MetaDataCreateIndexService metaDataCreateIndexService;
-    private final NodeServicesProvider nodeServicesProvider;
+    private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService, MetaDataCreateIndexService metaDataCreateIndexService, AliasValidator aliasValidator, IndicesService indicesService, NodeServicesProvider nodeServicesProvider) {
+    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService,
+                                        MetaDataCreateIndexService metaDataCreateIndexService,
+                                        AliasValidator aliasValidator, IndicesService indicesService,
+                                        IndexScopedSettings indexScopedSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
         this.metaDataCreateIndexService = metaDataCreateIndexService;
-        this.nodeServicesProvider = nodeServicesProvider;
+        this.indexScopedSettings = indexScopedSettings;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -160,7 +164,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     throw new IndexTemplateAlreadyExistsException(request.name);
                 }
 
-                validateAndAddTemplate(request, templateBuilder, indicesService, nodeServicesProvider);
+                validateAndAddTemplate(request, templateBuilder, indicesService);
 
                 for (Alias alias : request.aliases) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
@@ -184,8 +188,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         });
     }
 
-    private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder, IndicesService indicesService,
-                                               NodeServicesProvider nodeServicesProvider) throws Exception {
+    private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder,
+            IndicesService indicesService) throws Exception {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
@@ -200,10 +204,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 .build();
 
             final IndexMetaData tmpIndexMetadata = IndexMetaData.builder(temporaryIndexName).settings(dummySettings).build();
-            IndexService dummyIndexService = indicesService.createIndex(nodeServicesProvider, tmpIndexMetadata, Collections.emptyList());
+            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList());
             createdIndex = dummyIndexService.index();
 
             templateBuilder.order(request.order);
+            templateBuilder.version(request.version);
             templateBuilder.template(request.template);
             templateBuilder.settings(request.settings);
 
@@ -259,6 +264,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             validationErrors.add("template must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
 
+        try {
+            indexScopedSettings.validate(request.settings);
+        } catch (IllegalArgumentException iae) {
+            validationErrors.add(iae.getMessage());
+            for (Throwable t : iae.getSuppressed()) {
+                validationErrors.add(t.getMessage());
+            }
+        }
         List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings);
         validationErrors.addAll(indexSettingsValidation);
         if (!validationErrors.isEmpty()) {
@@ -288,6 +301,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         final String cause;
         boolean create;
         int order;
+        Integer version;
         String template;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = new HashMap<>();
@@ -343,6 +357,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest masterTimeout(TimeValue masterTimeout) {
             this.masterTimeout = masterTimeout;
+            return this;
+        }
+
+        public PutRequest version(Integer version) {
+            this.version = version;
             return this;
         }
     }

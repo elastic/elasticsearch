@@ -22,9 +22,6 @@ package org.elasticsearch.common.lucene.all;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class AllEntries {
     public static class Entry {
         private final String name;

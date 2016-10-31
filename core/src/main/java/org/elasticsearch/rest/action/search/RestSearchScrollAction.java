@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,11 +30,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
@@ -44,9 +42,6 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- *
- */
 public class RestSearchScrollAction extends BaseRestHandler {
 
     @Inject
@@ -60,7 +55,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String scrollId = request.param("scroll_id");
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId(scrollId);
@@ -81,7 +76,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 buildFromContent(RestActions.getRestContent(request), searchScrollRequest);
             }
         }
-        client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
+        return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
     }
 
     public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) {
@@ -99,7 +94,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
                     } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll")));
                     } else {
-                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
+                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName
+                                + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }

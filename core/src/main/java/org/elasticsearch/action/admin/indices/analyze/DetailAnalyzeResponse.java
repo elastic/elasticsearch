@@ -292,7 +292,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, name);
-            builder.field(Fields.FILTERED_TEXT, texts);
+            builder.array(Fields.FILTERED_TEXT, texts);
             builder.endObject();
             return builder;
         }

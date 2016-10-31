@@ -43,6 +43,11 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 public abstract class ESTokenStreamTestCase extends BaseTokenStreamTestCase {
 
     static {
+        try {
+            Class.forName("org.elasticsearch.test.ESTestCase");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
         BootstrapForTesting.ensureInitialized();
     }
 

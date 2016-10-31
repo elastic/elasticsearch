@@ -23,10 +23,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.AcknowledgedRestListener;
+
+import java.io.IOException;
 
 public class RestDeleteIndexTemplateAction extends BaseRestHandler {
 
@@ -37,9 +38,9 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteIndexTemplateRequest deleteIndexTemplateRequest = new DeleteIndexTemplateRequest(request.param("name"));
         deleteIndexTemplateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexTemplateRequest.masterNodeTimeout()));
-        client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new AcknowledgedRestListener<>(channel));
     }
 }

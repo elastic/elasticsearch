@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -39,12 +38,12 @@ public class ScriptDocValuesTests extends ESTestCase {
                 }
                 return points[i];
             }
-            
+
             @Override
             public void setDocument(int docId) {
                 this.docID = docId;
             }
-            
+
             @Override
             public int count() {
                 if (docID != 0) {
@@ -94,18 +93,18 @@ public class ScriptDocValuesTests extends ESTestCase {
 
         final double otherLat = randomLat();
         final double otherLon = randomLon();
-        
-        assertEquals(GeoDistance.ARC.calculate(lat, lon, otherLat, otherLon, DistanceUnit.KILOMETERS),
-                script.arcDistanceInKm(otherLat, otherLon), 0.01);
-        assertEquals(GeoDistance.ARC.calculate(lat, lon, otherLat, otherLon, DistanceUnit.KILOMETERS),
-                script.arcDistanceInKmWithDefault(otherLat, otherLon, 42), 0.01);
-        assertEquals(42, emptyScript.arcDistanceInKmWithDefault(otherLat, otherLon, 42), 0);
 
-        assertEquals(GeoDistance.PLANE.calculate(lat, lon, otherLat, otherLon, DistanceUnit.KILOMETERS),
-                script.distanceInKm(otherLat, otherLon), 0.01);
-        assertEquals(GeoDistance.PLANE.calculate(lat, lon, otherLat, otherLon, DistanceUnit.KILOMETERS),
-                script.distanceInKmWithDefault(otherLat, otherLon, 42), 0.01);
-        assertEquals(42, emptyScript.distanceInKmWithDefault(otherLat, otherLon, 42), 0);
+        assertEquals(GeoUtils.arcDistance(lat, lon, otherLat, otherLon) / 1000d,
+                script.arcDistance(otherLat, otherLon) / 1000d, 0.01);
+        assertEquals(GeoUtils.arcDistance(lat, lon, otherLat, otherLon) / 1000d,
+                script.arcDistanceWithDefault(otherLat, otherLon, 42) / 1000d, 0.01);
+        assertEquals(42, emptyScript.arcDistanceWithDefault(otherLat, otherLon, 42), 0);
+
+        assertEquals(GeoUtils.planeDistance(lat, lon, otherLat, otherLon) / 1000d,
+                script.planeDistance(otherLat, otherLon) / 1000d, 0.01);
+        assertEquals(GeoUtils.planeDistance(lat, lon, otherLat, otherLon) / 1000d,
+                script.planeDistanceWithDefault(otherLat, otherLon, 42) / 1000d, 0.01);
+        assertEquals(42, emptyScript.planeDistanceWithDefault(otherLat, otherLon, 42), 0);
     }
 
 }

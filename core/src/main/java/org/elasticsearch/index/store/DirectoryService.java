@@ -26,8 +26,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- */
 public abstract class DirectoryService extends AbstractIndexShardComponent {
 
     protected DirectoryService(ShardId shardId, IndexSettings indexSettings) {

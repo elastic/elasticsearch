@@ -42,13 +42,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -85,8 +82,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (XContentParser innerParser = parser.contentType().xContent().createParser(builder.bytes())) {
-                request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser), context.aggParsers,
-                        context.suggesters);
+                request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser),
+                        context.searchRequestParsers.aggParsers, context.searchRequestParsers.suggesters,
+                        context.searchRequestParsers.searchExtParsers);
             }
         };
 
@@ -113,25 +111,24 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Inject
     public RestReindexAction(Settings settings, RestController controller,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-            ClusterService clusterService) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, ReindexAction.INSTANCE);
+            SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
+        super(settings, searchRequestParsers, clusterService, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_reindex requires a request body");
         }
-        handleRequest(request, channel, client, true, true);
+        return doPrepareRequest(request, client, true, true);
     }
 
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            PARSER.parse(xcontent, internal, new ReindexParseContext(indicesQueriesRegistry, aggParsers, suggesters, parseFieldMatcher));
+            PARSER.parse(xcontent, internal, new ReindexParseContext(searchRequestParsers, parseFieldMatcher));
         }
         return internal;
     }
@@ -225,21 +222,16 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     static class ReindexParseContext implements ParseFieldMatcherSupplier {
-        private final IndicesQueriesRegistry indicesQueryRegistry;
+        private final SearchRequestParsers searchRequestParsers;
         private final ParseFieldMatcher parseFieldMatcher;
-        private final AggregatorParsers aggParsers;
-        private final Suggesters suggesters;
 
-        public ReindexParseContext(IndicesQueriesRegistry indicesQueryRegistry, AggregatorParsers aggParsers,
-            Suggesters suggesters, ParseFieldMatcher parseFieldMatcher) {
-            this.indicesQueryRegistry = indicesQueryRegistry;
-            this.aggParsers = aggParsers;
-            this.suggesters = suggesters;
+        ReindexParseContext(SearchRequestParsers searchRequestParsers, ParseFieldMatcher parseFieldMatcher) {
+            this.searchRequestParsers = searchRequestParsers;
             this.parseFieldMatcher = parseFieldMatcher;
         }
 
-        public QueryParseContext queryParseContext(XContentParser parser) {
-            return new QueryParseContext(indicesQueryRegistry, parser, parseFieldMatcher);
+        QueryParseContext queryParseContext(XContentParser parser) {
+            return new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
         }
 
         @Override

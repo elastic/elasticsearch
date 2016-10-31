@@ -2,7 +2,7 @@
 === Install Elasticsearch on Windows
 
 Elasticsearch can be installed on Windows using the `.zip` package.  This
-comes with a `service.bat` command which will setup Elasticsearch to run as a
+comes with a `elasticsearch-service.bat` command which will setup Elasticsearch to run as a
 service.
 
 The latest stable version of Elasticsearch can be found on the
@@ -13,7 +13,15 @@ link:/downloads/past-releases[Past Releases page].
 [[install-windows]]
 ==== Download and install the `.zip` package
 
-Download the `.zip` archive for Elastisearch v{version} from: https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
@@ -23,6 +31,8 @@ window, `CD` to the `%ES_HOME%` directory, for instance:
 ----------------------------
 CD c:\elasticsearch-{version}
 ----------------------------
+
+endif::[]
 
 [[windows-running]]
 ==== Running Elasticsearch from the command line
@@ -65,7 +75,7 @@ include::check-running.asciidoc[]
 
 Elasticsearch can be installed as a service to run in the background or start
 automatically at boot time without any user interaction. This can be achieved
-through the `service.bat` script in the `bin\` folder which allows one to
+through the `elasticsearch-service.bat` script in the `bin\` folder which allows one to
 install, remove, manage or configure the service and potentially start and
 stop the service, all from the command-line.
 
@@ -73,7 +83,7 @@ stop the service, all from the command-line.
 --------------------------------------------------
 c:\elasticsearch-{version}{backslash}bin>service
 
-Usage: service.bat install|remove|start|stop|manager [SERVICE_ID]
+Usage: elasticsearch-service.bat install|remove|start|stop|manager [SERVICE_ID]
 --------------------------------------------------
 
 The script requires one parameter (the command to execute) followed by an
@@ -156,7 +166,7 @@ The Elasticsearch service can be configured prior to installation by setting the
 `CONF_DIR`::
 
     Configuration file directory (which needs to include `elasticsearch.yml`
-    and `logging.yml` files), defaults to `%ES_HOME%\conf`.
+    and `log4j2.properties` files), defaults to `%ES_HOME%\conf`.
 
 `ES_JAVA_OPTS`::
 
@@ -170,18 +180,18 @@ The Elasticsearch service can be configured prior to installation by setting the
 
   The timeout in seconds that procrun waits for service to exit gracefully.  Defaults to `0`.
 
-NOTE: At its core, `service.bat` relies on http://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
+NOTE: At its core, `elasticsearch-service.bat` relies on http://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
 to install the service. Environment variables set prior to the service installation are copied and will be used during the service lifecycle. This means any changes made to them after the installation will not be picked up unless the service is reinstalled.
 
 NOTE: On Windows, the <<heap-size,heap size>> can be configured as for
 any other Elasticsearch installation when running Elasticsearch from the
 command line, or when installing Elasticsearch as a service for the
 first time. To adjust the heap size for an already installed service,
-use the service manager: `bin\service.bat manager`.
+use the service manager: `bin\elasticsearch-service.bat manager`.
 
 Using the Manager GUI::
 
-It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `service.bat manager` from the command-line will open up the manager window:
+It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `elasticsearch-service.bat manager` from the command-line will open up the manager window:
 
 image::images/service-manager-win.png["Windows Service Manager GUI",align="center"]
 

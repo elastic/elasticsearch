@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -62,7 +62,7 @@ final class ExternalNode implements Closeable {
     private final String clusterName;
     private TransportClient client;
 
-    private final ESLogger logger = Loggers.getLogger(getClass());
+    private final Logger logger = Loggers.getLogger(getClass());
     private Settings externalNodeSettings;
 
 
@@ -109,7 +109,6 @@ final class ExternalNode implements Closeable {
                 case "path.home":
                 case NetworkModule.TRANSPORT_TYPE_KEY:
                 case "discovery.type":
-                case NetworkModule.TRANSPORT_SERVICE_TYPE_KEY:
                 case "config.ignore_system_properties":
                     continue;
                 default:

@@ -38,8 +38,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.highlight.HighlightField;
-import org.elasticsearch.search.internal.InternalSearchHits.StreamContext.ShardTargetType;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -55,12 +54,9 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
-import static org.elasticsearch.search.highlight.HighlightField.readHighlightField;
+import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 import static org.elasticsearch.search.internal.InternalSearchHitField.readSearchHitField;
 
-/**
- *
- */
 public class InternalSearchHit implements SearchHit {
 
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];
@@ -100,9 +96,17 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
+    public InternalSearchHit(int docId) {
+        this(docId, null, null, null);
+    }
+
     public InternalSearchHit(int docId, String id, Text type, Map<String, SearchHitField> fields) {
         this.docId = docId;
-        this.id = new Text(id);
+        if (id != null) {
+            this.id = new Text(id);
+        } else {
+            this.id = null;
+        }
         this.type = type;
         this.fields = fields;
     }
@@ -168,7 +172,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String id() {
-        return id.string();
+        return id != null ? id.string() : null;
     }
 
     @Override
@@ -178,7 +182,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String type() {
-        return type.string();
+        return type != null ? type.string() : null;
     }
 
     @Override
@@ -415,8 +419,8 @@ public class InternalSearchHit implements SearchHit {
         static final String INNER_HITS = "inner_hits";
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    // public because we render hit as part of completion suggestion option
+    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         List<SearchHitField> metaFields = new ArrayList<>();
         List<SearchHitField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
@@ -432,7 +436,6 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        builder.startObject();
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (explanation() != null && shard != null) {
@@ -445,8 +448,12 @@ public class InternalSearchHit implements SearchHit {
             if (shard != null) {
                 builder.field(Fields._INDEX, shard.indexText());
             }
-            builder.field(Fields._TYPE, type);
-            builder.field(Fields._ID, id);
+            if (type != null) {
+                builder.field(Fields._TYPE, type);
+            }
+            if (id != null) {
+                builder.field(Fields._ID, id);
+            }
         }
         if (version != -1) {
             builder.field(Fields._VERSION, version);
@@ -516,7 +523,6 @@ public class InternalSearchHit implements SearchHit {
             }
             builder.endObject();
         }
-        builder.endObject();
         return builder;
     }
 
@@ -533,23 +539,28 @@ public class InternalSearchHit implements SearchHit {
             builder.endArray();
         }
         builder.endObject();
+
     }
 
-    public static InternalSearchHit readSearchHit(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        toInnerXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public static InternalSearchHit readSearchHit(StreamInput in) throws IOException {
         InternalSearchHit hit = new InternalSearchHit();
-        hit.readFrom(in, context);
+        hit.readFrom(in);
         return hit;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
-    }
-
-    public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
-        id = in.readText();
-        type = in.readText();
+        id = in.readOptionalText();
+        type = in.readOptionalText();
         nestedIdentity = in.readOptionalStreamable(InternalNestedIdentity::new);
         version = in.readLong();
         source = in.readBytesReference();
@@ -625,26 +636,13 @@ public class InternalSearchHit implements SearchHit {
                 matchedQueries[i] = in.readString();
             }
         }
-
-        if (context.streamShardTarget() == ShardTargetType.STREAM) {
-            if (in.readBoolean()) {
-                shard = new SearchShardTarget(in);
-            }
-        } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
-            int lookupId = in.readVInt();
-            if (lookupId > 0) {
-                shard = context.handleShardLookup().get(lookupId);
-            }
-        }
-
+        shard = in.readOptionalWriteable(SearchShardTarget::new);
         size = in.readVInt();
         if (size > 0) {
             innerHits = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                ShardTargetType shardTarget = context.streamShardTarget();
-                InternalSearchHits value = InternalSearchHits.readSearchHits(in, context.streamShardTarget(ShardTargetType.NO_STREAM));
-                context.streamShardTarget(shardTarget);
+                InternalSearchHits value = InternalSearchHits.readSearchHits(in);
                 innerHits.put(key, value);
             }
         }
@@ -652,13 +650,9 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeTo(out, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
-    }
-
-    public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
-        out.writeText(id);
-        out.writeText(type);
+        out.writeOptionalText(id);
+        out.writeOptionalText(type);
         out.writeOptionalStreamable(nestedIdentity);
         out.writeLong(version);
         out.writeBytesReference(source);
@@ -733,31 +727,14 @@ public class InternalSearchHit implements SearchHit {
                 out.writeString(matchedFilter);
             }
         }
-
-        if (context.streamShardTarget() == ShardTargetType.STREAM) {
-            if (shard == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                shard.writeTo(out);
-            }
-        } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
-            if (shard == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(context.shardHandleLookup().get(shard));
-            }
-        }
-
+        out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
         } else {
             out.writeVInt(innerHits.size());
             for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
                 out.writeString(entry.getKey());
-                ShardTargetType shardTarget = context.streamShardTarget();
-                entry.getValue().writeTo(out, context.streamShardTarget(ShardTargetType.NO_STREAM));
-                context.streamShardTarget(shardTarget);
+                entry.getValue().writeTo(out);
             }
         }
     }

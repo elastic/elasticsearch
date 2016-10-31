@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -41,9 +43,6 @@ import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 
-/**
- *
- */
 public class RestController extends AbstractLifecycleComponent {
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -212,7 +211,7 @@ public class RestController extends AbstractLifecycleComponent {
             channel.sendResponse(new BytesRestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error("failed to send failure response for uri [{}]", inner, request.uri());
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
         }
     }
 
@@ -222,10 +221,11 @@ public class RestController extends AbstractLifecycleComponent {
      */
     boolean checkRequestParameters(final RestRequest request, final RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
-        if (channel.detailedErrorsEnabled() == false && request.paramAsBoolean("error_trace", false)) {
+        // we consume the error_trace parameter first to ensure that it is always consumed
+        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
             try {
                 XContentBuilder builder = channel.newErrorBuilder();
-                builder.startObject().field("error","error traces in responses are disabled.").endObject().string();
+                builder.startObject().field("error", "error traces in responses are disabled.").endObject().string();
                 RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
                 response.addHeader("Content-Type", "application/json");
                 channel.sendResponse(response);
@@ -453,7 +453,7 @@ public class RestController extends AbstractLifecycleComponent {
                 try {
                     channel.sendResponse(new BytesRestResponse(channel, e));
                 } catch (IOException e1) {
-                    logger.error("Failed to send failure response for uri [{}]", e1, request.uri());
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Failed to send failure response for uri [{}]", request.uri()), e1);
                 }
             }
         }

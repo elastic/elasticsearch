@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexSettings;
@@ -108,7 +108,7 @@ public final class ShardPath {
      * directories with a valid shard state exist the one with the highest version will be used.
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
-    public static ShardPath loadShardPath(ESLogger logger, NodeEnvironment env, ShardId shardId, IndexSettings indexSettings) throws IOException {
+    public static ShardPath loadShardPath(Logger logger, NodeEnvironment env, ShardId shardId, IndexSettings indexSettings) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         final Path[] paths = env.availableShardPaths(shardId);
         Path loadedPath = null;
@@ -146,7 +146,7 @@ public final class ShardPath {
      * This method tries to delete left-over shards where the index name has been reused but the UUID is different
      * to allow the new shard to be allocated.
      */
-    public static void deleteLeftoverShardDirectory(ESLogger logger, NodeEnvironment env, ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public static void deleteLeftoverShardDirectory(Logger logger, NodeEnvironment env, ShardLock lock, IndexSettings indexSettings) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         final Path[] paths = env.availableShardPaths(lock.getShardId());
         for (Path path : paths) {

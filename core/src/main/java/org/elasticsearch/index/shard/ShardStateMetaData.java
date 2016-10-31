@@ -31,8 +31,6 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- */
 public final class ShardStateMetaData {
 
     private static final String SHARD_STATE_FILE_PREFIX = "state-";

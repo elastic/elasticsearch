@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

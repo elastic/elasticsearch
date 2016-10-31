@@ -29,6 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
+ * Rescore phase of a search request, used to run potentially expensive scoring models against the top matching documents.
  */
 public class RescorePhase extends AbstractComponent implements SearchPhase {
 

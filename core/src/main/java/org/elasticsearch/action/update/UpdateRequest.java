@@ -20,10 +20,11 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocumentRequest;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -31,6 +32,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -39,8 +42,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -50,10 +53,10 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- */
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
-        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
+        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(UpdateRequest.class));
 
     private String type;
     private String id;
@@ -67,6 +70,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     Script script;
 
     private String[] fields;
+    private FetchSourceContext fetchSourceContext;
 
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
@@ -74,7 +78,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
-    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     private IndexRequest upsertRequest;
 
@@ -105,8 +109,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             validationException = addValidationError("id is missing", validationException);
         }
 
-        if (!(versionType == VersionType.INTERNAL || versionType == VersionType.FORCE)) {
-            validationException = addValidationError("version type [" + versionType + "] is not supported by the update API", validationException);
+        if (versionType != VersionType.INTERNAL) {
+            validationException = addValidationError("version type [" + versionType + "] is not supported by the update API",
+                    validationException);
         } else {
 
             if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
@@ -226,7 +231,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script()} instead
      */
     @Deprecated
-    public ScriptService.ScriptType scriptType() {
+    public ScriptType scriptType() {
         return this.script == null ? null : this.script.getType();
     }
 
@@ -246,7 +251,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
-    public UpdateRequest script(String script, ScriptService.ScriptType scriptType) {
+    public UpdateRequest script(String script, ScriptType scriptType) {
         updateOrCreateScript(script, scriptType, null, null);
         return this;
     }
@@ -341,7 +346,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
-    public UpdateRequest script(String script, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
         this.script = new Script(script, scriptType, null, scriptParams);
         return this;
     }
@@ -363,7 +368,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
-    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptService.ScriptType scriptType,
+    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptType scriptType,
             @Nullable Map<String, Object> scriptParams) {
         this.script = new Script(script, scriptType, scriptLang, scriptParams);
         return this;
@@ -371,17 +376,83 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * Explicitly specify the fields that will be returned. By default, nothing is returned.
+     * @deprecated Use {@link UpdateRequest#fetchSource(String[], String[])} instead
      */
+    @Deprecated
     public UpdateRequest fields(String... fields) {
         this.fields = fields;
         return this;
     }
 
     /**
-     * Get the fields to be returned.
+     * Indicate that _source should be returned with every hit, with an
+     * "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param include
+     *            An optional include (optionally wildcarded) pattern to filter
+     *            the returned _source
+     * @param exclude
+     *            An optional exclude (optionally wildcarded) pattern to filter
+     *            the returned _source
      */
+    public UpdateRequest fetchSource(@Nullable String include, @Nullable String exclude) {
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), new String[] {include}, new String[]{exclude});
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned, with an
+     * "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param includes
+     *            An optional list of include (optionally wildcarded) pattern to
+     *            filter the returned _source
+     * @param excludes
+     *            An optional list of exclude (optionally wildcarded) pattern to
+     *            filter the returned _source
+     */
+    public UpdateRequest fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
+        return this;
+    }
+
+    /**
+     * Indicates whether the response should contain the updated _source.
+     */
+    public UpdateRequest fetchSource(boolean fetchSource) {
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(fetchSource, context.includes(), context.excludes());
+        return this;
+    }
+
+    /**
+     * Explicitely set the fetch source context for this request
+     */
+    public UpdateRequest fetchSource(FetchSourceContext context) {
+        this.fetchSourceContext = context;
+        return this;
+    }
+
+
+    /**
+     * Get the fields to be returned.
+     * @deprecated Use {@link UpdateRequest#fetchSource()} instead
+     */
+    @Deprecated
     public String[] fields() {
-        return this.fields;
+        return fields;
+    }
+
+    /**
+     * Gets the {@link FetchSourceContext} which defines how the _source should
+     * be fetched.
+     */
+    public FetchSourceContext fetchSource() {
+        return fetchSourceContext;
     }
 
     /**
@@ -397,29 +468,31 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this.retryOnConflict;
     }
 
-    /**
-     * Sets the version, which will cause the index operation to only be performed if a matching
-     * version exists and no changes happened on the doc since then.
-     */
+    @Override
     public UpdateRequest version(long version) {
         this.version = version;
         return this;
     }
 
+    @Override
     public long version() {
         return this.version;
     }
 
-    /**
-     * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
-     */
+    @Override
     public UpdateRequest versionType(VersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
+    @Override
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    @Override
+    public OpType opType() {
+        return OpType.UPDATE;
     }
 
     @Override
@@ -433,16 +506,26 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return refreshPolicy;
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
-        return this.consistencyLevel;
+    public ActiveShardCount waitForActiveShards() {
+        return this.waitForActiveShards;
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public UpdateRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
+    public UpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
         return this;
+    }
+
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public UpdateRequest waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
     /**
@@ -606,16 +689,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return upsertRequest;
     }
 
-    public UpdateRequest source(XContentBuilder source) throws Exception {
-        return source(source.bytes());
+    public UpdateRequest fromXContent(XContentBuilder source) throws Exception {
+        return fromXContent(source.bytes());
     }
 
-    public UpdateRequest source(byte[] source) throws Exception {
-        return source(source, 0, source.length);
+    public UpdateRequest fromXContent(byte[] source) throws Exception {
+        return fromXContent(source, 0, source.length);
     }
 
-    public UpdateRequest source(byte[] source, int offset, int length) throws Exception {
-        return source(new BytesArray(source, offset, length));
+    public UpdateRequest fromXContent(byte[] source, int offset, int length) throws Exception {
+        return fromXContent(new BytesArray(source, offset, length));
     }
 
     /**
@@ -634,7 +717,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return detectNoop;
     }
 
-    public UpdateRequest source(BytesReference source) throws Exception {
+    public UpdateRequest fromXContent(BytesReference source) throws IOException {
         Script script = null;
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
             XContentParser.Token token = parser.nextToken();
@@ -673,6 +756,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                     if (fields != null) {
                         fields(fields.toArray(new String[fields.size()]));
                     }
+                } else if ("_source".equals(currentFieldName)) {
+                    fetchSourceContext = FetchSourceContext.parse(parser);
                 }
             }
             if (script != null) {
@@ -703,7 +788,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
+        waitForActiveShards = ActiveShardCount.readFrom(in);
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
@@ -717,13 +802,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc = new IndexRequest();
             doc.readFrom(in);
         }
-        int size = in.readInt();
-        if (size >= 0) {
-            fields = new String[size];
-            for (int i = 0; i < size; i++) {
-                fields[i] = in.readString();
-            }
-        }
+        fields = in.readOptionalStringArray();
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
             upsertRequest = new IndexRequest();
             upsertRequest.readFrom(in);
@@ -738,7 +818,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(consistencyLevel.id());
+        waitForActiveShards.writeTo(out);
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
@@ -760,14 +840,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc.id(id);
             doc.writeTo(out);
         }
-        if (fields == null) {
-            out.writeInt(-1);
-        } else {
-            out.writeInt(fields.length);
-            for (String field : fields) {
-                out.writeString(field);
-            }
-        }
+        out.writeOptionalStringArray(fields);
+        out.writeOptionalWriteable(fetchSourceContext);
         if (upsertRequest == null) {
             out.writeBoolean(false);
         } else {

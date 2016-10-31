@@ -43,6 +43,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,13 +54,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexServiceTests extends ESSingleNodeTestCase {
     public void testDetermineShadowEngineShouldBeUsed() {
         Settings regularSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 2)
+                .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
         Settings shadowSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 2)
+                .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .build();
 
@@ -73,82 +75,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
         return new CompressedXContent(builder.string());
-    }
-
-    public void testFilteringAliases() throws Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-        add(indexService, "cats", filter(termQuery("animal", "cat")));
-        add(indexService, "dogs", filter(termQuery("animal", "dog")));
-        add(indexService, "all", null);
-
-        assertThat(indexService.getMetaData().getAliases().containsKey("cats"), equalTo(true));
-        assertThat(indexService.getMetaData().getAliases().containsKey("dogs"), equalTo(true));
-        assertThat(indexService.getMetaData().getAliases().containsKey("turtles"), equalTo(false));
-
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "cats").toString(), equalTo("animal:cat"));
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "cats", "dogs").toString(), equalTo("animal:cat animal:dog"));
-
-        // Non-filtering alias should turn off all filters because filters are ORed
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "all"), nullValue());
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "cats", "all"), nullValue());
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "all", "cats"), nullValue());
-
-        add(indexService, "cats", filter(termQuery("animal", "feline")));
-        add(indexService, "dogs", filter(termQuery("animal", "canine")));
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
-    }
-
-    public void testAliasFilters() throws Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-
-        add(indexService, "cats", filter(termQuery("animal", "cat")));
-        add(indexService, "dogs", filter(termQuery("animal", "dog")));
-
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext()), nullValue());
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "dogs").toString(), equalTo("animal:dog"));
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:dog animal:cat"));
-
-        add(indexService, "cats", filter(termQuery("animal", "feline")));
-        add(indexService, "dogs", filter(termQuery("animal", "canine")));
-
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
-    }
-
-    public void testRemovedAliasFilter() throws Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-
-        add(indexService, "cats", filter(termQuery("animal", "cat")));
-        remove(indexService, "cats");
-        try {
-            indexService.aliasFilter(indexService.newQueryShardContext(), "cats");
-            fail("Expected InvalidAliasNameException");
-        } catch (InvalidAliasNameException e) {
-            assertThat(e.getMessage(), containsString("Invalid alias name [cats]"));
-        }
-    }
-
-    public void testUnknownAliasFilter() throws Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-
-        add(indexService, "cats", filter(termQuery("animal", "cat")));
-        add(indexService, "dogs", filter(termQuery("animal", "dog")));
-
-        try {
-            indexService.aliasFilter(indexService.newQueryShardContext(), "unknown");
-            fail();
-        } catch (InvalidAliasNameException e) {
-            // all is well
-        }
-    }
-
-    private void remove(IndexService service, String alias) {
-        IndexMetaData build = IndexMetaData.builder(service.getMetaData()).removeAlias(alias).build();
-        service.updateMetaData(build);
-    }
-
-    private void add(IndexService service, String alias, @Nullable CompressedXContent filter) {
-        IndexMetaData build = IndexMetaData.builder(service.getMetaData()).putAlias(AliasMetaData.builder(alias).filter(filter).build()).build();
-        service.updateMetaData(build);
     }
 
     public void testBaseAsyncTask() throws InterruptedException, IOException {

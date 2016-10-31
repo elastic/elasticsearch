@@ -74,4 +74,16 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
         request.snapshots(ArrayUtils.concat(request.snapshots(), snapshots));
         return this;
     }
+
+    /**
+     * Set to <code>true</code> to ignore unavailable snapshots, instead of throwing an exception.
+     * Defaults to <code>false</code>, which means unavailable snapshots cause an exception to be thrown.
+     *
+     * @param ignoreUnavailable whether to ignore unavailable snapshots.
+     * @return this builder
+     */
+    public SnapshotsStatusRequestBuilder setIgnoreUnavailable(boolean ignoreUnavailable) {
+        request.ignoreUnavailable(ignoreUnavailable);
+        return this;
+    }
 }

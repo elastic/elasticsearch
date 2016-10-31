@@ -33,6 +33,12 @@
             "type": "list",
             "description" : "Comma-separated list of column names to display"
         },
+        "health": {
+          "type" : "enum",
+          "options" : ["green","yellow","red"],
+          "default" : null,
+          "description" : "A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
+        },
         "help": {
           "type": "boolean",
           "description": "Return help information",
@@ -42,6 +48,10 @@
           "type": "boolean",
           "description": "Set to true to return stats only for primary shards",
           "default": false
+        },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
         },
         "v": {
           "type": "boolean",

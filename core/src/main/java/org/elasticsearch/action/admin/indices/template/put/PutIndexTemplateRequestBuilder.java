@@ -27,10 +27,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Map;
 
-/**
- *
- */
-public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
+public class PutIndexTemplateRequestBuilder
+    extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 
     public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
         super(client, action, new PutIndexTemplateRequest());
@@ -53,6 +51,14 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
      */
     public PutIndexTemplateRequestBuilder setOrder(int order) {
         request.order(order);
+        return this;
+    }
+
+    /**
+     * Sets the optional version of this template.
+     */
+    public PutIndexTemplateRequestBuilder setVersion(Integer version) {
+        request.version(version);
         return this;
     }
 

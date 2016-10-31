@@ -33,26 +33,22 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-/**
- *
- */
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContent {
 
     ClusterStatsNodes nodesStats;
     ClusterStatsIndices indicesStats;
-    String clusterUUID;
     ClusterHealthStatus status;
     long timestamp;
-
 
     ClusterStatsResponse() {
     }
 
-    public ClusterStatsResponse(long timestamp, ClusterName clusterName, String clusterUUID,
-                                List<ClusterStatsNodeResponse> nodes, List<FailedNodeException> failures) {
+    public ClusterStatsResponse(long timestamp,
+                                ClusterName clusterName,
+                                List<ClusterStatsNodeResponse> nodes,
+                                List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
         this.timestamp = timestamp;
-        this.clusterUUID = clusterUUID;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes);
         for (ClusterStatsNodeResponse response : nodes) {
@@ -84,7 +80,6 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         timestamp = in.readVLong();
-        clusterUUID = in.readString();
         // it may be that the master switched on us while doing the operation. In this case the status may be null.
         status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
     }
@@ -93,7 +88,6 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(timestamp);
-        out.writeString(clusterUUID);
         out.writeOptionalWriteable(status);
     }
 
@@ -117,9 +111,6 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("timestamp", getTimestamp());
-        if (params.paramAsBoolean("output_uuid", false)) {
-            builder.field("uuid", clusterUUID);
-        }
         if (status != null) {
             builder.field("status", status.name().toLowerCase(Locale.ROOT));
         }
@@ -144,4 +135,5 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
     }
+
 }

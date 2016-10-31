@@ -26,9 +26,9 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -54,12 +54,17 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
+        map.put("index.shard.check_on_startup", "blargh");
         request.settings(Settings.builder().put(map).build());
 
         List<Throwable> throwables = putTemplate(request);
         assertEquals(throwables.size(), 1);
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
-        assertThat(throwables.get(0).getMessage(), containsString("index must have 1 or more primary shards"));
+        assertThat(throwables.get(0).getMessage(),
+                containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
+        assertThat(throwables.get(0).getMessage(),
+                containsString("unknown value for [index.shard.check_on_startup] " +
+                                "must be one of [true, false, fix, checksum] but was: blargh"));
     }
 
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
@@ -75,7 +80,8 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
         assertThat(throwables.get(0).getMessage(), containsString("name must not contain a space"));
         assertThat(throwables.get(0).getMessage(), containsString("template must not start with '_'"));
-        assertThat(throwables.get(0).getMessage(), containsString("index must have 1 or more primary shards"));
+        assertThat(throwables.get(0).getMessage(),
+                containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
     }
 
     public void testIndexTemplateWithAliasNameEqualToTemplatePattern() {
@@ -158,10 +164,10 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
-                new HashSet<>(),
-                null,
                 null, null, null);
-        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, new AliasValidator(Settings.EMPTY), null, null);
+        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService,
+                new AliasValidator(Settings.EMPTY), null,
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS));
 
         final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetaDataIndexTemplateService.PutListener() {
@@ -181,20 +187,18 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private List<Throwable> putTemplateDetail(PutRequest request) throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        NodeServicesProvider nodeServicesProvider = getInstanceFromNode(NodeServicesProvider.class);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
             Settings.EMPTY,
             clusterService,
             indicesService,
             null,
             null,
-            new HashSet<>(),
             null,
-            nodeServicesProvider,
             null,
             null);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
-            Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService, nodeServicesProvider);
+                Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService,
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS));
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);

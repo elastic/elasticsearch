@@ -60,6 +60,9 @@ public abstract class AbstractObjectParser<Value, Context extends ParseFieldMatc
             ValueType type);
 
     public <T> void declareField(BiConsumer<Value, T> consumer, NoContextParser<T> parser, ParseField parseField, ValueType type) {
+        if (parser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
         declareField(consumer, (p, c) -> parser.parse(p), parseField, type);
     }
 

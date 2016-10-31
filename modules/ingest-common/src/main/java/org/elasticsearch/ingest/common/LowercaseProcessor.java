@@ -30,8 +30,8 @@ public final class LowercaseProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "lowercase";
 
-    LowercaseProcessor(String processorTag, String field) {
-        super(processorTag, field);
+    LowercaseProcessor(String processorTag, String field, boolean ignoreMissing) {
+        super(processorTag, field, ignoreMissing);
     }
 
     @Override
@@ -51,8 +51,8 @@ public final class LowercaseProcessor extends AbstractStringProcessor {
         }
 
         @Override
-        protected LowercaseProcessor newProcessor(String tag, String field) {
-            return new LowercaseProcessor(tag, field);
+        protected LowercaseProcessor newProcessor(String tag, String field, boolean ignoreMissing) {
+            return new LowercaseProcessor(tag, field, ignoreMissing);
         }
     }
 }

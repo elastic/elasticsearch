@@ -217,6 +217,43 @@ the operating system:
 `os.swap.used_in_bytes`::
 	Amount of used swap space in bytes
 
+`os.cgroup.cpuacct.control_group` (Linux only)::
+    The `cpuacct` control group to which the Elasticsearch process
+    belongs
+
+`os.cgroup.cpuacct.usage` (Linux only)::
+    The total CPU time (in nanoseconds) consumed by all tasks in the
+    same cgroup as the Elasticsearch process
+
+`os.cgroup.cpu.control_group` (Linux only)::
+    The `cpu` control group to which the Elasticsearch process belongs
+
+`os.cgroup.cpu.cfs_period_micros` (Linux only)::
+    The period of time (in microseconds) for how regularly all tasks in
+    the same cgroup as the Elasticsearch process should have their
+    access to CPU resources reallocated.
+
+`os.cgroup.cpu.cfs_quota_micros` (Linux only)::
+    The total amount of time (in microseconds) for which all tasks in
+    the same cgroup as the Elasticsearch process can run during one
+    period `os.cgroup.cpu.cfs_period_micros`
+
+`os.cgroup.cpu.stat.number_of_elapsed_periods` (Linux only)::
+    The number of reporting periods (as specified by
+    `os.cgroup.cpu.cfs_period_micros`) that have elapsed
+
+`os.cgroup.cpu.stat.number_of_times_throttled` (Linux only)::
+    The number of times all tasks in the same cgroup as the
+    Elasticsearch process have been throttled.
+
+`os.cgroup.cpu.stat.time_throttled_nanos` (Linux only)::
+    The total amount of time (in nanoseconds) for which all tasks in
+    the same cgroup as the Elasticsearch process have been throttled.
+
+NOTE: For the cgroup stats to be visible, cgroups must be compiled into
+the kernal, the `cpu` and `cpuacct` cgroup subsystems must be
+configured and stats must be readable from `/sys/fs/cgroup/cpu`
+and `/sys/fs/cgroup/cpuacct`.
 
 [float]
 [[process-stats]]

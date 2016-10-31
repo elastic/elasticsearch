@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
-        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, "", "");
+        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, Settings.EMPTY, Settings.EMPTY);
         assertThat(credentialsProvider, instanceOf(DefaultAWSCredentialsProviderChain.class));
     }
 
@@ -136,12 +136,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings singleRepositorySettings, Settings settings,
                                                                      String expectedKey, String expectedSecret) {
-        String key = S3Repository.getValue(singleRepositorySettings, settings,
-            S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
-        String secret = S3Repository.getValue(singleRepositorySettings, settings,
-            S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING);
-
-        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, key, secret).getCredentials();
+        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, settings, singleRepositorySettings).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }

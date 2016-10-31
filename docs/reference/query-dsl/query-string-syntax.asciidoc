@@ -38,10 +38,6 @@ search terms, but it is possible to specify other fields in the query syntax:
 
     book.\*:(quick brown)
 
-* where the field `title` has no value (or is missing):
-
-    _missing_:title
-
 * where the field `title` has any non-null value:
 
     _exists_:title

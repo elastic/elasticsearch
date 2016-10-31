@@ -20,15 +20,19 @@
 package org.elasticsearch.search.aggregations.matrix;
 
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchModule.AggregationSpec;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsParser;
 
-public class MatrixAggregationPlugin extends Plugin {
-    public void onModule(SearchModule searchModule) {
-        searchModule.registerAggregation(new AggregationSpec(MatrixStatsAggregationBuilder::new, new MatrixStatsParser(),
-            MatrixStatsAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalMatrixStats::new));
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+
+public class MatrixAggregationPlugin extends Plugin implements SearchPlugin {
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return singletonList(new AggregationSpec(MatrixStatsAggregationBuilder.NAME, MatrixStatsAggregationBuilder::new,
+                new MatrixStatsParser()).addResultReader(InternalMatrixStats::new));
     }
 }

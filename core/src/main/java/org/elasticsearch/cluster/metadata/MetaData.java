@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -29,7 +30,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -460,6 +460,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return null;
     }
 
+    /** Returns true iff existing index has the same {@link IndexMetaData} instance */
+    public boolean hasIndexMetaData(final IndexMetaData indexMetaData) {
+        return indices.get(indexMetaData.getIndex().getName()) == indexMetaData;
+    }
+
     /**
      * Returns the {@link IndexMetaData} for this index.
      * @throws IndexNotFoundException if no metadata for this index is found
@@ -745,7 +750,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                                     RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(),
                                     RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(),
                                     RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(),
-                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
+                                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
                                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(),
                                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(),
                                     DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(),
@@ -753,7 +758,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
      *  specify a unit. */
-    public static MetaData addDefaultUnitsIfNeeded(ESLogger logger, MetaData metaData) {
+    public static MetaData addDefaultUnitsIfNeeded(Logger logger, MetaData metaData) {
         Settings.Builder newPersistentSettings = null;
         for(Map.Entry<String,String> ent : metaData.persistentSettings().getAsMap().entrySet()) {
             String settingName = ent.getKey();

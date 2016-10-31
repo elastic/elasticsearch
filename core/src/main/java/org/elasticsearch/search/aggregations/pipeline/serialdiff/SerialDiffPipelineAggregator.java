@@ -26,8 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -78,17 +80,17 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalHistogram histo = (InternalHistogram) aggregation;
-        List<? extends InternalHistogram.Bucket> buckets = histo.getBuckets();
-        InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
+        MultiBucketsAggregation histo = (MultiBucketsAggregation) aggregation;
+        List<? extends Bucket> buckets = histo.getBuckets();
+        HistogramFactory factory = (HistogramFactory) histo;
 
-        List newBuckets = new ArrayList<>();
+        List<Bucket> newBuckets = new ArrayList<>();
         EvictingQueue<Double> lagWindow = new EvictingQueue<>(lag);
         int counter = 0;
 
-        for (InternalHistogram.Bucket bucket : buckets) {
+        for (Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
-            InternalHistogram.Bucket newBucket = bucket;
+            Bucket newBucket = bucket;
 
             counter += 1;
 
@@ -113,8 +115,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
-                        aggs), bucket.getKeyed(), bucket.getFormatter());
+                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
             }
 
 
@@ -122,6 +123,6 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
             lagWindow.add(thisBucketValue);
 
         }
-        return factory.create(newBuckets, histo);
+        return factory.createAggregation(newBuckets);
     }
 }

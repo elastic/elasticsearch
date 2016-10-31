@@ -20,13 +20,14 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.script.Script;
@@ -39,6 +40,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -111,7 +113,7 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        List<ActionRequest<?>> requests = new ArrayList<>();
+        List<DocWriteRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test", "test", "id").source("field", "value"));
         requests.add(new UpdateRequest("test", "test", "id").doc("field", "value"));
         requests.add(new DeleteRequest("test", "test", "id"));
@@ -125,49 +127,34 @@ public class BulkRequestTests extends ESTestCase {
     public void testSimpleBulk6() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk6.json");
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the wrong format of line 1");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the wrong format of line 1: " + e.getMessage(),
-                    e.getMessage().contains("Malformed action/metadata line [1], expected a simple value for field [_source] but found [START_OBJECT]"), equalTo(true));
-        }
+        ParsingException exc = expectThrows(ParsingException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+        assertThat(exc.getMessage(), containsString("Unknown key for a VALUE_STRING in [hello]"));
     }
 
     public void testSimpleBulk7() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk7.json");
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the wrong format of line 5");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the wrong format of line 5: " + e.getMessage(),
-                    e.getMessage().contains("Malformed action/metadata line [5], expected a simple value for field [_unkown] but found [START_ARRAY]"), equalTo(true));
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+        assertThat(exc.getMessage(),
+            containsString("Malformed action/metadata line [5], expected a simple value for field [_unkown] but found [START_ARRAY]"));
     }
 
     public void testSimpleBulk8() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk8.json");
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the unknown parameter _foo");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the unknown parameter _foo: " + e.getMessage(),
-                    e.getMessage().contains("Action/metadata line [3] contains an unknown parameter [_foo]"), equalTo(true));
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+        assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
     }
 
     public void testSimpleBulk9() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk9.json");
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the wrong format of line 3");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the wrong format of line 3: " + e.getMessage(),
-                    e.getMessage().contains("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"), equalTo(true));
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+        assertThat(exc.getMessage(), containsString("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"));
     }
 
     public void testSimpleBulk10() throws Exception {

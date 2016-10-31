@@ -30,10 +30,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.recovery.IndexRecoveryIT;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -44,12 +43,14 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -60,7 +61,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, RecoverySettingsChunkSizePlugin.class);
     }
 
     /**
@@ -70,9 +71,9 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
      * Later we allow full recovery to ensure we can still recover and don't run into corruptions.
      */
     public void testCancelRecoveryAndResume() throws Exception {
-        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
-            IndexRecoveryIT.setChunkSize(settings, new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES));
-        }
+        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES)))
+                .get().isAcknowledged());
 
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
@@ -110,7 +111,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         }
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
-        client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).get();
+        client().admin().indices().prepareFlush().setForce(true).get();
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -121,7 +122,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-                    if (action.equals(RecoveryTargetService.Actions.FILE_CHUNK)) {
+                    if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         logger.debug("file chunk [{}] lastChunk: {}", req, req.lastChunk());
                         if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {

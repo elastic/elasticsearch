@@ -225,4 +225,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.createIndexRequest.waitForActiveShards(waitForActiveShards);
     }
 
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public void setWaitForActiveShards(final int waitForActiveShards) {
+        setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
 }

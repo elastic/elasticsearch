@@ -40,16 +40,21 @@ import java.util.Locale;
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContent {
 
-    public enum Operation implements Writeable {
-        CREATE(0),
-        INDEX(1),
-        DELETE(2),
-        NOOP(3);
+    /**
+     * An enum that represents the the results of CRUD operations, primarily used to communicate the type of
+     * operation that occurred.
+     */
+    public enum Result implements Writeable {
+        CREATED(0),
+        UPDATED(1),
+        DELETED(2),
+        NOT_FOUND(3),
+        NOOP(4);
 
         private final byte op;
         private final String lowercase;
 
-        Operation(int op) {
+        Result(int op) {
             this.op = (byte) op;
             this.lowercase = this.toString().toLowerCase(Locale.ENGLISH);
         }
@@ -62,19 +67,21 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             return lowercase;
         }
 
-        public static Operation readFrom(StreamInput in) throws IOException{
+        public static Result readFrom(StreamInput in) throws IOException{
             Byte opcode = in.readByte();
             switch(opcode){
                 case 0:
-                    return CREATE;
+                    return CREATED;
                 case 1:
-                    return INDEX;
+                    return UPDATED;
                 case 2:
-                    return DELETE;
+                    return DELETED;
                 case 3:
+                    return NOT_FOUND;
+                case 4:
                     return NOOP;
                 default:
-                    throw new IllegalArgumentException("Unknown operation code: " + opcode);
+                    throw new IllegalArgumentException("Unknown result code: " + opcode);
             }
         }
 
@@ -89,14 +96,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     private String type;
     private long version;
     private boolean forcedRefresh;
-    protected Operation operation;
+    protected Result result;
 
-    public DocWriteResponse(ShardId shardId, String type, String id, long version, Operation operation) {
+    public DocWriteResponse(ShardId shardId, String type, String id, long version, Result result) {
         this.shardId = shardId;
         this.type = type;
         this.id = id;
         this.version = version;
-        this.operation = operation;
+        this.result = result;
     }
 
     // needed for deserialization
@@ -106,8 +113,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     /**
      * The change that occurred to the document.
      */
-    public Operation getOperation() {
-        return operation;
+    public Result getResult() {
+        return result;
     }
 
     /**
@@ -198,7 +205,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         id = in.readString();
         version = in.readZLong();
         forcedRefresh = in.readBoolean();
-        operation = Operation.readFrom(in);
+        result = Result.readFrom(in);
     }
 
     @Override
@@ -209,7 +216,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         out.writeString(id);
         out.writeZLong(version);
         out.writeBoolean(forcedRefresh);
-        operation.writeTo(out);
+        result.writeTo(out);
     }
 
     @Override
@@ -219,7 +226,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             .field("_type", type)
             .field("_id", id)
             .field("_version", version)
-            .field("_operation", getOperation().getLowercase());
+            .field("result", getResult().getLowercase());
         if (forcedRefresh) {
             builder.field("forced_refresh", forcedRefresh);
         }

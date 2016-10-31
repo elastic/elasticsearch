@@ -22,10 +22,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -57,8 +58,8 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
+    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context.getQueryShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
         assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
@@ -97,17 +98,12 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryShardContext context = createShardContext();
         Query luceneQuery = queryBuilder.toQuery(context);
         assertThat(luceneQuery, instanceOf(MatchNoDocsQuery.class));
-        assertThat(((MatchNoDocsQuery) luceneQuery).toString(), equalTo("MatchNoDocsQuery[\"no clauses for dismax query.\"]"));
+        assertThat(luceneQuery.toString(), equalTo("MatchNoDocsQuery(\"no clauses for dismax query.\")"));
     }
 
     public void testIllegalArguments() {
         DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
-        try {
-            disMaxQuery.add(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> disMaxQuery.add(null));
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {

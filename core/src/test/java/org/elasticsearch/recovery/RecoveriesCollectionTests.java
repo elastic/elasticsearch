@@ -27,7 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
-    static final RecoveryTargetService.RecoveryListener listener = new RecoveryTargetService.RecoveryListener() {
+    static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
 
@@ -72,7 +72,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             final AtomicBoolean failed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(1);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(),
-                new RecoveryTargetService.RecoveryListener() {
+                new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
                     public void onRecoveryDone(RecoveryState state) {
                         latch.countDown();
@@ -154,10 +154,9 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     }
 
     long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard indexShard,
-                       RecoveryTargetService.RecoveryListener listener, TimeValue timeValue) {
+                       PeerRecoveryTargetService.RecoveryListener listener, TimeValue timeValue) {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
-        indexShard.markAsRecovering("remote", new RecoveryState(indexShard.shardId(), false, RecoveryState.Type.REPLICA, sourceNode,
-            rNode));
+        indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();
         return collection.startRecovery(indexShard, sourceNode, listener, timeValue);
     }

@@ -74,6 +74,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
+    private Integer version;
+
     public PutIndexTemplateRequest() {
     }
 
@@ -127,6 +129,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     public int order() {
         return this.order;
+    }
+
+    public PutIndexTemplateRequest version(Integer version) {
+        this.version = version;
+        return this;
+    }
+
+    public Integer version() {
+        return this.version;
     }
 
     /**
@@ -278,16 +289,23 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 template(entry.getValue().toString());
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
+            } else if ("version".equals(name)) {
+                if ((entry.getValue() instanceof Integer) == false) {
+                    throw new IllegalArgumentException("Malformed [version] value, should be an integer");
+                }
+                version((Integer)entry.getValue());
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("Malformed settings section, should include an inner object");
+                    throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("mappings")) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     if (!(entry1.getValue() instanceof Map)) {
-                        throw new IllegalArgumentException("Malformed mappings section for type [" + entry1.getKey() + "], should include an inner object describing the mapping");
+                        throw new IllegalArgumentException(
+                            "Malformed [mappings] section for type [" + entry1.getKey() +
+                                "], should include an inner object describing the mapping");
                     }
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
@@ -449,6 +467,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(Alias.read(in));
         }
+        version = in.readOptionalVInt();
     }
 
     @Override
@@ -474,5 +493,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (Alias alias : aliases) {
             alias.writeTo(out);
         }
+        out.writeOptionalVInt(version);
     }
 }

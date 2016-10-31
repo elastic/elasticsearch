@@ -46,7 +46,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
     public static final String NAME = "filters";
     private static final Type TYPE = new Type(NAME);
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
     private static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");

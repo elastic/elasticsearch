@@ -19,7 +19,6 @@
 package org.elasticsearch.client.benchmark.transport;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,8 +27,13 @@ import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugin.noop.NoopPlugin;
+import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
+import org.elasticsearch.plugin.noop.action.bulk.NoopBulkRequestBuilder;
+import org.elasticsearch.plugin.noop.action.search.NoopSearchAction;
+import org.elasticsearch.plugin.noop.action.search.NoopSearchRequestBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
@@ -46,8 +50,8 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
 
     @Override
     protected TransportClient client(String benchmarkTargetHost) throws Exception {
-        TransportClient client = new PreBuiltTransportClient(Settings.EMPTY);
-        client.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(benchmarkTargetHost), 9300));
+        TransportClient client = new PreBuiltTransportClient(Settings.EMPTY, NoopPlugin.class);
+        client.addTransportAddress(new TransportAddress(InetAddress.getByName(benchmarkTargetHost), 9300));
         return client;
     }
 
@@ -74,7 +78,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
 
         @Override
         public boolean bulkIndex(List<String> bulkData) {
-            BulkRequestBuilder builder = client.prepareBulk();
+            NoopBulkRequestBuilder builder = NoopBulkAction.INSTANCE.newRequestBuilder(client);
             for (String bulkItem : bulkData) {
                 builder.add(new IndexRequest(indexName, typeName).source(bulkItem.getBytes(StandardCharsets.UTF_8)));
             }
@@ -103,8 +107,11 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
         @Override
         public boolean search(String source) {
             final SearchResponse response;
+            NoopSearchRequestBuilder builder = NoopSearchAction.INSTANCE.newRequestBuilder(client);
             try {
-                response = client.prepareSearch(indexName).setQuery(QueryBuilders.wrapperQuery(source)).execute().get();
+                builder.setIndices(indexName);
+                builder.setQuery(QueryBuilders.wrapperQuery(source));
+                response = client.execute(NoopSearchAction.INSTANCE, builder.request()).get();
                 return response.status() == RestStatus.OK;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

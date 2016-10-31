@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
@@ -35,8 +37,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
@@ -210,9 +213,13 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         double[] lons = new double[shellSize];
         GeoPoint p;
         for (int i=0; i<shellSize; ++i) {
-            p = new GeoPoint(shell.get(i));
+            p = shell.get(i);
             lats[i] = p.lat();
             lons[i] = p.lon();
+        }
+
+        if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            return LatLonPoint.newPolygonQuery(fieldType.name(), new Polygon(lats, lons));
         }
         // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
         // if index created V_2_3 > use prefix encoded postings format

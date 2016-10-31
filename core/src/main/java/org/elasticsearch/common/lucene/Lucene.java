@@ -19,11 +19,15 @@
 
 package org.elasticsearch.common.lucene;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -67,7 +71,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -82,13 +85,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene54";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene60";
+    public static final String LATEST_CODEC = "Lucene62";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -104,14 +104,14 @@ public class Lucene {
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(0, EMPTY_SCORE_DOCS, 0.0f);
 
-    public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
+    public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
         if (version == null) {
             return defaultVersion;
         }
         try {
             return Version.parse(version);
         } catch (ParseException e) {
-            logger.warn("no version match {}, default to {}", e, version, defaultVersion);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
             return defaultVersion;
         }
     }
@@ -351,6 +351,8 @@ public class Lucene {
         return new ScoreDoc(in.readVInt(), in.readFloat());
     }
 
+    private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
+
     public static void writeTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
         if (topDocs instanceof TopFieldDocs) {
             out.writeBoolean(true);
@@ -361,6 +363,16 @@ public class Lucene {
 
             out.writeVInt(topFieldDocs.fields.length);
             for (SortField sortField : topFieldDocs.fields) {
+                if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
+                    // for geo sorting, we replace the SortField with a SortField that assumes a double field.
+                    // this works since the SortField is only used for merging top docs
+                    SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
+                    newSortField.setMissingValue(sortField.getMissingValue());
+                    sortField = newSortField;
+                }
+                if (sortField.getClass() != SortField.class) {
+                    throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
+                }
                 if (sortField.getField() == null) {
                     out.writeBoolean(false);
                 } else {

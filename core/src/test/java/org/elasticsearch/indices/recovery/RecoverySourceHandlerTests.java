@@ -40,7 +40,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
@@ -81,9 +80,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            null, randomBoolean(), randomLong());
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
             recoverySettings.getChunkSize().bytesAsInt(), logger);
@@ -97,7 +96,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             writer.addDocument(document);
         }
         writer.commit();
-        Store.MetadataSnapshot metadata = store.getMetadata();
+        writer.close();
+
+        Store.MetadataSnapshot metadata = store.getMetadata(null);
         List<StoreFileMetaData> metas = new ArrayList<>();
         for (StoreFileMetaData md : metadata) {
             metas.add(md);
@@ -116,14 +117,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         });
-        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata();
+        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata(null);
         Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
         assertEquals(metas.size(), recoveryDiff.identical.size());
         assertEquals(0, recoveryDiff.different.size());
         assertEquals(0, recoveryDiff.missing.size());
         IndexReader reader = DirectoryReader.open(targetStore.directory());
         assertEquals(numDocs, reader.maxDoc());
-        IOUtils.close(reader, writer, store, targetStore);
+        IOUtils.close(reader, store, targetStore);
     }
 
     public void testHandleCorruptedIndexOnSendSendFiles() throws Throwable {
@@ -131,9 +132,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            null, randomBoolean(), randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -157,7 +158,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata();
+        Store.MetadataSnapshot metadata = store.getMetadata(null);
         List<StoreFileMetaData> metas = new ArrayList<>();
         for (StoreFileMetaData md : metadata) {
             metas.add(md);
@@ -195,9 +196,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            null, randomBoolean(), randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -221,7 +222,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata();
+        Store.MetadataSnapshot metadata = store.getMetadata(null);
         List<StoreFileMetaData> metas = new ArrayList<>();
         for (StoreFileMetaData md : metadata) {
             metas.add(md);
@@ -254,9 +255,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     public void testThrowExceptionOnPrimaryRelocatedBeforePhase1Completed() throws IOException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-            new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.REPLICA, randomLong());
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            null, false, randomLong());
         IndexShard shard = mock(IndexShard.class);
         Translog.View translogView = mock(Translog.View.class);
         when(shard.acquireTranslogView()).thenReturn(translogView);
@@ -284,9 +285,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     public void testWaitForClusterStateOnPrimaryRelocation() throws IOException, InterruptedException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-            new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.PRIMARY_RELOCATION, randomLong());
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            null, true, randomLong());
         AtomicBoolean phase1Called = new AtomicBoolean();
         AtomicBoolean phase2Called = new AtomicBoolean();
         AtomicBoolean ensureClusterStateVersionCalled = new AtomicBoolean();

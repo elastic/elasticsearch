@@ -183,6 +183,8 @@ public final class SFor extends AStatement {
                 writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
             }
 
+            block.continu = begin;
+            block.brake = end;
             block.write(writer, globals);
         } else {
             if (loopCounter != null) {

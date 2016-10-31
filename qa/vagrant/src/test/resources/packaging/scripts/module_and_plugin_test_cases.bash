@@ -205,6 +205,10 @@ fi
     install_and_check_plugin analysis stempel
 }
 
+@test "[$GROUP] install ukrainian plugin" {
+    install_and_check_plugin analysis ukrainian morfologik-fsa-*.jar morfologik-stemming-*.jar
+}
+
 @test "[$GROUP] install gce plugin" {
     install_and_check_plugin discovery gce google-api-client-*.jar
 }
@@ -339,6 +343,10 @@ fi
 
 @test "[$GROUP] remove stempel plugin" {
     remove_plugin analysis-stempel
+}
+
+@test "[$GROUP] remove ukrainian plugin" {
+    remove_plugin analysis-ukrainian
 }
 
 @test "[$GROUP] remove gce plugin" {

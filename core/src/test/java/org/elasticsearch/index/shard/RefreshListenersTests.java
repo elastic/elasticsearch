@@ -279,10 +279,12 @@ public class RefreshListenersTests extends ESTestCase {
         Field uidField = new Field("_uid", type + ":" + id, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         Field seqNoField = new NumericDocValuesField("_seq_no", 0);
+        Field primaryTermField = new NumericDocValuesField("_primary_term", 0);
         document.add(uidField);
         document.add(versionField);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqNoField, id, type, null, -1, -1, Arrays.asList(document), source, null);
+        ParsedDocument doc = new ParsedDocument(versionField, seqNoField, primaryTermField, id, type, null, -1, -1,
+                Arrays.asList(document), source, null);
         Engine.Index index = new Engine.Index(new Term("_uid", uid), doc);
         engine.index(index);
         return index;

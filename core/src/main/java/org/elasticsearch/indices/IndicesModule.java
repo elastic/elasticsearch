@@ -46,8 +46,10 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.PrimaryTermFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.mapper.TTLFieldMapper;
@@ -57,7 +59,6 @@ import org.elasticsearch.index.mapper.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
@@ -156,6 +157,7 @@ public class IndicesModule extends AbstractModule {
         metadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
         metadataMappers.put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
         metadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());
+        metadataMappers.put(PrimaryTermFieldMapper.NAME, new PrimaryTermFieldMapper.TypeParser());
         // _field_names is not registered here, see below
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {

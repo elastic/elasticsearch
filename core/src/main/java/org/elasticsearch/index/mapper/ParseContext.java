@@ -264,6 +264,16 @@ public abstract class ParseContext {
         }
 
         @Override
+        public Field primaryTerm() {
+            return in.primaryTerm();
+        }
+
+        @Override
+        public void primaryTerm(Field primaryTerm) {
+            in.primaryTerm(primaryTerm);
+        }
+
+        @Override
         public AllEntries allEntries() {
             return in.allEntries();
         }
@@ -311,6 +321,8 @@ public abstract class ParseContext {
         private Field version;
 
         private Field seqNo;
+
+        private Field primaryTerm;
 
         private final AllEntries allEntries;
 
@@ -413,6 +425,15 @@ public abstract class ParseContext {
             this.seqNo = seqNo;
         }
 
+        @Override
+        public Field primaryTerm() {
+            return this.primaryTerm;
+        }
+
+        @Override
+        public void primaryTerm(Field primaryTerm) {
+            this.primaryTerm = primaryTerm;
+        }
 
         @Override
         public AllEntries allEntries() {
@@ -543,6 +564,10 @@ public abstract class ParseContext {
     public abstract Field seqNo();
 
     public abstract void seqNo(Field seqNo);
+
+    public abstract Field primaryTerm();
+
+    public abstract void primaryTerm(Field primaryTerm);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
         return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);

@@ -56,8 +56,8 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -105,11 +105,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field seqNoField = new NumericDocValuesField("_seq_no", seqNo);
+        Field primaryTermField = new NumericDocValuesField("_primary_term", 0);
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(versionField, seqNoField, id, type, routing, timestamp, ttl, Collections.singletonList(document), source,
-            mappingUpdate);
+        return new ParsedDocument(versionField, seqNoField, primaryTermField, id, type, routing, timestamp,
+                ttl, Collections.singletonList(document), source, mappingUpdate);
     }
 
     public void testLockTryingToDelete() throws Exception {

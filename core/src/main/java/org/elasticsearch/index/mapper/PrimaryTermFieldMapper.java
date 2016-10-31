@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.internal;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -32,6 +33,9 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -40,40 +44,49 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/** Mapper for the _seq_no field. */
-public class SeqNoFieldMapper extends MetadataFieldMapper {
+/**
+ * Mapper for the {@code _primary_term} field.
+ *
+ * The primary term is only used during collision after receiving identical seq#
+ * values for two document copies. The primary term is stored as a doc value
+ * field without being indexed, since it is only intended for use as a
+ * key-value lookup.
+ */
+public class PrimaryTermFieldMapper extends MetadataFieldMapper {
 
-    public static final String NAME = "_seq_no";
-    public static final String CONTENT_TYPE = "_seq_no";
+    public static final String NAME = "_primary_term";
+    public static final String CONTENT_TYPE = "_primary_term";
 
     public static class Defaults {
 
-        public static final String NAME = SeqNoFieldMapper.NAME;
-        public static final MappedFieldType FIELD_TYPE = new SeqNoFieldType();
+        public static final String NAME = PrimaryTermFieldMapper.NAME;
+        public static final MappedFieldType FIELD_TYPE = new PrimaryTermFieldType();
 
         static {
             FIELD_TYPE.setName(NAME);
-            FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
+            // Need sorted doc_values for key-value lookup of primary term
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
             FIELD_TYPE.setHasDocValues(true);
+            // We don't do any searches on this field, so don't even index it
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, SeqNoFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, PrimaryTermFieldMapper> {
 
         public Builder() {
             super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
         @Override
-        public SeqNoFieldMapper build(BuilderContext context) {
-            return new SeqNoFieldMapper(context.indexSettings());
+        public PrimaryTermFieldMapper build(BuilderContext context) {
+            return new PrimaryTermFieldMapper(context.indexSettings());
         }
     }
 
@@ -86,22 +99,22 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
-            return new SeqNoFieldMapper(indexSettings);
+            return new PrimaryTermFieldMapper(indexSettings);
         }
     }
 
-    static final class SeqNoFieldType extends MappedFieldType {
+    static final class PrimaryTermFieldType extends MappedFieldType {
 
-        public SeqNoFieldType() {
+        public PrimaryTermFieldType() {
         }
 
-        protected SeqNoFieldType(SeqNoFieldType ref) {
+        protected PrimaryTermFieldType(PrimaryTermFieldType ref) {
             super(ref);
         }
 
         @Override
         public MappedFieldType clone() {
-            return new SeqNoFieldType(this);
+            return new PrimaryTermFieldType(this);
         }
 
         @Override
@@ -111,13 +124,19 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            throw new QueryShardException(context, "SeqNoField field [" + name() + "] is not searchable");
+            throw new QueryShardException(context, "PrimaryTermField field [" + name() + "] is not searchable");
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
         }
 
         @Override
         public FieldStats stats(IndexReader reader) throws IOException {
-            // nocommit remove implementation when late-binding commits
-            // are possible
+            // TODO: evaluate whether we need this at all, do we need field stats on this field?
+            // nocommit remove implementation when late-binding commits are possible
             final List<LeafReaderContext> leaves = reader.leaves();
             if (leaves.isEmpty()) {
                 return null;
@@ -140,13 +159,12 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                     }
                 }
             }
-
-            return found ? new FieldStats.Long(reader.maxDoc(), 0, -1, -1, false, true, currentMin, currentMax) : null;
+            return found ? new FieldStats.Long(reader.maxDoc(), 0, -1, -1, false, false, currentMin, currentMax) : null;
         }
 
     }
 
-    public SeqNoFieldMapper(Settings indexSettings) {
+    public PrimaryTermFieldMapper(Settings indexSettings) {
         super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
     }
 
@@ -157,25 +175,25 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        // see InternalEngine.updateVersion to see where the real version value is set
-        final Field seqNo = new NumericDocValuesField(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO);
-        context.seqNo(seqNo);
-        fields.add(seqNo);
+        // see IndexShard.prepareIndex* to see where the real version value is passed through
+        final Field primaryTerm = new NumericDocValuesField(NAME, 0);
+        context.primaryTerm(primaryTerm);
+        fields.add(primaryTerm);
     }
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
-        // _seq_no added in pre-parse
         return null;
     }
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        // In the case of nested docs, let's fill nested docs with seqNo=1 so that Lucene doesn't write a Bitset for documents
-        // that don't have the field. This is consistent with the default value for efficiency.
+        // In the case of nested docs, let's fill nested docs with primaryTerm=0
+        // so that Lucene doesn't write a Bitset for documents that don't have
+        // the field. This is consistent with the default value for efficiency.
         for (int i = 1; i < context.docs().size(); i++) {
             final Document doc = context.docs().get(i);
-            doc.add(new NumericDocValuesField(NAME, 1L));
+            doc.add(new NumericDocValuesField(NAME, 0L));
         }
     }
 

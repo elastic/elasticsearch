@@ -150,6 +150,7 @@ final class DocumentParser {
         return new ParsedDocument(
             context.version(),
             context.seqNo(),
+            context.primaryTerm(),
             context.sourceToParse().id(),
             context.sourceToParse().type(),
             source.routing(),

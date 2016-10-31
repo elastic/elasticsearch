@@ -546,9 +546,10 @@ public class IndexShardTests extends IndexShardTestCase {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         Field seqNoField = new NumericDocValuesField("_seq_no", 0);
+        Field primaryTermField = new NumericDocValuesField("_primary_term", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(versionField, seqNoField, primaryTermField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
     public void testIndexingOperationsListeners() throws IOException {

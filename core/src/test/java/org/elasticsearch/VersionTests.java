@@ -276,7 +276,6 @@ public class VersionTests extends ESTestCase {
         assertUnknownVersion(OsStats.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
         assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
         // once we released 5.0.0 and it's added to Version.java we need to remove this constant
-        assertUnknownVersion(ShardValidateQueryRequestTests.V_5_0_0);
     }
 
     public static void assertUnknownVersion(Version version) {

@@ -211,11 +211,11 @@ public class IndexFolderUpgraderTests extends ESTestCase {
                 throw new IllegalStateException("Backwards index must contain exactly one cluster but was " + list.length);
             }
             // the bwc scripts packs the indices under this path
-            Path src = list[0].resolve("nodes/0/indices/" + indexName);
+            Path src = OldIndexUtils.getIndexDir(logger, indexName, path.getFileName().toString(), list[0]);
             assertTrue("[" + path + "] missing index dir: " + src.toString(), Files.exists(src));
             final Path indicesPath = randomFrom(nodeEnvironment.nodePaths()).indicesPath;
             logger.info("--> injecting index [{}] into [{}]", indexName, indicesPath);
-            OldIndexUtils.copyIndex(logger, src, indexName, indicesPath);
+            OldIndexUtils.copyIndex(logger, src, src.getFileName().toString(), indicesPath);
             IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
 
             // ensure old index folder is deleted

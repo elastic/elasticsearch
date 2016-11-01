@@ -190,7 +190,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 "ZXJtP4AAAAANbUtDSnpHU3lidm5KUBUMaVpqeG9vcm5QSFlvAAEBLGdtcWxuRWpWTXdvTlhMSHh0RWlFdHBnbEF1cUNmVmhoUVlwRFZxVllnWWV1A2ZvbwEA" +
                 "AQhwYWlubGVzc/8AALk4AAAAAAABAAAAAAAAAwpKU09PU0ZmWnhFClVqTGxMa2p3V2gKdUJwZ3R3dXFER5Hg97uT7MOmPgEADw"));
         try (StreamInput in = new NamedWriteableAwareStreamInput(requestBytes.streamInput(), namedWriteableRegistry)) {
-            in.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
+            in.setVersion(Version.V_5_0_0);
             ShardSearchTransportRequest readRequest = new ShardSearchTransportRequest();
             readRequest.readFrom(in);
             assertEquals(0, in.available());
@@ -214,7 +214,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 .should(QueryBuilders.termQuery("foo", "bar2"))
             );
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
+            output.setVersion(Version.V_5_0_0);
             readRequest.writeTo(output);
             assertEquals(output.bytes().toBytesRef(), requestBytes.toBytesRef());
         }

@@ -101,6 +101,7 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.OldIndexUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -117,6 +118,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1819,7 +1821,6 @@ public class InternalEngineTests extends ESTestCase {
         return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21147")
     public void testUpgradeOldIndex() throws IOException {
         List<Path> indexes = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {
@@ -1841,18 +1842,19 @@ public class InternalEngineTests extends ESTestCase {
             Path[] list = filterExtraFSFiles(FileSystemUtils.files(unzipDataDir));
 
             if (list.length != 1) {
-                throw new IllegalStateException("Backwards index must contain exactly one cluster but was " + list.length + " " + Arrays.toString(list));
+                throw new IllegalStateException("Backwards index must contain exactly one cluster but was " + list.length
+                    + " " + Arrays.toString(list));
             }
+
             // the bwc scripts packs the indices under this path
-            Path src = list[0].resolve("nodes/0/indices/" + indexName);
-            Path translog = list[0].resolve("nodes/0/indices/" + indexName).resolve("0").resolve("translog");
-            assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
+            Path src = OldIndexUtils.getIndexDir(logger, indexName, indexFile.toString(), list[0]);
+            Path translog = src.resolve("0").resolve("translog");
             assertTrue("[" + indexFile + "] missing translog dir: " + translog.toString(), Files.exists(translog));
             Path[] tlogFiles = filterExtraFSFiles(FileSystemUtils.files(translog));
             assertEquals(Arrays.toString(tlogFiles), tlogFiles.length, 2); // ckp & tlog
             Path tlogFile = tlogFiles[0].getFileName().toString().endsWith("tlog") ? tlogFiles[0] : tlogFiles[1];
-            final long size = Files.size(tlogFiles[0]);
-            logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
+            final long size = Files.size(tlogFile);
+            logger.info("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
             Directory directory = newFSDirectory(src.resolve("0").resolve("index"));
             Store store = createStore(directory);
             final int iters = randomIntBetween(0, 2);
@@ -1996,7 +1998,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public static class TranslogHandler extends TranslogRecoveryPerformer {
 
-        private final DocumentMapper docMapper;
+        private final MapperService mapperService;
         public Mapping mappingUpdate = null;
 
         public final AtomicInteger recoveredOps = new AtomicInteger(0);
@@ -2004,20 +2006,22 @@ public class InternalEngineTests extends ESTestCase {
         public TranslogHandler(String indexName, Logger logger) {
             super(new ShardId("test", "_na_", 0), null, logger);
             Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-            RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName, "_na_");
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-            AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+            AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap());
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
             MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-            MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null);
+            this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null);
+            RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-            this.docMapper = b.build(mapperService);
         }
 
         @Override
         protected DocumentMapperForType docMapper(String type) {
-            return new DocumentMapperForType(docMapper, mappingUpdate);
+            RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
+            DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
+            return new DocumentMapperForType(b.build(mapperService), mappingUpdate);
         }
 
         @Override

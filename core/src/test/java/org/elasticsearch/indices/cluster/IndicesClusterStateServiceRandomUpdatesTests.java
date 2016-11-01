@@ -91,7 +91,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 } catch (AssertionError error) {
                     ClusterState finalState = state;
                     logger.error((org.apache.logging.log4j.util.Supplier<?>) () ->
-                        new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState.prettyPrint()), error);
+                        new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
                     throw error;
                 }
             }
@@ -107,7 +107,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 } catch (AssertionError error) {
                     logger.error((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                             "failed to apply change on [{}].\n ***  Previous state ***\n{}\n ***  New state ***\n{}",
-                            node, event.previousState().prettyPrint(), event.state().prettyPrint()), error);
+                            node, event.previousState(), event.state()), error);
                     throw error;
                 }
 
@@ -117,7 +117,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         }
 
         // TODO: check if we can go to green by starting all shards and finishing all iterations
-        logger.info("Final cluster state: {}", state.prettyPrint());
+        logger.info("Final cluster state: {}", state);
     }
 
     /**

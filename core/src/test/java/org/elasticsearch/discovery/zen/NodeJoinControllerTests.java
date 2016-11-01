@@ -676,7 +676,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     protected void assertNodesInCurrentState(List<DiscoveryNode> expectedNodes) {
         final ClusterState state = clusterService.state();
-        logger.info("assert for [{}] in:\n{}", expectedNodes, state.prettyPrint());
+        logger.info("assert for [{}] in:\n{}", expectedNodes, state);
         DiscoveryNodes discoveryNodes = state.nodes();
         for (DiscoveryNode node : expectedNodes) {
             assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));

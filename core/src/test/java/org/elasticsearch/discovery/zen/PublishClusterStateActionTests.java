@@ -41,8 +41,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
-import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -852,8 +850,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     void assertSameState(ClusterState actual, ClusterState expected) {
         assertThat(actual, notNullValue());
-        final String reason = "\n--> actual ClusterState: " + actual.prettyPrint() + "\n" +
-                                "--> expected ClusterState:" + expected.prettyPrint();
+        final String reason = "\n--> actual ClusterState: " + actual + "\n" +
+                                "--> expected ClusterState:" + expected;
         assertThat("unequal UUIDs" + reason, actual.stateUUID(), equalTo(expected.stateUUID()));
         assertThat("unequal versions" + reason, actual.version(), equalTo(expected.version()));
     }

@@ -424,7 +424,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
 
             if (canRebalance.type() != Type.YES) {
-                return new RebalanceDecision(canRebalance, Type.NO, "rebalancing is not allowed", null, nodeDecisions, currentWeight);
+                return new RebalanceDecision(canRebalance, canRebalance.type(), "rebalancing is not allowed", null,
+                                                nodeDecisions, currentWeight);
             } else {
                 return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNodeId,
                                                   nodeDecisions, currentWeight, threshold);

@@ -419,4 +419,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.close();
     }
 
+    @Override
+    public boolean isClosed() {
+        return generator.isClosed();
+    }
 }

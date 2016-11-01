@@ -18,9 +18,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.Collections;
 
@@ -97,7 +97,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         }
         GetResponse getResponse = client.prepareGet(expression, "type", response.getId()).setFetchSource(true).get();
         assertThat(getResponse.isExists(), is(true));
-        assertEquals("datemath-2016.10.01", getResponse.getIndex());
+        assertEquals(expectedIndexName, getResponse.getIndex());
         assertThat(getResponse.getSourceAsMap().get("foo").toString(), is("bar"));
         assertThat(getResponse.getSourceAsMap().get("new").toString(), is("field"));
 
@@ -107,7 +107,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
                 .get();
         assertFalse(multiGetResponse.getResponses()[0].isFailed());
         assertTrue(multiGetResponse.getResponses()[0].getResponse().isExists());
-        assertEquals("datemath-2016.10.01", multiGetResponse.getResponses()[0].getResponse().getIndex());
+        assertEquals(expectedIndexName, multiGetResponse.getResponses()[0].getResponse().getIndex());
 
 
         DeleteIndexResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();

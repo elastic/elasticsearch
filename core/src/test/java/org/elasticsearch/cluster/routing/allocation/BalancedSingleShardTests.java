@@ -170,10 +170,14 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
         final String[] indices = { "idx1", "idx2" };
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
-        // create a cluster state with 2 indices, each with 1 started primary shard, and only
-        // one node initially so all primary shards get allocated to the same shard (we are only
-        // using 2 indices because anymore and we can't know deterministically which shard the
-        // BalanceShardsAllocator#allocate step will chose to run through first
+        // Create a cluster state with 2 indices, each with 1 started primary shard, and only
+        // one node initially so that all primary shards get allocated to the same node.  We are only
+        // using 2 indices (i.e. 2 total primary shards) because if we have any more than 2 started shards
+        // in the routing table, then we have no guarantees about the order in which the 3 or more shards
+        // are selected to be rebalanced to the new node, and hence the node to which they are rebalanced
+        // is not deterministic.  Using only two shards guarantees that only one of those two shards will
+        // be rebalanced, and so we pick the one that was chosen to be rebalanced and execute the single-shard
+        // rebalance step on it to make sure it gets assigned to the same node.
         ClusterState clusterState = ClusterStateCreationUtils.state(1, indices, 1);
         // add a new node so one of the primaries can be rebalanced there
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());

@@ -211,7 +211,7 @@ public class ClusterStateCreationUtils {
             routing.addAsNew(indexMetaData);
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetaData.getIndex());
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < numberOfPrimaries; i++) {
                 ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 indexShardRoutingBuilder.addShard(

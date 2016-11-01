@@ -39,13 +39,14 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for balancing a single shard, see {@link Balancer#decideRebalance(ShardRouting)}.
@@ -72,7 +73,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertNotNull(rebalanceDecision.getCanRebalanceDecision());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
-        assertThat(rebalanceDecision.getFinalExplanation(), Matchers.startsWith("cannot rebalance due to in-flight shard store fetches"));
+        assertThat(rebalanceDecision.getFinalExplanation(), startsWith("cannot rebalance due to in-flight shard store fetches"));
         assertNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
 
@@ -80,10 +81,11 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     }
 
     public void testRebalancingNotAllowedDueToCanRebalance() {
+        final Decision canRebalanceDecision = randomFrom(Decision.NO, Decision.THROTTLE);
         AllocationDecider noRebalanceDecider = new AllocationDecider(Settings.EMPTY) {
             @Override
             public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                return allocation.decision(randomFrom(Decision.NO, Decision.THROTTLE), "TEST", "foobar");
+                return allocation.decision(canRebalanceDecision, "TEST", "foobar");
             }
         };
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
@@ -92,8 +94,8 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         RoutingAllocation routingAllocation =  newRoutingAllocation(
             new AllocationDeciders(Settings.EMPTY, Collections.singleton(noRebalanceDecider)), clusterState);
         RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
-        assertNotEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
-        assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
+        assertEquals(canRebalanceDecision.type(), rebalanceDecision.getCanRebalanceDecision().type());
+        assertEquals(canRebalanceDecision.type(), rebalanceDecision.getFinalDecisionType());
         assertEquals("rebalancing is not allowed", rebalanceDecision.getFinalExplanation());
         assertNotNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
@@ -134,7 +136,8 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         RebalanceDecision rebalanceDecision = rebalance.v2();
         assertEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
-        assertNotNull(rebalanceDecision.getFinalExplanation());
+        assertThat(rebalanceDecision.getFinalExplanation(),
+            startsWith("cannot rebalance shard, no other node exists that would form a more balanced"));
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getAssignedNodeId());
     }

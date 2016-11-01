@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.NodeRebalanceDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.RebalanceDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -41,7 +43,9 @@ import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Tests for balancing a single shard, see {@link Balancer#decideRebalance(ShardRouting)}.
@@ -155,9 +159,37 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     }
 
     public void testSingleShardBalanceProducesSameResultsAsBalanceStep() {
+        final String[] indices = { "idx1", "idx2" };
+        // Create a cluster state with 2 indices, each with 1 started primary shard, and only
+        // one node initially so that all primary shards get allocated to the same node.  We are only
+        // using 2 indices (i.e. 2 total primary shards) because if we have any more than 2 started shards
+        // in the routing table, then we have no guarantees about the order in which the 3 or more shards
+        // are selected to be rebalanced to the new node, and hence the node to which they are rebalanced
+        // is not deterministic.  Using only two shards guarantees that only one of those two shards will
+        // be rebalanced, and so we pick the one that was chosen to be rebalanced and execute the single-shard
+        // rebalance step on it to make sure it gets assigned to the same node.
+        ClusterState clusterState = ClusterStateCreationUtils.state(1, indices, 1);
+        // add new nodes so one of the primaries can be rebalanced
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
+        int numAddedNodes = randomIntBetween(1, 5);
+        // randomly select a subset of the newly added nodes to set filter allocation on (but not all)
+        int excludeNodesSize = randomIntBetween(0, numAddedNodes - 1);
+        final Set<String> excludeNodes = new HashSet<>();
+        for (int i = 0; i < numAddedNodes; i++) {
+            DiscoveryNode discoveryNode = newNode(randomAsciiOfLength(7));
+            nodesBuilder.add(discoveryNode);
+            if (i < excludeNodesSize) {
+                excludeNodes.add(discoveryNode.getId());
+            }
+        }
+        clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
+
         AllocationDecider allocationDecider = new AllocationDecider(Settings.EMPTY) {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                if (excludeNodes.contains(node.nodeId())) {
+                    return Decision.NO;
+                }
                 return Decision.YES;
             }
         };
@@ -168,27 +200,10 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             }
         };
         List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
-        final String[] indices = { "idx1", "idx2" };
-        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
-        // Create a cluster state with 2 indices, each with 1 started primary shard, and only
-        // one node initially so that all primary shards get allocated to the same node.  We are only
-        // using 2 indices (i.e. 2 total primary shards) because if we have any more than 2 started shards
-        // in the routing table, then we have no guarantees about the order in which the 3 or more shards
-        // are selected to be rebalanced to the new node, and hence the node to which they are rebalanced
-        // is not deterministic.  Using only two shards guarantees that only one of those two shards will
-        // be rebalanced, and so we pick the one that was chosen to be rebalanced and execute the single-shard
-        // rebalance step on it to make sure it gets assigned to the same node.
-        ClusterState clusterState = ClusterStateCreationUtils.state(1, indices, 1);
-        // add a new node so one of the primaries can be rebalanced there
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        int numAddedNodes = randomIntBetween(1, 5);
-        for (int i = 0; i < numAddedNodes; i++) {
-            nodesBuilder.add(newNode(randomAsciiOfLength(7)));
-        }
-        clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
         RoutingAllocation routingAllocation = newRoutingAllocation(
             new AllocationDeciders(Settings.EMPTY, allocationDeciders), clusterState);
         // allocate and get the node that is now relocating
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         allocator.allocate(routingAllocation);
         ShardRouting shardToRebalance = null;
         for (RoutingNode routingNode : routingAllocation.routingNodes()) {
@@ -200,9 +215,15 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         }
 
         routingAllocation = newRoutingAllocation(new AllocationDeciders(Settings.EMPTY, allocationDeciders), clusterState);
+        routingAllocation.debugDecision(true);
         ShardRouting shard = clusterState.getRoutingNodes().activePrimary(shardToRebalance.shardId());
         RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertEquals(shardToRebalance.relocatingNodeId(), rebalanceDecision.getAssignedNodeId());
+        // make sure all excluded nodes returned a NO decision
+        for (String exludedNode : excludeNodes) {
+            NodeRebalanceDecision nodeRebalanceDecision = rebalanceDecision.getNodeDecisions().get(exludedNode);
+            assertEquals(Type.NO, nodeRebalanceDecision.getCanAllocateDecision().type());
+        }
     }
 
     private Tuple<ClusterState, RebalanceDecision> setupStateAndRebalance(AllocationDecider allocationDecider,

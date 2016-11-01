@@ -129,20 +129,28 @@ install_and_check_plugin() {
     shift
 
     if [ "$prefix" == "-" ]; then
-        local fullName="$name"
+        local full_name="$name"
     else
-        local fullName="$prefix-$name"
+        local full_name="$prefix-$name"
     fi
 
-    install_jvm_plugin $fullName "$(readlink -m $fullName-*.zip)"
+    install_jvm_plugin $full_name "$(readlink -m $full_name-*.zip)"
 
-    assert_module_or_plugin_directory "$ESPLUGINS/$fullName"
+    assert_module_or_plugin_directory "$ESPLUGINS/$full_name"
 
+    # analysis plugins have a corresponding analyzers jar
     if [ $prefix == 'analysis' ]; then
-        assert_module_or_plugin_file "$ESPLUGINS/$fullName/lucene-analyzers-$name-*.jar"
+        local analyzer_jar_suffix=$name
+        # the name of the analyzer jar for the ukrainian plugin does
+        # not match the name of the plugin, so we have to make an
+        # exception
+        if [ $name == 'ukrainian' ]; then
+             analyzer_jar_suffix='morfologik'
+        fi
+        assert_module_or_plugin_file "$ESPLUGINS/$full_name/lucene-analyzers-$analyzer_jar_suffix-*.jar"
     fi
     for file in "$@"; do
-        assert_module_or_plugin_file "$ESPLUGINS/$fullName/$file"
+        assert_module_or_plugin_file "$ESPLUGINS/$full_name/$file"
     done
 }
 

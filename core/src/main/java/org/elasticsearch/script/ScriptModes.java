@@ -72,7 +72,7 @@ public class ScriptModes {
     }
 
     static String sourceKey(ScriptType scriptType) {
-        return SCRIPT_SETTINGS_PREFIX + "." + scriptType.getScriptType();
+        return SCRIPT_SETTINGS_PREFIX + "." + scriptType.getName();
     }
 
     static String getGlobalKey(String lang, ScriptType scriptType) {

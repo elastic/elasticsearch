@@ -164,6 +164,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -535,13 +536,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         for (Discovery discovery : internalCluster().getInstances(Discovery.class)) {
                             if (discovery instanceof ZenDiscovery) {
                                 final ZenDiscovery zenDiscovery = (ZenDiscovery) discovery;
-                                assertBusy(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        assertThat("still having pending states: " + Strings.arrayToDelimitedString(zenDiscovery.pendingClusterStates(), "\n"),
-                                            zenDiscovery.pendingClusterStates(), emptyArray());
-                                    }
-                                });
+                                assertBusy(() -> assertThat(zenDiscovery.localNode().getName() + " still having pending states: \n" +
+                                        Arrays.stream(zenDiscovery.pendingClusterStates()).map(ClusterState::prettyPrint)
+                                            .collect(Collectors.joining("\n")),
+                                    zenDiscovery.pendingClusterStates(), emptyArray()));
                             }
                         }
                     }

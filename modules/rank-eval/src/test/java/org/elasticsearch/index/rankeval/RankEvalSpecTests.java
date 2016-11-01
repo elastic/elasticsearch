@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
@@ -104,9 +104,9 @@ public class RankEvalSpecTests extends ESTestCase {
 
         if (randomBoolean()) {
             final Map<String, Object> params = randomBoolean() ? null : Collections.singletonMap("key", "value");
-            ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+            ScriptType scriptType = randomFrom(ScriptType.values());
             String script;
-            if (scriptType == ScriptService.ScriptType.INLINE) {
+            if (scriptType == ScriptType.INLINE) {
                 try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
                     builder.startObject();
                     builder.field("field", randomAsciiOfLengthBetween(1, 5));
@@ -116,13 +116,13 @@ public class RankEvalSpecTests extends ESTestCase {
             } else {
                 script = randomAsciiOfLengthBetween(1, 5);
             }
-        
+
             testItem.setTemplate(new Script(
                         script,
                         scriptType,
                         randomFrom("_lang1", "_lang2", null),
                         params,
-                        scriptType == ScriptService.ScriptType.INLINE ? xContent.type() : null));
+                        scriptType == ScriptType.INLINE ? xContent.type() : null));
         }
 
         XContentBuilder builder = XContentFactory.contentBuilder(contentType);

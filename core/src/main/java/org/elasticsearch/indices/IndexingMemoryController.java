@@ -209,16 +209,10 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         recordOperationBytes(delete, result);
     }
 
-    /** called by IndexShard to record that this many bytes were written to translog */
+    /** called by IndexShard to record estimated bytes written to translog for the operation */
     private void recordOperationBytes(Engine.Operation operation, Engine.Result result) {
         if (result.hasFailure() == false) {
-            final int sizeInBytes;
-            if (result.getTranslogLocation() != null) {
-                sizeInBytes = result.getSizeInBytes();
-            } else {
-                sizeInBytes = operation.estimatedSizeInBytes();
-            }
-            statusChecker.bytesWritten(sizeInBytes);
+            statusChecker.bytesWritten(operation.estimatedSizeInBytes());
         }
     }
 

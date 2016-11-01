@@ -134,7 +134,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // execute item request
             final Engine.Result operationResult;
             final DocWriteResponse response;
-            BulkItemRequest replicaRequest = request.items()[requestIndex];
+            final BulkItemRequest replicaRequest;
             switch (itemRequest.opType()) {
                 case CREATE:
                 case INDEX:
@@ -144,6 +144,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     response = indexResult.hasFailure() ? null
                             : new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(),
                                 indexResult.getVersion(), indexResult.isCreated());
+                    replicaRequest = request.items()[requestIndex];
                     break;
                 case UPDATE:
                     UpdateResultHolder updateResultHolder = executeUpdateRequest(((UpdateRequest) itemRequest),
@@ -159,6 +160,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     response = deleteResult.hasFailure() ? null :
                             new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(),
                                 deleteResult.getVersion(), deleteResult.isFound());
+                    replicaRequest = request.items()[requestIndex];
                     break;
                 default: throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
             }

@@ -89,6 +89,9 @@ public abstract class TransportWriteAction<
                                   @Nullable Location location, @Nullable Exception operationFailure,
                                   IndexShard primary) {
             super(request, finalResponse, operationFailure);
+            if (location != null) {
+                assert operationFailure == null : "expected no failures when translog location is not null";
+            }
             if (operationFailure != null) {
                 this.finishedAsyncActions = true;
             } else {

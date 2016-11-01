@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -131,22 +132,23 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     public void testDocumentFailureInShardOperationOnPrimary() throws Exception {
-        handleDocumentFailure(new TestAction(true, true), TestAction::shardOperationOnPrimary, TestAction.WritePrimaryResult::respond);
+        TestRequest request = new TestRequest();
+        TestAction testAction = new TestAction(true, true);
+        TransportWriteAction<TestRequest, TestRequest, TestResponse>.WritePrimaryResult writePrimaryResult =
+                testAction.shardOperationOnPrimary(request, indexShard);
+        CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+        writePrimaryResult.respond(listener);
+        assertNull(listener.response);
+        assertNotNull(listener.failure);
     }
 
     public void testDocumentFailureInShardOperationOnReplica() throws Exception {
-        handleDocumentFailure(new TestAction(randomBoolean(), true), TestAction::shardOperationOnReplica,
-                TestAction.WriteReplicaResult::respond);
-    }
-
-    private <Result, Response> void handleDocumentFailure(TestAction testAction,
-                                                          ThrowingTriFunction<TestAction, TestRequest, IndexShard, Result> action,
-                                                          BiConsumer<Result, CapturingActionListener<Response>> responder)
-            throws Exception {
         TestRequest request = new TestRequest();
-        Result result = action.apply(testAction, request, indexShard);
-        CapturingActionListener<Response> listener = new CapturingActionListener<>();
-        responder.accept(result, listener);
+        TestAction testAction = new TestAction(randomBoolean(), true);
+        TransportWriteAction<TestRequest, TestRequest, TestResponse>.WriteReplicaResult writeReplicaResult =
+                testAction.shardOperationOnReplica(request, indexShard);
+        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
+        writeReplicaResult.respond(listener);
         assertNull(listener.response);
         assertNotNull(listener.failure);
     }

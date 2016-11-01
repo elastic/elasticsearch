@@ -378,7 +378,9 @@ public abstract class TransportReplicationAction<
          * expects <code>finalResponseIfSuccessful</code> or <code>finalFailure</code> to be not-null
          */
         public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponseIfSuccessful, Exception finalFailure) {
-            assert finalFailure != null ^ finalResponseIfSuccessful != null : "either a response or a failure has to be not null";
+            assert finalFailure != null ^ finalResponseIfSuccessful != null
+                    : "either a response or a failure has to be not null, " +
+                    "found [" + finalFailure + "] failure and ["+ finalResponseIfSuccessful + "] response";
             this.replicaRequest = replicaRequest;
             this.finalResponseIfSuccessful = finalResponseIfSuccessful;
             this.finalFailure = finalFailure;

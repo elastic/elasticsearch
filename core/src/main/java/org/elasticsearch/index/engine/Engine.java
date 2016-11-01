@@ -334,17 +334,9 @@ public abstract class Engine implements Closeable {
             return operationType;
         }
 
-        /** get size of the translog operation if translog location has been set */
-        public int getSizeInBytes() {
-            if (translogLocation != null) {
-                return translogLocation.size;
-            } else {
-                throw new IllegalStateException("result has null location, use Operation#estimatedSizeInBytes instead");
-            }
-        }
-
         void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze == false) {
+                assert failure == null : "failure has to be null to set translog location";
                 this.translogLocation = translogLocation;
             } else {
                 throw new IllegalStateException("result is already frozen");

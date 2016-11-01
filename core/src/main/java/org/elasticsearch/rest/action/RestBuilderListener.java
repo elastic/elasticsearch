@@ -36,7 +36,7 @@ public abstract class RestBuilderListener<Response> extends RestResponseListener
     public final RestResponse buildResponse(Response response) throws Exception {
         try (XContentBuilder builder = channel.newBuilder()) {
             final RestResponse restResponse = buildResponse(response, builder);
-            assert assertBuilderClosed(builder) : "callers should ensure the XContentBuilder is closed themselves";
+            assert assertBuilderClosed(builder);
             return restResponse;
         }
     }
@@ -49,6 +49,7 @@ public abstract class RestBuilderListener<Response> extends RestResponseListener
 
     // pkg private method that we can override for testing
     boolean assertBuilderClosed(XContentBuilder xContentBuilder) {
-        return xContentBuilder.generator().isClosed();
+        assert xContentBuilder.generator().isClosed() : "callers should ensure the XContentBuilder is closed themselves";
+        return true;
     }
 }

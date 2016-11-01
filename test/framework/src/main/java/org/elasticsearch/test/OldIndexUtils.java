@@ -124,12 +124,13 @@ public class OldIndexUtils {
             return src;
         } else {
             final List<Path> indexFolders = new ArrayList<>();
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir.resolve("0/indices"))) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir.resolve("0/indices"),
+                (p) -> p.getFileName().startsWith("extra") == false)) { // extra FS can break this...
                 for (final Path path : stream) {
                     indexFolders.add(path);
                 }
             }
-            assertThat(indexFolders.size(), equalTo(1));
+            assertThat(indexFolders.toString(), indexFolders.size(), equalTo(1));
             final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, indexFolders.get(0));
             assertNotNull(indexMetaData);
             assertThat(indexFolders.get(0).getFileName().toString(), equalTo(indexMetaData.getIndexUUID()));

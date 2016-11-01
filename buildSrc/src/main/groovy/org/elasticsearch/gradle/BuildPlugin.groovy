@@ -28,6 +28,7 @@ import org.gradle.api.Task
 import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ModuleDependency
+import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
@@ -294,7 +295,7 @@ class BuildPlugin implements Plugin<Project> {
      * Returns a closure which can be used with a MavenPom for fixing problems with gradle generated poms.
      *
      * <ul>
-     *     <li>Remove transitive dependencies (using wildcard exclusions, fixed in gradle 2.14)</li>
+     *     <li>Remove transitive dependencies (using explicit exclusions to be compatible with Ivy)</li>
      *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)
      * </ul>
      */
@@ -334,10 +335,19 @@ class BuildPlugin implements Plugin<Project> {
                     continue
                 }
 
-                // we now know we have something to exclude, so add a wildcard exclusion element
-                Node exclusion = depNode.appendNode('exclusions').appendNode('exclusion')
-                exclusion.appendNode('groupId', '*')
-                exclusion.appendNode('artifactId', '*')
+                // we now know we have something to exclude, so add exclusions for all artifacts except the main one
+                Node exclusions = depNode.appendNode('exclusions')
+                for (ResolvedArtifact artifact : artifacts) {
+                    ModuleVersionIdentifier moduleVersionIdentifier = artifact.moduleVersion.id;
+                    String depGroupId = moduleVersionIdentifier.group
+                    String depArtifactId = moduleVersionIdentifier.name
+                    // add exclusions for all artifacts except the main one
+                    if (depGroupId != groupId || depArtifactId != artifactId) {
+                        Node exclusion = exclusions.appendNode('exclusion')
+                        exclusion.appendNode('groupId', depGroupId)
+                        exclusion.appendNode('artifactId', depArtifactId)
+                    }
+                }
             }
         }
     }

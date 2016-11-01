@@ -186,83 +186,84 @@ public final class Script implements ToXContent, Writeable {
         return builder;
     }
 
-    public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return parse(parser, parseFieldMatcher, null);
+    public static Script parse(XContentParser parser, ParseFieldMatcher matcher) {
+        return parse(parser, matcher, null);
     }
 
     public static Script parse(XContentParser parser, QueryParseContext context) {
+        return parse(parser, context.getParseFieldMatcher(), null);
+    }
+
+    public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, @Nullable String lang) {
         try {
-            return parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+            XContentParser.Token token = parser.currentToken();
+            // If the parser hasn't yet been pushed to the first token, do it now
+            if (token == null) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.VALUE_STRING) {
+                return new Script(parser.text(), ScriptType.INLINE, lang, null);
+            }
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new ElasticsearchParseException("expected a string value or an object, but found [{}] instead", token);
+            }
+            String script = null;
+            ScriptType type = null;
+            Map<String, Object> params = null;
+            XContentType contentType = null;
+            String cfn = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    cfn = parser.currentName();
+                } else if (parseFieldMatcher.match(cfn, ScriptType.INLINE.getParseField())) {
+                    type = ScriptType.INLINE;
+                    if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                        contentType = parser.contentType();
+                        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+                        script = builder.copyCurrentStructure(parser).bytes().utf8ToString();
+                    } else {
+                        script = parser.text();
+                    }
+                } else if (parseFieldMatcher.match(cfn, ScriptType.FILE.getParseField())) {
+                    type = ScriptType.FILE;
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        script = parser.text();
+                    } else {
+                        throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
+                    }
+                } else if (parseFieldMatcher.match(cfn, ScriptType.STORED.getParseField())) {
+                    type = ScriptType.STORED;
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        script = parser.text();
+                    } else {
+                        throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
+                    }
+                } else if (parseFieldMatcher.match(cfn, ScriptField.LANG)) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        lang = parser.text();
+                    } else {
+                        throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
+                    }
+                } else if (parseFieldMatcher.match(cfn, ScriptField.PARAMS)) {
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        params = parser.map();
+                    } else {
+                        throw new ElasticsearchParseException("expected an object for field [{}], but found [{}]", cfn, token);
+                    }
+                } else {
+                    throw new ElasticsearchParseException("unexpected field [{}]", cfn);
+                }
+            }
+            if (script == null) {
+                throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none",
+                        ScriptType.INLINE.getParseField() .getPreferredName(), ScriptType.FILE.getParseField().getPreferredName(),
+                        ScriptType.STORED.getParseField() .getPreferredName());
+            }
+            return new Script(script, type, lang, params, contentType);
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "Error parsing [" + ScriptField.SCRIPT.getPreferredName() + "] field", e);
         }
-    }
 
-    public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, @Nullable String lang) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        // If the parser hasn't yet been pushed to the first token, do it now
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.VALUE_STRING) {
-            return new Script(parser.text(), ScriptType.INLINE, lang, null);
-        }
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("expected a string value or an object, but found [{}] instead", token);
-        }
-        String script = null;
-        ScriptType type = null;
-        Map<String, Object> params = null;
-        XContentType contentType = null;
-        String cfn = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                cfn = parser.currentName();
-            } else if (parseFieldMatcher.match(cfn, ScriptType.INLINE.getParseField())) {
-                type = ScriptType.INLINE;
-                if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                    contentType = parser.contentType();
-                    XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-                    script = builder.copyCurrentStructure(parser).bytes().utf8ToString();
-                } else {
-                    script = parser.text();
-                }
-            } else if (parseFieldMatcher.match(cfn, ScriptType.FILE.getParseField())) {
-                type = ScriptType.FILE;
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    script = parser.text();
-                } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
-                }
-            } else if (parseFieldMatcher.match(cfn, ScriptType.STORED.getParseField())) {
-                type = ScriptType.STORED;
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    script = parser.text();
-                } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
-                }
-            } else if (parseFieldMatcher.match(cfn, ScriptField.LANG)) {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    lang = parser.text();
-                } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
-                }
-            } else if (parseFieldMatcher.match(cfn, ScriptField.PARAMS)) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    params = parser.map();
-                } else {
-                    throw new ElasticsearchParseException("expected an object for field [{}], but found [{}]", cfn, token);
-                }
-            } else {
-                throw new ElasticsearchParseException("unexpected field [{}]", cfn);
-            }
-        }
-        if (script == null) {
-            throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none",
-                    ScriptType.INLINE.getParseField() .getPreferredName(), ScriptType.FILE.getParseField().getPreferredName(),
-                    ScriptType.STORED.getParseField() .getPreferredName());
-        }
-        return new Script(script, type, lang, params, contentType);
     }
 
     @Override
@@ -287,7 +288,7 @@ public final class Script implements ToXContent, Writeable {
     @Override
     public String toString() {
         return "[script: " + script + ", type: " + type.getParseField().getPreferredName() + ", lang: "
-                + lang + ", params: " + params + "]";
+                + lang + ", params: " + params + ", contentType: " + contentType + "]";
     }
 
     public interface ScriptField {

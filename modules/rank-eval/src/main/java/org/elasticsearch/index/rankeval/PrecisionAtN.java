@@ -51,7 +51,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
     /** ratings equal or above this value will be considered relevant. */
     private int relevantRatingThreshhold = 1;
 
-    public static final String NAME = "precisionatn";
+    public static final String NAME = "precision_atn";
 
     private static final ParseField SIZE_FIELD = new ParseField("size");
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");

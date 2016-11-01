@@ -1,10 +1,10 @@
 { 
-  "rank_eval": { 
+  "rank_eval_template": { 
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-rank-eval.html", 
     "methods": ["POST"], 
     "url": { 
-      "path": "/_rank_eval", 
-      "paths": ["/_rank_eval", "/{index}/_rank_eval", "/{index}/{type}/_rank_eval"], 
+      "path": "/_rank_eval/template", 
+      "paths": ["/_rank_eval/template", "/{index}/_rank_eval/template", "/{index}/{type}/_rank_eval/template"], 
       "parts": {
         "index": {
          "type": "list",
@@ -23,4 +23,3 @@
     } 
   } 
 }
-

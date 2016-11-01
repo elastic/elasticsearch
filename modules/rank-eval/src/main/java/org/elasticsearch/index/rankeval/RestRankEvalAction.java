@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
@@ -156,19 +157,31 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
  * */
 public class RestRankEvalAction extends BaseRestHandler {
-
     private SearchRequestParsers searchRequestParsers;
+    private ScriptService scriptService;
 
     @Inject
-    public RestRankEvalAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+    public RestRankEvalAction(
+            Settings settings, 
+            RestController controller, 
+            SearchRequestParsers searchRequestParsers, 
+            ScriptService scriptService) {
         super(settings);
         this.searchRequestParsers = searchRequestParsers;
+        this.scriptService = scriptService;
         controller.registerHandler(GET, "/_rank_eval", this);
         controller.registerHandler(POST, "/_rank_eval", this);
         controller.registerHandler(GET, "/{index}/_rank_eval", this);
         controller.registerHandler(POST, "/{index}/_rank_eval", this);
         controller.registerHandler(GET, "/{index}/{type}/_rank_eval", this);
         controller.registerHandler(POST, "/{index}/{type}/_rank_eval", this);
+
+        controller.registerHandler(GET, "/_rank_eval/template", this);
+        controller.registerHandler(POST, "/_rank_eval/template", this);
+        controller.registerHandler(GET, "/{index}/_rank_eval/template", this);
+        controller.registerHandler(POST, "/{index}/_rank_eval/template", this);
+        controller.registerHandler(GET, "/{index}/{type}/_rank_eval/template", this);
+        controller.registerHandler(POST, "/{index}/{type}/_rank_eval/template", this);
     }
 
     @Override
@@ -180,7 +193,7 @@ public class RestRankEvalAction extends BaseRestHandler {
             if (restContent != null) {
                 parseRankEvalRequest(rankEvalRequest, request,
                         // TODO can we get rid of aggregators parsers and suggesters?
-                        new RankEvalContext(parseFieldMatcher, parseContext, searchRequestParsers));
+                        new RankEvalContext(parseFieldMatcher, parseContext, searchRequestParsers, scriptService));
             }
         }
         return channel -> client.executeLocally(RankEvalAction.INSTANCE, rankEvalRequest,
@@ -191,7 +204,9 @@ public class RestRankEvalAction extends BaseRestHandler {
             throws IOException {
         List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
         List<String> types = Arrays.asList(Strings.splitStringByCommaToArray(request.param("type")));
-        RankEvalSpec spec = RankEvalSpec.parse(context.parser(), context);
+        RankEvalSpec spec = null;
+        boolean containsTemplate = request.path().contains("template");
+        spec = RankEvalSpec.parse(context.parser(), context, containsTemplate);
         for (RatedRequest specification : spec.getSpecifications()) {
             specification.setIndices(indices);
             specification.setTypes(types);

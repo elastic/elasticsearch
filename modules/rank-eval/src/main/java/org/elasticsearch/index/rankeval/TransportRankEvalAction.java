@@ -111,14 +111,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         @Override
         public void onResponse(SearchResponse searchResponse) {
             SearchHit[] hits = searchResponse.getHits().getHits();
-            EvalQueryQuality queryQuality = task.getEvaluator().evaluate(specification.getSpecId(), hits,
+            EvalQueryQuality queryQuality = task.getMetric().evaluate(specification.getSpecId(), hits,
                     specification.getRatedDocs());
             requestDetails.put(specification.getSpecId(), queryQuality);
 
             if (responseCounter.decrementAndGet() < 1) {
                 // TODO add other statistics like micro/macro avg?
                 listener.onResponse(
-                        new RankEvalResponse(task.getEvaluator().combine(requestDetails.values()), requestDetails));
+                        new RankEvalResponse(task.getMetric().combine(requestDetails.values()), requestDetails));
             }
         }
 

@@ -56,7 +56,7 @@
                 "ratings": [{"_index": "foo", "_type": "bar", "_id": "doc1", "rating": 1}]
             }
           ],
-          "metric" : { "precisionatn": { "size": 10}}
+          "metric" : { "precision_atn": { "size": 10}}
         }
 
   - match: { rank_eval.quality_level: 1}

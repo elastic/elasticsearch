@@ -22,9 +22,17 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
@@ -35,7 +43,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
@@ -89,13 +99,45 @@ public class RankEvalSpecTests extends ESTestCase {
 
         RankEvalSpec testItem = new RankEvalSpec(specs, metric);
 
-        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
+        XContentType contentType = ESTestCase.randomFrom(XContentType.values());
+        XContent xContent = contentType.xContent();
+
+        if (randomBoolean()) {
+            final Map<String, Object> params = randomBoolean() ? null : Collections.singletonMap("key", "value");
+            ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+            String script;
+            if (scriptType == ScriptService.ScriptType.INLINE) {
+                try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
+                    builder.startObject();
+                    builder.field("field", randomAsciiOfLengthBetween(1, 5));
+                    builder.endObject();
+                    script = builder.string();
+                }
+            } else {
+                script = randomAsciiOfLengthBetween(1, 5);
+            }
+        
+            testItem.setTemplate(new Script(
+                        script,
+                        scriptType,
+                        randomFrom("_lang1", "_lang2", null),
+                        params,
+                        scriptType == ScriptService.ScriptType.INLINE ? xContent.type() : null));
+        }
+
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        if (ESTestCase.randomBoolean()) {
+            builder.prettyPrint();
+        }
+        testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentBuilder shuffled = ESTestCase.shuffleXContent(builder);
+        XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
 
-        RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext);
+        RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext, false);
         // IRL these come from URL parameters - see RestRankEvalAction
         parsedItem.getSpecifications().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);});
         assertNotSame(testItem, parsedItem);

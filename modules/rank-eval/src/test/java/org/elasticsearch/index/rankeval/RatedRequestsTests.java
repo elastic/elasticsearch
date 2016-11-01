@@ -38,7 +38,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
@@ -81,6 +83,16 @@ public class RatedRequestsTests extends ESTestCase {
 
         RatedRequest ratedRequest = new RatedRequest(specId, testRequest, indices, types, ratedDocs);
 
+
+        if (randomBoolean()) {
+            Map<String, String> params = new HashMap<String, String>();
+            int randomSize = randomIntBetween(1, 10);
+            for (int i = 0; i < randomSize; i++) {
+                params.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+            }
+            ratedRequest.setParams(params);
+        }
+
         List<String> summaryFields = new ArrayList<>();
         int numSummaryFields = randomIntBetween(0, 5);
         for (int i = 0; i < numSummaryFields; i++) {
@@ -109,7 +121,7 @@ public class RatedRequestsTests extends ESTestCase {
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
 
         RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, rankContext);
         parsedItem.setIndices(indices); // IRL these come from URL parameters - see RestRankEvalAction
@@ -143,7 +155,7 @@ public class RatedRequestsTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
         RatedRequest specification = RatedRequest.fromXContent(parser, rankContext);
         assertEquals("my_qa_query", specification.getSpecId());
         assertNotNull(specification.getTestRequest());

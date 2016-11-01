@@ -46,8 +46,12 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                postIndex.incrementAndGet();
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
+                if (result.hasFailure() == false) {
+                    postIndex.incrementAndGet();
+                } else {
+                    postIndex(index, result.getFailure());
+                }
             }
 
             @Override
@@ -62,8 +66,12 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
-                postDelete.incrementAndGet();
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+                if (result.hasFailure() == false) {
+                    postDelete.incrementAndGet();
+                } else {
+                    postDelete(delete, result.getFailure());
+                }
             }
 
             @Override
@@ -79,12 +87,14 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                throw new RuntimeException();            }
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
+                throw new RuntimeException();
+            }
 
             @Override
             public void postIndex(Engine.Index index, Exception ex) {
-                throw new RuntimeException();            }
+                throw new RuntimeException();
+            }
 
             @Override
             public Engine.Delete preDelete(Engine.Delete delete) {
@@ -92,8 +102,9 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
-                throw new RuntimeException();            }
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+                throw new RuntimeException();
+            }
 
             @Override
             public void postDelete(Engine.Delete delete, Exception ex) {
@@ -111,7 +122,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         IndexingOperationListener.CompositeListener compositeListener = new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
-        compositeListener.postDelete(delete);
+        compositeListener.postDelete(delete, new Engine.DeleteResult(1, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -135,7 +146,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(index, false);
+        compositeListener.postIndex(index, new Engine.IndexResult(0, false));
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());

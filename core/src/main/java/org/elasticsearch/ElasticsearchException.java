@@ -19,7 +19,6 @@
 
 package org.elasticsearch;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -488,7 +487,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         SNAPSHOT_CREATION_EXCEPTION(org.elasticsearch.snapshots.SnapshotCreationException.class,
                 org.elasticsearch.snapshots.SnapshotCreationException::new, 27),
         DELETE_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.DeleteFailedEngineException.class,
-                org.elasticsearch.index.engine.DeleteFailedEngineException::new, 28),
+                org.elasticsearch.index.engine.DeleteFailedEngineException::new, 28),// deprecated in 6.0, remove in 7.0
         DOCUMENT_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentMissingException.class,
                 org.elasticsearch.index.engine.DocumentMissingException::new, 29),
         SNAPSHOT_EXCEPTION(org.elasticsearch.snapshots.SnapshotException.class,
@@ -582,7 +581,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ROUTING_MISSING_EXCEPTION(org.elasticsearch.action.RoutingMissingException.class,
                 org.elasticsearch.action.RoutingMissingException::new, 79),
         INDEX_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.IndexFailedEngineException.class,
-                org.elasticsearch.index.engine.IndexFailedEngineException::new, 80),
+                org.elasticsearch.index.engine.IndexFailedEngineException::new, 80), // deprecated in 6.0, remove in 7.0
         INDEX_SHARD_RESTORE_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreFailedException::new, 81),
         REPOSITORY_EXCEPTION(org.elasticsearch.repositories.RepositoryException.class,

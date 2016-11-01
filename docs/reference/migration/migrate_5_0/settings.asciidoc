@@ -230,7 +230,7 @@ the cache implementation used for the request cache and the field data cache.
 
 ==== Using system properties to configure Elasticsearch
 
-Elasticsearch can no longer be configured by setting system properties.
+Elasticsearch can no longer be configured by setting system properties (eg. -Des.name.of.setting=value.of.setting).
 Instead, use `-Ename.of.setting=value.of.setting`.
 
 ==== Removed using double-dashes to configure Elasticsearch

@@ -115,21 +115,21 @@ public class EnableAllocationDecider extends AllocationDecider {
             case ALL:
                 return allocation.decision(Decision.YES, NAME, "all allocations are allowed");
             case NONE:
-                return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to " + setting(enable, usedIndexSetting));
+                return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to {}", setting(enable, usedIndexSetting));
             case NEW_PRIMARIES:
                 if (shardRouting.primary() && shardRouting.active() == false &&
                     shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
                     return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden due to " +
-                                                                      setting(enable, usedIndexSetting));
+                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden due to {}",
+                                                setting(enable, usedIndexSetting));
                 }
             case PRIMARIES:
                 if (shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden due to " +
-                                                                      setting(enable, usedIndexSetting));
+                    return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden due to {}",
+                                                setting(enable, usedIndexSetting));
                 }
             default:
                 throw new IllegalStateException("Unknown allocation option");
@@ -156,20 +156,20 @@ public class EnableAllocationDecider extends AllocationDecider {
             case ALL:
                 return allocation.decision(Decision.YES, NAME, "all rebalancing is allowed");
             case NONE:
-                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to " + setting(enable, usedIndexSetting));
+                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to {}", setting(enable, usedIndexSetting));
             case PRIMARIES:
                 if (shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "primary rebalancing is allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to " +
-                                                                      setting(enable, usedIndexSetting));
+                    return allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to {}",
+                                                setting(enable, usedIndexSetting));
                 }
             case REPLICAS:
                 if (shardRouting.primary() == false) {
                     return allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to " +
-                                                                      setting(enable, usedIndexSetting));
+                    return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to {}",
+                                                setting(enable, usedIndexSetting));
                 }
             default:
                 throw new IllegalStateException("Unknown rebalance option");

@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -40,10 +41,12 @@ import java.util.function.Predicate;
 public class MetaStateService extends AbstractComponent {
 
     private final NodeEnvironment nodeEnv;
+    private final MetaData.Format format;
 
-    public MetaStateService(Settings settings, NodeEnvironment nodeEnv) {
+    public MetaStateService(Settings settings, NodeEnvironment nodeEnv, CustomPrototypeRegistry registry) {
         super(settings);
         this.nodeEnv = nodeEnv;
+        this.format = new MetaData.Format(registry);
     }
 
     /**
@@ -106,7 +109,7 @@ public class MetaStateService extends AbstractComponent {
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     MetaData loadGlobalState() throws IOException {
-        MetaData globalState = MetaData.FORMAT.loadLatestState(logger, nodeEnv.nodeDataPaths());
+        MetaData globalState = format.loadLatestState(logger, nodeEnv.nodeDataPaths());
         // ES 2.0 now requires units for all time and byte-sized settings, so we add the default unit if it's missing
         // TODO: can we somehow only do this for pre-2.0 cluster state?
         if (globalState != null) {
@@ -139,7 +142,7 @@ public class MetaStateService extends AbstractComponent {
     void writeGlobalState(String reason, MetaData metaData) throws Exception {
         logger.trace("[_global] writing state, reason [{}]",  reason);
         try {
-            MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());
+            format.write(metaData, nodeEnv.nodeDataPaths());
         } catch (Exception ex) {
             logger.warn("[_global]: failed to write global state", ex);
             throw new IOException("failed to write global state", ex);

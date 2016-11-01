@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.ParseFieldMatcher;
 
 import java.io.IOException;
@@ -30,5 +31,5 @@ public interface FromXContentBuilder<T> {
     /**
      * Parses an object with the type T from parser
      */
-    T fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException;
+    T fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, CustomPrototypeRegistry registry) throws IOException;
 }

@@ -23,6 +23,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -73,8 +74,10 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param compress       true if the content should be compressed
      * @param xContentType   content type that should be used for write operations
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher, boolean compress, XContentType xContentType) {
-        super(blobNameFormat, reader, parseFieldMatcher);
+    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContentBuilder<T> reader,
+                                   ParseFieldMatcher parseFieldMatcher, boolean compress, XContentType xContentType,
+                                   CustomPrototypeRegistry customPrototypeRegistry) {
+        super(blobNameFormat, reader, parseFieldMatcher, customPrototypeRegistry);
         this.xContentType = xContentType;
         this.compress = compress;
         this.codec = codec;
@@ -86,8 +89,9 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param reader         prototype object that can deserialize T from XContent
      * @param compress       true if the content should be compressed
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher, boolean compress) {
-        this(codec, blobNameFormat, reader, parseFieldMatcher, compress, DEFAULT_X_CONTENT_TYPE);
+    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContentBuilder<T> reader,
+                                   ParseFieldMatcher parseFieldMatcher, boolean compress, CustomPrototypeRegistry customPrototypeRegistry) {
+        this(codec, blobNameFormat, reader, parseFieldMatcher, compress, DEFAULT_X_CONTENT_TYPE, customPrototypeRegistry);
     }
 
     /**

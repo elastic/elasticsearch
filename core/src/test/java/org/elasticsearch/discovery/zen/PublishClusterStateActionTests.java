@@ -26,8 +26,10 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -85,6 +87,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class PublishClusterStateActionTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
+    private static final CustomPrototypeRegistry REGISTRY = new CustomPrototypeRegistry(Collections.emptyMap(),
+            Collections.singletonMap(IndexGraveyard.PROTO.type(), IndexGraveyard.PROTO), Collections.emptyMap());
 
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = new HashMap<>();
@@ -876,7 +880,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         public MockPublishAction(Settings settings, TransportService transportService,
                                  Supplier<ClusterState> clusterStateSupplier, NewPendingClusterStateListener listener,
                                  DiscoverySettings discoverySettings, ClusterName clusterName) {
-            super(settings, transportService, clusterStateSupplier, listener, discoverySettings, clusterName);
+            super(settings, transportService, clusterStateSupplier, listener, discoverySettings, clusterName, REGISTRY);
         }
 
         @Override

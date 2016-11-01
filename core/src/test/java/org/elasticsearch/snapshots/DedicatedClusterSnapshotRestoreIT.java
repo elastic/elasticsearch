@@ -50,6 +50,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -93,7 +94,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class);
+        return Arrays.asList(MockRepository.Plugin.class, TestPlugin.class);
     }
 
     public void testRestorePersistentSettings() throws Exception {
@@ -893,12 +894,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ));
     }
 
-    static {
-        MetaData.registerPrototype(SnapshottableMetadata.TYPE, SnapshottableMetadata.PROTO);
-        MetaData.registerPrototype(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata.PROTO);
-        MetaData.registerPrototype(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata.PROTO);
-        MetaData.registerPrototype(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata.PROTO);
-        MetaData.registerPrototype(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata.PROTO);
+    public static class TestPlugin extends Plugin implements ClusterPlugin {
+        @Override
+        public Collection<MetaData.Custom> getCustomMetadata() {
+            return Arrays.asList(
+                    SnapshottableMetadata.PROTO, NonSnapshottableMetadata.PROTO, SnapshottableGatewayMetadata.PROTO,
+                    NonSnapshottableGatewayMetadata.PROTO, SnapshotableGatewayNoApiMetadata.PROTO
+            );
+        }
     }
 
     public static class SnapshottableMetadata extends TestCustomMetaData {

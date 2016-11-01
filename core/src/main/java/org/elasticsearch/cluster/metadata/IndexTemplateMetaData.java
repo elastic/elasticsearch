@@ -215,9 +215,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);
+            builder.putCustom(customIndexMetaData.type(), customIndexMetaData);
         }
         if (in.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
             builder.version(in.readOptionalVInt());
@@ -254,7 +253,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings");
         static {
-            VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
+            // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
+//            VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
         }
 
         private String name;
@@ -453,15 +453,16 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
                     } else {
+                        // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
                         // check if its a custom index metadata
-                        IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(currentFieldName);
+                        /*IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(currentFieldName);
                         if (proto == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
                             IndexMetaData.Custom custom = proto.fromXContent(parser);
                             builder.putCustom(custom.type(), custom);
-                        }
+                        }*/
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -139,7 +140,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private volatile NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
 
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
-                        ClusterService clusterService, ClusterSettings clusterSettings, ZenPing zenPing) {
+                        ClusterService clusterService, ClusterSettings clusterSettings, ZenPing zenPing,
+                        CustomPrototypeRegistry registry) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterName = clusterService.getClusterName();
@@ -180,7 +182,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         clusterService::state,
                         new NewPendingClusterStateListener(),
                         discoverySettings,
-                        clusterService.getClusterName());
+                        clusterService.getClusterName(), registry);
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
         this.joinThreadControl = new JoinThreadControl(threadPool);
 

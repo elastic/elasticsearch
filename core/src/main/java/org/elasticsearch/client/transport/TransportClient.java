@@ -28,6 +28,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -45,6 +47,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -120,10 +123,13 @@ public abstract class TransportClient extends AbstractClient {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
+            CustomPrototypeRegistry registry =
+                ClusterModule.createCustomPrototypeRegistry(pluginsService.filterPlugins(ClusterPlugin.class));
 
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(NetworkModule.getNamedWriteables());
+            entries.addAll(registry.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
                                          .flatMap(p -> p.getNamedWriteables().stream())

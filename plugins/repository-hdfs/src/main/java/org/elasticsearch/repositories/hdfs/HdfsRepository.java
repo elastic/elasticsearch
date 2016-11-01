@@ -37,6 +37,7 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -60,8 +61,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     // TODO: why 100KB?
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
-    public HdfsRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
-        super(metadata, environment.settings());
+    public HdfsRepository(RepositoryMetaData metadata, Environment environment, CustomPrototypeRegistry customPrototypeRegistry) throws IOException {
+        super(metadata, environment.settings(), customPrototypeRegistry);
 
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
         this.compress = metadata.settings().getAsBoolean("compress", false);

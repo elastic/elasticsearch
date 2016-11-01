@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -43,13 +43,13 @@ public class RepositoriesModule extends AbstractModule {
 
     private final Map<String, Repository.Factory> repositoryTypes;
 
-    public RepositoriesModule(Environment env, List<RepositoryPlugin> repoPlugins) {
+    public RepositoriesModule(Environment env, List<RepositoryPlugin> repoPlugins, CustomPrototypeRegistry registry) {
         Map<String, Repository.Factory> factories = new HashMap<>();
-        factories.put(FsRepository.TYPE, (metadata) -> new FsRepository(metadata, env));
-        factories.put(URLRepository.TYPE, (metadata) -> new URLRepository(metadata, env));
+        factories.put(FsRepository.TYPE, (metadata) -> new FsRepository(metadata, env, registry));
+        factories.put(URLRepository.TYPE, (metadata) -> new URLRepository(metadata, env, registry));
 
         for (RepositoryPlugin repoPlugin : repoPlugins) {
-            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getRepositories(env);
+            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getRepositories(env, registry);
             for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
                 if (factories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Repository type [" + entry.getKey() + "] is already registered");

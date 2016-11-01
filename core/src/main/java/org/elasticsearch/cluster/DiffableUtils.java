@@ -605,7 +605,10 @@ public final class DiffableUtils {
      * Note: this implementation is ignoring the key.
      */
     public static class DiffablePrototypeValueReader<K, V extends Diffable<V>> extends DiffableValueSerializer<K, V> {
+
         private final V proto;
+        // can be an empty registry as here this reader isn't used to write generic customs directly:
+        private final CustomPrototypeRegistry registry = CustomPrototypeRegistry.EMPTY;
 
         public DiffablePrototypeValueReader(V proto) {
             this.proto = proto;
@@ -618,7 +621,7 @@ public final class DiffableUtils {
 
         @Override
         public Diff<V> readDiff(StreamInput in, K key) throws IOException {
-            return proto.readDiffFrom(in);
+            return proto.readDiffFrom(in, registry);
         }
     }
 

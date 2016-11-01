@@ -24,6 +24,7 @@ import com.amazonaws.Protocol;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.AwsS3Service.CLOUD_S3;
 import org.elasticsearch.cloud.aws.blobstore.S3BlobStore;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -273,8 +274,8 @@ public class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    public S3Repository(RepositoryMetaData metadata, Settings settings, AwsS3Service s3Service) throws IOException {
-        super(metadata, settings);
+    public S3Repository(RepositoryMetaData metadata, Settings settings, AwsS3Service s3Service, CustomPrototypeRegistry customPrototypeRegistry) throws IOException {
+        super(metadata, settings, customPrototypeRegistry);
 
         String bucket = getValue(metadata.settings(), settings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
         if (bucket == null) {

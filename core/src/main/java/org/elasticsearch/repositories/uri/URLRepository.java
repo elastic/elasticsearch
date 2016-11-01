@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.uri;
 
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -77,8 +78,8 @@ public class URLRepository extends BlobStoreRepository {
     /**
      * Constructs a read-only URL-based repository
      */
-    public URLRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
-        super(metadata, environment.settings());
+    public URLRepository(RepositoryMetaData metadata, Environment environment, CustomPrototypeRegistry customPrototypeRegistry) throws IOException {
+        super(metadata, environment.settings(), customPrototypeRegistry);
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(settings) ==  false) {
             throw new RepositoryException(metadata.name(), "missing url");

@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -497,7 +498,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
             @Override
             public MetaData fromXContent(XContentParser parser) throws IOException {
-                return MetaData.Builder.fromXContent(parser);
+                return MetaData.Builder.fromXContent(parser, CustomPrototypeRegistry.EMPTY);
             }
         };
         MetaDataStateFormat<IndexMetaData> indexFormat = new MetaDataStateFormat<IndexMetaData>(XContentType.JSON, "state-") {

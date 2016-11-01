@@ -313,14 +313,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
-                    }
-                }
+                // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
+//                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
+//                if (proto != null) {
+//                    try {
+//                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
+//                    } catch (IOException e) {
+//                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
+//                    }
+//                }
             }
         }
         return this;
@@ -459,9 +460,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);
+            customs.put(customIndexMetaData.type(), customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {

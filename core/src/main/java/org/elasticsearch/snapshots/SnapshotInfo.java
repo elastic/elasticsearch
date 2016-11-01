@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -374,7 +375,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     @Override
-    public SnapshotInfo fromXContent(final XContentParser parser, final ParseFieldMatcher matcher) throws IOException {
+    public SnapshotInfo fromXContent(final XContentParser parser, final ParseFieldMatcher matcher,
+                                     CustomPrototypeRegistry registry) throws IOException {
         return fromXContent(parser);
     }
 

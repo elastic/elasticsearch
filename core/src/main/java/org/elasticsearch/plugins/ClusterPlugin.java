@@ -24,6 +24,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -58,4 +61,17 @@ public interface ClusterPlugin {
     default Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
         return Collections.emptyMap();
     }
+
+    default Collection<ClusterState.Custom> getCustomClusterState() {
+        return Collections.emptyList();
+    }
+
+    default Collection<MetaData.Custom> getCustomMetadata() {
+        return Collections.emptyList();
+    }
+
+    default Collection<IndexMetaData.Custom> getCustomIndexMetadata() {
+        return Collections.emptyList();
+    }
+
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
@@ -233,7 +234,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     }
 
     @Override
-    public BlobStoreIndexShardSnapshots fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public BlobStoreIndexShardSnapshots fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, CustomPrototypeRegistry registry) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) { // New parser
             token = parser.nextToken();

@@ -354,7 +354,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
             modules.add(new GatewayModule());
-            modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
+            modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class), clusterModule.getRegistry()));
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
@@ -362,6 +362,7 @@ public class Node implements Closeable {
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
+                clusterModule.getRegistry().getNamedWriteables().stream(),
                 NetworkModule.getNamedWriteables().stream(),
                 indicesModule.getNamedWriteables().stream(),
                 searchModule.getNamedWriteables().stream(),
@@ -369,7 +370,7 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getNamedWriteables().stream()))
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-            final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
+            final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment, clusterModule.getRegistry());
             client = new NodeClient(settings, threadPool);
             final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment,
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -173,7 +174,7 @@ public final class IndexGraveyard implements MetaData.Custom {
     }
 
     @Override
-    public Diff<MetaData.Custom> readDiffFrom(final StreamInput in) throws IOException {
+    public Diff<MetaData.Custom> readDiffFrom(final StreamInput in, CustomPrototypeRegistry registry) throws IOException {
         return new IndexGraveyardDiff(in);
     }
 

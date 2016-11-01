@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -515,7 +516,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
-            MetaData.FORMAT.write(brokenMeta, nodeEnv.nodeDataPaths());
+            new MetaData.Format(CustomPrototypeRegistry.EMPTY).write(brokenMeta, nodeEnv.nodeDataPaths());
         }
         internalCluster().fullRestart();
         ensureYellow("test"); // wait for state recovery

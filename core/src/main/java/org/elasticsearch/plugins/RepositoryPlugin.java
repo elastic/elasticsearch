@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import java.util.Collections;
 import java.util.Map;
 
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.Repository;
 
@@ -34,11 +35,12 @@ public interface RepositoryPlugin {
      * Returns repository types added by this plugin.
      *
      * @param env The environment for the local node, which may be used for the local settings and path.repo
+     * @param registry The registry for custom cluster metadata
      *
      * The key of the returned {@link Map} is the type name of the repository and
      * the value is a factory to construct the {@link Repository} interface.
      */
-    default Map<String, Repository.Factory> getRepositories(Environment env) {
+    default Map<String, Repository.Factory> getRepositories(Environment env, CustomPrototypeRegistry registry) {
         return Collections.emptyMap();
     }
 }

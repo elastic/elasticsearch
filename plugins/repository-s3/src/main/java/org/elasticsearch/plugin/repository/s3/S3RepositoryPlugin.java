@@ -30,6 +30,7 @@ import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.InternalAwsS3Service;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -71,9 +72,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, CustomPrototypeRegistry registry) {
         return Collections.singletonMap(S3Repository.TYPE,
-            (metadata) -> new S3Repository(metadata, env.settings(), createStorageService(env.settings())));
+            (metadata) -> new S3Repository(metadata, env.settings(), createStorageService(env.settings()), registry));
     }
 
     @Override

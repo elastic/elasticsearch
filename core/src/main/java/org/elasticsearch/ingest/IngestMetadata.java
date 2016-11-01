@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -125,7 +126,7 @@ public final class IngestMetadata implements MetaData.Custom {
     }
 
     @Override
-    public Diff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public Diff<MetaData.Custom> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
         return new IngestMetadataDiff(in);
     }
 

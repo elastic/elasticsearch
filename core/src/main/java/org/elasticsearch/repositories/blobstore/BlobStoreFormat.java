@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -44,6 +45,8 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
 
     protected final ParseFieldMatcher parseFieldMatcher;
 
+    protected final CustomPrototypeRegistry customPrototypeRegistry;
+
     // Serialization parameters to specify correct context for metadata serialization
     protected static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
 
@@ -61,11 +64,14 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
      * @param blobNameFormat format of the blobname in {@link String#format(Locale, String, Object...)} format
      * @param reader the prototype object that can deserialize objects with type T
      * @param parseFieldMatcher parse field matcher
+     * @param registry The custom cluster metadata registry
      */
-    protected BlobStoreFormat(String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher) {
+    protected BlobStoreFormat(String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher,
+                              CustomPrototypeRegistry registry) {
         this.reader = reader;
         this.blobNameFormat = blobNameFormat;
         this.parseFieldMatcher = parseFieldMatcher;
+        this.customPrototypeRegistry = registry;
     }
 
     /**
@@ -110,7 +116,7 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
 
     protected T read(BytesReference bytes) throws IOException {
         try (XContentParser parser = XContentHelper.createParser(bytes)) {
-            T obj = reader.fromXContent(parser, parseFieldMatcher);
+            T obj = reader.fromXContent(parser, parseFieldMatcher, customPrototypeRegistry);
             return obj;
 
         }

@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -55,7 +54,7 @@ public class IndexMetaDataTests extends ESTestCase {
         metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
-        final IndexMetaData fromXContentMeta = IndexMetaData.PROTO.fromXContent(parser, null);
+        final IndexMetaData fromXContentMeta = IndexMetaData.PROTO.fromXContent(parser, null, null);
         assertEquals(metaData, fromXContentMeta);
         assertEquals(metaData.hashCode(), fromXContentMeta.hashCode());
 

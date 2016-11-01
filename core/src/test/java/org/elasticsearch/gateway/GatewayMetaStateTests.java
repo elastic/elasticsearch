@@ -61,12 +61,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class GatewayMetaStateTests extends ESAllocationTestCase {
 
-    @Before
-    public void setup() {
-        MetaData.registerPrototype(CustomMetaData1.TYPE, new CustomMetaData1(""));
-        MetaData.registerPrototype(CustomMetaData2.TYPE, new CustomMetaData2(""));
-    }
-
     ClusterChangedEvent generateEvent(boolean initializing, boolean versionChanged, boolean masterEligible) {
         //ridiculous settings to make sure we don't run into uninitialized because fo default
         AllocationService strategy = createAllocationService(Settings.builder()

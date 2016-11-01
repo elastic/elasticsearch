@@ -393,16 +393,17 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
             } else {
+                // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
                 // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    found = true;
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
-                    }
-                }
+//                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
+//                if (proto != null) {
+//                    found = true;
+//                    try {
+//                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
+//                    } catch (IOException e) {
+//                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
+//                    }
+//                }
             }
         }
         if (!found) {
@@ -489,9 +490,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);
+            customs.put(customIndexMetaData.type(), customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {

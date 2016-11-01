@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.services.storage.Storage;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -71,9 +72,9 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final BlobPath basePath;
     private final GoogleCloudStorageBlobStore blobStore;
 
-    public GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
-                                        GoogleCloudStorageService storageService) throws Exception {
-        super(metadata, environment.settings());
+    public GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment, GoogleCloudStorageService storageService,
+                                        CustomPrototypeRegistry customPrototypeRegistry) throws Exception {
+        super(metadata, environment.settings(), customPrototypeRegistry);
 
         String bucket = get(BUCKET, metadata);
         String application = get(APPLICATION_NAME, metadata);

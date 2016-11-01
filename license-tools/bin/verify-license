@@ -26,7 +26,7 @@ LICENSE_HOME=`dirname "$SCRIPT"`/..
 LICENSE_HOME=`cd "$LICENSE_HOME"; pwd`
 
 # setup classpath
-LICENSE_CLASSPATH=$LICENSE_CLASSPATH:$LICENSE_HOME/lib/${project.artifactId}-${project.version}-exec.jar:$LICENSE_HOME/lib/*
+LICENSE_CLASSPATH=$LICENSE_CLASSPATH:$LICENSE_HOME/lib/*
 
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java

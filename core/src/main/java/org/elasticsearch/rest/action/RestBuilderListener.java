@@ -34,11 +34,22 @@ public abstract class RestBuilderListener<Response> extends RestResponseListener
 
     @Override
     public final RestResponse buildResponse(Response response) throws Exception {
-        return buildResponse(response, channel.newBuilder());
+        try (XContentBuilder builder = channel.newBuilder()) {
+            final RestResponse restResponse = buildResponse(response, builder);
+            assert assertBuilderClosed(builder);
+            return restResponse;
+        }
     }
 
     /**
-     * Builds a response to send back over the channel.
+     * Builds a response to send back over the channel. Implementors should ensure that they close the provided {@link XContentBuilder}
+     * using the {@link XContentBuilder#close()} method.
      */
     public abstract RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception;
+
+    // pkg private method that we can override for testing
+    boolean assertBuilderClosed(XContentBuilder xContentBuilder) {
+        assert xContentBuilder.generator().isClosed() : "callers should ensure the XContentBuilder is closed themselves";
+        return true;
+    }
 }

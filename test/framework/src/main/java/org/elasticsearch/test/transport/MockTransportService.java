@@ -59,9 +59,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -301,7 +301,8 @@ public final class MockTransportService extends TransportService {
         final long startTime = System.currentTimeMillis();
 
         addDelegate(transportAddress, new ClearableTransport(original) {
-            private final Queue<Runnable> requestsToSendWhenCleared = new ConcurrentLinkedQueue<>();
+            private final Queue<Runnable> requestsToSendWhenCleared = new LinkedBlockingDeque<Runnable>();
+            private boolean cleared = false;
 
             TimeValue getDelay() {
                 return new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
@@ -388,15 +389,24 @@ public final class MockTransportService extends TransportService {
                 };
 
                 // store the request to send it once the rule is cleared.
-                requestsToSendWhenCleared.add(runnable);
-
-                threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
+                synchronized (this) {
+                    if (cleared) {
+                        runnable.run();
+                    } else {
+                        requestsToSendWhenCleared.add(runnable);
+                        threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
+                    }
+                }
             }
 
 
             @Override
             public void clearRule() {
-                requestsToSendWhenCleared.forEach(Runnable::run);
+                synchronized (this) {
+                    assert cleared == false;
+                    cleared = true;
+                    requestsToSendWhenCleared.forEach(Runnable::run);
+                }
             }
         });
     }

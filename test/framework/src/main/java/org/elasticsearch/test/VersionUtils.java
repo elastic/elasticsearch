@@ -65,12 +65,6 @@ public class VersionUtils {
     }
 
     public static Version getPreviousVersion(Version version) {
-        assert SORTED_VERSIONS.indexOf(Version.CURRENT.minimumCompatibilityVersion()) == -1
-            && Version.CURRENT == Version.V_5_1_0: "remove the hack below";
-        if (version.equals(Version.CURRENT.minimumCompatibilityVersion())) {
-            // remove this hack here once 5.0.0 is released
-            version = Version.CURRENT;
-        }
         int index = SORTED_VERSIONS.indexOf(version);
         assert index > 0;
         return SORTED_VERSIONS.get(index - 1);
@@ -104,21 +98,12 @@ public class VersionUtils {
             maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
         }
         if (minVersionIndex == -1) {
-            if (minVersion.id == 5000099 && Version.V_5_1_0.equals(maxVersion)) {
-                assert Version.CURRENT == maxVersion;
-                // this is a hack to make tests work that use randomVersionBetween(CURRENT.minimumCompatibilityVersion(), CURRENT)
-                // on the 5.x branch while 5.0 has not yet been release (not in the SORTED_VERSIONS) and CURRENT is 5.1 such that
-                // CURRENT.minimumCompatibilityVersion() returns 5.0.0 and we fail. This has just been added to the 5.x branch for
-                // the time being, once we release 5.0 and add it to the Version.java class we will trip the assertion below.
-                return random.nextBoolean() ? minVersion : maxVersion;
-            }
             throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
         } else if (maxVersionIndex == -1) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
         } else if (minVersionIndex > maxVersionIndex) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         } else {
-            assert minVersion == null || minVersion.id != 5000099 : "remove the hack above"; // will fail once 5.0.0 is released
             // minVersionIndex is inclusive so need to add 1 to this index
             int range = maxVersionIndex + 1 - minVersionIndex;
             return SORTED_VERSIONS.get(minVersionIndex + random.nextInt(range));

@@ -214,6 +214,17 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
           MavenFilteringHack.filter(it, expansions)
         }
       }
+      into('') {
+        // CopySpec does not make it easy to create an empty directory
+        // so we create the directory that we want, and then point
+        // CopySpec to its parent to copy to the root of the
+        // distribution
+        File plugins = new File(buildDir, 'plugins-hack/plugins')
+        plugins.mkdirs()
+        from {
+          plugins.getParent()
+        }
+      }
       with commonFiles
       from('../src/main/resources') {
         include 'bin/*.exe'

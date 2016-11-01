@@ -73,7 +73,7 @@ setup() {
     verify_package_installation
 }
 
-@test "[RPM] verify elasticsearch-plugin list runs" {
+@test "[RPM] verify elasticsearch-plugin list runs without any plugins installed" {
     local plugins_list=`$ESHOME/bin/elasticsearch-plugin list`
     [[ -z $plugins_list ]]
 }

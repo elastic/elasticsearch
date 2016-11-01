@@ -278,9 +278,25 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract IndexResult index(Index operation);
+    /**
+     * Perform document index operation on the engine
+     * @param index operation to perform
+     * @return {@link IndexResult} containing updated translog location, version and
+     * document specific failures
+     *
+     * Note: engine level failures (i.e. persistent engine failures) are thrown
+     */
+    public abstract IndexResult index(final Index index);
 
-    public abstract DeleteResult delete(Delete delete);
+    /**
+     * Perform document delete operation on the engine
+     * @param delete operation to perform
+     * @return {@link DeleteResult} containing updated translog location, version and
+     * document specific failures
+     *
+     * Note: engine level failures (i.e. persistent engine failures) are thrown
+     */
+    public abstract DeleteResult delete(final Delete delete);
 
     /**
      * Base class for index and delete operation results
@@ -291,9 +307,9 @@ public abstract class Engine implements Closeable {
         private final Operation.TYPE operationType;
         private final long version;
         private final Exception failure;
+        private final SetOnce<Boolean> freeze = new SetOnce<>();
         private Translog.Location translogLocation;
         private long took;
-        private boolean freeze;
 
         protected Result(Operation.TYPE operationType, Exception failure, long version) {
             this.operationType = operationType;
@@ -335,7 +351,7 @@ public abstract class Engine implements Closeable {
         }
 
         void setTranslogLocation(Translog.Location translogLocation) {
-            if (freeze == false) {
+            if (freeze.get() == null) {
                 assert failure == null : "failure has to be null to set translog location";
                 this.translogLocation = translogLocation;
             } else {
@@ -344,7 +360,7 @@ public abstract class Engine implements Closeable {
         }
 
         void setTook(long took) {
-            if (freeze == false) {
+            if (freeze.get() == null) {
                 this.took = took;
             } else {
                 throw new IllegalStateException("result is already frozen");
@@ -352,7 +368,7 @@ public abstract class Engine implements Closeable {
         }
 
         void freeze() {
-            this.freeze = true;
+            freeze.set(true);
         }
     }
 

@@ -424,8 +424,7 @@ public class InternalEngine extends Engine {
             // errors and returns true if that is the case. We use that to indicate a document level failure
             // and set the error in operation.setFailure. In case of environment related errors, the failure
             // is bubbled up
-            isDocumentFailure = !((failure instanceof IllegalStateException || failure instanceof IOException)
-                    && maybeFailEngine(operation.operationType().getLowercase(), failure));
+            isDocumentFailure = maybeFailEngine(operation.operationType().getLowercase(), failure) == false;
         } catch (Exception inner) {
             // we failed checking whether the failure can fail the engine, treat it as a persistent engine failure
             isDocumentFailure = false;
@@ -434,13 +433,15 @@ public class InternalEngine extends Engine {
         if (isDocumentFailure) {
             return failure;
         } else {
+            // throw original exception in case the exception caused the engine to fail
             rethrow(failure);
             return null;
         }
     }
 
+    // hack to rethrow original exception in case of engine level failures during index/delete operation
     @SuppressWarnings("unchecked")
-    static <T extends Throwable> void rethrow(Throwable t) throws T {
+    private static <T extends Throwable> void rethrow(Throwable t) throws T {
         throw (T) t;
     }
 

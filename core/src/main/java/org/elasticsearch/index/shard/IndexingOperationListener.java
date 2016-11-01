@@ -38,17 +38,17 @@ public interface IndexingOperationListener {
     }
 
     /**
-     * Called after the indexing operation occurred. Implementations should
-     * check {@link Engine.IndexResult#hasFailure()} for operation failures
-     * and delegate to {@link #postIndex(Engine.Index, Exception)} with
-     * {@link Engine.IndexResult#getFailure()} if appropriate
+     * Called after the indexing operation occurred. Note that this is
+     * also called when indexing a document did not succeed due to document
+     * related failures. See {@link #postIndex(Engine.Index, Exception)}
+     * for engine level failures
      */
     default void postIndex(Engine.Index index, Engine.IndexResult result) {}
 
     /**
-     * Called after the indexing operation occurred with exception that
-     * is not specific to the {@link Engine.Index} i.e. persistent engine
-     * failures etc.
+     * Called after the indexing operation occurred with engine level exception.
+     * See {@link #postIndex(Engine.Index, Engine.IndexResult)} for document
+     * related failures
      */
     default void postIndex(Engine.Index index, Exception ex) {}
 
@@ -61,17 +61,17 @@ public interface IndexingOperationListener {
 
 
     /**
-     * Called after the delete operation occurred. Implementations should
-     * check {@link Engine.DeleteResult#hasFailure()} for operation failures
-     * and delegate to {@link #postDelete(Engine.Delete, Exception)} with
-     * {@link Engine.DeleteResult#getFailure()} if appropriate
+     * Called after the delete operation occurred. Note that this is
+     * also called when deleting a document did not succeed due to document
+     * related failures. See {@link #postDelete(Engine.Delete, Exception)}
+     * for engine level failures
      */
     default void postDelete(Engine.Delete delete, Engine.DeleteResult result) {}
 
     /**
-     * Called after the delete operation occurred with exception that
-     * is not specific to the {@link Engine.Delete} i.e. persistent engine
-     * failures etc.
+     * Called after the delete operation occurred with engine level exception.
+     * See {@link #postDelete(Engine.Delete, Engine.DeleteResult)} for document
+     * related failures
      */
     default void postDelete(Engine.Delete delete, Exception ex) {}
 

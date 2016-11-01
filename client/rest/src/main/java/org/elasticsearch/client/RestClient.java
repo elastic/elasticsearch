@@ -510,6 +510,7 @@ public class RestClient implements Closeable {
 
     private static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
         Objects.requireNonNull(params, "params must not be null");
+        Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;
             if (pathPrefix != null) {

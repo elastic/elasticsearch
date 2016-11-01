@@ -26,7 +26,7 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -83,7 +83,7 @@ public abstract class ScriptTestCase extends ESTestCase {
         }
         // test actual script execution
         Object object = scriptEngine.compile(null, script, compileParams);
-        CompiledScript compiled = new CompiledScript(ScriptService.ScriptType.INLINE, getTestName(), "painless", object);
+        CompiledScript compiled = new CompiledScript(ScriptType.INLINE, getTestName(), "painless", object);
         ExecutableScript executableScript = scriptEngine.executable(compiled, vars);
         if (scorer != null) {
             ((ScorerAware)executableScript).setScorer(scorer);

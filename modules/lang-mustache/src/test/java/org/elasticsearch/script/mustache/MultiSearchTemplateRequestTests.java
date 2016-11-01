@@ -21,7 +21,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -58,9 +58,9 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertNotNull(request.requests().get(1).getScript());
         assertNotNull(request.requests().get(2).getScript());
 
-        assertEquals(ScriptService.ScriptType.INLINE, request.requests().get(0).getScriptType());
-        assertEquals(ScriptService.ScriptType.INLINE, request.requests().get(1).getScriptType());
-        assertEquals(ScriptService.ScriptType.INLINE, request.requests().get(2).getScriptType());
+        assertEquals(ScriptType.INLINE, request.requests().get(0).getScriptType());
+        assertEquals(ScriptType.INLINE, request.requests().get(1).getScriptType());
+        assertEquals(ScriptType.INLINE, request.requests().get(2).getScriptType());
         assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(0).getScript());
         assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(1).getScript());
         assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(2).getScript());

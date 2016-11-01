@@ -22,7 +22,7 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -52,7 +52,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"terms\":{\"status\":[\"{{#status}}\",\"{{.}}\",\"{{/status}}\"]}}}"));
-        assertThat(request.getScriptType(), equalTo(ScriptService.ScriptType.INLINE));
+        assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams(), nullValue());
     }
 
@@ -71,7 +71,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"match\":{\"{{my_field}}\":\"{{my_value}}\"}},\"size\":\"{{my_size}}\"}"));
-        assertThat(request.getScriptType(), equalTo(ScriptService.ScriptType.INLINE));
+        assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams().size(), equalTo(3));
         assertThat(request.getScriptParams(), hasEntry("my_field", "foo"));
         assertThat(request.getScriptParams(), hasEntry("my_value", "bar"));
@@ -83,7 +83,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"bool\":{\"must\":{\"match\":{\"foo\":\"{{text}}\"}}}}}"));
-        assertThat(request.getScriptType(), equalTo(ScriptService.ScriptType.INLINE));
+        assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams(), nullValue());
     }
 
@@ -94,7 +94,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"match\":{\"{{field}}\":\"{{value}}\"}}}"));
-        assertThat(request.getScriptType(), equalTo(ScriptService.ScriptType.INLINE));
+        assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams().size(), equalTo(1));
         assertThat(request.getScriptParams(), hasKey("status"));
         assertThat((List<String>) request.getScriptParams().get("status"), hasItems("pending", "published"));
@@ -105,7 +105,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("fileTemplate"));
-        assertThat(request.getScriptType(), equalTo(ScriptService.ScriptType.FILE));
+        assertThat(request.getScriptType(), equalTo(ScriptType.FILE));
         assertThat(request.getScriptParams(), nullValue());
     }
 
@@ -114,7 +114,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("template_foo"));
-        assertThat(request.getScriptType(), equalTo(ScriptService.ScriptType.FILE));
+        assertThat(request.getScriptType(), equalTo(ScriptType.FILE));
         assertThat(request.getScriptParams().size(), equalTo(2));
         assertThat(request.getScriptParams(), hasEntry("foo", "bar"));
         assertThat(request.getScriptParams(), hasEntry("size", 500));
@@ -125,7 +125,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("storedTemplate"));
-        assertThat(request.getScriptType(), equalTo(ScriptService.ScriptType.STORED));
+        assertThat(request.getScriptType(), equalTo(ScriptType.STORED));
         assertThat(request.getScriptParams(), nullValue());
     }
 
@@ -134,7 +134,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("another_template"));
-        assertThat(request.getScriptType(), equalTo(ScriptService.ScriptType.STORED));
+        assertThat(request.getScriptType(), equalTo(ScriptType.STORED));
         assertThat(request.getScriptParams().size(), equalTo(1));
         assertThat(request.getScriptParams(), hasEntry("bar", "foo"));
     }

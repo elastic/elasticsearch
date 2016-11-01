@@ -19,8 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.settings.Settings;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -81,8 +79,8 @@ public final class ScriptContextRegistry {
     }
 
     private static Set<String> reservedScriptContexts() {
-        Set<String> reserved = new HashSet<>(ScriptService.ScriptType.values().length + ScriptContext.Standard.values().length);
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        Set<String> reserved = new HashSet<>(ScriptType.values().length + ScriptContext.Standard.values().length);
+        for (ScriptType scriptType : ScriptType.values()) {
             reserved.add(scriptType.toString());
         }
         for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {

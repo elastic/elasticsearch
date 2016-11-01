@@ -52,6 +52,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShadowIndexShard;
@@ -411,7 +412,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
         } finally {
             try {
-                store.close();
+                if (store != null) {
+                    store.close();
+                } else {
+                    logger.trace("[{}] store not initialized prior to closing shard, nothing to close", shardId);
+                }
             } catch (Exception e) {
                 logger.warn(
                     (Supplier<?>) () -> new ParameterizedMessage(
@@ -688,7 +693,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                             if (shard.isRefreshNeeded()) {
                                 shard.refresh("schedule");
                             }
-                        } catch (EngineClosedException | AlreadyClosedException ex) {
+                        } catch (IndexShardClosedException | AlreadyClosedException ex) {
                             // fine - continue;
                         }
                         continue;

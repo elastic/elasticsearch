@@ -46,6 +46,7 @@ public class SearchCancellationTests extends ESTestCase {
     public static void before() throws IOException {
         dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        w.setDoRandomForceMerge(false); // we need 2 segments
         indexRandomDocuments(w, TestUtil.nextInt(random(), 2, 20));
         w.flush();
         indexRandomDocuments(w, TestUtil.nextInt(random(), 1, 20));

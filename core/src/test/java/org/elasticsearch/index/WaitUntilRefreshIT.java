@@ -35,7 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 

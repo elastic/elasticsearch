@@ -1,5 +1,11 @@
 ---
 "Shrink index via API":
+  - skip:
+    version: " - 5.0.0"
+    reason:  this doesn't work yet with BWC tests since the master is from the old verion
+    # TODO we need to fix this for BWC tests to make sure we get a node that all shards can allocate on
+    # today if we run BWC tests and we select the master as a _shrink node but since primaries are allocated
+    # on the newer version nodes this fails...
   # creates an index with one document.
   # relocates all it's shards to one node
   # shrinks it into a new index with a single shard

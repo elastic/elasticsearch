@@ -86,8 +86,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -259,7 +259,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
-                .script(new Script("ctx.op='delete'", ScriptService.ScriptType.INLINE, CustomScriptPlugin.NAME, Collections.emptyMap()));
+                .script(new Script("ctx.op='delete'", ScriptType.INLINE, CustomScriptPlugin.NAME, Collections.emptyMap()));
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
 

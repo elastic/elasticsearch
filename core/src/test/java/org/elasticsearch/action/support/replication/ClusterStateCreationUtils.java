@@ -157,7 +157,7 @@ public class ClusterStateCreationUtils {
             nodes.add(node.getId());
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(0).getId());
+        discoBuilder.masterNodeId(randomFrom(nodes));
         IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries).put(SETTING_NUMBER_OF_REPLICAS, 0)

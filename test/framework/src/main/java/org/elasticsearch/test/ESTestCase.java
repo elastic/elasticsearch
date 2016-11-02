@@ -237,6 +237,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void ensureCleanedUp() throws Exception {
+        checkStaticState();
+    }
+
+    // separate method so that this can be checked again after suite scoped cluster is shut down
+    protected static void checkStaticState() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
         MockBigArrays.ensureAllArraysAreReleased();
         // field cache should NEVER get loaded.

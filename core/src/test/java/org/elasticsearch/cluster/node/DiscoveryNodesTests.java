@@ -135,8 +135,8 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         final DiscoveryNodes discoNodesA = builderA.build();
         final DiscoveryNodes discoNodesB = builderB.build();
-        logger.info("nodes A: {}", discoNodesA.prettyPrint());
-        logger.info("nodes B: {}", discoNodesB.prettyPrint());
+        logger.info("nodes A: {}", discoNodesA);
+        logger.info("nodes B: {}", discoNodesB);
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 

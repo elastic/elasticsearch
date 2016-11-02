@@ -381,7 +381,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
             if (!success) {
                 fail("node [" + node + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
-                        + nodeState.prettyPrint());
+                        + nodeState);
             }
         }
 
@@ -468,13 +468,13 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
                 assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
                 assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
-                if (!state.routingTable().prettyPrint().equals(nodeState.routingTable().prettyPrint())) {
+                if (!state.routingTable().toString().equals(nodeState.routingTable().toString())) {
                     fail("different routing");
                 }
             } catch (AssertionError t) {
                 fail("failed comparing cluster state: " + t.getMessage() + "\n" +
-                        "--- cluster state of node [" + nodes.get(0) + "]: ---\n" + state.prettyPrint() +
-                        "\n--- cluster state [" + node + "]: ---\n" + nodeState.prettyPrint());
+                        "--- cluster state of node [" + nodes.get(0) + "]: ---\n" + state +
+                        "\n--- cluster state [" + node + "]: ---\n" + nodeState);
             }
 
         }
@@ -1267,7 +1267,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         if (state.metaData().hasIndex("test") == false) {
-            fail("index 'test' was lost. current cluster state: " + state.prettyPrint());
+            fail("index 'test' was lost. current cluster state: " + state);
         }
 
     }
@@ -1368,7 +1368,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertBusy(() -> {
             for (String node : nodes) {
                 ClusterState state = getNodeClusterState(node);
-                String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
+                String failMsgSuffix = "cluster_state:\n" + state;
                 assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
                 String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
                 assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));

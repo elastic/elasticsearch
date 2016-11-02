@@ -104,6 +104,7 @@ public class MapperQueryParser extends QueryParser {
         setDefaultOperator(settings.defaultOperator());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
         setLocale(settings.locale());
+        setSplitOnWhitespace(settings.splitOnWhitespace());
     }
 
     /**

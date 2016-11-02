@@ -68,14 +68,18 @@ def start_node(version, release_dir, data_dir):
   logging.info('Starting node from %s on port %s/%s, data_dir %s' % (release_dir, DEFAULT_TRANSPORT_TCP_PORT
                                                                     , DEFAULT_HTTP_TCP_PORT, data_dir))
   cluster_name = 'bwc_index_' + version
+  if parse_version(version) < parse_version("5.0.0-alpha1"):
+    prefix = '-Des.'
+  else:
+    prefix = '-E'
   cmd = [
   os.path.join(release_dir, 'bin/elasticsearch'),
-  '-Des.path.data=%s' %(data_dir),
-  '-Des.path.logs=logs',
-  '-Des.cluster.name=%s' %(cluster_name),
-  '-Des.network.host=localhost',
-  '-Des.transport.tcp.port=%s' %(DEFAULT_TRANSPORT_TCP_PORT), # not sure if we need to customize ports
-  '-Des.http.port=%s' %(DEFAULT_HTTP_TCP_PORT)
+  '%spath.data=%s' % (prefix, data_dir),
+  '%spath.logs=logs' % prefix,
+  '%scluster.name=%s' % (prefix, cluster_name),
+  '%snetwork.host=localhost' % prefix,
+  '%stransport.tcp.port=%s' % (prefix, DEFAULT_TRANSPORT_TCP_PORT), # not sure if we need to customize ports
+  '%shttp.port=%s' % (prefix, DEFAULT_HTTP_TCP_PORT)
    ]
 
   return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -87,10 +91,17 @@ def install_plugin(version, release_dir, plugin_name):
   run_plugin(version, release_dir, 'install', args)
 
 def remove_plugin(version, release_dir, plugin_name):
-  run_plugin(version, release_dir, 'remove', [plugin_name])
+  # 5.0 doesn't like trying to remove a plugin that isn't installed so we
+  # shouldn't try.
+  if os.path.exists(os.path.join(release_dir, 'plugins', plugin_name)):
+    run_plugin(version, release_dir, 'remove', [plugin_name])
 
 def run_plugin(version, release_dir, plugin_cmd, args):
-  cmd = [os.path.join(release_dir, 'bin/plugin'), plugin_cmd] + args
+  if parse_version(version) < parse_version('5.0.0'):
+    script = 'bin/plugin'
+  else:
+    script = 'bin/elasticsearch-plugin'
+  cmd = [os.path.join(release_dir, script), plugin_cmd] + args
   subprocess.check_call(cmd)
 
 def create_client():
@@ -104,6 +115,18 @@ def create_client():
       logging.info('Not started yet...')
     time.sleep(1)
   assert False, 'Timed out waiting for node for %s seconds' % timeout
+
+def wait_for_yellow(version, client, index):
+  logging.info('Waiting for %s to be yellow' % index)
+  # The health call below uses `params` because it the 5.x client doesn't
+  # support wait_for_relocating_shards and the 2.x client doesn't support
+  # wait_for_relocating_shards and we'd like to use the same client for both
+  # versions.
+  if parse_version(version) < parse_version('5.0.0'):
+    health = client.cluster.health(wait_for_status='yellow', index=index, params={'wait_for_relocating_shards':0})
+  else:
+    health = client.cluster.health(wait_for_status='yellow', index=index, params={'wait_for_no_relocating_shards':'true'})
+  assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
 # this adds a user bwc_test_role/9876543210, a role bwc_test_role and some documents the user has or has not access to
 def generate_security_index(client, version):
@@ -134,12 +157,15 @@ def generate_security_index(client, version):
              {
                "names": [ "index1", "index2" ],
                "privileges": ["all"],
-               "fields": [ "title", "body" ],
                "query": "{\"match\": {\"title\": \"foo\"}}"
              }
            ],
            "run_as": [ "other_user" ]
          }
+  if parse_version(version) < parse_version('5.0.0'):
+    body['indices'][0]['fields'] = [ "title", "body" ]
+  else:
+    body['indices'][0]['field_security'] = { "grant": [ "title", "body" ] }
   # order of params in put role request is important, see https://github.com/elastic/x-plugins/issues/2606
   response = requests.put('http://localhost:9200/_shield/role/bwc_test_role', auth=('es_admin', '0123456789')
                            , data=json.dumps(body, sort_keys=True))
@@ -159,9 +185,7 @@ def generate_security_index(client, version):
 
   client.index(index="index3", doc_type="doc", body={"title": "bwc_test_user should not see this index"})
 
-  logging.info('Waiting for yellow')
-  health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='.security')
-  assert health['timed_out'] == False, 'cluster health timed out %s' % health
+  wait_for_yellow(version, client, '.security')
 
 # this adds a couple of watches and waits for the the watch_history to accumulate some results
 def generate_watcher_index(client, version):
@@ -294,30 +318,36 @@ def generate_watcher_index(client, version):
   # wait to accumulate some watches
   logging.info('Waiting for watch results index to fill up...')
   wait_for_search(10, lambda: client.search(index="bwc_watch_index", body={"query": {"match_all": {}}}))
+  if parse_version(version) < parse_version('5.0.0'):
+    watcher_history_name = ".watch_history*"
+  else:
+    watcher_history_name = ".watcher-history*"
+  wait_for_search(10, lambda: client.search(index=watcher_history_name, body={"query": {"match_all": {}}}))
 
-  health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='.watches')
-  assert health['timed_out'] == False, 'cluster health timed out %s' % health
-  health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='.watch_history*')
-  assert health['timed_out'] == False, 'cluster health timed out %s' % health
-  health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='bwc_watch_index')
-  assert health['timed_out'] == False, 'cluster health timed out %s' % health
+  wait_for_yellow(version, client, '.watches')
+  wait_for_yellow(version, client, watcher_history_name)
+  wait_for_yellow(version, client, 'bwc_watch_index')
 
 def wait_for_monitoring_index_to_fill(client, version):
-  logging.info('Waiting for marvel to index the cluster_info...')
-  wait_for_search(1, lambda: client.search(index=".marvel-es-*", doc_type="cluster_info", body={"query": {"match_all": {}}}))
+  if parse_version(version) < parse_version('5.0.0'):
+    monitoring_name = '.marvel-*'
+  else:
+    monitoring_name = '.monitoring-*'
+  def wait_for_monitoring_to_index(doc_type, count):
+    logging.info('Waiting for %s to have cout(%s) = %s...' % (monitoring_name, doc_type, count))
+    wait_for_search(count, lambda:
+        client.search(index=monitoring_name, doc_type=doc_type, body={"query": {"match_all": {}}}))
+
+  wait_for_monitoring_to_index('cluster_info', 1)
   if parse_version(version) >= parse_version('2.1.0'):
-    logging.info('Waiting for marvel to index the node information...')
-    wait_for_search(1, lambda: client.search(index=".marvel-es-*", doc_type="node", body={"query": {"match_all": {}}}))
-  logging.info('Waiting for marvel index to get enough index_stats...')
-  wait_for_search(10, lambda: client.search(index=".marvel-es-*", doc_type="index_stats", body={"query": {"match_all": {}}}))
-  logging.info('Waiting for marvel index to get enough shards...')
-  wait_for_search(10, lambda: client.search(index=".marvel-es-*", doc_type="shards", body={"query": {"match_all": {}}}))
-  logging.info('Waiting for marvel index to get enough indices_stats...')
-  wait_for_search(3, lambda: client.search(index=".marvel-es-*", doc_type="indices_stats", body={"query": {"match_all": {}}}))
-  logging.info('Waiting for marvel index to get enough node_stats...')
-  wait_for_search(3, lambda: client.search(index=".marvel-es-*", doc_type="node_stats", body={"query": {"match_all": {}}}))
-  logging.info('Waiting for marvel index to get enough cluster_state...')
-  wait_for_search(3, lambda: client.search(index=".marvel-es-*", doc_type="cluster_state", body={"query": {"match_all": {}}}))
+    wait_for_monitoring_to_index('node', 1)
+  wait_for_monitoring_to_index('index_stats', 10)
+  wait_for_monitoring_to_index('shards', 10)
+  wait_for_monitoring_to_index('indices_stats', 3)
+  wait_for_monitoring_to_index('node_stats', 3)
+  wait_for_monitoring_to_index('cluster_state', 3)
+
+  wait_for_yellow(version, client, monitoring_name)
 
 def wait_for_search(required_count, searcher):
   for attempt in range(1, 31):
@@ -422,28 +452,42 @@ def main():
     node = None
 
     try:
-
-      # Remove old plugins just in case any are around
-      remove_plugin(version, release_dir, 'marvel-agent')
-      remove_plugin(version, release_dir, 'watcher')
-      remove_plugin(version, release_dir, 'shield')
-      remove_plugin(version, release_dir, 'license')
-      # Remove the shield config too before fresh install
-      run('rm -rf %s' %(os.path.join(release_dir, 'config/shield')))
-      # Install the plugins we'll need
-      install_plugin(version, release_dir, 'license')
-      install_plugin(version, release_dir, 'shield')
-      install_plugin(version, release_dir, 'watcher')
-      install_plugin(version, release_dir, 'marvel-agent')
+      if parse_version(version) < parse_version('5.0.0'):
+        # Remove old plugins just in case any are around
+        remove_plugin(version, release_dir, 'marvel-agent')
+        remove_plugin(version, release_dir, 'watcher')
+        remove_plugin(version, release_dir, 'shield')
+        remove_plugin(version, release_dir, 'license')
+        # Remove the shield config too before fresh install
+        run('rm -rf %s' %(os.path.join(release_dir, 'config/shield')))
+        # Install plugins we'll need
+        install_plugin(version, release_dir, 'license')
+        install_plugin(version, release_dir, 'shield')
+        install_plugin(version, release_dir, 'watcher')
+        install_plugin(version, release_dir, 'marvel-agent')
+        # define the stuff we need to make the esadmin user
+        users_script = os.path.join(release_dir, 'bin/shield/esusers')
+        esadmin_role = 'admin'
+      else:
+        # Remove old plugins just in case any are around
+        remove_plugin(version, release_dir, 'x-pack')
+        # Remove the x-pack config too before fresh install
+        run('rm -rf %s' %(os.path.join(release_dir, 'config/x-pack')))
+        # Install plugins we'll need
+        install_plugin(version, release_dir, 'x-pack')
+        # define the stuff we need to make the esadmin user
+        users_script = os.path.join(release_dir, 'bin/x-pack/users')
+        esadmin_role = 'superuser'
 
       # create admin
-      run('%s  useradd es_admin -r admin -p 0123456789' %(os.path.join(release_dir, 'bin/shield/esusers')))
+      run('%s  useradd es_admin -r %s -p 0123456789' %
+          (users_script, esadmin_role))
       node = start_node(version, release_dir, data_dir)
 
       # create a client that authenticates as es_admin
       client = create_client()
       if parse_version(version) < parse_version('2.3.0'):
-        logging.info('Version is ' + version + ' but shield supports native realm oly from 2.3.0 on. Nothing to do for Shield.')
+        logging.info('Version is ' + version + ' but shield supports native realm only from 2.3.0 on. Nothing to do for Shield.')
       else:
         generate_security_index(client, version)
       generate_watcher_index(client, version)

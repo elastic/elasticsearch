@@ -96,7 +96,6 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3908")
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allVersions()) {
@@ -115,7 +114,6 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3908")
     public void testOldIndexes() throws Exception {
         Collections.shuffle(dataFiles, random());
         for (String dataFile : dataFiles) {
@@ -134,10 +132,6 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
                     TimeUnit.NANOSECONDS.toMillis(testStartTime - clusterStartTime),
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - testStartTime));
         }
-    }
-
-    public void testEmpty() {
-        // empty test so test suite does not fail for no tests
     }
 
     /**
@@ -174,7 +168,13 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
             try (Stream<Path> unzippedFiles = Files.list(dataPath.resolve("data"))) {
                 Path dataDir = unzippedFiles.findFirst().get();
                 // this is not actually an index but the copy does the job anyway
-                copyIndex(logger, dataDir.resolve("nodes"), "nodes", dataPath);
+                int zipIndex = pathToZipFile.indexOf(".zip");
+                Version version = Version.fromString(pathToZipFile.substring("x-pack-".length(), zipIndex));
+                if (version.before(Version.V_5_0_0_alpha1)) {
+                    // the bwc scripts packs the indices under this path before 5.0
+                    dataDir = dataDir.resolve("nodes");
+                }
+                copyIndex(logger, dataDir, "nodes", dataPath);
                 // remove the original unzipped directory
             }
             IOUtils.rm(dataPath.resolve("data"));

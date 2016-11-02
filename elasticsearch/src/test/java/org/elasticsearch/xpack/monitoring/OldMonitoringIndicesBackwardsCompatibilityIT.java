@@ -167,14 +167,13 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
         assertThat((Integer) docs.get("count"), greaterThanOrEqualTo(0));
     }
 
-    @SuppressWarnings("unchecked")
     private void checkNodeStats(final Version version, final String masterNodeId, Map<String, Object> nodeStats) {
         checkMonitoringElement(nodeStats);
         checkSourceNode(version, nodeStats);
         Map<?, ?> stats = (Map<?, ?>) nodeStats.get("node_stats");
 
         // Those fields are expected in every node stats documents
-        Set<String> mandatoryKeys = new HashSet();
+        Set<String> mandatoryKeys = new HashSet<>();
         mandatoryKeys.add("node_id");
         mandatoryKeys.add("node_master");
         mandatoryKeys.add("mlockall");
@@ -200,7 +199,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
             assertThat("Expecting [" + key + "] to be present for bwc index in version [" + version + "]", stats, hasKey(key));
         }
 
-        Set<String> keys = new HashSet(stats.keySet());
+        Set<?> keys = new HashSet<>(stats.keySet());
         keys.removeAll(mandatoryKeys);
         assertTrue("Found unexpected fields [" + Strings.collectionToCommaDelimitedString(keys) + "] " +
                 "for bwc index in version [" + version + "]", keys.isEmpty());

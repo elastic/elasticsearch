@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 
 import java.util.Map;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -70,28 +71,28 @@ public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackI
         assertEquals(1000, source.get("throttle_period_in_millis"));
         Map<?, ?> input = (Map<?, ?>) source.get("input");
         Map<?, ?> search = (Map<?, ?>) input.get("search");
-        assertEquals(96000, search.get("timeout_in_millis")); // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
+        // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
+        int timeout = (int) (version.onOrAfter(Version.V_5_0_0_alpha1) ? timeValueSeconds(100).millis() : timeValueSeconds(96).millis());
+        assertEquals(timeout, search.get("timeout_in_millis"));
         Map<?, ?> actions = (Map<?, ?>) source.get("actions");
         Map<?, ?> indexPayload = (Map<?, ?>) actions.get("index_payload");
         Map<?, ?> transform = (Map<?, ?>) indexPayload.get("transform");
         search = (Map<?, ?>) transform.get("search");
-        assertEquals(96000, search.get("timeout_in_millis")); // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
+        assertEquals(timeout, search.get("timeout_in_millis"));
         Map<?, ?> index = (Map<?, ?>) indexPayload.get("index");
         assertEquals("bwc_watch_index", index.get("index"));
         assertEquals("bwc_watch_type", index.get("doc_type"));
-        assertEquals(96000, index.get("timeout_in_millis")); // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
+        assertEquals(timeout, index.get("timeout_in_millis"));
 
         // Fetch a watch with "fun" throttle periods
         bwcWatch = watcherClient.prepareGetWatch("bwc_throttle_period").get();
         assertTrue(bwcWatch.isFound());
         assertNotNull(bwcWatch.getSource());
         source = bwcWatch.getSource().getAsMap();
-        // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
-        assertEquals(96000, source.get("throttle_period_in_millis"));
+        assertEquals(timeout, source.get("throttle_period_in_millis"));
         actions = (Map<?, ?>) source.get("actions");
         indexPayload = (Map<?, ?>) actions.get("index_payload");
-        // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
-        assertEquals(96000, indexPayload.get("throttle_period_in_millis"));
+        assertEquals(timeout, indexPayload.get("throttle_period_in_millis"));
 
         if (version.onOrAfter(Version.V_2_3_0)) {
             /* Fetch a watch with a funny timeout to verify loading fractional time values. This watch is only built in >= 2.3 because
@@ -107,7 +108,7 @@ public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackI
             Map<?, ?> attachment = (Map<?, ?>) attachments.get("test_report.pdf");
             Map<?, ?> http = (Map<?, ?>) attachment.get("http");
             Map<?, ?> request = (Map<?, ?>) http.get("request");
-            assertEquals(96000, request.get("read_timeout_millis"));
+            assertEquals(timeout, request.get("read_timeout_millis"));
             assertEquals("https", request.get("scheme"));
             assertEquals("example.com", request.get("host"));
             assertEquals("{{ctx.metadata.report_url}}", request.get("path"));
@@ -119,7 +120,8 @@ public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackI
             assertThat(basic, not(hasKey("password")));
         }
 
-        SearchResponse history = client().prepareSearch(".watch_history*").get();
+        String watchHistoryPattern = version.onOrAfter(Version.V_5_0_0_alpha1) ? ".watcher-history*" : ".watch_history*";
+        SearchResponse history = client().prepareSearch(watchHistoryPattern).get();
         assertThat(history.getHits().totalHits(), greaterThanOrEqualTo(10L));
     }
 

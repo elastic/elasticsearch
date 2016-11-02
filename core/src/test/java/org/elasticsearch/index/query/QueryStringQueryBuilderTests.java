@@ -163,7 +163,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
-                    .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class)));
+                    .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
+                    .or(instanceOf(PhraseQuery.class)));
         }
     }
 

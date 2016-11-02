@@ -507,6 +507,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      *                        associated value)
      * @param invalidConsumer callback on invalid settings (consumer receives invalid key, its
      *                        associated value and an exception)
+     * @throws IllegalStateException if an {@link org.elasticsearch.common.settings.Setting.Property#Mandatory} setting must be archived
+     *
      * @return a {@link Settings} instance with the unknown or invalid settings archived
      */
     public Settings archiveUnknownOrInvalidSettings(

@@ -391,7 +391,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return shards;
     }
 
-    public String prettyPrint() {
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder("routing_nodes:\n");
         for (RoutingNode routingNode : this) {
             sb.append(routingNode.prettyPrint());

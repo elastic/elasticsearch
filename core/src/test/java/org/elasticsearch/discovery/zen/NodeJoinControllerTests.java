@@ -679,7 +679,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         logger.info("assert for [{}] in:\n{}", expectedNodes, state);
         DiscoveryNodes discoveryNodes = state.nodes();
         for (DiscoveryNode node : expectedNodes) {
-            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));
+            assertThat("missing " + node + "\n" + discoveryNodes, discoveryNodes.get(node.getId()), equalTo(node));
         }
         assertThat(discoveryNodes.getSize(), equalTo(expectedNodes.size()));
     }

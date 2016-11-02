@@ -292,10 +292,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 sb.append("isa_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
             }
         }
-        sb.append(blocks().prettyPrint());
-        sb.append(nodes().prettyPrint());
-        sb.append(routingTable().prettyPrint());
-        sb.append(getRoutingNodes().prettyPrint());
+        sb.append(blocks());
+        sb.append(nodes());
+        sb.append(routingTable());
+        sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
             sb.append("customs:\n");
             for (ObjectObjectCursor<String, Custom> cursor : customs) {

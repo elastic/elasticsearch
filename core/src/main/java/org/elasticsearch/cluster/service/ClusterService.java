@@ -562,9 +562,9 @@ public class ClusterService extends AbstractLifecycleComponent {
                         executionTime,
                         previousClusterState.version(),
                         tasksSummary,
-                        previousClusterState.nodes().prettyPrint(),
-                        previousClusterState.routingTable().prettyPrint(),
-                        previousClusterState.getRoutingNodes().prettyPrint()),
+                        previousClusterState.nodes(),
+                        previousClusterState.routingTable(),
+                        previousClusterState.getRoutingNodes()),
                     e);
             }
             warnAboutSlowTaskIfNeeded(executionTime, tasksSummary);

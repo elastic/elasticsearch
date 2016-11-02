@@ -468,7 +468,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
                 assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
                 assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
-                if (!state.routingTable().prettyPrint().equals(nodeState.routingTable().prettyPrint())) {
+                if (!state.routingTable().toString().equals(nodeState.routingTable().toString())) {
                     fail("different routing");
                 }
             } catch (AssertionError t) {

@@ -222,7 +222,7 @@ public abstract class Decision implements ToXContent {
         }
 
         /**
-         * Returns the explanation string, fully formatted. Only formats the string once
+         * Returns the explanation string, fully formatted.  Only formats the string once.
          */
         @Nullable
         public String getExplanation() {

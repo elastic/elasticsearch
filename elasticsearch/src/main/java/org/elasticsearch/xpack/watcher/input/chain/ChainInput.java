@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,7 +22,9 @@ import java.util.List;
 public class ChainInput implements Input {
 
     public static final String TYPE = "chain";
-    private List<Tuple<String, Input>> inputs;
+    public static final ParseField INPUTS = new ParseField("inputs");
+
+    private final List<Tuple<String, Input>> inputs;
 
     public ChainInput(List<Tuple<String, Input>> inputs) {
         this.inputs = inputs;
@@ -35,7 +38,7 @@ public class ChainInput implements Input {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray("inputs");
+        builder.startArray(INPUTS.getPreferredName());
         for (Tuple<String, Input> tuple : inputs) {
             builder.startObject().startObject(tuple.v1());
             builder.field(tuple.v2().type(), tuple.v2());
@@ -56,20 +59,15 @@ public class ChainInput implements Input {
         String currentFieldName;
         XContentParser.Token token;
 
-        ParseField inputsField = new ParseField("inputs");
-
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 token = parser.nextToken();
-                if (token == XContentParser.Token.START_ARRAY &&  inputsField.getPreferredName().equals(currentFieldName)) {
-                    String currentInputFieldName = null;
+                if (token == XContentParser.Token.START_ARRAY && INPUTS.getPreferredName().equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.FIELD_NAME) {
-                            currentInputFieldName = parser.currentName();
-                        } else if (currentInputFieldName != null && token == XContentParser.Token.START_OBJECT) {
-                            inputs.add(new Tuple<>(currentInputFieldName, inputRegistry.parse(watchId, parser).input()));
-                            currentInputFieldName = null;
+                            String inputName = parser.currentName();
+                            inputs.add(new Tuple<>(inputName, parseSingleInput(watchId, inputName, parser, inputRegistry)));
                         }
                     }
                 }
@@ -77,6 +75,23 @@ public class ChainInput implements Input {
         }
 
         return new ChainInput(inputs);
+    }
+
+    private static Input parseSingleInput(String watchId, String name, XContentParser parser,
+                                          InputRegistry inputRegistry) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException("Expected starting JSON object after [{}] in watch [{}]", name, watchId);
+        }
+
+        Input input = inputRegistry.parse(watchId, parser).input();
+
+        // expecting closing of two json object to start the next element in the array
+        if (parser.currentToken() != XContentParser.Token.END_OBJECT || parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            throw new ElasticsearchParseException("Expected closing JSON object after parsing input [{}] named [{}] in watch [{}]",
+                    input.type(), name, watchId);
+        }
+
+        return input;
     }
 
     public static ChainInput.Builder builder() {

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.input.chain;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -101,8 +102,8 @@ public class ChainInputTests extends ESTestCase {
         assertThat(payload.data().get("second"), instanceOf(Map.class));
 
         // final payload check
-        Map<String, Object> firstPayload = (Map<String,Object>) payload.data().get("first");
-        Map<String, Object> secondPayload = (Map<String,Object>) payload.data().get("second");
+        Map<String, Object> firstPayload = (Map<String, Object>) payload.data().get("first");
+        Map<String, Object> secondPayload = (Map<String, Object>) payload.data().get("second");
         assertThat(firstPayload, hasEntry("foo", "bar"));
         assertThat(secondPayload, hasEntry("spam", "eggs"));
     }
@@ -165,6 +166,67 @@ public class ChainInputTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         chainedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(builder.bytes().utf8ToString(), containsString("\"reason\":\"ElasticsearchException[foo]\""));
+    }
+
+    /* https://github.com/elastic/x-plugins/issues/3736
+       the issue here is, that first/second in this setup do not have a guaranteed order, so we have to throw an exception
+    {
+      "inputs" : [
+        {
+          "first" : { "simple" : { "foo" : "bar" } },
+          "second" : { "simple" : { "spam" : "eggs" } }
+        }
+      ]
+    }
+     */
+    public void testParsingShouldBeStrictWhenClosingInputs() throws Exception {
+        Map<String, InputFactory> factories = new HashMap<>();
+        factories.put("simple", new SimpleInputFactory(Settings.EMPTY));
+
+        InputRegistry inputRegistry = new InputRegistry(Settings.EMPTY, factories);
+        ChainInputFactory chainInputFactory = new ChainInputFactory(Settings.EMPTY, inputRegistry);
+        factories.put("chain", chainInputFactory);
+
+        XContentBuilder builder = jsonBuilder().startObject().startArray("inputs").startObject()
+                .startObject("first").startObject("simple").field("foo", "bar").endObject().endObject()
+                .startObject("second").startObject("simple").field("spam", "eggs").endObject().endObject()
+                .endObject().endArray().endObject();
+
+        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        parser.nextToken();
+        ElasticsearchParseException e =
+                expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser, false));
+        assertThat(e.getMessage(),
+                containsString("Expected closing JSON object after parsing input [simple] named [first] in watch [test]"));
+    }
+
+    /* https://github.com/elastic/x-plugins/issues/3736
+       make sure that after the name of a chained input there is always an object
+    {
+      "inputs" : [
+        { "first" : [ { "simple" : { "foo" : "bar" } } ] }
+      ]
+    }
+     */
+    public void testParsingShouldBeStrictWhenStartingInputs() throws Exception {
+        Map<String, InputFactory> factories = new HashMap<>();
+        factories.put("simple", new SimpleInputFactory(Settings.EMPTY));
+
+        InputRegistry inputRegistry = new InputRegistry(Settings.EMPTY, factories);
+        ChainInputFactory chainInputFactory = new ChainInputFactory(Settings.EMPTY, inputRegistry);
+        factories.put("chain", chainInputFactory);
+
+        XContentBuilder builder = jsonBuilder().startObject().startArray("inputs")
+                .startObject().startArray("first").startObject()
+                .startObject("simple").field("foo", "bar").endObject()
+                .endObject().endArray().endObject()
+                .endArray().endObject();
+
+        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        parser.nextToken();
+        ElasticsearchParseException e =
+                expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser, false));
+        assertThat(e.getMessage(), containsString("Expected starting JSON object after [first] in watch [test]"));
     }
 
     private WatchExecutionContext createContext() {

@@ -1,6 +1,6 @@
 ---
 "Shrink index via API":
-  # creates an index with one document soely allocated on the master node
+  # creates an index with one document solely allocated on the master node
   # and shrinks it into a new index with a single shard
   # we don't do the relocation to a single node after the index is created
   # here since in a mixed version cluster we can't identify

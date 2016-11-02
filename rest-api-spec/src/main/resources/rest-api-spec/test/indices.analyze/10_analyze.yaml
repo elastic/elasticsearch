@@ -7,6 +7,7 @@ setup:
 ---
 "Basic test":
     - skip:
+        features: "warnings"
         version: " - 5.0.99"
         reason:  text was deprecated in 5.1.0
     - do:
@@ -21,6 +22,7 @@ setup:
 ---
 "Tokenizer and filter":
     - skip:
+        features: "warnings"
         version: " - 5.0.99"
         reason:  text, filter and tokenizer were deprecated in 5.1.0
     - do:
@@ -72,6 +74,7 @@ setup:
 ---
 "Body params override query string":
     - skip:
+        features: "warnings"
         version: " - 5.0.99"
         reason:  text was deprecated in 5.1.0
     - do:

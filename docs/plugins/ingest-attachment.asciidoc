@@ -49,11 +49,12 @@ The node must be stopped before removing the plugin.
 [options="header"]
 |======
 | Name                   | Required  | Default          | Description
-| `field`                | yes       | -                | The field to get the base64 encoded field from
+| `field`*               | yes       | -                | The field to get the base64 encoded field from
 | `target_field`         | no        | attachment       | The field that will hold the attachment information
 | `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
 | `properties`           | no        | all              | Properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
 |======
+*The `field` must have been created in your index mapping.
 
 For example, this:
 

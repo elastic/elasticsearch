@@ -247,7 +247,7 @@ due to deleted documents. As you may know when documents are deleted or updated,
 the old document is not immediately removed from the index, it is just marked
 as deleted and it will only be removed from disk on the next time that the
 segment this old document belongs to is merged. However for practical reasons,
-those deleted documents are taken into account for index statistics, so imagine
+those deleted documents are taken into account for index statistics. So imagine
 that the primary shard just finished a large merge that removed lots of deleted
 documents, then it might have index statistics that are sufficiently different
 from the replica (which still have plenty of deleted documents) so that scores
@@ -283,8 +283,9 @@ then there are good chances that all shards that are involved in the search
 request do not have similar index statistics and relevancy could be bad.
 
 If you have a small dataset, the easiest way to work around this issue is to
-index everything into an index that has a single shard. Then index statistics
-will be the same for all documents and scores will be consistent.
+index everything into an index that has a single shard
+(`index.number_of_shards: 1`). Then index statistics will be the same for all
+documents and scores will be consistent.
 
 Otherwise the recommended way to work around this issue is to use the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type. This will make

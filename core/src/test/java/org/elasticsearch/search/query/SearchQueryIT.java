@@ -480,19 +480,19 @@ public class SearchQueryIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("value*").analyzeWildcard(true)).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("value*")).get();
         assertHitCount(searchResponse, 1L);
 
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("*ue*").analyzeWildcard(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("*ue*")).get();
         assertHitCount(searchResponse, 1L);
 
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("*ue_1").analyzeWildcard(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("*ue_1")).get();
         assertHitCount(searchResponse, 1L);
 
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("val*e_1").analyzeWildcard(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("val*e_1")).get();
         assertHitCount(searchResponse, 1L);
 
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("v?l*e?1").analyzeWildcard(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("v?l*e?1")).get();
         assertHitCount(searchResponse, 1L);
     }
 
@@ -502,18 +502,14 @@ public class SearchQueryIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(true)).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1")).get();
         assertHitCount(searchResponse, 1L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("ValUE_*").lowercaseExpandedTerms(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("ValUE_*")).get();
         assertHitCount(searchResponse, 1L);
         searchResponse = client().prepareSearch().setQuery(queryStringQuery("vAl*E_1")).get();
         assertHitCount(searchResponse, 1L);
         searchResponse = client().prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]")).get();
         assertHitCount(searchResponse, 1L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0L);
     }
 
     // Issue #3540
@@ -532,11 +528,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertHitCount(searchResponse, 1L);
 
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("future:[now/d TO now+2M/d]")).get();
         assertHitCount(searchResponse, 1L);
 
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch()
-                .setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get());
+                .setQuery(queryStringQuery("future:[now/D TO now+2M/d]")).get());
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.toString(), containsString("unit [D] not supported for date math"));
     }

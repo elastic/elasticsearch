@@ -136,10 +136,6 @@ This will yield the same result as the previous request.
     Should wildcard and prefix queries be analyzed or
     not. Defaults to false.
 
-`lowercase_expanded_terms`::
-    Should terms be automatically lowercased
-    or not. Defaults to true.
-
 `lenient`::
     If set to true will cause format based failures (like
     providing text to a numeric field) to be ignored. Defaults to false.

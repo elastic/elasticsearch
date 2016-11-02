@@ -893,8 +893,6 @@ public class Node implements Closeable {
     /** Create a new ZenPing instance for use in zen discovery. */
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
-        Logger logger = Loggers.getLogger(getClass(), settings);
-        logger.info("Creating unicast zen ping");
         return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
     }
 

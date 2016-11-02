@@ -107,7 +107,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private AllocationService allocationService;
     private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
-    private final ZenPing pinger;
+    private final ZenPing zenPing;
     private final MasterFaultDetection masterFD;
     private final NodesFaultDetection nodesFD;
     private final PublishClusterStateAction publishClusterState;
@@ -140,13 +140,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Inject
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
-                        ClusterService clusterService, ClusterSettings clusterSettings, ZenPing pinger) {
+                        ClusterService clusterService, ClusterSettings clusterSettings, ZenPing zenPing) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
-        this.pinger = pinger;
+        this.zenPing = zenPing;
         this.electMaster = new ElectMasterService(settings);
         this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -198,7 +198,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     protected void doStart() {
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
-        pinger.start(this);
+        zenPing.start(this);
         this.nodeJoinController = new NodeJoinController(clusterService, allocationService, electMaster, discoverySettings, settings);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::rejoin, logger);
     }
@@ -261,7 +261,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Override
     protected void doClose() throws IOException {
-        IOUtils.close(masterFD, nodesFD, pinger);
+        IOUtils.close(masterFD, nodesFD, zenPing);
     }
 
     @Override
@@ -1010,19 +1010,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private ZenPing.PingCollection pingAndWait(TimeValue timeout) {
         final ZenPing.PingCollection response = new ZenPing.PingCollection();
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicBoolean counted = new AtomicBoolean();
         try {
-            pinger.ping(pings -> {
+            zenPing.ping(pings -> {
                 response.addPings(pings);
-                if (counted.compareAndSet(false, true)) {
-                    latch.countDown();
-                }
+                latch.countDown();
             }, timeout);
         } catch (Exception ex) {
             logger.warn("Ping execution failed", ex);
-            if (counted.compareAndSet(false, true)) {
-                latch.countDown();
-            }
+            latch.countDown();
         }
 
         try {

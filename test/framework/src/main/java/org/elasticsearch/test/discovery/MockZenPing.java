@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
  */
 public final class MockZenPing extends AbstractComponent implements ZenPing {
 
+    /** A marker plugin used by {@link org.elasticsearch.node.MockNode} to indicate this mock zen ping should be used. */
     public static class TestPlugin extends Plugin {}
 
     static final Map<ClusterName, Set<MockZenPing>> activeNodesPerCluster = ConcurrentCollections.newConcurrentMap();

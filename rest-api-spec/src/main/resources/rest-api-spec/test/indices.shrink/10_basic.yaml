@@ -1,21 +1,26 @@
 ---
 "Shrink index via API":
-  - skip:
-    version: " - 5.0.0"
-    reason:  this doesn't work yet with BWC tests since the master is from the old verion
-    # TODO we need to fix this for BWC tests to make sure we get a node that all shards can allocate on
-    # today if we run BWC tests and we select the master as a _shrink node but since primaries are allocated
-    # on the newer version nodes this fails...
-  # creates an index with one document.
-  # relocates all it's shards to one node
-  # shrinks it into a new index with a single shard
+  # creates an index with one document solely allocated on the master node
+  # and shrinks it into a new index with a single shard
+  # we don't do the relocation to a single node after the index is created
+  # here since in a mixed version cluster we can't identify
+  # which node is the one with the highest version and that is the only one that can safely
+  # be used to shrink the index.
+  - do:
+      cluster.state: {}
+      # Get master node id
+      
+  - set: { master_node: master }
+
   - do:
       indices.create:
         index: source
         wait_for_active_shards: 1
         body:
           settings:
-            number_of_replicas: "0"
+            # ensure everything is allocated on a single node
+            index.routing.allocation.include._id: $master
+            number_of_replicas: 0
   - do:
       index:
         index: source
@@ -34,18 +39,11 @@
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
-  - do:
-      cluster.state: {}
-
-  # Get master node id
-  - set: { master_node: master }
-
-  # relocate everything to the master node and make it read-only
+  # make it read-only
   - do:
       indices.put_settings:
         index: source
         body:
-          index.routing.allocation.include._id: $master
           index.blocks.write: true
           index.number_of_replicas: 0
 
@@ -53,8 +51,6 @@
       cluster.health:
         wait_for_status: green
         index: source
-        wait_for_no_relocating_shards: true
-        wait_for_events: "languid"
 
   # now we do the actual shrink
   - do:

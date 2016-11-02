@@ -125,7 +125,7 @@ public class OldIndexUtils {
         } else {
             final List<Path> indexFolders = new ArrayList<>();
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir.resolve("0/indices"),
-                (p) -> p.getFileName().startsWith("extra") == false)) { // extra FS can break this...
+                (p) -> p.getFileName().toString().startsWith("extra") == false)) { // extra FS can break this...
                 for (final Path path : stream) {
                     indexFolders.add(path);
                 }

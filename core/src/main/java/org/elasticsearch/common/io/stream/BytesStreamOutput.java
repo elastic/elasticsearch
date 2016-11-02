@@ -87,7 +87,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         }
 
         // get enough pages for new size
-        ensureCapacity((long) count + length);
+        ensureCapacity(((long) count) + length);
 
         // bulk copy
         bytes.set(count, b, offset, length);

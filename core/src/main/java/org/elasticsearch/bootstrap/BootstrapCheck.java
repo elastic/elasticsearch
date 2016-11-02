@@ -54,6 +54,8 @@ import java.util.function.Predicate;
  */
 final class BootstrapCheck {
 
+    public static final String SKIP_BOOTSTRAP_CHECK_KEY = "skipBootstrapCheck";
+
     private BootstrapCheck() {
     }
 
@@ -66,7 +68,7 @@ final class BootstrapCheck {
      */
     static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
         check(
-                enforceLimits(boundTransportAddress),
+                enforceLimits(Loggers.getLogger(BootstrapCheck.class), boundTransportAddress),
                 checks(settings),
                 Node.NODE_NAME_SETTING.get(settings));
     }
@@ -140,15 +142,20 @@ final class BootstrapCheck {
     /**
      * Tests if the checks should be enforced
      *
+     * @param logger the logger to
      * @param boundTransportAddress the node network bindings
      * @return true if the checks should be enforced
      */
     // visible for testing
-    static boolean enforceLimits(BoundTransportAddress boundTransportAddress) {
+    static boolean enforceLimits(Logger logger, BoundTransportAddress boundTransportAddress) {
+        boolean skipBootstrapCheck = Boolean.getBoolean(SKIP_BOOTSTRAP_CHECK_KEY);
+        if (skipBootstrapCheck) {
+            logger.warn("Bootstrap check is disabled!");
+        }
         Predicate<TransportAddress> isLoopbackOrLinkLocalAddress = t -> t.address().getAddress().isLinkLocalAddress()
             || t.address().getAddress().isLoopbackAddress();
         return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
-                isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));
+                isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress())) && !skipBootstrapCheck;
     }
 
     // the list of checks to execute

@@ -184,7 +184,6 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.add(otherZen);
             otherTransport.acceptIncomingRequests();
 
-
             masterTransport.connectToNode(otherNode);
             otherTransport.connectToNode(masterNode);
 

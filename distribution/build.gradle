@@ -196,6 +196,13 @@ subprojects {
  *                         Zip and tgz configuration                         *
  *****************************************************************************/
 configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
+  // CopySpec does not make it easy to create an empty director so we create the directory that we want, and then point CopySpec to its
+  // parent to copy to the root of the distribution
+  File plugins = new File(buildDir, 'plugins-hack/plugins')
+  task createPluginsDir(type: EmptyDirTask) {
+    dir "${plugins}"
+    dirMode 0755
+  }
   project.ext.archivesFiles = copySpec {
     into("elasticsearch-${version}") {
       with libFiles
@@ -215,12 +222,6 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
         }
       }
       into('') {
-        // CopySpec does not make it easy to create an empty directory
-        // so we create the directory that we want, and then point
-        // CopySpec to its parent to copy to the root of the
-        // distribution
-        File plugins = new File(buildDir, 'plugins-hack/plugins')
-        plugins.mkdirs()
         from {
           plugins.getParent()
         }

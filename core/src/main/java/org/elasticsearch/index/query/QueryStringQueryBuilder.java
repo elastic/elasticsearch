@@ -209,6 +209,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         maxDeterminizedStates = in.readVInt();
         if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             splitOnWhitespace = in.readBoolean();
+        } else {
+            splitOnWhitespace = DEFAULT_SPLIT_ON_WHITESPACE;
         }
     }
 

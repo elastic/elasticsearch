@@ -1,0 +1,1331 @@
+{
+  ".monitoring-es-2-2016.11.01" : {
+    "mappings" : {
+      "indices_stats" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "indices_stats" : {
+            "properties" : {
+              "_all" : {
+                "properties" : {
+                  "primaries" : {
+                    "properties" : {
+                      "docs" : {
+                        "properties" : {
+                          "count" : {
+                            "type" : "long"
+                          }
+                        }
+                      },
+                      "indexing" : {
+                        "properties" : {
+                          "index_time_in_millis" : {
+                            "type" : "long"
+                          },
+                          "index_total" : {
+                            "type" : "long"
+                          },
+                          "is_throttled" : {
+                            "type" : "boolean"
+                          },
+                          "throttle_time_in_millis" : {
+                            "type" : "long"
+                          }
+                        }
+                      },
+                      "search" : {
+                        "properties" : {
+                          "query_time_in_millis" : {
+                            "type" : "long"
+                          },
+                          "query_total" : {
+                            "type" : "long"
+                          }
+                        }
+                      },
+                      "store" : {
+                        "properties" : {
+                          "size_in_bytes" : {
+                            "type" : "long"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "total" : {
+                    "properties" : {
+                      "docs" : {
+                        "properties" : {
+                          "count" : {
+                            "type" : "long"
+                          }
+                        }
+                      },
+                      "indexing" : {
+                        "properties" : {
+                          "index_time_in_millis" : {
+                            "type" : "long"
+                          },
+                          "index_total" : {
+                            "type" : "long"
+                          },
+                          "is_throttled" : {
+                            "type" : "boolean"
+                          },
+                          "throttle_time_in_millis" : {
+                            "type" : "long"
+                          }
+                        }
+                      },
+                      "search" : {
+                        "properties" : {
+                          "query_time_in_millis" : {
+                            "type" : "long"
+                          },
+                          "query_total" : {
+                            "type" : "long"
+                          }
+                        }
+                      },
+                      "store" : {
+                        "properties" : {
+                          "size_in_bytes" : {
+                            "type" : "long"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      },
+      "cluster_state" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_state" : {
+            "properties" : {
+              "master_node" : {
+                "type" : "keyword"
+              },
+              "nodes" : {
+                "type" : "object",
+                "enabled" : false
+              },
+              "shards" : {
+                "type" : "object"
+              },
+              "state_uuid" : {
+                "type" : "keyword"
+              },
+              "status" : {
+                "type" : "keyword"
+              },
+              "version" : {
+                "type" : "long"
+              }
+            }
+          },
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      },
+      "node" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "node" : {
+            "properties" : {
+              "id" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "state_uuid" : {
+            "type" : "keyword"
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      },
+      "_default_" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      },
+      "index_recovery" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "index_recovery" : {
+            "type" : "object",
+            "enabled" : false
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      },
+      "shards" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "shard" : {
+            "properties" : {
+              "index" : {
+                "type" : "keyword"
+              },
+              "node" : {
+                "type" : "keyword"
+              },
+              "primary" : {
+                "type" : "boolean"
+              },
+              "relocating_node" : {
+                "type" : "keyword"
+              },
+              "shard" : {
+                "type" : "long"
+              },
+              "state" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "state_uuid" : {
+            "type" : "keyword"
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      },
+      "node_stats" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "node_stats" : {
+            "properties" : {
+              "fs" : {
+                "properties" : {
+                  "data" : {
+                    "properties" : {
+                      "spins" : {
+                        "type" : "boolean"
+                      }
+                    }
+                  },
+                  "io_stats" : {
+                    "properties" : {
+                      "total" : {
+                        "properties" : {
+                          "operations" : {
+                            "type" : "long"
+                          },
+                          "read_kilobytes" : {
+                            "type" : "long"
+                          },
+                          "read_operations" : {
+                            "type" : "long"
+                          },
+                          "write_kilobytes" : {
+                            "type" : "long"
+                          },
+                          "write_operations" : {
+                            "type" : "long"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "total" : {
+                    "properties" : {
+                      "available_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "free_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "total_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "indices" : {
+                "properties" : {
+                  "docs" : {
+                    "properties" : {
+                      "count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "fielddata" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "indexing" : {
+                    "properties" : {
+                      "index_time_in_millis" : {
+                        "type" : "long"
+                      },
+                      "index_total" : {
+                        "type" : "long"
+                      },
+                      "throttle_time_in_millis" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "query_cache" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "hit_count" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "miss_count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "request_cache" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "hit_count" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "miss_count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "search" : {
+                    "properties" : {
+                      "query_time_in_millis" : {
+                        "type" : "long"
+                      },
+                      "query_total" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "segments" : {
+                    "properties" : {
+                      "count" : {
+                        "type" : "integer"
+                      },
+                      "doc_values_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "fixed_bit_set_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "index_writer_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "norms_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "points_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "stored_fields_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "term_vectors_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "terms_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "version_map_memory_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "store" : {
+                    "properties" : {
+                      "size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "throttle_time_in_millis" : {
+                        "type" : "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "jvm" : {
+                "properties" : {
+                  "gc" : {
+                    "properties" : {
+                      "collectors" : {
+                        "properties" : {
+                          "old" : {
+                            "properties" : {
+                              "collection_count" : {
+                                "type" : "long"
+                              },
+                              "collection_time_in_millis" : {
+                                "type" : "long"
+                              }
+                            }
+                          },
+                          "young" : {
+                            "properties" : {
+                              "collection_count" : {
+                                "type" : "long"
+                              },
+                              "collection_time_in_millis" : {
+                                "type" : "long"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "mem" : {
+                    "properties" : {
+                      "heap_max_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "heap_used_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "heap_used_percent" : {
+                        "type" : "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "mlockall" : {
+                "type" : "boolean"
+              },
+              "node_id" : {
+                "type" : "keyword"
+              },
+              "node_master" : {
+                "type" : "boolean"
+              },
+              "os" : {
+                "properties" : {
+                  "cpu" : {
+                    "properties" : {
+                      "load_average" : {
+                        "properties" : {
+                          "1m" : {
+                            "type" : "float"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "process" : {
+                "properties" : {
+                  "cpu" : {
+                    "properties" : {
+                      "percent" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "max_file_descriptors" : {
+                    "type" : "long"
+                  },
+                  "open_file_descriptors" : {
+                    "type" : "long"
+                  }
+                }
+              },
+              "thread_pool" : {
+                "properties" : {
+                  "bulk" : {
+                    "properties" : {
+                      "queue" : {
+                        "type" : "long"
+                      },
+                      "rejected" : {
+                        "type" : "long"
+                      },
+                      "threads" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "generic" : {
+                    "properties" : {
+                      "queue" : {
+                        "type" : "long"
+                      },
+                      "rejected" : {
+                        "type" : "long"
+                      },
+                      "threads" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "get" : {
+                    "properties" : {
+                      "queue" : {
+                        "type" : "long"
+                      },
+                      "rejected" : {
+                        "type" : "long"
+                      },
+                      "threads" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "index" : {
+                    "properties" : {
+                      "queue" : {
+                        "type" : "long"
+                      },
+                      "rejected" : {
+                        "type" : "long"
+                      },
+                      "threads" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "management" : {
+                    "properties" : {
+                      "queue" : {
+                        "type" : "long"
+                      },
+                      "rejected" : {
+                        "type" : "long"
+                      },
+                      "threads" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "search" : {
+                    "properties" : {
+                      "queue" : {
+                        "type" : "long"
+                      },
+                      "rejected" : {
+                        "type" : "long"
+                      },
+                      "threads" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "watcher" : {
+                    "properties" : {
+                      "queue" : {
+                        "type" : "long"
+                      },
+                      "rejected" : {
+                        "type" : "long"
+                      },
+                      "threads" : {
+                        "type" : "long"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      },
+      "cluster_stats" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_stats" : {
+            "properties" : {
+              "indices" : {
+                "properties" : {
+                  "count" : {
+                    "type" : "long"
+                  },
+                  "docs" : {
+                    "properties" : {
+                      "count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "shards" : {
+                    "properties" : {
+                      "index" : {
+                        "properties" : {
+                          "replication" : {
+                            "properties" : {
+                              "min" : {
+                                "type" : "float"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "primaries" : {
+                        "type" : "long"
+                      },
+                      "replication" : {
+                        "type" : "float"
+                      },
+                      "total" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "store" : {
+                    "properties" : {
+                      "size_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "nodes" : {
+                "properties" : {
+                  "count" : {
+                    "properties" : {
+                      "total" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "fs" : {
+                    "properties" : {
+                      "available_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "free_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "total_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "jvm" : {
+                    "properties" : {
+                      "max_uptime_in_millis" : {
+                        "type" : "long"
+                      },
+                      "mem" : {
+                        "properties" : {
+                          "heap_max_in_bytes" : {
+                            "type" : "long"
+                          },
+                          "heap_used_in_bytes" : {
+                            "type" : "long"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "versions" : {
+                    "type" : "text",
+                    "fields" : {
+                      "keyword" : {
+                        "type" : "keyword",
+                        "ignore_above" : 256
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      },
+      "index_stats" : {
+        "_all" : {
+          "enabled" : false
+        },
+        "date_detection" : false,
+        "properties" : {
+          "cluster_uuid" : {
+            "type" : "keyword"
+          },
+          "index_stats" : {
+            "properties" : {
+              "index" : {
+                "type" : "keyword"
+              },
+              "primaries" : {
+                "properties" : {
+                  "docs" : {
+                    "properties" : {
+                      "count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "fielddata" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "indexing" : {
+                    "properties" : {
+                      "index_time_in_millis" : {
+                        "type" : "long"
+                      },
+                      "index_total" : {
+                        "type" : "long"
+                      },
+                      "throttle_time_in_millis" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "merges" : {
+                    "properties" : {
+                      "total_size_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "query_cache" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "hit_count" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "miss_count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "refresh" : {
+                    "properties" : {
+                      "total_time_in_millis" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "request_cache" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "hit_count" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "miss_count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "search" : {
+                    "properties" : {
+                      "query_time_in_millis" : {
+                        "type" : "long"
+                      },
+                      "query_total" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "segments" : {
+                    "properties" : {
+                      "count" : {
+                        "type" : "integer"
+                      },
+                      "doc_values_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "fixed_bit_set_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "index_writer_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "norms_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "points_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "stored_fields_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "term_vectors_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "terms_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "version_map_memory_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "store" : {
+                    "properties" : {
+                      "size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "throttle_time_in_millis" : {
+                        "type" : "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "total" : {
+                "properties" : {
+                  "docs" : {
+                    "properties" : {
+                      "count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "fielddata" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "indexing" : {
+                    "properties" : {
+                      "index_time_in_millis" : {
+                        "type" : "long"
+                      },
+                      "index_total" : {
+                        "type" : "long"
+                      },
+                      "throttle_time_in_millis" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "merges" : {
+                    "properties" : {
+                      "total_size_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "query_cache" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "hit_count" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "miss_count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "refresh" : {
+                    "properties" : {
+                      "total_time_in_millis" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "request_cache" : {
+                    "properties" : {
+                      "evictions" : {
+                        "type" : "long"
+                      },
+                      "hit_count" : {
+                        "type" : "long"
+                      },
+                      "memory_size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "miss_count" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "search" : {
+                    "properties" : {
+                      "query_time_in_millis" : {
+                        "type" : "long"
+                      },
+                      "query_total" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "segments" : {
+                    "properties" : {
+                      "count" : {
+                        "type" : "integer"
+                      },
+                      "doc_values_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "fixed_bit_set_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "index_writer_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "norms_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "points_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "stored_fields_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "term_vectors_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "terms_memory_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "version_map_memory_in_bytes" : {
+                        "type" : "long"
+                      }
+                    }
+                  },
+                  "store" : {
+                    "properties" : {
+                      "size_in_bytes" : {
+                        "type" : "long"
+                      },
+                      "throttle_time_in_millis" : {
+                        "type" : "long"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "source_node" : {
+            "properties" : {
+              "attributes" : {
+                "dynamic" : "true",
+                "properties" : {
+                  "client" : {
+                    "type" : "boolean"
+                  },
+                  "data" : {
+                    "type" : "boolean"
+                  },
+                  "master" : {
+                    "type" : "boolean"
+                  }
+                }
+              },
+              "host" : {
+                "type" : "keyword"
+              },
+              "ip" : {
+                "type" : "keyword"
+              },
+              "name" : {
+                "type" : "keyword"
+              },
+              "transport_address" : {
+                "type" : "keyword"
+              },
+              "uuid" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "timestamp" : {
+            "type" : "date",
+            "format" : "date_time"
+          }
+        }
+      }
+    }
+  }
+}

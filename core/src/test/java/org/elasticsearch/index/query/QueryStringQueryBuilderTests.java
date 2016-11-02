@@ -36,6 +36,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -105,9 +108,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.maxDeterminizedStates(randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.lowercaseExpandedTerms(randomBoolean());
-        }
-        if (randomBoolean()) {
             queryStringQueryBuilder.autoGeneratePhraseQueries(randomBoolean());
         }
         if (randomBoolean()) {
@@ -145,9 +145,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.useDisMax(randomBoolean());
-        }
-        if (randomBoolean()) {
-            queryStringQueryBuilder.locale(randomLocale(random()));
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
@@ -669,13 +666,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"default_operator\" : \"or\",\n" +
                 "    \"auto_generate_phrase_queries\" : false,\n" +
                 "    \"max_determined_states\" : 10000,\n" +
-                "    \"lowercase_expanded_terms\" : true,\n" +
                 "    \"enable_position_increment\" : true,\n" +
                 "    \"fuzziness\" : \"AUTO\",\n" +
                 "    \"fuzzy_prefix_length\" : 0,\n" +
                 "    \"fuzzy_max_expansions\" : 50,\n" +
                 "    \"phrase_slop\" : 0,\n" +
-                "    \"locale\" : \"und\",\n" +
                 "    \"escape\" : false,\n" +
                 "    \"split_on_whitespace\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -689,4 +684,56 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(json, "content", parsed.defaultField());
     }
 
+    public void testExpandedTerms() throws Exception {
+        // Prefix
+        Query query = new QueryStringQueryBuilder("aBc*")
+                .field(STRING_FIELD_NAME)
+                .analyzer("whitespace")
+                .toQuery(createShardContext());
+        assertEquals(new PrefixQuery(new Term(STRING_FIELD_NAME, "aBc")), query);
+        query = new QueryStringQueryBuilder("aBc*")
+                .field(STRING_FIELD_NAME)
+                .analyzer("standard")
+                .toQuery(createShardContext());
+        assertEquals(new PrefixQuery(new Term(STRING_FIELD_NAME, "abc")), query);
+
+        // Wildcard
+        query = new QueryStringQueryBuilder("aBc*D")
+                .field(STRING_FIELD_NAME)
+                .analyzer("whitespace")
+                .toQuery(createShardContext());
+        assertEquals(new WildcardQuery(new Term(STRING_FIELD_NAME, "aBc*D")), query);
+        query = new QueryStringQueryBuilder("aBc*D")
+                .field(STRING_FIELD_NAME)
+                .analyzer("standard")
+                .toQuery(createShardContext());
+        assertEquals(new WildcardQuery(new Term(STRING_FIELD_NAME, "abc*d")), query);
+
+        // Fuzzy
+        query = new QueryStringQueryBuilder("aBc~1")
+                .field(STRING_FIELD_NAME)
+                .analyzer("whitespace")
+                .toQuery(createShardContext());
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
+        assertEquals(new Term(STRING_FIELD_NAME, "aBc"), fuzzyQuery.getTerm());
+        query = new QueryStringQueryBuilder("aBc~1")
+                .field(STRING_FIELD_NAME)
+                .analyzer("standard")
+                .toQuery(createShardContext());
+        fuzzyQuery = (FuzzyQuery) query;
+        assertEquals(new Term(STRING_FIELD_NAME, "abc"), fuzzyQuery.getTerm());
+
+        // Range
+        query = new QueryStringQueryBuilder("[aBc TO BcD]")
+                .field(STRING_FIELD_NAME)
+                .analyzer("whitespace")
+                .toQuery(createShardContext());
+        assertEquals(new TermRangeQuery(STRING_FIELD_NAME, new BytesRef("aBc"), new BytesRef("BcD"), true, true), query);
+        query = new QueryStringQueryBuilder("[aBc TO BcD]")
+                .field(STRING_FIELD_NAME)
+                .analyzer("standard")
+                .toQuery(createShardContext());
+        assertEquals(new TermRangeQuery(STRING_FIELD_NAME, new BytesRef("abc"), new BytesRef("bcd"), true, true), query);
+    }
+    
 }

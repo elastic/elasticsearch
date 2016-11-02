@@ -30,12 +30,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -156,49 +154,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .setQuery(simpleQueryStringQuery("foo bar baz").field("body2").field("other").minimumShouldMatch("70%")).get();
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "6", "7", "8");
-    }
-
-    public void testSimpleQueryStringLowercasing() {
-        createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("body", "Professional").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("Professio*")).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("Professio*").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0L);
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("Professionan~1")).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("Professionan~1").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0L);
-    }
-
-    public void testQueryStringLocale() {
-        createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("body", "bılly").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("BILL*")).get();
-        assertHitCount(searchResponse, 0L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("body:BILL*")).get();
-        assertHitCount(searchResponse, 0L);
-
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("BILL*").locale(new Locale("tr", "TR"))).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
-        searchResponse = client().prepareSearch().setQuery(
-                queryStringQuery("body:BILL*").locale(new Locale("tr", "TR"))).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
     }
 
     public void testNestedFieldSimpleQueryString() throws IOException {
@@ -342,7 +297,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(simpleQueryStringQuery("Köln*").analyzeWildcard(true).field("location")).get();
+                .setQuery(simpleQueryStringQuery("Köln*").field("location")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
@@ -393,7 +348,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(simpleQueryStringQuery("the*").analyzeWildcard(true).field("body")).get();
+                .setQuery(simpleQueryStringQuery("the*").field("body")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 0L);
     }

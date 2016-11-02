@@ -79,10 +79,6 @@ import java.util.TreeMap;
  * > online documentation</a>.
  */
 public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
-    /** Default locale used for parsing.*/
-    public static final Locale DEFAULT_LOCALE = Locale.ROOT;
-    /** Default for lowercasing parsed terms.*/
-    public static final boolean DEFAULT_LOWERCASE_EXPANDED_TERMS = true;
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
     /** Default for wildcard analysis.*/
@@ -100,8 +96,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms");
-    private static final ParseField LOCALE_FIELD = new ParseField("locale");
+    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
+            .withAllDeprecated("Decision is now made by the analyzer");
+    private static final ParseField LOCALE_FIELD = new ParseField("locale")
+            .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField FLAGS_FIELD = new ParseField("flags");
     private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
     private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
@@ -157,10 +155,14 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        settings.lowercaseExpandedTerms(in.readBoolean());
+        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+            in.readBoolean(); // lowercase_expanded_terms
+        }
         settings.lenient(in.readBoolean());
         settings.analyzeWildcard(in.readBoolean());
-        settings.locale(Locale.forLanguageTag(in.readString()));
+        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+            in.readString(); // locale
+        }
         minimumShouldMatch = in.readOptionalString();
         if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             settings.quoteFieldSuffix(in.readOptionalString());
@@ -178,10 +180,14 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        out.writeBoolean(settings.lowercaseExpandedTerms());
+        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+            out.writeBoolean(true); // lowercase_expanded_terms
+        }
         out.writeBoolean(settings.lenient());
         out.writeBoolean(settings.analyzeWildcard());
-        out.writeString(settings.locale().toLanguageTag());
+        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+            out.writeString(Locale.ROOT.toLanguageTag()); // locale
+        }
         out.writeOptionalString(minimumShouldMatch);
         if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
@@ -275,31 +281,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** For testing only: Return the flags set for this query. */
     int flags() {
         return this.flags;
-    }
-
-    /**
-     * Specifies whether parsed terms for this query should be lower-cased.
-     * Defaults to true if not set.
-     */
-    public SimpleQueryStringBuilder lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.settings.lowercaseExpandedTerms(lowercaseExpandedTerms);
-        return this;
-    }
-
-    /** Returns whether parsed terms should be lower cased for this query. */
-    public boolean lowercaseExpandedTerms() {
-        return this.settings.lowercaseExpandedTerms();
-    }
-
-    /** Specifies the locale for parsing terms. Defaults to ROOT if none is set. */
-    public SimpleQueryStringBuilder locale(Locale locale) {
-        this.settings.locale(locale);
-        return this;
-    }
-
-    /** Returns the locale for parsing terms for this query. */
-    public Locale locale() {
-        return this.settings.locale();
     }
 
     /**
@@ -429,10 +410,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         builder.field(FLAGS_FIELD.getPreferredName(), flags);
         builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), defaultOperator.name().toLowerCase(Locale.ROOT));
-        builder.field(LOWERCASE_EXPANDED_TERMS_FIELD.getPreferredName(), settings.lowercaseExpandedTerms());
         builder.field(LENIENT_FIELD.getPreferredName(), settings.lenient());
         builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());
-        builder.field(LOCALE_FIELD.getPreferredName(), (settings.locale().toLanguageTag()));
         if (settings.quoteFieldSuffix() != null) {
             builder.field(QUOTE_FIELD_SUFFIX_FIELD.getPreferredName(), settings.quoteFieldSuffix());
         }
@@ -458,9 +437,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         String analyzerName = null;
         int flags = SimpleQueryStringFlag.ALL.value();
         boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
-        boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
-        Locale locale = null;
         String quoteFieldSuffix = null;
 
         XContentParser.Token token;
@@ -512,10 +489,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                         }
                     }
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
-                    String localeStr = parser.text();
-                    locale = Locale.forLanguageTag(localeStr);
+                    // ignore, deprecated setting
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LOWERCASE_EXPANDED_TERMS_FIELD)) {
-                    lowercaseExpandedTerms = parser.booleanValue();
+                    // ignore, deprecated setting
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
                     lenient = parser.booleanValue();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ANALYZE_WILDCARD_FIELD)) {
@@ -543,7 +519,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
         qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
-        qb.flags(flags).defaultOperator(defaultOperator).locale(locale).lowercaseExpandedTerms(lowercaseExpandedTerms);
+        qb.flags(flags).defaultOperator(defaultOperator);
         qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
         return Optional.of(qb);
     }

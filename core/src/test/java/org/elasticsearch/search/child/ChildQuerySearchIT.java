@@ -1148,7 +1148,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                         hasChildQuery(
                                                 "child_type_one",
                                                 boolQuery().must(
-                                                        queryStringQuery("name:William*").analyzeWildcard(true)
+                                                        queryStringQuery("name:William*")
                                                 ),
                                                 ScoreMode.None)
                                 ),
@@ -1165,7 +1165,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                         hasChildQuery(
                                                 "child_type_two",
                                                 boolQuery().must(
-                                                        queryStringQuery("name:William*").analyzeWildcard(true)
+                                                        queryStringQuery("name:William*")
                                                 ),
                                                 ScoreMode.None)
                                 ),

@@ -35,7 +35,6 @@ subprojects {
     compileTestJava.options.encoding = 'UTF-8'
 
     group = 'com.prelert'
-    version = '2.3.0'
     sourceCompatibility = 1.8
     targetCompatibility = 1.8
 

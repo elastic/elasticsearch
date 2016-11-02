@@ -21,15 +21,15 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -346,7 +346,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         Exception failure = operationResult.getFailure();
                         assert failure instanceof VersionConflictEngineException
                                 || failure instanceof MapperParsingException
-                                : "expected version conflict or mapper parsing failures";
+                                : "expected version conflict or mapper parsing failures. got " + failure;
                         if (!ignoreReplicaException(failure)) {
                             throw failure;
                         }

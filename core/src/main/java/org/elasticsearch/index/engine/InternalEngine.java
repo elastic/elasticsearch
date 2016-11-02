@@ -349,6 +349,7 @@ public class InternalEngine extends Engine {
             }
         }
 
+        // nocommit: reading this should be part of recovery from the translog
         final long globalCheckpoint;
         if (engineConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());

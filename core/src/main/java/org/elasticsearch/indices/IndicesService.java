@@ -49,7 +49,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -1128,17 +1127,17 @@ public class IndicesService extends AbstractLifecycleComponent
         assert canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
         
-        Tuple<Boolean, BytesReference> cacheResult = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+        boolean[] loadedFromCache = new boolean[] { true };
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);
             } catch (IOException e) {
-                throw new IllegalStateException("Could not serialize response", e);
+                throw new AssertionError("Could not serialize response", e);
             }
+            loadedFromCache[0] = false;
         });
-        boolean loadedFromCache = cacheResult.v1();
-        BytesReference bytesReference = cacheResult.v2();
-        if (loadedFromCache) {
+        if (loadedFromCache[0]) {
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
             StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
@@ -1169,7 +1168,7 @@ public class IndicesService extends AbstractLifecycleComponent
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to write field stats output", e);
             }
-        }).v2();
+        });
         try (StreamInput in = statsRef.streamInput()) {
             return in.readOptionalWriteable(FieldStats::readFrom);
         }
@@ -1187,10 +1186,9 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param loader loads the data into the cache if needed
      * @return the contents of the cache or the result of calling the loader
      */
-    private Tuple<Boolean, BytesReference> cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey, Consumer<StreamOutput> loader)
+    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey, Consumer<StreamOutput> loader)
             throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
-        boolean[] loadedFromCache = new boolean[] { true };
         Supplier<BytesReference> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
              * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
@@ -1204,13 +1202,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 loader.accept(out);
                 // for now, keep the paged data structure, which might have unused bytes to fill a page, but better to keep
                 // the memory properly paged instead of having varied sized bytes
-                final BytesReference reference = out.bytes();
-                loadedFromCache[0] = false;
-                return reference;
+                return out.bytes();
             }
         };
-        final BytesReference result = indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
-        return new Tuple<>(loadedFromCache[0], result);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {

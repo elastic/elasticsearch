@@ -230,7 +230,11 @@ the cache implementation used for the request cache and the field data cache.
 
 ==== Using system properties to configure Elasticsearch
 
-Elasticsearch can no longer be configured by setting system properties via `-Des.name.of.setting=value.of.setting`.
+Elasticsearch can no longer be configured by setting system properties. This means that support for all of the following has been removed:
+* setting via command line arguments to `elasticsearch` as `-Des.name.of.setting=value.of.setting`
+* setting via the JAVA_OPTS environment variable `JAVA_OPTS=$JAVA_OPTS -Des.name.of.setting=value.of.setting`
+* setting via the ES_JAVA_OPTS environment variable `ES_JAVA_OPTS=$ES_JAVA_OPTS -Des.name.of.setting=value.of.setting`
+
 Instead, use `-Ename.of.setting=value.of.setting`.
 
 ==== Removed using double-dashes to configure Elasticsearch

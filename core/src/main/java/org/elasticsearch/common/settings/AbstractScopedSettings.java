@@ -519,7 +519,14 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             try {
                 Setting<?> setting = get(entry.getKey());
                 if (setting != null) {
-                    setting.get(settings);
+                    try {
+                        setting.get(settings);
+                    } catch (IllegalArgumentException ex) {
+                        if (setting.isMandatory()) {
+                            throw new IllegalStateException("can't archive mandatory setting [" + setting.getKey() + "]", ex);
+                        }
+                        throw ex;
+                    }
                     builder.put(entry.getKey(), entry.getValue());
                 } else {
                     if (entry.getKey().startsWith(ARCHIVED_SETTINGS_PREFIX) || isPrivateSetting(entry.getKey())) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -589,13 +590,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         String json =
             "{\n" +
                 "  \"function_score\" : {\n" +
-                "    \"query\" : { },\n" +
+                "    \"query\" : { \"match_all\" : {} },\n" +
                 "    \"functions\" : [ {\n" +
-                "      \"filter\" : { },\n" +
+                "      \"filter\" : { \"match_all\" : {}},\n" +
                 "      \"weight\" : 23.0,\n" +
                 "      \"random_score\" : { }\n" +
                 "    }, {\n" +
-                "      \"filter\" : { },\n" +
+                "      \"filter\" : { \"match_all\" : {}},\n" +
                 "      \"weight\" : 5.0\n" +
                 "    } ],\n" +
                 "    \"score_mode\" : \"multiply\",\n" +
@@ -613,11 +614,11 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     "  \"function_score\" : {\n" +
                     "    \"query\" : { \"match_all\" : {} },\n" +
                     "    \"functions\" : [ {\n" +
-                    "      \"filter\" : { },\n" +
+                    "      \"filter\" : { \"match_all\" : {}},\n" +
                     "      \"weight\" : 23.0,\n" +
                     "      \"random_score\" : { }\n" +
                     "    }, {\n" +
-                    "      \"filter\" : { },\n" +
+                    "      \"filter\" : { \"match_all\" : {}},\n" +
                     "      \"weight\" : 5.0\n" +
                     "    } ],\n" +
                     "    \"score_mode\" : \"multiply\",\n" +

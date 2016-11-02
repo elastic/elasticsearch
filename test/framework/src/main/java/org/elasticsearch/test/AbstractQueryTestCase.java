@@ -52,11 +52,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -123,10 +125,12 @@ import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
@@ -155,6 +159,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static String[] currentTypes;
     private static String[] randomTypes;
 
+    /**
+     * used to check warning headers of the deprecation logger
+     */
+    private ThreadContext threadContext;
 
     protected static Index getIndex() {
         return index;
@@ -209,6 +217,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), this);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(threadContext);
+    }
+
+    /**
+     * Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
+     * appropriate test
+     */
+    @After
+    public void teardown() throws IOException {
+        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
+        assertNull("unexpected warning headers", warnings);
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        this.threadContext.close();
     }
 
     private static SearchContext getSearchContext(String[] types, QueryShardContext context) {
@@ -1007,6 +1029,23 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     protected Query rewrite(Query query) throws IOException {
         return query;
+    }
+
+    protected void checkWarningHeaders(String... messages) {
+        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
+        assertThat(warnings, hasSize(messages.length));
+        for (String msg : messages) {
+            assertThat(warnings, hasItem(equalTo(msg)));
+        }
+        // "clear" current warning headers by setting a new ThreadContext
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        try {
+            this.threadContext.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(this.threadContext);
     }
 
     private static class ServiceHolder implements Closeable {

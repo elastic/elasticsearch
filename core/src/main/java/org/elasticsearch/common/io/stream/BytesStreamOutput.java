@@ -123,7 +123,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         // empty for now.
     }
 

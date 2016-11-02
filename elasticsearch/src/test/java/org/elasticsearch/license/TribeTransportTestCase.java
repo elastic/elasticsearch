@@ -207,8 +207,8 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                                 .waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", testCluster.client().admin().cluster()
-                    .prepareState().get().getState().prettyPrint(),
-                    testCluster.client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+                    .prepareState().get().getState(),
+                    testCluster.client().admin().cluster().preparePendingClusterTasks().get());
             assertThat("timed out waiting for yellow state", actionGet.isTimedOut(), equalTo(false));
         }
         assertThat(actionGet.getStatus(), anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN)));

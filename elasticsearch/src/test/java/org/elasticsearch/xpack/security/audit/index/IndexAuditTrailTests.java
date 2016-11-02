@@ -5,17 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -61,6 +50,17 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
@@ -801,8 +801,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                 .waitForNoRelocatingShards(true).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureYellow timed out, cluster state:\n{}\n{}",
-                    getClient().admin().cluster().prepareState().get().getState().prettyPrint(),
-                    getClient().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+                    getClient().admin().cluster().prepareState().get().getState(),
+                    getClient().admin().cluster().preparePendingClusterTasks().get());
             assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
         }
 

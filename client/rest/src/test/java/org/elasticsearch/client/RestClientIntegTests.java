@@ -229,6 +229,17 @@ public class RestClientIntegTests extends RestClientTestCase {
         }
     }
 
+    public void testPath() throws IOException {
+        for (String method : getHttpMethods()) {
+            try {
+                restClient.performRequest(method, null);
+                fail("path set to null should fail!");
+            } catch (NullPointerException e) {
+                assertEquals("path must not be null", e.getMessage());
+            }
+        }
+    }
+
     private void bodyTest(String method) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(requestBody);

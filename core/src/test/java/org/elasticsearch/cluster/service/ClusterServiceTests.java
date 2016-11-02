@@ -41,6 +41,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -119,12 +121,12 @@ public class ClusterServiceTests extends ESTestCase {
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToAddedNodes(ClusterChangedEvent event) {
+            public void connectToNodes(List<DiscoveryNode> addedNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromRemovedNodes(ClusterChangedEvent event) {
+            public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
                 // skip
             }
         });
@@ -968,6 +970,70 @@ public class ClusterServiceTests extends ESTestCase {
             Loggers.removeAppender(clusterLogger, mockAppender);
         }
         mockAppender.assertAllExpectationsMatched();
+    }
+
+    public void testDisconnectFromNewlyAddedNodesIfClusterStatePublishingFails() throws InterruptedException {
+        TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
+            "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool);
+        timedClusterService.setLocalNode(new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
+            emptySet(), Version.CURRENT));
+        Set<DiscoveryNode> currentNodes = Collections.synchronizedSet(new HashSet<>());
+        currentNodes.add(timedClusterService.localNode());
+        timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
+            @Override
+            public void connectToNodes(List<DiscoveryNode> addedNodes) {
+                currentNodes.addAll(addedNodes);
+            }
+
+            @Override
+            public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
+                currentNodes.removeAll(removedNodes);
+            }
+        });
+        AtomicBoolean failToCommit = new AtomicBoolean();
+        timedClusterService.setClusterStatePublisher((event, ackListener) -> {
+            if (failToCommit.get()) {
+                throw new Discovery.FailedToCommitClusterStateException("just to test this");
+            }
+        });
+        timedClusterService.start();
+        ClusterState state = timedClusterService.state();
+        final DiscoveryNodes nodes = state.nodes();
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes)
+            .masterNodeId(nodes.getLocalNodeId());
+        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(nodesBuilder).build();
+        setState(timedClusterService, state);
+
+        assertThat(currentNodes, equalTo(Sets.newHashSet(timedClusterService.state().getNodes())));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        // try to add node when cluster state publishing fails
+        failToCommit.set(true);
+        timedClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                DiscoveryNode newNode = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(),
+                    emptySet(), Version.CURRENT);
+                return ClusterState.builder(currentState).nodes(DiscoveryNodes.builder(currentState.nodes()).add(newNode)).build();
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                latch.countDown();
+            }
+        });
+
+        latch.await();
+        assertThat(currentNodes, equalTo(Sets.newHashSet(timedClusterService.state().getNodes())));
+        timedClusterService.close();
     }
 
     private static class SimpleTask {

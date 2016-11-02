@@ -118,9 +118,16 @@ This will yield the following result:
                  "rewrite_time": 51443,
                  "collector": [
                     {
-                       "name": "SimpleTopScoreDocCollector",
-                       "reason": "search_top_hits",
-                       "time": "0.06989100000ms"
+                       "name": "CancellableCollector",
+                       "reason": "search_cancelled",
+                       "time": "0.3043110000ms",
+                       "children": [
+                         {
+                           "name": "SimpleTopScoreDocCollector",
+                           "reason": "search_top_hits",
+                           "time": "0.03227300000ms"
+                         }
+                       ]
                     }
                  ]
               }
@@ -150,7 +157,8 @@ This will yield the following result:
 // TESTRESPONSE[s/"build_scorer": 42602/"build_scorer": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.build_scorer/]
 // TESTRESPONSE[s/"create_weight": 89323/"create_weight": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.create_weight/]
 // TESTRESPONSE[s/"next_doc": 2852/"next_doc": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.next_doc/]
-// TESTRESPONSE[s/"time": "0.06989100000ms"/"time": $body.profile.shards.0.searches.0.collector.0.time/]
+// TESTRESPONSE[s/"time": "0.3043110000ms"/"time": $body.profile.shards.0.searches.0.collector.0.time/]
+// TESTRESPONSE[s/"time": "0.03227300000ms"/"time": $body.profile.shards.0.searches.0.collector.0.children.0.time/]
 // Sorry for this mess....
 
 <1> Search results are returned, but were omitted here for brevity
@@ -390,21 +398,30 @@ Looking at the previous example:
 [source,js]
 --------------------------------------------------
 "collector": [
-    {
-       "name": "SimpleTopScoreDocCollector",
-       "reason": "search_top_hits",
-       "time": "0.06989100000ms"
-    }
+   {
+      "name": "CancellableCollector",
+      "reason": "search_cancelled",
+      "time": "0.3043110000ms",
+      "children": [
+        {
+          "name": "SimpleTopScoreDocCollector",
+          "reason": "search_top_hits",
+          "time": "0.03227300000ms"
+        }
+      ]
+   }
 ]
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"searches": [{\n"query": $body.profile.shards.0.searches.0.query,\n"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time,/]
 // TESTRESPONSE[s/]$/]}], "aggregations": []}]}}/]
-// TESTRESPONSE[s/"time": "0.06989100000ms"/"time": $body.profile.shards.0.searches.0.collector.0.time/]
+// TESTRESPONSE[s/"time": "0.3043110000ms"/"time": $body.profile.shards.0.searches.0.collector.0.time/]
+// TESTRESPONSE[s/"time": "0.03227300000ms"/"time": $body.profile.shards.0.searches.0.collector.0.children.0.time/]
 
-We see a single collector named `SimpleTopScoreDocCollector`.  This is the default "scoring and sorting" Collector
-used by Elasticsearch.  The `"reason"` field attempts to give a plain english description of the class name.  The
+We see a single collector named `SimpleTopScoreDocCollector` wrapped into `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and sorting"
+`Collector` used by Elasticsearch.  The `"reason"` field attempts to give a plain english description of the class name.  The
 `"time"` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
-all sub-collectors.
+all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by elasticsearch to detect if the current
+search was cancelled and stop collecting documents as soon as it occurs.
 
 It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined
 and normalized independently!  Due to the nature of Lucene's execution, it is impossible to "merge" the times

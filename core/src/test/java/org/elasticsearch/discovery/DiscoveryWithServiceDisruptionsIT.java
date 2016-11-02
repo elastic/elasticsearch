@@ -50,12 +50,12 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.MembershipAction;
-import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -152,11 +152,31 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return 1;
     }
 
+    private boolean disableBeforeIndexDeletion;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        disableBeforeIndexDeletion = false;
+    }
+
+    @Override
+    public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
+        if (scheme instanceof NetworkDisruption &&
+            ((NetworkDisruption) scheme).getNetworkLinkDisruptionType() instanceof NetworkUnresponsive) {
+            // the network unresponsive disruption may leave operations in flight
+            // this is because this disruption scheme swallows requests by design
+            // as such, these operations will never be marked as finished
+            disableBeforeIndexDeletion = true;
+        }
+        super.setDisruptionScheme(scheme);
+    }
+
     @Override
     protected void beforeIndexDeletion() {
-        // some test may leave operations in flight
-        // this is because the disruption schemes swallow requests by design
-        // as such, these operations will never be marked as finished
+        if (disableBeforeIndexDeletion == false) {
+            super.beforeIndexDeletion();
+        }
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
@@ -357,7 +377,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
             if (!success) {
                 fail("node [" + node + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
-                        + nodeState.prettyPrint());
+                        + nodeState);
             }
         }
 
@@ -444,13 +464,13 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
                 assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
                 assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
-                if (!state.routingTable().prettyPrint().equals(nodeState.routingTable().prettyPrint())) {
+                if (!state.routingTable().toString().equals(nodeState.routingTable().toString())) {
                     fail("different routing");
                 }
             } catch (AssertionError t) {
                 fail("failed comparing cluster state: " + t.getMessage() + "\n" +
-                        "--- cluster state of node [" + nodes.get(0) + "]: ---\n" + state.prettyPrint() +
-                        "\n--- cluster state [" + node + "]: ---\n" + nodeState.prettyPrint());
+                        "--- cluster state of node [" + nodes.get(0) + "]: ---\n" + state +
+                        "\n--- cluster state [" + node + "]: ---\n" + nodeState);
             }
 
         }
@@ -743,15 +763,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
         // Make sure that the end state is consistent on all nodes:
         assertDiscoveryCompleted(nodes);
-        // Use assertBusy(...) because the unfrozen node may take a while to actually join the cluster.
-        // The assertDiscoveryCompleted(...) can't know if all nodes have the old master node in all of the local cluster states
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertMaster(newMasterNode, nodes);
-            }
-        });
-
+        assertMaster(newMasterNode, nodes);
 
         assertThat(masters.size(), equalTo(2));
         for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
@@ -987,7 +999,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         String isolatedNode = randomBoolean() ? masterNode : nonMasterNode;
         TwoPartitions partitions = isolateNode(isolatedNode);
-        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
+        // we cannot use the NetworkUnresponsive disruption type here as it will swallow the "shard failed" request, calling neither
+        // onSuccess nor onFailure on the provided listener.
+        NetworkLinkDisruptionType disruptionType = new NetworkDisconnect();
+        NetworkDisruption networkDisruption = new NetworkDisruption(partitions, disruptionType);
+        setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
         service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new
@@ -1245,7 +1261,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         if (state.metaData().hasIndex("test") == false) {
-            fail("index 'test' was lost. current cluster state: " + state.prettyPrint());
+            fail("index 'test' was lost. current cluster state: " + state);
         }
 
     }
@@ -1342,14 +1358,16 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }, 10, TimeUnit.SECONDS);
     }
 
-    private void assertMaster(String masterNode, List<String> nodes) {
-        for (String node : nodes) {
-            ClusterState state = getNodeClusterState(node);
-            String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
-            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
-            String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
-            assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
-        }
+    private void assertMaster(String masterNode, List<String> nodes) throws Exception {
+        assertBusy(() -> {
+            for (String node : nodes) {
+                ClusterState state = getNodeClusterState(node);
+                String failMsgSuffix = "cluster_state:\n" + state;
+                assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
+                String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
+                assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
+            }
+        });
     }
 
     private void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {

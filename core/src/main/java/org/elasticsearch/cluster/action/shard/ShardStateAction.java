@@ -164,7 +164,7 @@ public class ShardStateAction extends AbstractComponent {
             @Override
             public void onNewClusterState(ClusterState state) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("new cluster state [{}] after waiting for master election to fail shard entry [{}]", state.prettyPrint(), shardEntry);
+                    logger.trace("new cluster state [{}] after waiting for master election to fail shard entry [{}]", state, shardEntry);
                 }
                 sendShardAction(actionName, observer, shardEntry, listener);
             }

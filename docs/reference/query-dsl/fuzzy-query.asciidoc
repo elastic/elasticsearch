@@ -24,6 +24,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:fuzzy query is deprecated. Instead use the [match] query with fuzziness parameter]
 
 Or with more advanced settings:
 
@@ -45,6 +46,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:fuzzy query is deprecated. Instead use the [match] query with fuzziness parameter]
 
 [float]
 ===== Parameters

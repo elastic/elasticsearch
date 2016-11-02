@@ -189,11 +189,6 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         statusChecker.run();
     }
 
-    /** called by IndexShard to record that this many bytes were written to translog */
-    public void bytesWritten(int bytes) {
-        statusChecker.bytesWritten(bytes);
-    }
-
     /** Asks this shard to throttle indexing to one thread */
     protected void activateThrottling(IndexShard shard) {
         shard.activateThrottling();
@@ -205,17 +200,20 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     @Override
-    public void postIndex(Engine.Index index, boolean created) {
-        recordOperationBytes(index);
+    public void postIndex(Engine.Index index, Engine.IndexResult result) {
+        recordOperationBytes(index, result);
     }
 
     @Override
-    public void postDelete(Engine.Delete delete) {
-        recordOperationBytes(delete);
+    public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+        recordOperationBytes(delete, result);
     }
 
-    private void recordOperationBytes(Engine.Operation op) {
-        bytesWritten(op.sizeInBytes());
+    /** called by IndexShard to record estimated bytes written to translog for the operation */
+    private void recordOperationBytes(Engine.Operation operation, Engine.Result result) {
+        if (result.hasFailure() == false) {
+            statusChecker.bytesWritten(operation.estimatedSizeInBytes());
+        }
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {

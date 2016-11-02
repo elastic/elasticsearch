@@ -27,7 +27,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,7 +43,7 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
     private boolean simulate = false;
     private boolean explain = false;
     private boolean profile = false;
-    private ScriptService.ScriptType scriptType;
+    private ScriptType scriptType;
     private String script;
     private Map<String, Object> scriptParams;
 
@@ -87,11 +87,11 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         this.profile = profile;
     }
 
-    public ScriptService.ScriptType getScriptType() {
+    public ScriptType getScriptType() {
         return scriptType;
     }
 
-    public void setScriptType(ScriptService.ScriptType scriptType) {
+    public void setScriptType(ScriptType scriptType) {
         this.scriptType = scriptType;
     }
 
@@ -143,7 +143,7 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         simulate = in.readBoolean();
         explain = in.readBoolean();
         profile = in.readBoolean();
-        scriptType = ScriptService.ScriptType.readFrom(in);
+        scriptType = ScriptType.readFrom(in);
         script = in.readOptionalString();
         if (in.readBoolean()) {
             scriptParams = in.readMap();
@@ -157,7 +157,7 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         out.writeBoolean(simulate);
         out.writeBoolean(explain);
         out.writeBoolean(profile);
-        ScriptService.ScriptType.writeTo(scriptType, out);
+        scriptType.writeTo(out);
         out.writeOptionalString(script);
         boolean hasParams = scriptParams != null;
         out.writeBoolean(hasParams);

@@ -25,10 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,8 +53,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class QueryRescoreBuilderTests extends ESTestCase {
 
@@ -87,7 +83,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             RescoreBuilder<?> original = randomRescoreBuilder();
-            RescoreBuilder<?> deserialized = serializedCopy(original);
+            RescoreBuilder<?> deserialized = copy(original);
             assertEquals(deserialized, original);
             assertEquals(deserialized.hashCode(), original.hashCode());
             assertNotSame(deserialized, original);
@@ -99,32 +95,13 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            RescoreBuilder<?> firstBuilder = randomRescoreBuilder();
-            assertFalse("rescore builder is equal to null", firstBuilder.equals(null));
-            assertFalse("rescore builder is equal to incompatible type", firstBuilder.equals(""));
-            assertTrue("rescore builder is not equal to self", firstBuilder.equals(firstBuilder));
-            assertThat("same rescore builder's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-            assertThat("different rescore builder should not be equal", mutate(firstBuilder), not(equalTo(firstBuilder)));
-
-            RescoreBuilder<?> secondBuilder = serializedCopy(firstBuilder);
-            assertTrue("rescore builder is not equal to self", secondBuilder.equals(secondBuilder));
-            assertTrue("rescore builder is not equal to its copy", firstBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
-            assertThat("rescore builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-
-            RescoreBuilder<?> thirdBuilder = serializedCopy(secondBuilder);
-            assertTrue("rescore builder is not equal to self", thirdBuilder.equals(thirdBuilder));
-            assertTrue("rescore builder is not equal to its copy", secondBuilder.equals(thirdBuilder));
-            assertThat("rescore builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-            assertThat("rescore builder copy's hashcode is different from original hashcode", firstBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not symmetric", thirdBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
+            checkEqualsAndHashCode(randomRescoreBuilder(), this::copy, QueryRescoreBuilderTests::mutate);
         }
+    }
+
+    private RescoreBuilder<?> copy(RescoreBuilder<?> original) throws IOException {
+        return copyWriteable(original, namedWriteableRegistry,
+                namedWriteableRegistry.getReader(RescoreBuilder.class, original.getWriteableName()));
     }
 
     /**
@@ -282,7 +259,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     }
 
     private static RescoreBuilder<?> mutate(RescoreBuilder<?> original) throws IOException {
-        RescoreBuilder<?> mutation = serializedCopy(original);
+        RescoreBuilder<?> mutation = ESTestCase.copyWriteable(original, namedWriteableRegistry, QueryRescorerBuilder::new);
         if (randomBoolean()) {
             Integer windowSize = original.windowSize();
             if (windowSize != null) {
@@ -339,14 +316,4 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         }
         return rescorer;
     }
-
-    private static RescoreBuilder<?> serializedCopy(RescoreBuilder<?> original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeNamedWriteable(original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return in.readNamedWriteable(RescoreBuilder.class);
-            }
-        }
-    }
-
 }

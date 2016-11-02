@@ -316,6 +316,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         // update the set of nodes to ping after the new cluster state has been published
         nodesFD.updateNodesAndPing(clusterChangedEvent.state());
+
+        // clean the pending cluster queue - we are currently master, so any pending cluster state should be failed
+        // note that we also clean the queue on master failure (see handleMasterGone) but a delayed cluster state publish
+        // from a stale master can still make it in the queue during the election (but not be committed)
+        publishClusterState.pendingStatesQueue().failAllStatesAndClear(new ElasticsearchException("elected as master"));
     }
 
     /**
@@ -354,6 +359,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     // used for testing
     public ClusterState[] pendingClusterStates() {
         return publishClusterState.pendingStatesQueue().pendingClusterStates();
+    }
+
+    PendingClusterStatesQueue pendingClusterStatesQueue() {
+        return publishClusterState.pendingStatesQueue();
     }
 
     /**
@@ -677,15 +686,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     return currentState;
                 }
 
-                DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(currentState.nodes())
-                        // make sure the old master node, which has failed, is not part of the nodes we publish
-                        .remove(masterNode)
-                        .masterNodeId(null).build();
-
                 // flush any pending cluster states from old master, so it will not be set as master again
                 publishClusterState.pendingStatesQueue().failAllStatesAndClear(new ElasticsearchException("master left [{}]", reason));
 
-                return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
+                return rejoin(currentState, "master left (reason = " + reason + ")");
             }
 
             @Override

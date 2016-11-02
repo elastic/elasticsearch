@@ -149,7 +149,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     } else {
                         // conditions not met
                         listener.onResponse(
-                            new RolloverResponse(sourceIndexName, sourceIndexName, conditionResults, false, false, false, false)
+                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
                         );
                     }
                 }

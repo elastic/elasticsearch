@@ -132,7 +132,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         });
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-        assertThat(state.nodes().getSize(), equalTo(1)); // verify that we still see the local node in the cluster state
+        // verify that both nodes are still in the cluster state but there is no master
+        assertThat(state.nodes().getSize(), equalTo(2));
+        assertThat(state.nodes().getMasterNode(), equalTo(null));
 
         logger.info("--> starting the previous master node again...");
         internalCluster().startNode(settings);

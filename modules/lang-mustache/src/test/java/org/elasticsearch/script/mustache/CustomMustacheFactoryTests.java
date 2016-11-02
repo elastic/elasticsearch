@@ -31,7 +31,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.script.ScriptService.ScriptType.INLINE;
+import static org.elasticsearch.script.ScriptType.INLINE;
 import static org.elasticsearch.script.mustache.CustomMustacheFactory.CONTENT_TYPE_PARAM;
 import static org.elasticsearch.script.mustache.CustomMustacheFactory.JSON_MIME_TYPE;
 import static org.elasticsearch.script.mustache.CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE;

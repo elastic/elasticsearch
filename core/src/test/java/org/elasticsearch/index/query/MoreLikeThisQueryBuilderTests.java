@@ -367,5 +367,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
         assertEquals("Deprecated field [mlt] used, expected [more_like_this] instead", e.getMessage());
+
+        checkWarningHeaders("Deprecated field [mlt] used, expected [more_like_this] instead");
     }
 }

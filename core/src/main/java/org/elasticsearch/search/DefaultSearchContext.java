@@ -27,6 +27,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -113,8 +114,11 @@ final class DefaultSearchContext extends SearchContext {
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
     private FieldDoc searchAfter;
+    private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
+    private SearchTask task;
+
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -572,6 +576,15 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean lowLevelCancellation() {
+        return lowLevelCancellation;
+    }
+
+    public void lowLevelCancellation(boolean lowLevelCancellation) {
+        this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    @Override
     public FieldDoc searchAfter() {
         return searchAfter;
     }
@@ -791,5 +804,20 @@ final class DefaultSearchContext extends SearchContext {
 
     public void setProfilers(Profilers profilers) {
         this.profilers = profilers;
+    }
+
+    @Override
+    public void setTask(SearchTask task) {
+        this.task = task;
+    }
+
+    @Override
+    public SearchTask getTask() {
+        return task;
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return task.isCancelled();
     }
 }

@@ -398,16 +398,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        for (DiscoveryNode node : this) {
-            sb.append(node).append(',');
-        }
-        sb.append("}");
-        return sb.toString();
-    }
-
-    public String prettyPrint() {
-        StringBuilder sb = new StringBuilder();
         sb.append("nodes: \n");
         for (DiscoveryNode node : this) {
             sb.append("   ").append(node);

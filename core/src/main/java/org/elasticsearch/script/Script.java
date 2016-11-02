@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -110,7 +109,7 @@ public final class Script implements ToXContent, Writeable {
         boolean hasType = type != null;
         out.writeBoolean(hasType);
         if (hasType) {
-            ScriptType.writeTo(type, out);
+            type.writeTo(out);
         }
         out.writeOptionalString(lang);
         out.writeMap(params);

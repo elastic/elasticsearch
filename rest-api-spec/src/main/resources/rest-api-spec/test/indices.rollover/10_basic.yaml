@@ -71,3 +71,34 @@
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "logs-000002"}
 
+---
+"Rollover no condition matched":
+  - skip:
+        version: " - 5.0.0"
+        reason:  bug fixed in 5.0.1
+
+  # create index with alias
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_index: {}
+            logs_search: {}
+
+  # run again and verify results without rolling over
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  - match: { old_index: logs-1 }
+  - match: { new_index: logs-000002 }
+  - match: { rolled_over: false }
+  - match: { dry_run: false }
+  - match: { conditions: { "[max_docs: 1]": false } }
+

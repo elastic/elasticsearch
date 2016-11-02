@@ -49,9 +49,9 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
                                       Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
                                       Map<String, AliasFilter> aliasFilter, SearchPhaseController searchPhaseController,
                                       Executor executor, SearchRequest request, ActionListener<SearchResponse> listener,
-                                      GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
+                                      GroupShardsIterator shardsIts, long startTime, long clusterStateVersion, SearchTask task) {
         super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor,
-                request, listener, shardsIts, startTime, clusterStateVersion);
+                request, listener, shardsIts, startTime, clusterStateVersion, task);
         this.searchPhaseController = searchPhaseController;
         queryFetchResults = new AtomicArray<>(firstResults.length());
     }
@@ -64,7 +64,7 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
     @Override
     protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
                                          ActionListener<DfsSearchResult> listener) {
-        searchTransportService.sendExecuteDfs(node, request, listener);
+        searchTransportService.sendExecuteDfs(node, request, task, listener);
     }
 
     @Override
@@ -82,7 +82,7 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
 
     void executeSecondPhase(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter,
                             final DiscoveryNode node, final QuerySearchRequest querySearchRequest) {
-        searchTransportService.sendExecuteFetch(node, querySearchRequest, new ActionListener<QueryFetchSearchResult>() {
+        searchTransportService.sendExecuteFetch(node, querySearchRequest, task, new ActionListener<QueryFetchSearchResult>() {
             @Override
             public void onResponse(QueryFetchSearchResult result) {
                 result.shardTarget(dfsResult.shardTarget());

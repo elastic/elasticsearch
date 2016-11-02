@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -47,7 +48,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -168,7 +169,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             String script = "1";
             Map<String, Object> params = Collections.emptyMap();
             functionBuilder = new ScriptScoreFunctionBuilder(
-                    new Script(script, ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params));
+                    new Script(script, ScriptType.INLINE, MockScriptEngine.NAME, params));
             break;
         case 3:
             RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
@@ -589,13 +590,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         String json =
             "{\n" +
                 "  \"function_score\" : {\n" +
-                "    \"query\" : { },\n" +
+                "    \"query\" : { \"match_all\" : {} },\n" +
                 "    \"functions\" : [ {\n" +
-                "      \"filter\" : { },\n" +
+                "      \"filter\" : { \"match_all\" : {}},\n" +
                 "      \"weight\" : 23.0,\n" +
                 "      \"random_score\" : { }\n" +
                 "    }, {\n" +
-                "      \"filter\" : { },\n" +
+                "      \"filter\" : { \"match_all\" : {}},\n" +
                 "      \"weight\" : 5.0\n" +
                 "    } ],\n" +
                 "    \"score_mode\" : \"multiply\",\n" +
@@ -613,11 +614,11 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     "  \"function_score\" : {\n" +
                     "    \"query\" : { \"match_all\" : {} },\n" +
                     "    \"functions\" : [ {\n" +
-                    "      \"filter\" : { },\n" +
+                    "      \"filter\" : { \"match_all\" : {}},\n" +
                     "      \"weight\" : 23.0,\n" +
                     "      \"random_score\" : { }\n" +
                     "    }, {\n" +
-                    "      \"filter\" : { },\n" +
+                    "      \"filter\" : { \"match_all\" : {}},\n" +
                     "      \"weight\" : 5.0\n" +
                     "    } ],\n" +
                     "    \"score_mode\" : \"multiply\",\n" +

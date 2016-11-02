@@ -613,7 +613,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     }
 
-    public String prettyPrint() {
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder("routing_table (version ").append(version).append("):\n");
         for (ObjectObjectCursor<String, IndexRoutingTable> entry : indicesRouting) {
             sb.append(entry.value.prettyPrint()).append('\n');

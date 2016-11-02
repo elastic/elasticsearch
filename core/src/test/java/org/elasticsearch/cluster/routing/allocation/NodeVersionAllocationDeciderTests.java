@@ -366,7 +366,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState stabilize(ClusterState clusterState, AllocationService service) {
-        logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
+        logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes());
 
         clusterState = service.deassociateDeadNodes(clusterState, true, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
@@ -375,7 +375,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         logger.info("complete rebalancing");
         boolean changed;
         do {
-            logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
+            logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes());
             ClusterState newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
             changed = newState.equals(clusterState) == false;
             clusterState = newState;
@@ -386,7 +386,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
-        logger.trace("RoutingNodes: {}", routingNodes.prettyPrint());
+        logger.trace("RoutingNodes: {}", routingNodes);
 
         List<ShardRouting> mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.RELOCATING);
         for (ShardRouting r : mutableShardRoutings) {

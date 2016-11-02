@@ -82,6 +82,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.test.OldIndexUtils.assertUpgradeWorks;
+import static org.elasticsearch.test.OldIndexUtils.getIndexDir;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -445,8 +446,15 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             throw new IllegalStateException("Backwards index must contain exactly one cluster");
         }
 
-        // the bwc scripts packs the indices under this path
-        return list[0].resolve("nodes/0/");
+        int zipIndex = indexFile.indexOf(".zip");
+        final Version version = Version.fromString(indexFile.substring("index-".length(), zipIndex));
+        if (version.before(Version.V_5_0_0_alpha1)) {
+            // the bwc scripts packs the indices under this path
+            return list[0].resolve("nodes/0/");
+        } else {
+            // after 5.0.0, data folders do not include the cluster name
+            return list[0].resolve("0");
+        }
     }
 
     public void testOldClusterStates() throws Exception {
@@ -481,9 +489,19 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
             Path nodeDir = getNodeDir(indexFile);
             logger.info("Parsing cluster state files from index [{}]", indexName);
-            assertNotNull(globalFormat.loadLatestState(logger, nodeDir)); // no exception
-            Path indexDir = nodeDir.resolve("indices").resolve(indexName);
-            assertNotNull(indexFormat.loadLatestState(logger, indexDir)); // no exception
+            final MetaData metaData = globalFormat.loadLatestState(logger, nodeDir);
+            assertNotNull(metaData);
+
+            final Version version = Version.fromString(indexName.substring("index-".length()));
+            final Path dataDir;
+            if (version.before(Version.V_5_0_0_alpha1)) {
+                dataDir = nodeDir.getParent().getParent();
+            } else {
+                dataDir = nodeDir.getParent();
+            }
+            final Path indexDir = getIndexDir(logger, indexName, indexFile, dataDir);
+            assertNotNull(indexFormat.loadLatestState(logger, indexDir));
         }
     }
+
 }

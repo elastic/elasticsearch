@@ -23,6 +23,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
@@ -294,6 +295,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean lowLevelCancellation() {
+        return in.lowLevelCancellation();
+    }
+
+    @Override
     public SearchContext minimumScore(float minimumScore) {
         return in.minimumScore(minimumScore);
     }
@@ -515,5 +521,20 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public QueryShardContext getQueryShardContext() {
         return in.getQueryShardContext();
+    }
+
+    @Override
+    public void setTask(SearchTask task) {
+        in.setTask(task);
+    }
+
+    @Override
+    public SearchTask getTask() {
+        return in.getTask();
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return in.isCancelled();
     }
 }

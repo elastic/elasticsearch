@@ -22,8 +22,9 @@
     - do:
         indices.analyze:
             index: phonetic_sample
-            analyzer: my_analyzer
-            text: Joe Bloggs
+            body:
+                analyzer: my_analyzer
+                text: Joe Bloggs
 
     - length: { tokens: 4 }
     - match:  { tokens.0.token: J  }

@@ -38,6 +38,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -88,7 +89,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     @Override
-    protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // pure paranoia if time goes backwards we are at least positive
         final long startTimeInMillis = Math.max(0, System.currentTimeMillis());
         ClusterState clusterState = clusterService.state();
@@ -129,12 +130,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logger.debug("failed to optimize search type, continue as normal", e);
         }
 
-        searchAsyncAction(searchRequest, shardIterators, startTimeInMillis, clusterState, Collections.unmodifiableMap(aliasFilter)
-            , listener).start();
+        searchAsyncAction((SearchTask)task, searchRequest, shardIterators, startTimeInMillis, clusterState,
+            Collections.unmodifiableMap(aliasFilter), listener).start();
     }
 
-    private AbstractSearchAsyncAction searchAsyncAction(SearchRequest searchRequest, GroupShardsIterator shardIterators, long startTime,
-                                                        ClusterState state,  Map<String, AliasFilter> aliasFilter,
+    @Override
+    protected final void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        throw new UnsupportedOperationException("the task parameter is required");
+    }
+
+    private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest, GroupShardsIterator shardIterators,
+                                                        long startTime, ClusterState state,  Map<String, AliasFilter> aliasFilter,
                                                         ActionListener<SearchResponse> listener) {
         final Function<String, DiscoveryNode> nodesLookup = state.nodes()::get;
         final long clusterStateVersion = state.version();
@@ -144,22 +150,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             case DFS_QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
                     aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
-                    clusterStateVersion);
+                    clusterStateVersion, task);
                 break;
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
                     aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
-                    clusterStateVersion);
+                    clusterStateVersion, task);
                 break;
             case DFS_QUERY_AND_FETCH:
                 searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
                     aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
-                    clusterStateVersion);
+                    clusterStateVersion, task);
                 break;
             case QUERY_AND_FETCH:
                 searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
                     aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
-                    clusterStateVersion);
+                    clusterStateVersion, task);
                 break;
             default:
                 throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

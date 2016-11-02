@@ -47,7 +47,7 @@ GET /_cat/fielddata?v
 
 Looks like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 id                     host      ip        node    field   size
 Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
@@ -67,7 +67,7 @@ GET /_cat/fielddata?v&fields=body
 
 Which looks like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 id                     host      ip        node    field   size
 Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
@@ -86,7 +86,7 @@ GET /_cat/fielddata/body,soul?v
 
 Which produces the same output as the first snippet:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 id                     host      ip        node    field   size
 Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b

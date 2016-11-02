@@ -22,6 +22,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
@@ -52,7 +53,6 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -80,6 +80,7 @@ public class TestSearchContext extends SearchContext {
     ParsedQuery postFilter;
     Query query;
     Float minScore;
+    SearchTask task;
 
     ContextIndexSearcher searcher;
     int size;
@@ -97,7 +98,7 @@ public class TestSearchContext extends SearchContext {
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
-        queryShardContext = indexService.newQueryShardContext();
+        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
@@ -322,6 +323,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public void terminateAfter(int terminateAfter) {
         this.terminateAfter = terminateAfter;
+    }
+
+    @Override
+    public boolean lowLevelCancellation() {
+        return false;
     }
 
     @Override
@@ -571,4 +577,18 @@ public class TestSearchContext extends SearchContext {
         return queryShardContext;
     }
 
+    @Override
+    public void setTask(SearchTask task) {
+        this.task = task;
+    }
+
+    @Override
+    public SearchTask getTask() {
+        return task;
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return task.isCancelled();
+    }
 }

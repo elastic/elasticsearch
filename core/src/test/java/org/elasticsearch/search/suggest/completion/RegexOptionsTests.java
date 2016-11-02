@@ -19,12 +19,16 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.query.RegexpFlag;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
-public class RegexOptionsTests extends WritableTestCase<RegexOptions> {
+public class RegexOptionsTests extends ESTestCase {
+
+    private static final int NUMBER_OF_RUNS = 20;
 
     public static RegexOptions randomRegexOptions() {
         final RegexOptions.Builder builder = RegexOptions.builder();
@@ -42,21 +46,24 @@ public class RegexOptionsTests extends WritableTestCase<RegexOptions> {
         return builder.build();
     }
 
-    @Override
-    protected RegexOptions createTestModel() {
-        return randomRegexOptions();
-    }
-
-    @Override
     protected RegexOptions createMutation(RegexOptions original) throws IOException {
         final RegexOptions.Builder builder = RegexOptions.builder();
         builder.setMaxDeterminizedStates(randomValueOtherThan(original.getMaxDeterminizedStates(), () -> randomIntBetween(1, 10)));
         return builder.build();
     }
 
-    @Override
-    protected RegexOptions readFrom(StreamInput in) throws IOException {
-        return new RegexOptions(in);
+    /**
+     * Test serialization and deserialization
+     */
+    public void testSerialization() throws IOException {
+        for (int i = 0; i < NUMBER_OF_RUNS; i++) {
+            RegexOptions testOptions = randomRegexOptions();
+            RegexOptions deserializedModel = copyWriteable(testOptions, new NamedWriteableRegistry(Collections.emptyList()),
+                    RegexOptions::new);
+            assertEquals(testOptions, deserializedModel);
+            assertEquals(testOptions.hashCode(), deserializedModel.hashCode());
+            assertNotSame(testOptions, deserializedModel);
+        }
     }
 
     public void testIllegalArgument() {

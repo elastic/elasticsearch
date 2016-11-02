@@ -80,13 +80,17 @@ verify_package_installation() {
 
     assert_file "$ESHOME" d root root 755
     assert_file "$ESHOME/bin" d root root 755
+    assert_file "$ESHOME/bin/elasticsearch" f root root 755
+    assert_file "$ESHOME/bin/elasticsearch-plugin" f root root 755
+    assert_file "$ESHOME/bin/elasticsearch-translog" f root root 755
     assert_file "$ESHOME/lib" d root root 755
     assert_file "$ESCONFIG" d root elasticsearch 750
-    assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 750
-    assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 750
+    assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 660
+    assert_file "$ESCONFIG/jvm.options" f root elasticsearch 660
+    assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 660
     assert_file "$ESSCRIPTS" d root elasticsearch 750
-    assert_file "$ESDATA" d elasticsearch elasticsearch 755
-    assert_file "$ESLOG" d elasticsearch elasticsearch 755
+    assert_file "$ESDATA" d elasticsearch elasticsearch 750
+    assert_file "$ESLOG" d elasticsearch elasticsearch 750
     assert_file "$ESPLUGINS" d root root 755
     assert_file "$ESMODULES" d root root 755
     assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755
@@ -95,7 +99,7 @@ verify_package_installation() {
 
     if is_dpkg; then
         # Env file
-        assert_file "/etc/default/elasticsearch" f root root 644
+        assert_file "/etc/default/elasticsearch" f root root 660
 
         # Doc files
         assert_file "/usr/share/doc/elasticsearch" d root root 755
@@ -104,7 +108,7 @@ verify_package_installation() {
 
     if is_rpm; then
         # Env file
-        assert_file "/etc/sysconfig/elasticsearch" f root root 644
+        assert_file "/etc/sysconfig/elasticsearch" f root root 660
         # License file
         assert_file "/usr/share/elasticsearch/LICENSE.txt" f root root 644
     fi
@@ -114,4 +118,15 @@ verify_package_installation() {
         assert_file "/usr/lib/tmpfiles.d/elasticsearch.conf" f root root 644
         assert_file "/usr/lib/sysctl.d/elasticsearch.conf" f root root 644
     fi
+
+    if is_sysvinit; then
+        assert_file "/etc/init.d/elasticsearch" f root root 750
+    fi
+
+    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/elasticsearch.yml"
+    [ $status = 1 ]
+    [[ "$output" == *"Permission denied"* ]] || {
+        echo "Expected permission denied but found $output:"
+        false
+    }
 }

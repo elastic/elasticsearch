@@ -41,7 +41,7 @@
         "wait_for_events": {
           "type" : "enum",
           "options" : ["immediate", "urgent", "high", "normal", "low", "languid"],
-          "description" : "Wait until all currently queued events with the given priorty are processed"
+          "description" : "Wait until all currently queued events with the given priority are processed"
         },
         "wait_for_no_relocating_shards": {
           "type" : "boolean",

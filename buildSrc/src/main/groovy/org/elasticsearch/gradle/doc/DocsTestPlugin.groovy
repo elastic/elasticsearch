@@ -38,7 +38,7 @@ public class DocsTestPlugin extends RestTestPlugin {
              * the last released version for docs. */
             '\\{version\\}':
                 VersionProperties.elasticsearch.replace('-SNAPSHOT', ''),
-            '\\{lucene_version\\}' : VersionProperties.lucene,
+            '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
         ]
         Task listSnippets = project.tasks.create('listSnippets', SnippetsTask)
         listSnippets.group 'Docs'

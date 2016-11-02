@@ -55,7 +55,9 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ZenDiscoveryUnitTests extends ESTestCase {
@@ -182,7 +184,6 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.add(otherZen);
             otherTransport.acceptIncomingRequests();
 
-
             masterTransport.connectToNode(otherNode);
             otherTransport.connectToNode(masterNode);
 
@@ -207,6 +208,59 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             }
 
             assertEquals(expectedFDNodes, masterZen.getFaultDetectionNodes());
+        } finally {
+            IOUtils.close(toClose);
+            terminate(threadPool);
+        }
+    }
+
+    public void testPendingCSQueueIsClearedWhenClusterStatePublished() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        // randomly make minimum_master_nodes a value higher than we have nodes for, so it will force failure
+        int minMasterNodes =  randomBoolean() ? 3 : 1;
+        Settings settings = Settings.builder()
+            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)).build();
+
+        ArrayList<Closeable> toClose = new ArrayList<>();
+        try {
+            final MockTransportService masterTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
+            masterTransport.start();
+            DiscoveryNode masterNode = new DiscoveryNode("master",  masterTransport.boundAddress().publishAddress(), Version.CURRENT);
+            toClose.add(masterTransport);
+            masterTransport.setLocalNode(masterNode);
+            ClusterState state = ClusterStateCreationUtils.state(masterNode, null, masterNode);
+            // build the zen discovery and cluster service
+            ClusterService masterClusterService = createClusterService(threadPool, masterNode);
+            toClose.add(masterClusterService);
+            state = ClusterState.builder(masterClusterService.getClusterName()).nodes(state.nodes()).build();
+            setState(masterClusterService, state);
+            ZenDiscovery masterZen = buildZenDiscovery(settings, masterTransport, masterClusterService, threadPool);
+            toClose.add(masterZen);
+            masterTransport.acceptIncomingRequests();
+
+            // inject a pending cluster state
+            masterZen.pendingClusterStatesQueue().addPending(ClusterState.builder(new ClusterName("foreign")).build());
+
+            // a new cluster state with a new discovery node (we will test if the cluster state
+            // was updated by the presence of this node in NodesFaultDetection)
+            ClusterState newState = ClusterState.builder(masterClusterService.state()).incrementVersion().nodes(
+                DiscoveryNodes.builder(masterClusterService.state().nodes()).masterNodeId(masterNode.getId())
+            ).build();
+
+
+            try {
+                // publishing a new cluster state
+                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
+                AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
+                masterZen.publish(clusterChangedEvent, listener);
+                listener.await(1, TimeUnit.HOURS);
+                // publish was a success, check that queue as cleared
+                assertThat(masterZen.pendingClusterStates(), emptyArray());
+            } catch (Discovery.FailedToCommitClusterStateException e) {
+                // not successful, so the pending queue should stay
+                assertThat(masterZen.pendingClusterStates(), arrayWithSize(1));
+                assertThat(masterZen.pendingClusterStates()[0].getClusterName().value(), equalTo("foreign"));
+            }
         } finally {
             IOUtils.close(toClose);
             terminate(threadPool);

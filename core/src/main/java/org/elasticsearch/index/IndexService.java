@@ -145,7 +145,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexAnalyzers = registry.build(indexSettings);
         this.similarityService = similarityService;
         this.mapperService = new MapperService(indexSettings, indexAnalyzers, similarityService, mapperRegistry,
-            IndexService.this::newQueryShardContext);
+            // we parse all percolator queries as they would be parsed on shard 0
+            () -> newQueryShardContext(0, null, () -> {
+                throw new IllegalArgumentException("Percolator queries are not allowed to use the curent timestamp");
+            }));
         this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
         this.shardStoreDeleter = shardStoreDeleter;
         this.bigArrays = bigArrays;
@@ -453,7 +456,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
-     * {@link QueryShardContext#setTypes(String...)}
+     * {@link QueryShardContext#setTypes(String...)}.
+     *
+     * Passing a {@code null} {@link IndexReader} will return a valid context, however it won't be able to make
+     * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
@@ -462,15 +468,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 client, indexReader,
                 clusterService.state(),
             nowInMillis);
-    }
-
-    /**
-     * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
-     * {@link QueryShardContext#setTypes(String...)}. This context may be used for query parsing but cannot be
-     * used for rewriting since it does not know about the current {@link IndexReader}.
-     */
-    public QueryShardContext newQueryShardContext() {
-        return newQueryShardContext(0, null, System::currentTimeMillis);
     }
 
     /**

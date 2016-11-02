@@ -97,7 +97,7 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
                     .startObject("date_field").field("type", "date").field("boost", 9.0f).endObject()
                     .endObject().endObject().endObject().string();
             IndexService indexService = createIndex("test", BW_SETTINGS);
-            QueryShardContext context = indexService.newQueryShardContext();
+            QueryShardContext context = indexService.newQueryShardContext(0, null, () -> 0L);
             DocumentMapper mapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
             DocumentFieldMappers fieldMappers = mapper.mappers();
             assertThat(fieldMappers.getMapper("s_field").fieldType().termQuery("0", context), instanceOf(TermQuery.class));
@@ -150,7 +150,7 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
                     .startObject("date_field").field("type", "date").field("boost", 9.0f).endObject()
                     .endObject().endObject().endObject().string();
             IndexService indexService = createIndex("text");
-            QueryShardContext context = indexService.newQueryShardContext();
+            QueryShardContext context = indexService.newQueryShardContext(0, null, () -> 0L);
             DocumentMapper mapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
             DocumentFieldMappers fieldMappers = mapper.mappers();
             assertThat(fieldMappers.getMapper("s_field").fieldType().termQuery("0", context), instanceOf(BoostQuery.class));

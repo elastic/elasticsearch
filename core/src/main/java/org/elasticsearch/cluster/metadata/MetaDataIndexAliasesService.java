@@ -149,7 +149,9 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                             }
                             indices.put(action.getIndex(), indexService);
                         }
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext());
+                        // the context is only used for validation so it's fine to pass fake values for the shard id and the current
+                        // timestamp
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L));
                     }
                 };
                 changed |= action.apply(newAliasValidator, metadata, index);

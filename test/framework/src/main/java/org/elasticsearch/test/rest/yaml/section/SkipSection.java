@@ -39,7 +39,7 @@ public class SkipSection {
     private final Version upperVersion;
     private final List<String> features;
     private final String reason;
-    
+
     private SkipSection() {
         this.lowerVersion = null;
         this.upperVersion = null;
@@ -49,7 +49,6 @@ public class SkipSection {
 
     public SkipSection(String versionRange, List<String> features, String reason) {
         assert features != null;
-        assert versionRange != null && features.isEmpty() || versionRange == null && features.isEmpty() == false;
         Version[] versions = parseVersionRange(versionRange);
         this.lowerVersion = versions[0];
         this.upperVersion = versions[1];
@@ -60,7 +59,7 @@ public class SkipSection {
     public Version getLowerVersion() {
         return lowerVersion;
     }
-    
+
     public Version getUpperVersion() {
         return upperVersion;
     }
@@ -77,11 +76,10 @@ public class SkipSection {
         if (isEmpty()) {
             return false;
         }
-        if (isVersionCheck()) {
-            return currentVersion.onOrAfter(lowerVersion) && currentVersion.onOrBefore(upperVersion);
-        } else {
-            return Features.areAllSupported(features) == false;
-        }
+        boolean skip = lowerVersion != null && upperVersion != null && currentVersion.onOrAfter(lowerVersion)
+            && currentVersion.onOrBefore(upperVersion);
+        skip |= Features.areAllSupported(features) == false;
+        return skip;
     }
 
     public boolean isVersionCheck() {
@@ -91,7 +89,7 @@ public class SkipSection {
     public boolean isEmpty() {
         return EMPTY.equals(this);
     }
-    
+
     private Version[] parseVersionRange(String versionRange) {
         if (versionRange == null) {
             return new Version[] { null, null };
@@ -110,5 +108,17 @@ public class SkipSection {
             lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
             upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
         };
+    }
+
+    public String getSkipMessage(String description) {
+        StringBuilder messageBuilder = new StringBuilder();
+        messageBuilder.append("[").append(description).append("] skipped,");
+        if (reason != null) {
+             messageBuilder.append(" reason: [").append(getReason()).append("]");
+        }
+        if (features.isEmpty() == false) {
+            messageBuilder.append(" unsupported features ").append(getFeatures());
+        }
+        return messageBuilder.toString();
     }
 }

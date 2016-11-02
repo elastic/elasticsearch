@@ -119,7 +119,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     }
 
     public void skip(int length) {
-        seek((long) count + length);
+        seek(((long) count) + length);
     }
 
     @Override

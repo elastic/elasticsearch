@@ -199,7 +199,8 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return new ClusterBlockException(unmodifiableSet(blocks.collect(toSet())));
     }
 
-    public String prettyPrint() {
+    @Override
+    public String toString() {
         if (global.isEmpty() && indices().isEmpty()) {
             return "";
         }

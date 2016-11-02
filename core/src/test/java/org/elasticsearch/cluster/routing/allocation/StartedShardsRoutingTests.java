@@ -70,15 +70,14 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("--> test starting of shard");
 
         ClusterState newState = allocation.applyStartedShards(state, Arrays.asList(initShard));
-        assertThat("failed to start " + initShard + "\ncurrent routing table:" + newState.routingTable().prettyPrint(),
-            newState, not(equalTo(state)));
-        assertTrue(initShard + "isn't started \ncurrent routing table:" + newState.routingTable().prettyPrint(),
+        assertThat("failed to start " + initShard + "\ncurrent routing table:" + newState.routingTable(), newState, not(equalTo(state)));
+        assertTrue(initShard + "isn't started \ncurrent routing table:" + newState.routingTable(),
                 newState.routingTable().index("test").shard(initShard.id()).allShardsStarted());
         state = newState;
 
         logger.info("--> testing starting of relocating shards");
         newState = allocation.applyStartedShards(state, Arrays.asList(relocatingShard.getTargetRelocatingShard()));
-        assertThat("failed to start " + relocatingShard + "\ncurrent routing table:" + newState.routingTable().prettyPrint(),
+        assertThat("failed to start " + relocatingShard + "\ncurrent routing table:" + newState.routingTable(),
             newState, not(equalTo(state)));
         ShardRouting shardRouting = newState.routingTable().index("test").shard(relocatingShard.id()).getShards().get(0);
         assertThat(shardRouting.state(), equalTo(ShardRoutingState.STARTED));

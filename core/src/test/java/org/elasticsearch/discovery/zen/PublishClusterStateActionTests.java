@@ -850,8 +850,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     void assertSameState(ClusterState actual, ClusterState expected) {
         assertThat(actual, notNullValue());
-        final String reason = "\n--> actual ClusterState: " + actual.prettyPrint() + "\n" +
-                                "--> expected ClusterState:" + expected.prettyPrint();
+        final String reason = "\n--> actual ClusterState: " + actual + "\n" +
+                                "--> expected ClusterState:" + expected;
         assertThat("unequal UUIDs" + reason, actual.stateUUID(), equalTo(expected.stateUUID()));
         assertThat("unequal versions" + reason, actual.version(), equalTo(expected.version()));
     }

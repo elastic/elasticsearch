@@ -147,6 +147,8 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "  }\n" +
                 "}";
 
-        parseQuery(json, ParseFieldMatcher.EMPTY); // Just don't throw an error and we're fine
+        parseQuery(json, ParseFieldMatcher.EMPTY);
+        // we should get warning headers
+        checkWarningHeaders("Deprecated field [collect_payloads] used, replaced by [no longer supported]");
     }
 }

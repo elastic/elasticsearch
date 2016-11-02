@@ -45,7 +45,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.startsWith;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
@@ -157,6 +156,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
         HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
         assertEquals("foo", queryBuilder.type());
+        checkWarningHeaders("Deprecated field [type] used, expected [parent_type] instead");
     }
 
     public void testToQueryInnerQueryType() throws IOException {
@@ -221,10 +221,13 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
 
+        checkWarningHeaders("query malformed, empty clause found at [3:17]");
+
         parser = XContentFactory.xContent(query).createParser(query);
         QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
-        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
+        assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [3:17]"));
+        checkWarningHeaders("query malformed, empty clause found at [3:17]");
     }
 
     public void testIgnoreUnmapped() throws IOException {

@@ -20,6 +20,7 @@ package org.elasticsearch.transport;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
@@ -91,7 +92,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -367,6 +367,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             return Arrays.asList(recovery, bulk, reg, state, ping);
         }
 
+        @Override
         public synchronized void close() throws IOException {
             closeChannels(allChannels);
         }

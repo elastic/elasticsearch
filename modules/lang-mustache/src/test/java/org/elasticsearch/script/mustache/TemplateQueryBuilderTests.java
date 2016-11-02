@@ -39,6 +39,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -55,6 +56,14 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
      * The query type all template tests will be based on.
      */
     private QueryBuilder templateBase;
+
+    /**
+     * All tests create deprecation warnings when an new {@link TemplateQueryBuilder} is created.
+     * Instead of having to check them once in every single test, this is done here after each test is run
+     */
+    @After void checkWarningHeaders() throws IOException {
+        checkWarningHeaders("[template] query is deprecated, use search template api instead");
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

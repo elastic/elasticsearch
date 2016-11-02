@@ -140,6 +140,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(contentString));
         assertEquals("Deprecated field [_type] used, expected [type] instead", e.getMessage());
+        checkWarningHeaders("Deprecated field [_type] used, expected [type] instead");
 
         //array of types can also be called type rather than types
         final String contentString2 = "{\n" +
@@ -153,5 +154,6 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
         e = expectThrows(IllegalArgumentException.class, () -> parseQuery(contentString2));
         assertEquals("Deprecated field [types] used, expected [type] instead", e.getMessage());
+        checkWarningHeaders("Deprecated field [_type] used, expected [type] instead");
     }
 }

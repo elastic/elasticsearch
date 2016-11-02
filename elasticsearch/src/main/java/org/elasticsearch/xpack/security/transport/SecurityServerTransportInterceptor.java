@@ -6,23 +6,16 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.xpack.security.SecurityContext;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.security.support.Exceptions;
-import org.elasticsearch.xpack.ssl.SSLService;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -30,7 +23,14 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.SecurityContext;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
+import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -62,15 +62,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                               AuthorizationService authzService,
                                               XPackLicenseState licenseState,
                                               SSLService sslService,
-                                              SecurityContext securityContext) {
+                                              SecurityContext securityContext,
+                                              DestructiveOperations destructiveOperations) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
         this.authzService = authzService;
         this.licenseState = licenseState;
         this.sslService = sslService;
-        this.profileFilters = initializeProfileFilters();
         this.securityContext = securityContext;
+        this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
     @Override
@@ -117,8 +118,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 licenseState, threadPool);
     }
 
-
-    protected Map<String, ServerTransportFilter> initializeProfileFilters() {
+    protected Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
         Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
         Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileSettingsMap.size() + 1);
 
@@ -133,11 +133,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             switch (type) {
                 case "client":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert));
+                            threadPool.getThreadContext(), extractClientCert, destructiveOperations));
                     break;
                 default:
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert));
+                            threadPool.getThreadContext(), extractClientCert, destructiveOperations));
             }
         }
 
@@ -145,8 +145,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             final boolean profileSsl = TRANSPORT_SSL_ENABLED.get(settings);
             final boolean clientAuth = sslService.isSSLClientAuthEnabled(transportSSLSettings);
             final boolean extractClientCert = profileSsl && clientAuth;
-            profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService
-                    , threadPool.getThreadContext(), extractClientCert));
+            profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
+                    threadPool.getThreadContext(), extractClientCert, destructiveOperations));
         }
 
         return Collections.unmodifiableMap(profileFilters);

@@ -7,14 +7,21 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.MockIndicesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
+import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -34,6 +41,7 @@ import static org.elasticsearch.xpack.security.support.Exceptions.authorizationE
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -46,6 +54,8 @@ public class ServerTransportFilterTests extends ESTestCase {
     private AuthenticationService authcService;
     private AuthorizationService authzService;
     private TransportChannel channel;
+    private boolean failDestructiveOperations;
+    private DestructiveOperations destructiveOperations;
 
     @Before
     public void init() throws Exception {
@@ -53,6 +63,11 @@ public class ServerTransportFilterTests extends ESTestCase {
         authzService = mock(AuthorizationService.class);
         channel = mock(TransportChannel.class);
         when(channel.getProfileName()).thenReturn(TransportSettings.DEFAULT_PROFILE);
+        failDestructiveOperations = randomBoolean();
+        Settings settings = Settings.builder()
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), failDestructiveOperations).build();
+        destructiveOperations = new DestructiveOperations(settings,
+                new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)));
     }
 
     public void testInbound() throws Exception {
@@ -61,10 +76,28 @@ public class ServerTransportFilterTests extends ESTestCase {
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
         when(authcService.authenticate("_action", request, null)).thenReturn(authentication);
         ServerTransportFilter filter = getClientOrNodeFilter();
-        PlainActionFuture future = new PlainActionFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);
         //future.get(); // don't block it's not called really just mocked
         verify(authzService).authorize(authentication, "_action", request, Collections.emptyList(), Collections.emptyList());
+    }
+
+    public void testInboundDestructiveOperations() throws Exception {
+        String action = randomFrom(CloseIndexAction.NAME, OpenIndexAction.NAME, DeleteIndexAction.NAME);
+        TransportRequest request = new MockIndicesRequest(
+                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
+                randomFrom("*", "_all", "test*"));
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
+        when(authcService.authenticate(action, request, null)).thenReturn(authentication);
+        ServerTransportFilter filter = getClientOrNodeFilter();
+        PlainActionFuture listener = mock(PlainActionFuture.class);
+        filter.inbound(action, request, channel, listener);
+        if (failDestructiveOperations) {
+            verify(listener).onFailure(isA(IllegalArgumentException.class));
+        } else {
+            verify(authzService).authorize(authentication, action, request, Collections.emptyList(), Collections.emptyList());
+        }
     }
 
     public void testInboundAuthenticationException() throws Exception {
@@ -72,7 +105,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         doThrow(authenticationError("authc failed")).when(authcService).authenticate("_action", request, null);
         ServerTransportFilter filter = getClientOrNodeFilter();
         try {
-            PlainActionFuture future = new PlainActionFuture();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
             filter.inbound("_action", request, channel, future);
             future.actionGet();
             fail("expected filter inbound to throw an authentication exception on authentication error");
@@ -95,7 +128,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         when(authentication.getRunAsUser()).thenReturn(XPackUser.INSTANCE);
-        PlainActionFuture future = new PlainActionFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService).authorize(authentication, "_action", request,
                 Collections.emptyList(), Collections.emptyList());
         try {
@@ -153,10 +186,12 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     private ServerTransportFilter.ClientProfile getClientFilter() {
-        return new ServerTransportFilter.ClientProfile(authcService, authzService, new ThreadContext(Settings.EMPTY), false);
+        return new ServerTransportFilter.ClientProfile(authcService, authzService, new ThreadContext(Settings.EMPTY), false,
+                destructiveOperations);
     }
 
     private ServerTransportFilter.NodeProfile getNodeFilter() {
-        return new ServerTransportFilter.NodeProfile(authcService, authzService, new ThreadContext(Settings.EMPTY), false);
+        return new ServerTransportFilter.NodeProfile(authcService, authzService, new ThreadContext(Settings.EMPTY), false,
+                destructiveOperations);
     }
 }

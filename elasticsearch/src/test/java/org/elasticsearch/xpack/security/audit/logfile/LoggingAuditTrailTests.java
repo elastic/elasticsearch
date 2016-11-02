@@ -721,25 +721,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
     }
 
-    private static class MockIndicesRequest extends TransportMessage implements IndicesRequest {
+    private static class MockIndicesRequest extends org.elasticsearch.action.MockIndicesRequest {
 
         private MockIndicesRequest(ThreadContext threadContext) throws IOException {
+            super(IndicesOptions.strictExpandOpenAndForbidClosed(), "idx1", "idx2");
             if (randomBoolean()) {
                 remoteAddress(buildNewFakeTransportAddress());
             }
             if (randomBoolean()) {
                 RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
             }
-        }
-
-        @Override
-        public String[] indices() {
-            return new String[] { "idx1", "idx2" };
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.strictExpandOpenAndForbidClosed();
         }
 
         @Override

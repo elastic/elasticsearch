@@ -9,6 +9,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.DelegatingTransportChannel;
@@ -21,7 +26,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.ssl.SslHandler;
 
@@ -30,7 +34,6 @@ import javax.net.ssl.SSLPeerUnverifiedException;
 import java.io.IOException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.util.Collection;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 
@@ -62,18 +65,28 @@ public interface ServerTransportFilter {
         private final SecurityActionMapper actionMapper = new SecurityActionMapper();
         private final ThreadContext threadContext;
         private final boolean extractClientCert;
+        private final DestructiveOperations destructiveOperations;
 
         public NodeProfile(AuthenticationService authcService, AuthorizationService authzService,
-                           ThreadContext threadContext, boolean extractClientCert) {
+                           ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations) {
             this.authcService = authcService;
             this.authzService = authzService;
             this.threadContext = threadContext;
             this.extractClientCert = extractClientCert;
+            this.destructiveOperations = destructiveOperations;
         }
 
         @Override
         public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener)
                 throws IOException {
+            if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
+                IndicesRequest indicesRequest = (IndicesRequest) request;
+                try {
+                    destructiveOperations.failDestructive(indicesRequest.indices());
+                } catch(IllegalArgumentException e) {
+                    listener.onFailure(e);
+                }
+            }
             /*
              here we don't have a fallback user, as all incoming request are
              expected to have a user attached (either in headers or in context)
@@ -143,8 +156,8 @@ public interface ServerTransportFilter {
     class ClientProfile extends NodeProfile {
 
         public ClientProfile(AuthenticationService authcService, AuthorizationService authzService,
-                             ThreadContext threadContext, boolean extractClientCert) {
-            super(authcService, authzService, threadContext, extractClientCert);
+                             ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations) {
+            super(authcService, authzService, threadContext, extractClientCert, destructiveOperations);
         }
 
         @Override

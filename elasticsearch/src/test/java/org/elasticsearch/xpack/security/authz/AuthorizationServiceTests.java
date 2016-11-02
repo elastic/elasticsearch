@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -78,8 +79,8 @@ import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.security.authz.permission.DefaultRole;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
+import org.elasticsearch.xpack.security.authz.permission.DefaultRole;
 import org.elasticsearch.xpack.security.authz.permission.GlobalPermission;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
@@ -761,7 +762,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 throw new UnsupportedOperationException();
         }
 
-        TransportRequest request = new MockIndicesRequest();
+        TransportRequest request = new MockIndicesRequest(IndicesOptions.strictExpandOpen(), "index");
         User userAllowed = new User("userAllowed", "roleAllowed");
         roleMap.put("roleAllowed", Role.builder("roleAllowed").add(IndexPrivilege.ALL, "index").build());
         User userDenied = new User("userDenied", "roleDenied");
@@ -793,22 +794,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    private static class MockIndicesRequest extends TransportRequest implements IndicesRequest {
-        @Override
-        public String[] indices() {
-            return new String[]{"index"};
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.strictExpandOpen();
-        }
-    }
-
     private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {
         @Override
         public List<? extends IndicesRequest> subRequests() {
-            return Collections.singletonList(new MockIndicesRequest());
+            return Collections.singletonList(new MockIndicesRequest(IndicesOptions.strictExpandOpen(), "index"));
         }
     }
 

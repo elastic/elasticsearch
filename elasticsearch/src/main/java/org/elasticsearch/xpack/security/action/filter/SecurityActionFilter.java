@@ -5,21 +5,19 @@
  */
 package org.elasticsearch.xpack.security.action.filter;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Predicate;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +43,13 @@ import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
+
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
 public class SecurityActionFilter extends AbstractComponent implements ActionFilter {
@@ -62,12 +67,13 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
+    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
                                 CryptoService cryptoService, AuditTrailService auditTrail, XPackLicenseState licenseState,
                                 Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
-                                SecurityContext securityContext) {
+                                SecurityContext securityContext, DestructiveOperations destructiveOperations) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
@@ -77,12 +83,13 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         this.requestInterceptors = requestInterceptors;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = securityContext;
+        this.destructiveOperations = destructiveOperations;
     }
 
     @Override
     public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
 
-        /**
+        /*
          A functional requirement - when the license of security is disabled (invalid/expires), security will continue
          to operate normally, except all read operations will be blocked.
          */
@@ -154,7 +161,15 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     }
 
     private void applyInternal(String action, final ActionRequest request, ActionListener listener) throws IOException {
-        /**
+        if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
+            IndicesRequest indicesRequest = (IndicesRequest) request;
+            try {
+                destructiveOperations.failDestructive(indicesRequest.indices());
+            } catch(IllegalArgumentException e) {
+                listener.onFailure(e);
+            }
+        }
+        /*
          here we fallback on the system user. Internal system requests are requests that are triggered by
          the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
          by user interaction. Since these requests are triggered by es core modules, they are security
@@ -213,7 +228,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         return request;
     }
 
-    <Response extends ActionResponse> Response sign(Response response) throws IOException {
+    private <Response extends ActionResponse> Response sign(Response response) throws IOException {
         if (response instanceof SearchResponse) {
             SearchResponse searchResponse = (SearchResponse) response;
             String scrollId = searchResponse.getScrollId();

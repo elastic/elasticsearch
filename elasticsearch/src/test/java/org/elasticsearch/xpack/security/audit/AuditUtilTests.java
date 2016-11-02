@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -24,7 +22,7 @@ import static org.hamcrest.Matchers.hasItems;
 public class AuditUtilTests extends ESTestCase {
 
     public void testIndicesRequest() {
-        assertNull(AuditUtil.indices(new MockIndicesRequest(null)));
+        assertNull(AuditUtil.indices(new MockIndicesRequest(null, (String[])null)));
         final int numberOfIndices = randomIntBetween(1, 100);
         List<String> expectedIndices = new ArrayList<>();
         final boolean includeDuplicates = randomBoolean();
@@ -36,28 +34,10 @@ public class AuditUtilTests extends ESTestCase {
             }
         }
         final Set<String> uniqueExpectedIndices = new HashSet<>(expectedIndices);
-        final Set<String> result = AuditUtil.indices(new MockIndicesRequest(expectedIndices.toArray(Strings.EMPTY_ARRAY)));
+        final Set<String> result = AuditUtil.indices(new MockIndicesRequest(null,
+                expectedIndices.toArray(new String[expectedIndices.size()])));
         assertNotNull(result);
         assertEquals(uniqueExpectedIndices.size(), result.size());
         assertThat(result, hasItems(uniqueExpectedIndices.toArray(Strings.EMPTY_ARRAY)));
-    }
-
-    private static class MockIndicesRequest extends TransportMessage implements IndicesRequest {
-
-        private final String[] indices;
-
-        private MockIndicesRequest(String[] indices) {
-            this.indices = indices;
-        }
-
-        @Override
-        public String[] indices() {
-            return indices;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return null;
-        }
     }
 }

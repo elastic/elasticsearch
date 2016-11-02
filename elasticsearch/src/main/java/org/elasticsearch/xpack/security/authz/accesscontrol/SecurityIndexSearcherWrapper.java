@@ -82,6 +82,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
@@ -100,21 +101,21 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     private final MapperService mapperService;
     private final Set<String> allowedMetaFields;
-    private final QueryShardContext queryShardContext;
+    private final Function<ShardId, QueryShardContext> queryShardContextProvider;
     private final BitsetFilterCache bitsetFilterCache;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final Logger logger;
     private final ScriptService scriptService;
 
-    public SecurityIndexSearcherWrapper(IndexSettings indexSettings, QueryShardContext queryShardContext,
+    public SecurityIndexSearcherWrapper(IndexSettings indexSettings, Function<ShardId, QueryShardContext> queryShardContextProvider,
                                         MapperService mapperService, BitsetFilterCache bitsetFilterCache,
                                         ThreadContext threadContext, XPackLicenseState licenseState,
                                         ScriptService scriptService) {
         this.scriptService = scriptService;
         this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
         this.mapperService = mapperService;
-        this.queryShardContext = queryShardContext;
+        this.queryShardContextProvider = queryShardContextProvider;
         this.bitsetFilterCache = bitsetFilterCache;
         this.threadContext = threadContext;
         this.licenseState = licenseState;
@@ -153,7 +154,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             if (permissions.getQueries() != null) {
                 BooleanQuery.Builder filter = new BooleanQuery.Builder();
                 for (BytesReference bytesReference : permissions.getQueries()) {
-                    QueryShardContext queryShardContext = copyQueryShardContext(this.queryShardContext);
+                    QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
                     bytesReference = evaluateTemplate(bytesReference);
                     try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
                         Optional<QueryBuilder> queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
@@ -261,11 +262,6 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     public Set<String> getAllowedMetaFields() {
         return allowedMetaFields;
-    }
-
-    // for testing:
-    protected QueryShardContext copyQueryShardContext(QueryShardContext context) {
-        return new QueryShardContext(context);
     }
 
     private void resolveParentChildJoinFields(Set<String> allowedFields) {

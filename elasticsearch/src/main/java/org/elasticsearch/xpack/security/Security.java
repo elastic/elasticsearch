@@ -445,7 +445,14 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         assert licenseState != null;
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             module.setSearcherWrapper(indexService ->
-                new SecurityIndexSearcherWrapper(indexService.getIndexSettings(), indexService.newQueryShardContext(),
+                new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
+                    shardId -> indexService.newQueryShardContext(shardId.id(),
+                            // we pass a null index reader, which is legal and will disable rewrite optimizations
+                            // based on index statistics, which is probably safer...
+                            null,
+                            () -> {
+                                throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
+                            }),
                     indexService.mapperService(), indexService.cache().bitsetFilterCache(),
                     indexService.getThreadPool().getThreadContext(), licenseState,
                     indexService.getScriptService()));

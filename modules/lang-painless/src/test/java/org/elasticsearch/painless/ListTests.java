@@ -21,7 +21,9 @@ package org.elasticsearch.painless;
 
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,18 +58,21 @@ public class ListTests extends ArrayLikeObjectTestCase {
     @Override
     protected Matcher<String> outOfBoundsExceptionMessageMatcher(int index, int size) {
         if ("1.8".equals(Runtime.class.getPackage().getSpecificationVersion())) {
-            // 1.8 and below aren't as clean as 1.9+
             if (index > size) {
                 return equalTo("Index: " + index + ", Size: " + size);
-            } else {
-                Matcher<String> m = equalTo(Integer.toString(index));
-                // If we set -XX:-OmitStackTraceInFastThrow we wouldn't need this
-                m = anyOf(m, nullValue());
-                return m;
             }
+            Matcher<String> matcher = equalTo(Integer.toString(index));
+            // If we set -XX:-OmitStackTraceInFastThrow we wouldn't need this
+            matcher = anyOf(matcher, nullValue());
+            return matcher;
         } else {
-            // Starting with 1.9 it gets nicer
-            return equalTo("Index " + index + " out-of-bounds for length " + size);
+            // This exception is locale dependent so we attempt to reproduce it
+            List<Object> list = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                list.add(new Object());
+            }
+            Exception e = expectThrows(IndexOutOfBoundsException.class, () -> list.get(index));
+            return equalTo(e.getMessage());
         }
     }
 

@@ -5,20 +5,22 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
-import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
+import org.joda.time.DateTime;
 
 import static org.mockito.Mockito.mock;
 
-//test is just too slow, please fix it to not be sleep-based
-@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class SchedulerScheduleEngineTests extends BaseTriggerEngineTestCase {
 
     protected TriggerEngine createEngine() {
-        return new SchedulerScheduleTriggerEngine(Settings.EMPTY, mock(ScheduleRegistry.class), SystemClock.INSTANCE);
+        return new SchedulerScheduleTriggerEngine(Settings.EMPTY, mock(ScheduleRegistry.class), clock);
+    }
+
+    // the scheduler configures hard when to schedule, and does not check the clock
+    @Override
+    protected void advanceClockIfNeeded(DateTime newCurrentDateTime) {
     }
 
 }

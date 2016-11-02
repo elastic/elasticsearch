@@ -254,6 +254,9 @@ public class BytesStreamsTests extends ESTestCase {
         out.skip(forward);
         assertEquals(position + forward, out.position());
 
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> out.skip(Integer.MAX_VALUE - 50));
+        assertEquals("BytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
+
         out.close();
     }
 

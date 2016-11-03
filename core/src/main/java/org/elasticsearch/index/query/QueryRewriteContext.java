@@ -64,7 +64,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     /**
      * Returns a clients to fetch resources from local or remove nodes.
      */
-    public final Client getClient() {
+    public Client getClient() {
         return client;
     }
 

@@ -411,4 +411,10 @@ public class QueryShardContext extends QueryRewriteContext {
     public boolean isCachable() {
         return cachable;
     }
+
+    @Override
+    public Client getClient() {
+        failIfFrozen(); // we somebody uses a terms filter with lookup for instance can't be cached...
+        return super.getClient();
+    }
 }

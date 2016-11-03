@@ -34,6 +34,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
@@ -106,6 +108,11 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
         IndexStatsResolver resolver = new IndexStatsResolver(MonitoredSystem.ES, Settings.EMPTY);
         logger.info("--> {} Waiting for [{}]", Thread.currentThread().getName(), resolver.indexPattern());
         assertBusy(() -> assertTrue(client().admin().indices().prepareExists(resolver.indexPattern()).get().isExists()));
+        // Slow down monitoring from its previously super fast pace so we can shut down without trouble
+        Settings.Builder settings = Settings.builder()
+                .put(MonitoringSettings.INTERVAL.getKey(), timeValueSeconds(10).getStringRep());
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+
         SearchResponse firstIndexStats = search(resolver, greaterThanOrEqualTo(10L));
 
         // All the other aliases should have been created by now so we can assert that we have the data we saved in the bwc indexes

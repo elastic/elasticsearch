@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
@@ -40,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 
 /**
- * Tests for monitoring indexes created before 5.0.
+ * Tests for monitoring indexes created before {@link Version#CURRENT}.
  */
 public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
     private final boolean httpExporter = randomBoolean();
@@ -50,7 +51,9 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(ord))
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), true)
                 // Don't clean old monitoring indexes - we want to make sure we can load them
-                .put(MonitoringSettings.HISTORY_DURATION.getKey(), TimeValue.timeValueHours(1000 * 365 * 24).getStringRep());
+                .put(MonitoringSettings.HISTORY_DURATION.getKey(), TimeValue.timeValueHours(1000 * 365 * 24).getStringRep())
+                // Speed up the exporter so we don't have to wait around for it
+                .put(MonitoringSettings.INTERVAL.getKey(), timeValueMillis(100).getStringRep());
 
         if (httpExporter) {
             /* If we want to test the http exporter we have to create it but disable it. We need to create it so we don't use the default
@@ -96,10 +99,12 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
             InetSocketAddress address = publishAddress.address();
             Settings.Builder settings = Settings.builder();
             setupHttpExporter(settings, address.getPort());
+            logger.info("--> Enabling http exporter pointing to [localhost:{}]", address.getPort());
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
         }
 
         IndexStatsResolver resolver = new IndexStatsResolver(MonitoredSystem.ES, Settings.EMPTY);
+        logger.info("--> {} Waiting for [{}]", Thread.currentThread().getName(), resolver.indexPattern());
         assertBusy(() -> assertTrue(client().admin().indices().prepareExists(resolver.indexPattern()).get().isExists()));
         SearchResponse firstIndexStats = search(resolver, greaterThanOrEqualTo(10L));
 

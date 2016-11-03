@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -32,9 +33,12 @@ import java.io.IOException;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
+    private final CustomPrototypeRegistry registry;
+
     @Inject
-    public RestPutIndexTemplateAction(Settings settings, RestController controller) {
+    public RestPutIndexTemplateAction(Settings settings, RestController controller, CustomPrototypeRegistry registry) {
         super(settings);
+        this.registry = registry;
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }
@@ -42,6 +46,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
+        putRequest.setRegistry(registry);
         putRequest.template(request.param("template", putRequest.template()));
         putRequest.order(request.paramAsInt("order", putRequest.order()));
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));

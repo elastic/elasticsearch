@@ -501,6 +501,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 return MetaData.Builder.fromXContent(parser, CustomPrototypeRegistry.EMPTY);
             }
         };
+        CustomPrototypeRegistry registry = CustomPrototypeRegistry.EMPTY;
         MetaDataStateFormat<IndexMetaData> indexFormat = new MetaDataStateFormat<IndexMetaData>(XContentType.JSON, "state-") {
 
             @Override
@@ -510,7 +511,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
             @Override
             public IndexMetaData fromXContent(XContentParser parser) throws IOException {
-                return IndexMetaData.Builder.fromXContent(parser);
+                return IndexMetaData.Builder.fromXContent(parser, registry);
             }
         };
         Collections.shuffle(indexes, random());

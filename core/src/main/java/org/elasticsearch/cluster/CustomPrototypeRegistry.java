@@ -23,10 +23,12 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class CustomPrototypeRegistry {
@@ -102,6 +104,10 @@ public class CustomPrototypeRegistry {
                 .map(custom -> new NamedWriteableRegistry.Entry(IndexMetaData.Custom.class, custom.type(), custom::readFrom))
                 .collect(Collectors.toCollection(() -> namedWriteables));
         return namedWriteables;
+    }
+
+    public Set<String> getCustomIndexMetadataNames() {
+        return indexMetaDataPrototypes.keySet();
     }
 
 }

@@ -545,7 +545,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     @Override
     public IndexMetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, CustomPrototypeRegistry registry) throws IOException {
-        return Builder.fromXContent(parser);
+        return Builder.fromXContent(parser, registry);
     }
 
     @Override
@@ -1060,7 +1060,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             builder.endObject();
         }
 
-        public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
+        public static IndexMetaData fromXContent(XContentParser parser, CustomPrototypeRegistry registry) throws IOException {
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
             }
@@ -1124,16 +1124,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
                     } else {
-                        // check if its a custom index metadata
-                        // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
-                        /*Custom proto = lookupPrototype(currentFieldName);
+                        Custom proto = registry.getIndexMetadataPrototype(currentFieldName);
                         if (proto == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
                             Custom custom = proto.fromXContent(parser);
                             builder.putCustom(custom.type(), custom);
-                        }*/
+                        }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if (KEY_MAPPINGS.equals(currentFieldName)) {
@@ -1227,10 +1225,23 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     private static final ToXContent.Params FORMAT_PARAMS = new MapParams(Collections.singletonMap("binary", "true"));
 
+
+    /**
+     * Instance of {@link Format} for when reading custom index metadata is not needed.
+     */
+    public static final MetaDataStateFormat<IndexMetaData> FORMAT = new Format(CustomPrototypeRegistry.EMPTY);
+
     /**
      * State format for {@link IndexMetaData} to write to and load from disk
      */
-    public static final MetaDataStateFormat<IndexMetaData> FORMAT = new MetaDataStateFormat<IndexMetaData>(XContentType.SMILE, INDEX_STATE_FILE_PREFIX) {
+    public static class Format extends MetaDataStateFormat<IndexMetaData> {
+
+        private final CustomPrototypeRegistry registry;
+
+        public Format(CustomPrototypeRegistry registry) {
+            super(XContentType.SMILE, INDEX_STATE_FILE_PREFIX);
+            this.registry = registry;
+        }
 
         @Override
         public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
@@ -1239,7 +1250,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         @Override
         public IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
+            return Builder.fromXContent(parser, registry);
         }
     };
 

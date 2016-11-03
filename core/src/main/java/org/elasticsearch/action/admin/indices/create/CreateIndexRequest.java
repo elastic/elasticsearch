@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -79,6 +80,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private boolean updateAllTypes = false;
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+
+    private transient CustomPrototypeRegistry registry = CustomPrototypeRegistry.EMPTY;
 
     public CreateIndexRequest() {
     }
@@ -393,17 +396,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
-                // maybe custom?
-//                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-//                if (proto != null) {
-//                    found = true;
-//                    try {
-//                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-//                    } catch (IOException e) {
-//                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
-//                    }
-//                }
+                IndexMetaData.Custom proto = registry.getIndexMetadataPrototype(name);
+                if (proto != null) {
+                    found = true;
+                    try {
+                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
+                    } catch (IOException e) {
+                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
+                    }
+                }
             }
         }
         if (!found) {
@@ -476,6 +477,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
+    public void setRegistry(CustomPrototypeRegistry registry) {
+        this.registry = registry;
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

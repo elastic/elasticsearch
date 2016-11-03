@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -251,11 +253,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings");
-        static {
-            // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
-//            VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
-        }
+        private static final Set<String> GENERAL_VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings");
 
         private String name;
 
@@ -422,10 +420,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             builder.endObject();
         }
 
-        public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {
+        public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName,
+                                                         CustomPrototypeRegistry registry) throws IOException {
             Builder builder = new Builder(templateName);
 
-            String currentFieldName = skipTemplateName(parser);
+            String currentFieldName = skipTemplateName(parser, registry);
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -453,16 +452,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
                     } else {
-                        // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
-                        // check if its a custom index metadata
-                        /*IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(currentFieldName);
+                        IndexMetaData.Custom proto = registry.getIndexMetadataPrototype(currentFieldName);
                         if (proto == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
                             IndexMetaData.Custom custom = proto.fromXContent(parser);
                             builder.putCustom(custom.type(), custom);
-                        }*/
+                        }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
@@ -493,13 +490,16 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return builder.build();
         }
 
-        private static String skipTemplateName(XContentParser parser) throws IOException {
+        private static String skipTemplateName(XContentParser parser, CustomPrototypeRegistry registry) throws IOException {
+            Set<String> validFields = new HashSet<>(GENERAL_VALID_FIELDS);
+            validFields.addAll(registry.getCustomIndexMetadataNames());
+
             XContentParser.Token token = parser.nextToken();
             if (token != null && token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String currentFieldName = parser.currentName();
-                    if (VALID_FIELDS.contains(currentFieldName)) {
+                    if (validFields.contains(currentFieldName)) {
                         return currentFieldName;
                     } else {
                         // we just hit the template name, which should be ignored and we move on

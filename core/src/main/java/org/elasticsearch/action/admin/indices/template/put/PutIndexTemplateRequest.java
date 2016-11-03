@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -75,6 +76,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
     private Integer version;
+
+    private transient CustomPrototypeRegistry registry = CustomPrototypeRegistry.EMPTY;
 
     public PutIndexTemplateRequest() {
     }
@@ -312,16 +315,14 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                // maybe custom?
-                // NOCOMMIT: Fix this. (it isn't being used in any place, maybe remove?)
-//                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-//                if (proto != null) {
-//                    try {
-//                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-//                    } catch (IOException e) {
-//                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
-//                    }
-//                }
+                IndexMetaData.Custom proto = registry.getIndexMetadataPrototype(name);
+                if (proto != null) {
+                    try {
+                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
+                    } catch (IOException e) {
+                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
+                    }
+                }
             }
         }
         return this;
@@ -443,6 +444,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.strictExpand();
+    }
+
+    public void setRegistry(CustomPrototypeRegistry registry) {
+        this.registry = registry;
     }
 
     @Override

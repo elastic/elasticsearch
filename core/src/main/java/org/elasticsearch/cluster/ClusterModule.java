@@ -166,7 +166,7 @@ public class ClusterModule extends AbstractModule {
             "ShardsAllocator factory for [" + allocatorName + "] returned null");
     }
 
-    public static CustomPrototypeRegistry createCustomPrototypeRegistry(List<ClusterPlugin> clusterPlugins) {
+    public static CustomPrototypeRegistry createCustomPrototypeRegistry(Collection<ClusterPlugin> clusterPlugins) {
         Map<String, ClusterState.Custom> customClusterStatePrototypes = new HashMap<>();
         customClusterStatePrototypes.put(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
         customClusterStatePrototypes.put(RestoreInProgress.TYPE, RestoreInProgress.PROTO);

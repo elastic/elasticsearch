@@ -1143,11 +1143,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         builder.persistentSettings(Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build());
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetaData.Builder.fromXContent(parser), false);
+                            builder.put(IndexMetaData.Builder.fromXContent(parser, registry), false);
                         }
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName()));
+                            builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName(), registry));
                         }
                     } else {
                         // check if its a custom index metadata

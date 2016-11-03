@@ -12,7 +12,6 @@ import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -606,7 +605,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         if (bwcIndexesExist) {
             int timestampIndexes = between(1, 100);
             for (int i = 0; i < timestampIndexes; i++) {
-                writeIndex(response, ".marvel-es-1-" + i, bwcAliasesExist ? ".monitoring-es-2-" + i : "ignored");
+                writeIndex(response, ".marvel-es-1-" + i, bwcAliasesExist ? ".monitoring-es-2-" + i + "-alias" : "ignored");
             }
         }
         response.endObject();

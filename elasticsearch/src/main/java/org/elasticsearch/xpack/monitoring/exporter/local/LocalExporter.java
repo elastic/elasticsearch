@@ -397,7 +397,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         for (IndexMetaData index : clusterState.metaData()) {
             String name = index.getIndex().getName();
             if (name.startsWith(".marvel-es-1-")) {
-                String alias = ".monitoring-es-2-" + name.substring(".marvel-es-1-".length());
+                // we add a suffix so that it will not collide with today's monitoring index following an upgrade
+                String alias = ".monitoring-es-2-" + name.substring(".marvel-es-1-".length()) + "-alias";
                 if (index.getAliases().containsKey(alias)) continue;
                 if (request == null) {
                     request = new IndicesAliasesRequest();

@@ -60,7 +60,8 @@ public class BackwardsCompatibilityAliasesResource extends HttpResource {
                 request.startObject().startArray("actions");
                 for (Map.Entry<String, Object> e : indices.entrySet()) {
                     String index = e.getKey();
-                    String alias = ".monitoring-es-2-" + index.substring(".marvel-es-1-".length());
+                    // we add a suffix so that it will not collide with today's monitoring index following an upgrade
+                    String alias = ".monitoring-es-2-" + index.substring(".marvel-es-1-".length()) + "-alias";
                     if (false == aliasesForIndex(e.getValue()).contains(alias)) {
                         needNewAliases = true;
                         addAlias(request, index, alias);

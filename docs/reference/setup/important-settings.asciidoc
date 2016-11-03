@@ -12,7 +12,6 @@ configured before going into production.
 * <<network.host,`network.host`>>
 * <<unicast.hosts,`discovery.zen.ping.unicast.hosts`>>
 * <<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>
-* <<node.max_local_storage_nodes,`node.max_local_storage_nodes`>>
 
 [float]
 [[path-settings]]

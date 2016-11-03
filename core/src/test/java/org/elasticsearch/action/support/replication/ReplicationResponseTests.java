@@ -20,12 +20,10 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.*;
 
 public class ReplicationResponseTests extends ESTestCase {
 

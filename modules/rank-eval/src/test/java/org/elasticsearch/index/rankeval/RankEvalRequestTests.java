@@ -22,7 +22,7 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
+import org.elasticsearch.index.rankeval.Precision.Rating;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -84,7 +84,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         berlinRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
         specifications.add(berlinRequest);
 
-        RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtN(10));
+        RankEvalSpec task = new RankEvalSpec(specifications, new Precision());
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
@@ -140,7 +140,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         brokenQuery.query(brokenRangeQuery);
         specifications.add(new RatedRequest("broken_query", brokenQuery, indices, types, createRelevant("1")));
 
-        RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtN(10));
+        RankEvalSpec task = new RankEvalSpec(specifications, new Precision());
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);

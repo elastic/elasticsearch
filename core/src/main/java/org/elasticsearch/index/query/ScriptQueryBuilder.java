@@ -63,7 +63,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
      */
     public ScriptQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        script = new Script(in);
+        script = Script.readFrom(in);
     }
 
     @Override
@@ -133,7 +133,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
+        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH));
     }
 
     static class ScriptQuery extends Query {

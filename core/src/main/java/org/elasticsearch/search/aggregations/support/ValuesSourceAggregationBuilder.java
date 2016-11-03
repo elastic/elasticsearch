@@ -123,7 +123,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private void read(StreamInput in) throws IOException {
         field = in.readOptionalString();
         if (in.readBoolean()) {
-            script = new Script(in);
+            script = Script.readFrom(in);
         }
         if (in.readBoolean()) {
             valueType = ValueType.readFromStream(in);
@@ -376,7 +376,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         if (script == null) {
             return null;
         } else {
-            return context.getQueryShardContext().getSearchScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+            return context.getQueryShardContext().getSearchScript(script, ScriptContext.Standard.AGGS);
         }
     }
 

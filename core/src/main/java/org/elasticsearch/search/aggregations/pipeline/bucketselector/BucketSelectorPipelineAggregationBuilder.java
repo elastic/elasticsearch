@@ -70,7 +70,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }
-        script = new Script(in);
+        script = Script.readFrom(in);
         gapPolicy = GapPolicy.readFrom(in);
     }
 

@@ -301,7 +301,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         extendedStats("stats")
                                 .field("value")
-                                .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))
+                                .script(new Script(ScriptType.INLINE,
+                                    AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
                                 .sigma(sigma))
                 .execute().actionGet();
 
@@ -331,7 +332,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         extendedStats("stats")
                                 .field("value")
-                                .script(new Script("_value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
                                 .sigma(sigma))
                 .execute().actionGet();
 
@@ -383,7 +384,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         extendedStats("stats")
                                 .field("values")
-                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))
+                                .script(new Script(ScriptType.INLINE,
+                                    AggregationTestScriptsPlugin.NAME, "_value - 1", Collections.emptyMap()))
                                 .sigma(sigma))
                 .execute().actionGet();
 
@@ -413,7 +415,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         extendedStats("stats")
                                 .field("values")
-                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                 .sigma(sigma))
                 .get();
 
@@ -440,7 +442,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         extendedStats("stats")
-                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))
+                                .script(new Script(ScriptType.INLINE,
+                                    AggregationTestScriptsPlugin.NAME, "doc['value'].value", Collections.emptyMap()))
                                 .sigma(sigma))
                 .execute().actionGet();
 
@@ -465,7 +468,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        Script script = new Script("doc['value'].value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params);
 
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -499,7 +502,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         extendedStats("stats")
-                                .script(new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))
+                                .script(new Script(ScriptType.INLINE,
+                                    AggregationTestScriptsPlugin.NAME, "doc['values'].values", Collections.emptyMap()))
                                 .sigma(sigma))
                 .execute().actionGet();
 
@@ -524,8 +528,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("[ doc['value'].value, doc['value'].value - dec ]", ScriptType.INLINE,
-                AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "[ doc['value'].value, doc['value'].value - dec ]",
+            params);
 
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -653,7 +657,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(extendedStats("foo").field("d")
-                        .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null)))
+                        .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap())))
                 .get();
         assertSearchResponse(r);
 

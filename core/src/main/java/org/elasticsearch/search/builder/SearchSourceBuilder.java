@@ -1242,7 +1242,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
          */
         public ScriptField(StreamInput in) throws IOException {
             fieldName = in.readString();
-            script = new Script(in);
+            script = Script.readFrom(in);
             ignoreFailure = in.readBoolean();
         }
 

@@ -43,7 +43,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     public static final String NAME = "script_heuristic";
 
     private final Script script;
-    
+
     // This class holds an executable form of the script with private variables ready for execution
     // on a single search thread.
     static class ExecutableScriptHeuristic extends ScriptHeuristic {
@@ -72,7 +72,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             supersetSizeHolder.value = supersetSize;
             subsetDfHolder.value = subsetFreq;
             supersetDfHolder.value = supersetFreq;
-            return ((Number) executableScript.run()).doubleValue();        
+            return ((Number) executableScript.run()).doubleValue();
        }
     }
 
@@ -84,7 +84,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      * Read from a stream.
      */
     public ScriptHeuristic(StreamInput in) throws IOException {
-        this(new Script(in));
+        this(Script.readFrom(in));
     }
 
     @Override
@@ -94,12 +94,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        return new ExecutableScriptHeuristic(script, context.scriptService().executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
+        return new ExecutableScriptHeuristic(script, context.scriptService().executable(script, ScriptContext.Standard.AGGS));
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
-        return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
+        return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS));
     }
 
 

@@ -40,6 +40,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.Collections;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -122,12 +124,14 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         checkWriteAction(
                 false, timeout,
                 client().prepareUpdate("test", "type1", "1")
-                        .setScript(new Script("test script", ScriptType.INLINE, null, null)).setTimeout(timeout));
+                        .setScript(new Script(
+                            ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
 
         checkWriteAction(
                 autoCreateIndex, timeout,
                 client().prepareUpdate("no_index", "type1", "1")
-                        .setScript(new Script("test script", ScriptType.INLINE, null, null)).setTimeout(timeout));
+                        .setScript(new Script(
+                            ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
 
 
         checkWriteAction(false, timeout,

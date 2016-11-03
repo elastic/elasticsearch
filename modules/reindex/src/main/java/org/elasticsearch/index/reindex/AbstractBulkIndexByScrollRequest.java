@@ -60,7 +60,7 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            script = new Script(in);
+            script = Script.readFrom(in);
         }
     }
 

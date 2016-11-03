@@ -200,10 +200,10 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private Script randomScript() {
-        return new Script(randomSimpleString(random()), // Name
-                randomFrom(ScriptType.values()), // Type
-                random().nextBoolean() ? null : randomSimpleString(random()), // Language
-                emptyMap()); // Params
+        return new Script(randomFrom(ScriptType.values()), // Type
+            random().nextBoolean() ? Script.DEFAULT_SCRIPT_LANG : randomSimpleString(random()), // Language
+            randomSimpleString(random()), // Name
+            emptyMap()); // Params
     }
 
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {

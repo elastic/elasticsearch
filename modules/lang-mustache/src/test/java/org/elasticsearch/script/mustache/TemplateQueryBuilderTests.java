@@ -23,6 +23,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptOptions;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -105,7 +107,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected TemplateQueryBuilder doCreateTestQueryBuilder() {
-        return new TemplateQueryBuilder(new Script(templateBase.toString(), ScriptType.INLINE, "mustache", null, null));
+        return new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mustache", templateBase.toString(), Collections.emptyMap()));
     }
 
     @Override
@@ -130,8 +132,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         try {
             parseQuery(queryAsString);
             fail("ScriptParseException expected.");
-        } catch (ElasticsearchParseException e) {
-            assertTrue(e.getMessage().contains("bogusField"));
+        } catch (ParsingException e) {
+            assertTrue(e.getMessage().contains("unexpected field [bogusField], expected [inline, stored, file, lang, params]"));
         }
     }
 
@@ -169,8 +171,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     @Override
     public void testMustRewrite() throws IOException {
         String query = "{ \"match_all\" : {}}";
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query, ScriptType.INLINE, "mockscript",
-        Collections.emptyMap(), XContentType.JSON));
+        QueryBuilder builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query,
+            Collections.singletonMap(ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap()));
         try {
             builder.toQuery(createShardContext());
             fail();
@@ -182,24 +184,24 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     public void testRewriteWithInnerName() throws IOException {
         final String query = "{ \"match_all\" : {\"_name\" : \"foobar\"}}";
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query, ScriptType.INLINE, "mockscript",
-             Collections.emptyMap(), XContentType.JSON));
+        QueryBuilder builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query,
+            Collections.singletonMap(ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap()));
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(createShardContext()));
 
-        builder = new TemplateQueryBuilder(new Script(query, ScriptType.INLINE, "mockscript",
-            Collections.emptyMap(), XContentType.JSON)).queryName("outer");
+        builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query, Collections.singletonMap(
+            ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap())).queryName("outer");
         assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
             builder.rewrite(createShardContext()));
     }
 
     public void testRewriteWithInnerBoost() throws IOException {
         final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query.toString(), ScriptType.INLINE, "mockscript",
-            Collections.emptyMap(), XContentType.JSON));
+        QueryBuilder builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query.toString(),
+            Collections.singletonMap(ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap()));
         assertEquals(query, builder.rewrite(createShardContext()));
 
-        builder = new TemplateQueryBuilder(new Script(query.toString(), ScriptType.INLINE, "mockscript",
-            Collections.emptyMap(), XContentType.JSON)).boost(3);
+        builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query.toString(),
+            Collections.singletonMap(ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap())).boost(3);
         assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(createShardContext()));
     }
 

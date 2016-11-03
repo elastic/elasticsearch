@@ -73,7 +73,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }
-        script = new Script(in);
+        script = Script.readFrom(in);
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
     }

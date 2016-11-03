@@ -70,10 +70,10 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
      */
     public ScriptedMetricAggregationBuilder(StreamInput in) throws IOException {
         super(in, TYPE);
-        initScript = in.readOptionalWriteable(Script::new);
-        mapScript = in.readOptionalWriteable(Script::new);
-        combineScript = in.readOptionalWriteable(Script::new);
-        reduceScript = in.readOptionalWriteable(Script::new);
+        initScript = in.readOptionalWriteable(Script::readFrom);
+        mapScript = in.readOptionalWriteable(Script::readFrom);
+        combineScript = in.readOptionalWriteable(Script::readFrom);
+        reduceScript = in.readOptionalWriteable(Script::readFrom);
         if (in.readBoolean()) {
             params = in.readMap();
         }
@@ -191,17 +191,15 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         QueryShardContext queryShardContext = context.searchContext().getQueryShardContext();
         Function<Map<String, Object>, ExecutableScript> executableInitScript;
         if (initScript != null) {
-            executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.Standard.AGGS,
-                Collections.emptyMap());
+            executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.Standard.AGGS);
         } else {
             executableInitScript = (p) -> null;;
         }
         Function<Map<String, Object>, SearchScript> searchMapScript = queryShardContext.getLazySearchScript(mapScript,
-            ScriptContext.Standard.AGGS, Collections.emptyMap());
+            ScriptContext.Standard.AGGS);
         Function<Map<String, Object>, ExecutableScript> executableCombineScript;
         if (combineScript != null) {
-            executableCombineScript = queryShardContext.getLazyExecutableScript(combineScript, ScriptContext.Standard.AGGS,
-                Collections.emptyMap());
+            executableCombineScript = queryShardContext.getLazyExecutableScript(combineScript, ScriptContext.Standard.AGGS);
         } else {
             executableCombineScript = (p) -> null;
         }

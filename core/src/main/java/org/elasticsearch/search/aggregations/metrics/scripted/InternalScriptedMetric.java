@@ -53,7 +53,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
      */
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
-        reduceScript = in.readOptionalWriteable(Script::new);
+        reduceScript = in.readOptionalWriteable(Script::readFrom);
         aggregation = in.readGenericValue();
     }
 

@@ -39,7 +39,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
         String script = "1";
         Map<String, Object> params = Collections.emptyMap();
-        return new ScriptQueryBuilder(new Script(script, ScriptType.INLINE, MockScriptEngine.NAME, params));
+        return new ScriptQueryBuilder(new Script(ScriptType.INLINE, MockScriptEngine.NAME, script, params));
     }
 
     @Override
@@ -67,8 +67,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
                 "  \"script\" : {\n" +
                 "    \"script\" : {\n" +
                 "      \"inline\" : \"5\",\n" +
-                "      \"lang\" : \"mockscript\",\n" +
-                "      \"params\" : { }\n" +
+                "      \"lang\" : \"mockscript\"\n" +
                 "    },\n" +
                 "    \"boost\" : 1.0,\n" +
                 "    \"_name\" : \"PcKdEyPOmR\"\n" +
@@ -92,7 +91,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
                 "}";
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
-        assertEquals(json, "5", parsed.script().getScript());
+        assertEquals(json, "5", parsed.script().getIdOrCode());
     }
 
     @Override

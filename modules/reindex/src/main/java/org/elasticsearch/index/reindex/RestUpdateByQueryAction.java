@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
 import static org.elasticsearch.script.Script.ScriptField;
 
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
@@ -127,6 +128,15 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
                     .getPreferredName(), ScriptType.STORED.getParseField().getPreferredName());
         }
         assert type != null : "if script is not null, type should definitely not be null";
-        return new Script(script, type, lang, params);
+
+        if (lang == null) {
+            lang = DEFAULT_SCRIPT_LANG;
+        }
+
+        if (params == null) {
+            params = new HashMap<>();
+        }
+
+        return new Script(type, lang, script, params);
     }
 }

@@ -85,7 +85,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
             logger.debug("firing [{}] at [{}]", jobName, now);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
             for (Listener listener : listeners) {
-                listener.triggered(Arrays.<TriggerEvent>asList(event));
+                listener.triggered(Arrays.asList(event));
             }
             if (interval != null)  {
                 if (clock instanceof ClockMock) {

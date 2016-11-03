@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
 import static org.elasticsearch.repositories.s3.S3Repository.Repository;
@@ -117,4 +118,12 @@ public class S3RepositoryTests extends ESTestCase {
         assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
     }
 
+    public void testDefaultBufferSize() {
+        ByteSizeValue defaultBufferSize = S3Repository.Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
+        assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(new ByteSizeValue(100, ByteSizeUnit.MB)));
+        assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(new ByteSizeValue(5, ByteSizeUnit.MB)));
+
+        ByteSizeValue defaultNodeBufferSize = S3Repository.Repositories.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
+        assertEquals(defaultBufferSize, defaultNodeBufferSize);
+    }
 }

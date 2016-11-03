@@ -35,7 +35,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
         assertThat(
             shardInfo.toString(),
-            equalTo(String.format(Locale.ROOT, "{\"_shards\":{\"total\":5,\"successful\":%d,\"failed\":0}}", successful)));
+            equalTo(String.format(Locale.ROOT, "ShardInfo{total=5, successful=%d, failures=[]}", successful)));
     }
 
 }

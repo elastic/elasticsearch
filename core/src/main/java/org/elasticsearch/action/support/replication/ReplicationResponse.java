@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Base class for write action responses.
@@ -162,7 +163,11 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(this, true);
+            return "ShardInfo{" +
+                "total=" + total +
+                ", successful=" + successful +
+                ", failures=" + Arrays.toString(failures) +
+                '}';
         }
 
         public static ShardInfo readShardInfo(StreamInput in) throws IOException {

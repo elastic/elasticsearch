@@ -20,9 +20,11 @@
 package org.elasticsearch.rest.action.admin.indices.upgrade;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -67,20 +69,22 @@ public class RestUpgradeAction extends BaseRestHandler {
     }
 
     void handleGet(final RestRequest request, RestChannel channel, Client client) {
-        client.admin().indices().prepareUpgradeStatus(Strings.splitStringByCommaToArray(request.param("index")))
-                .execute(new RestBuilderListener<UpgradeStatusResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(UpgradeStatusResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        response.toXContent(builder, request);
-                        builder.endObject();
-                        return new BytesRestResponse(OK, builder);
-                    }
-                });
+        UpgradeStatusRequest statusRequest = new UpgradeStatusRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        statusRequest.indicesOptions(IndicesOptions.fromRequest(request, statusRequest.indicesOptions()));
+        client.admin().indices().upgradeStatus(statusRequest, new RestBuilderListener<UpgradeStatusResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(UpgradeStatusResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                response.toXContent(builder, request);
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
+            }
+        });
     }
 
     void handlePost(final RestRequest request, RestChannel channel, Client client) {
         UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        upgradeReq.indicesOptions(IndicesOptions.fromRequest(request, upgradeReq.indicesOptions()));
         upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
         client.admin().indices().upgrade(upgradeReq, new RestBuilderListener<UpgradeResponse>(channel) {
             @Override

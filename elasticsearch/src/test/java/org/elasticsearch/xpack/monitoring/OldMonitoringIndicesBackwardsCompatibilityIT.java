@@ -78,14 +78,18 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
         settings.putProperties(httpExporter, k -> true, k -> MonitoringSettings.EXPORTERS_SETTINGS.getKey() + "my_exporter." + k);
     }
 
-    @AwaitsFix(bugUrl="waiting until stable")
-    @Override
-    public void testOldIndexes() throws Exception {
-        super.testOldIndexes();
-    }
-
     @Override
     protected void checkVersion(Version version) throws Exception {
+        try {
+            checkVersionInternal(version);
+        } finally {
+            /* Shut down monitoring after every test because we've shrunk the collection interval enough that we'll have trouble shutting
+             * down cleanly unless we force monitoring to stop. */
+            internalCluster().getInstance(AgentService.class).stop();
+        }
+    }
+
+    private void checkVersionInternal(Version version) throws Exception {
         if (version.before(Version.V_2_3_0)) {
             /* We can't do anything with indexes created before 2.3 so we just assert that we didn't delete them or do anything otherwise
              * crazy. */

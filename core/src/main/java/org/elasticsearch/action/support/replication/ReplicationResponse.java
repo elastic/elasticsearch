@@ -162,7 +162,7 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(this, true);
         }
 
         public static ShardInfo readShardInfo(StreamInput in) throws IOException {

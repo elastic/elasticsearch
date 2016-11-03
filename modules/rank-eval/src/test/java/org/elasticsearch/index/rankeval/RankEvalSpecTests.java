@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,7 +56,7 @@ public class RankEvalSpecTests extends ESTestCase {
     * setup for the whole base test class
     */
     @BeforeClass
-    public static void init() throws IOException {
+    public static void init() {
         AggregatorParsers aggsParsers = new AggregatorParsers(new ParseFieldRegistry<>("aggregation"),
                 new ParseFieldRegistry<>("aggregation_pipes"));
         searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
@@ -92,22 +91,19 @@ public class RankEvalSpecTests extends ESTestCase {
 
         RankedListQualityMetric metric;
         if (randomBoolean()) {
-            metric = PrecisionAtNTests.createTestItem();
+            metric = PrecisionTests.createTestItem();
         } else {
             metric = DiscountedCumulativeGainAtTests.createTestItem();
         }
 
         RankEvalSpec testItem = new RankEvalSpec(specs, metric);
 
-        XContentType contentType = ESTestCase.randomFrom(XContentType.values());
-        XContent xContent = contentType.xContent();
-
         if (randomBoolean()) {
             final Map<String, Object> params = randomBoolean() ? null : Collections.singletonMap("key", "value");
             ScriptType scriptType = randomFrom(ScriptType.values());
             String script;
             if (scriptType == ScriptType.INLINE) {
-                try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                     builder.startObject();
                     builder.field("field", randomAsciiOfLengthBetween(1, 5));
                     builder.endObject();
@@ -122,15 +118,10 @@ public class RankEvalSpecTests extends ESTestCase {
                         scriptType,
                         randomFrom("_lang1", "_lang2", null),
                         params,
-                        scriptType == ScriptType.INLINE ? xContent.type() : null));
+                        scriptType == ScriptType.INLINE ? XContentType.JSON : null));
         }
 
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-        if (ESTestCase.randomBoolean()) {
-            builder.prettyPrint();
-        }
-        testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentBuilder shuffled = ESTestCase.shuffleXContent(builder);
+        XContentBuilder shuffled = ESTestCase.shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);

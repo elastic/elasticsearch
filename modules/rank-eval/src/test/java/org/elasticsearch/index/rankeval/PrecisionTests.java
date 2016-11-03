@@ -24,7 +24,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
+import org.elasticsearch.index.rankeval.Precision.Rating;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -36,15 +36,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
 
-public class PrecisionAtNTests extends ESTestCase {
+public class PrecisionTests extends ESTestCase {
 
     public void testPrecisionAtFiveCalculation() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
         assertEquals(1, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(1, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(1, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(1, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(1, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testPrecisionAtFiveIgnoreOneResult() {
@@ -54,10 +54,10 @@ public class PrecisionAtNTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "2", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "3", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "4", Rating.IRRELEVANT.ordinal()));
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
         assertEquals((double) 4 / 5, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(4, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(5, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(4, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(5, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     /**
@@ -71,12 +71,12 @@ public class PrecisionAtNTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "2", 2));
         rated.add(new RatedDocument("test", "testtype", "3", 3));
         rated.add(new RatedDocument("test", "testtype", "4", 4));
-        PrecisionAtN precisionAtN = new PrecisionAtN(5);
+        Precision precisionAtN = new Precision();
         precisionAtN.setRelevantRatingThreshhold(2);
         EvalQueryQuality evaluated = precisionAtN.evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
         assertEquals((double) 3 / 5, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(5, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(5, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testPrecisionAtFiveCorrectIndex() {
@@ -87,10 +87,10 @@ public class PrecisionAtNTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "2", Rating.IRRELEVANT.ordinal()));
         // the following search hits contain only the last three documents
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id", toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testPrecisionAtFiveCorrectType() {
@@ -100,33 +100,35 @@ public class PrecisionAtNTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "2", Rating.IRRELEVANT.ordinal()));
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id", toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testNoRatedDocs() throws Exception {
-        List<RatedDocument> rated = new ArrayList<>();
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
+        InternalSearchHit[] hits = new InternalSearchHit[5];
+        for (int i = 0; i < 5; i++) {
+            hits[i] = new InternalSearchHit(i, i+"", new Text("type"), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
+        }
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(0, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(0, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(0, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(0, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testParseFromXContent() throws IOException {
         String xContent = " {\n"
-         + "   \"size\": 10,\n"
          + "   \"relevant_rating_threshold\" : 2"
          + "}";
         XContentParser parser = XContentFactory.xContent(xContent).createParser(xContent);
-        PrecisionAtN precicionAt = PrecisionAtN.fromXContent(parser, () -> ParseFieldMatcher.STRICT);
-        assertEquals(10, precicionAt.getN());
+        Precision precicionAt = Precision.fromXContent(parser, () -> ParseFieldMatcher.STRICT);
         assertEquals(2, precicionAt.getRelevantRatingThreshold());
     }
 
     public void testCombine() {
-        PrecisionAtN metric = new PrecisionAtN();
+        Precision metric = new Precision();
         Vector<EvalQueryQuality> partialResults = new Vector<>(3);
         partialResults.add(new EvalQueryQuality("a", 0.1));
         partialResults.add(new EvalQueryQuality("b", 0.2));
@@ -134,17 +136,20 @@ public class PrecisionAtNTests extends ESTestCase {
         assertEquals(0.3, metric.combine(partialResults), Double.MIN_VALUE);
     }
 
-    public static PrecisionAtN createTestItem() {
-        int position = randomIntBetween(0, 1000);
-        return new PrecisionAtN(position);
+    public static Precision createTestItem() {
+        Precision precision = new Precision();
+        if (randomBoolean()) {
+            precision.setRelevantRatingThreshhold(randomIntBetween(0, 10));
+        }
+        return precision;
     }
 
     public void testXContentRoundtrip() throws IOException {
-        PrecisionAtN testItem = createTestItem();
+        Precision testItem = createTestItem();
         XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
-        PrecisionAtN parsedItem = PrecisionAtN.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
+        Precision parsedItem = Precision.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());

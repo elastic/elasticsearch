@@ -50,12 +50,12 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, PrecisionAtN.NAME, PrecisionAtN::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, Precision.NAME, Precision::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, ReciprocalRank.NAME, ReciprocalRank::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, DiscountedCumulativeGainAt.NAME,
                 DiscountedCumulativeGainAt::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class, PrecisionAtN.NAME,
-                PrecisionAtN.Breakdown::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class, Precision.NAME,
+                Precision.Breakdown::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class, ReciprocalRank.NAME,
                 ReciprocalRank.Breakdown::new));
         return namedWriteables;

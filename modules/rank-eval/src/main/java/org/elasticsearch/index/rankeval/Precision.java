@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
@@ -38,64 +38,41 @@ import javax.naming.directory.SearchResult;
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
 /**
- * Evaluate Precision at N, N being the number of search results to consider for precision calculation.
- * Documents of unkonwn quality are ignored in the precision at n computation and returned by document id.
- * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the precision
- * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
- * */
-public class PrecisionAtN implements RankedListQualityMetric {
-
-    /** Number of results to check against a given set of relevant results. */
-    private int n;
+ * Evaluate Precision of the search results. Documents without a rating are
+ * ignored. By default documents with a rating equal or bigger than 1 are
+ * considered to be "relevant" for the precision calculation. This value can be
+ * changes using the "relevant_rating_threshold" parameter.
+ */
+public class Precision implements RankedListQualityMetric {
 
     /** ratings equal or above this value will be considered relevant. */
     private int relevantRatingThreshhold = 1;
 
-    public static final String NAME = "precision_atn";
+    public static final String NAME = "precision";
 
-    private static final ParseField SIZE_FIELD = new ParseField("size");
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
-    private static final ConstructingObjectParser<PrecisionAtN, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            "precision_at", a -> new PrecisionAtN((Integer) a[0]));
+    private static final ObjectParser<Precision, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Precision::new);
 
-    static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SIZE_FIELD);
-        PARSER.declareInt(PrecisionAtN::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
+    public Precision() {
+        // needed for supplier in parser
     }
 
-    public PrecisionAtN(StreamInput in) throws IOException {
-        n = in.readInt();
+    static {
+        PARSER.declareInt(Precision::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
+    }
+
+    public Precision(StreamInput in) throws IOException {
+        relevantRatingThreshhold = in.readOptionalVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(n);
+        out.writeOptionalVInt(relevantRatingThreshhold);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    /**
-     * Initialises n with 10
-     * */
-    public PrecisionAtN() {
-        this.n = 10;
-    }
-
-    /**
-     * @param n number of top results to check against a given set of relevant results.
-     * */
-    public PrecisionAtN(int n) {
-        this.n= n;
-    }
-
-    /**
-     * Return number of search results to check for quality.
-     * */
-    public int getN() {
-        return n;
     }
 
     /**
@@ -113,7 +90,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
         return relevantRatingThreshhold ;
     }
 
-    public static PrecisionAtN fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
+    public static Precision fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
         return PARSER.apply(parser, matcher);
     }
 
@@ -140,7 +117,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
             precision = (double) truePositives / (truePositives + falsePositives);
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
-        evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(truePositives, truePositives + falsePositives));
+        evalQueryQuality.addMetricDetails(new Precision.Breakdown(truePositives, truePositives + falsePositives));
         evalQueryQuality.addHitsAndRatings(ratedSearchHits);
         return evalQueryQuality;
     }
@@ -173,7 +150,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(NAME);
-        builder.field(SIZE_FIELD.getPreferredName(), this.n);
+        builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshhold);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -187,13 +164,13 @@ public class PrecisionAtN implements RankedListQualityMetric {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        PrecisionAtN other = (PrecisionAtN) obj;
-        return Objects.equals(n, other.n);
+        Precision other = (Precision) obj;
+        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(n);
+        return Objects.hash(relevantRatingThreshhold);
     }
 
     public static class Breakdown implements MetricDetails {
@@ -247,7 +224,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            PrecisionAtN.Breakdown other = (PrecisionAtN.Breakdown) obj;
+            Precision.Breakdown other = (Precision.Breakdown) obj;
             return Objects.equals(relevantRetrieved, other.relevantRetrieved) &&
                     Objects.equals(retrieved, other.retrieved);
         }

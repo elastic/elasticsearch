@@ -56,7 +56,6 @@ import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.discovery.zen.ZenPingService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -195,12 +194,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                if (zenPing instanceof UnicastZenPing) {
-                    ((UnicastZenPing) zenPing).clearTemporalResponses();
-                }
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
         return nodes;
     }
@@ -858,10 +854,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing) zenPing).clearTemporalResponses();
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
@@ -896,10 +891,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing) zenPing).clearTemporalResponses();
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
 
         // Simulate a network issue between the unicast target node and the rest of the cluster

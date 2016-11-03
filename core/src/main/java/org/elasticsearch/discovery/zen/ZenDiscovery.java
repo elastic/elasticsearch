@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -67,6 +68,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -105,7 +107,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private AllocationService allocationService;
     private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
-    private final ZenPingService pingService;
+    private final ZenPing zenPing;
     private final MasterFaultDetection masterFD;
     private final NodesFaultDetection nodesFD;
     private final PublishClusterStateAction publishClusterState;
@@ -137,18 +139,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private volatile NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
 
     @Inject
-    public ZenDiscovery(Settings settings, ThreadPool threadPool,
-                        TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
-                        ZenPingService pingService) {
+    public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
+                        ClusterService clusterService, ClusterSettings clusterSettings, ZenPing zenPing) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
-        this.pingService = pingService;
+        this.zenPing = zenPing;
         this.electMaster = new ElectMasterService(settings);
         this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
-
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.joinRetryAttempts = JOIN_RETRY_ATTEMPTS_SETTING.get(settings);
         this.joinRetryDelay = JOIN_RETRY_DELAY_SETTING.get(settings);
@@ -171,7 +171,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());
-
         this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterService.getClusterName());
         this.nodesFD.addListener(new NodeFaultDetectionListener());
 
@@ -183,9 +182,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         new NewPendingClusterStateListener(),
                         discoverySettings,
                         clusterService.getClusterName());
-        this.pingService.setPingContextProvider(this);
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
-
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
         transportService.registerRequestHandler(
@@ -201,7 +198,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     protected void doStart() {
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
-        pingService.start();
+        zenPing.start(this);
         this.nodeJoinController = new NodeJoinController(clusterService, allocationService, electMaster, discoverySettings, settings);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::rejoin, logger);
     }
@@ -233,7 +230,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     @Override
     protected void doStop() {
         joinThreadControl.stop();
-        pingService.stop();
         masterFD.stop("zen disco stop");
         nodesFD.stop();
         DiscoveryNodes nodes = nodes();
@@ -264,10 +260,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     @Override
-    protected void doClose() {
-        masterFD.close();
-        nodesFD.close();
-        pingService.close();
+    protected void doClose() throws IOException {
+        IOUtils.close(masterFD, nodesFD, zenPing);
     }
 
     @Override
@@ -871,7 +865,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private DiscoveryNode findMaster() {
         logger.trace("starting to ping");
-        List<ZenPing.PingResponse> fullPingResponses = pingService.pingAndWait(pingTimeout).toList();
+        List<ZenPing.PingResponse> fullPingResponses = pingAndWait(pingTimeout).toList();
         if (fullPingResponses == null) {
             logger.trace("No full ping responses");
             return null;
@@ -1010,6 +1004,28 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), e);
             }
             return localClusterState;
+        }
+    }
+
+    private ZenPing.PingCollection pingAndWait(TimeValue timeout) {
+        final ZenPing.PingCollection response = new ZenPing.PingCollection();
+        final CountDownLatch latch = new CountDownLatch(1);
+        try {
+            zenPing.ping(pings -> {
+                response.addPings(pings);
+                latch.countDown();
+            }, timeout);
+        } catch (Exception ex) {
+            logger.warn("Ping execution failed", ex);
+            latch.countDown();
+        }
+
+        try {
+            latch.await();
+            return response;
+        } catch (InterruptedException e) {
+            logger.trace("pingAndWait interrupted");
+            return response;
         }
     }
 

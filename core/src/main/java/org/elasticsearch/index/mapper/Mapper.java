@@ -31,6 +31,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
@@ -97,11 +98,13 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             private final ParseFieldMatcher parseFieldMatcher;
 
-            private final QueryShardContext queryShardContext;
+            private final Supplier<QueryShardContext> queryShardContextSupplier;
+            private QueryShardContext queryShardContext;
 
             public ParserContext(String type, IndexAnalyzers indexAnalyzers, Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
-                                 Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher, QueryShardContext queryShardContext) {
+                                 Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher,
+                                 Supplier<QueryShardContext> queryShardContextSupplier) {
                 this.type = type;
                 this.indexAnalyzers = indexAnalyzers;
                 this.similarityLookupService = similarityLookupService;
@@ -109,7 +112,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
                 this.parseFieldMatcher = parseFieldMatcher;
-                this.queryShardContext = queryShardContext;
+                this.queryShardContextSupplier = queryShardContextSupplier;
             }
 
             public String type() {
@@ -141,6 +144,10 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             }
 
             public QueryShardContext queryShardContext() {
+                // No need for synchronization, this class must be used in a single thread
+                if (queryShardContext == null) {
+                    queryShardContext = queryShardContextSupplier.get();
+                }
                 return queryShardContext;
             }
 
@@ -159,7 +166,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher(), in.queryShardContext());
+                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher(), in::queryShardContext);
                 }
             }
 

@@ -122,22 +122,25 @@ public class PrecisionAtN implements RankedListQualityMetric {
      **/
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
-        int good = 0;
-        int bad = 0;
+        int truePositives = 0;
+        int falsePositives = 0;
         List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
         for (RatedSearchHit hit : ratedSearchHits) {
             Optional<Integer> rating = hit.getRating();
             if (rating.isPresent()) {
                 if (rating.get() >= this.relevantRatingThreshhold) {
-                    good++;
+                    truePositives++;
                 } else {
-                    bad++;
+                    falsePositives++;
                 }
             }
         }
-        double precision = (double) good / (good + bad);
+        double precision = 0.0;
+        if (truePositives + falsePositives > 0) {
+            precision = (double) truePositives / (truePositives + falsePositives);
+        }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
-        evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(good, good + bad));
+        evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(truePositives, truePositives + falsePositives));
         evalQueryQuality.addHitsAndRatings(ratedSearchHits);
         return evalQueryQuality;
     }

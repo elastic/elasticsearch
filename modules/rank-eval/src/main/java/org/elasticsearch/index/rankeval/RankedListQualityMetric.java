@@ -70,8 +70,8 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
         case ReciprocalRank.NAME:
             rc = ReciprocalRank.fromXContent(parser, context);
             break;
-        case DiscountedCumulativeGainAt.NAME:
-            rc = DiscountedCumulativeGainAt.fromXContent(parser, context);
+        case DiscountedCumulativeGain.NAME:
+            rc = DiscountedCumulativeGain.fromXContent(parser, context);
             break;
         default:
             throw new ParsingException(parser.getTokenLocation(), "[_na] unknown query metric name [{}]", metricName);

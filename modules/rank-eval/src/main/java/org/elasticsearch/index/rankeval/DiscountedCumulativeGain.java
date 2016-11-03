@@ -38,56 +38,36 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
-public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
+public class DiscountedCumulativeGain implements RankedListQualityMetric {
 
-    /** rank position up to which to check results. */
-    private int position;
     /** If set to true, the dcg will be normalized (ndcg) */
     private boolean normalize;
     /** If set to, this will be the rating for docs the user hasn't supplied an explicit rating for */
     private Integer unknownDocRating;
 
-    public static final String NAME = "dcg_at_n";
+    public static final String NAME = "dcg";
     private static final double LOG2 = Math.log(2.0);
 
-    /**
-     * Initialises position with 10
-     * */
-    public DiscountedCumulativeGainAt() {
-        this.position = 10;
+    public DiscountedCumulativeGain() {
     }
 
     /**
-     * @param position number of top results to check against a given set of relevant results. Must be positive.
-     */
-    public DiscountedCumulativeGainAt(int position) {
-        if (position <= 0) {
-            throw new IllegalArgumentException("number of results to check needs to be positive but was " + position);
-        }
-        this.position = position;
-    }
-
-    /**
-     * @param position number of top results to check against a given set of relevant results. Must be positive.
      * @param normalize If set to true, dcg will be normalized (ndcg)
      * See https://en.wikipedia.org/wiki/Discounted_cumulative_gain
      * @param unknownDocRating the rating for docs the user hasn't supplied an explicit rating for
      * */
-    public DiscountedCumulativeGainAt(int position, boolean normalize, Integer unknownDocRating) {
-        this(position);
+    public DiscountedCumulativeGain( boolean normalize, Integer unknownDocRating) {
         this.normalize = normalize;
         this.unknownDocRating = unknownDocRating;
     }
 
-    public DiscountedCumulativeGainAt(StreamInput in) throws IOException {
-        this(in.readInt());
+    public DiscountedCumulativeGain(StreamInput in) throws IOException {
         normalize = in.readBoolean();
         unknownDocRating = in.readOptionalVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(position);
         out.writeBoolean(normalize);
         out.writeOptionalVInt(unknownDocRating);
     }
@@ -95,20 +75,6 @@ public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    /**
-     * Return number of search results to check for quality metric.
-     */
-    public int getPosition() {
-        return this.position;
-    }
-
-    /**
-     * set number of search results to check for quality metric.
-     */
-    public void setPosition(int position) {
-        this.position = position;
     }
 
     /**
@@ -143,8 +109,8 @@ public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed().collect(Collectors.toList());
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
-        List<Integer> ratingsInSearchHits = new ArrayList<>(Math.min(ratedHits.size(), position));
-        for (RatedSearchHit hit : ratedHits.subList(0, position)) {
+        List<Integer> ratingsInSearchHits = new ArrayList<>(ratedHits.size());
+        for (RatedSearchHit hit : ratedHits) {
             // unknownDocRating might be null, which means it will be unrated docs are ignored in the dcg calculation
             // we still need to add them as a placeholder so the rank of the subsequent ratings is correct
             ratingsInSearchHits.add(hit.getRating().orElse(unknownDocRating));
@@ -173,19 +139,17 @@ public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
         return dcg;
     }
 
-    private static final ParseField SIZE_FIELD = new ParseField("size");
     private static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
-    private static final ObjectParser<DiscountedCumulativeGainAt, ParseFieldMatcherSupplier> PARSER =
-            new ObjectParser<>("dcg_at", () -> new DiscountedCumulativeGainAt());
+    private static final ObjectParser<DiscountedCumulativeGain, ParseFieldMatcherSupplier> PARSER =
+            new ObjectParser<>("dcg_at", () -> new DiscountedCumulativeGain());
 
     static {
-        PARSER.declareInt(DiscountedCumulativeGainAt::setPosition, SIZE_FIELD);
-        PARSER.declareBoolean(DiscountedCumulativeGainAt::setNormalize, NORMALIZE_FIELD);
-        PARSER.declareInt(DiscountedCumulativeGainAt::setUnknownDocRating, UNKNOWN_DOC_RATING_FIELD);
+        PARSER.declareBoolean(DiscountedCumulativeGain::setNormalize, NORMALIZE_FIELD);
+        PARSER.declareInt(DiscountedCumulativeGain::setUnknownDocRating, UNKNOWN_DOC_RATING_FIELD);
     }
 
-    public static DiscountedCumulativeGainAt fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
+    public static DiscountedCumulativeGain fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
         return PARSER.apply(parser, matcher);
     }
 
@@ -193,7 +157,6 @@ public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(NAME);
-        builder.field(SIZE_FIELD.getPreferredName(), this.position);
         builder.field(NORMALIZE_FIELD.getPreferredName(), this.normalize);
         if (unknownDocRating != null) {
             builder.field(UNKNOWN_DOC_RATING_FIELD.getPreferredName(), this.unknownDocRating);
@@ -211,15 +174,14 @@ public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        DiscountedCumulativeGainAt other = (DiscountedCumulativeGainAt) obj;
-        return Objects.equals(position, other.position) &&
-                Objects.equals(normalize, other.normalize) &&
+        DiscountedCumulativeGain other = (DiscountedCumulativeGain) obj;
+        return Objects.equals(normalize, other.normalize) &&
                 Objects.equals(unknownDocRating, other.unknownDocRating);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(position, normalize, unknownDocRating);
+        return Objects.hash(normalize, unknownDocRating);
     }
 
     // TODO maybe also add debugging breakdown here

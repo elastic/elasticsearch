@@ -30,14 +30,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
 
-public class DiscountedCumulativeGainAtTests extends ESTestCase {
+public class DiscountedCumulativeGainTests extends ESTestCase {
 
     /**
      * Assuming the docs are ranked in the following order:
@@ -53,7 +51,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
      *
      * dcg = 13.84826362927298 (sum of last column)
      */
-    public void testDCGAt() throws IOException, InterruptedException, ExecutionException {
+    public void testDCGAt() {
         List<RatedDocument> rated = new ArrayList<>();
         int[] relevanceRatings = new int[] { 3, 2, 3, 0, 1, 2 };
         InternalSearchHit[] hits = new InternalSearchHit[6];
@@ -62,7 +60,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
-        DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
+        DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         assertEquals(13.84826362927298, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
 
         /**
@@ -97,7 +95,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
      *
      * dcg = 12.779642067948913 (sum of last column)
      */
-    public void testDCGAtSixMissingRatings() throws IOException, InterruptedException, ExecutionException {
+    public void testDCGAtSixMissingRatings() {
         List<RatedDocument> rated = new ArrayList<>();
         Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1};
         InternalSearchHit[] hits = new InternalSearchHit[6];
@@ -110,7 +108,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
-        DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
+        DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, rated);
         assertEquals(12.779642067948913, result.getQualityLevel(), 0.00001);
         assertEquals(2, filterUnknownDocuments(result.getHitsAndRatings()).size());
@@ -149,21 +147,24 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
      *
      * dcg = 12.392789260714371 (sum of last column until position 4)
      */
-    public void testDCGAtFourMoreRatings() throws IOException, InterruptedException, ExecutionException {
-        List<RatedDocument> rated = new ArrayList<>();
+    public void testDCGAtFourMoreRatings() {
         Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1, null};
-        InternalSearchHit[] hits = new InternalSearchHit[6];
+        List<RatedDocument> ratedDocs = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
             if (i < relevanceRatings.length) {
                 if (relevanceRatings[i] != null) {
-                    rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
+                    ratedDocs.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
                 }
             }
+        }
+        // only create four hits
+        InternalSearchHit[] hits = new InternalSearchHit[4];
+        for (int i = 0; i < 4; i++) {
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
-        DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(4);
-        EvalQueryQuality result = dcg.evaluate("id",  Arrays.copyOfRange(hits, 0, 4), rated);
+        DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
+        EvalQueryQuality result = dcg.evaluate("id",  hits, ratedDocs);
         assertEquals(12.392789260714371 , result.getQualityLevel(), 0.00001);
         assertEquals(1, filterUnknownDocuments(result.getHitsAndRatings()).size());
 
@@ -183,33 +184,32 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
          * idcg = 13.347184833073591 (sum of last column)
          */
         dcg.setNormalize(true);
-        assertEquals(12.392789260714371  / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        assertEquals(12.392789260714371  / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).getQualityLevel(), 0.00001);
     }
 
     public void testParseFromXContent() throws IOException {
         String xContent = " {\n"
-         + "   \"size\": 8,\n"
+         + "   \"unknown_doc_rating\": 2,\n"
          + "   \"normalize\": true\n"
          + "}";
         XContentParser parser = XContentFactory.xContent(xContent).createParser(xContent);
-        DiscountedCumulativeGainAt dcgAt = DiscountedCumulativeGainAt.fromXContent(parser, () -> ParseFieldMatcher.STRICT);
-        assertEquals(8, dcgAt.getPosition());
+        DiscountedCumulativeGain dcgAt = DiscountedCumulativeGain.fromXContent(parser, () -> ParseFieldMatcher.STRICT);
+        assertEquals(2, dcgAt.getUnknownDocRating().intValue());
         assertEquals(true, dcgAt.getNormalize());
     }
 
-    public static DiscountedCumulativeGainAt createTestItem() {
-        int position = randomIntBetween(0, 1000);
+    public static DiscountedCumulativeGain createTestItem() {
         boolean normalize = randomBoolean();
         Integer unknownDocRating = new Integer(randomIntBetween(0, 1000));
 
-        return new DiscountedCumulativeGainAt(position, normalize, unknownDocRating);
+        return new DiscountedCumulativeGain(normalize, unknownDocRating);
     }
     public void testXContentRoundtrip() throws IOException {
-        DiscountedCumulativeGainAt testItem = createTestItem();
+        DiscountedCumulativeGain testItem = createTestItem();
         XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
-        DiscountedCumulativeGainAt parsedItem = DiscountedCumulativeGainAt.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
+        DiscountedCumulativeGain parsedItem = DiscountedCumulativeGain.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());

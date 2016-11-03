@@ -45,7 +45,7 @@ import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsW
 public class ReciprocalRank implements RankedListQualityMetric {
 
     public static final String NAME = "reciprocal_rank";
-    public static final int DEFAULT_MAX_ACCEPTABLE_RANK = 10;
+    public static final int DEFAULT_MAX_ACCEPTABLE_RANK = Integer.MAX_VALUE;
     private int maxAcceptableRank = DEFAULT_MAX_ACCEPTABLE_RANK;
 
     /** ratings equal or above this value will be considered relevant. */

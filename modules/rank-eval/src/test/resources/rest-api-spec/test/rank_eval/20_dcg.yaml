@@ -60,7 +60,7 @@
                     {"_index" : "foo", "_type" : "bar", "_id" : "doc6", "rating": 2}]
             }
           ],
-          "metric" : { "dcg_at_n": { "size": 6}}
+          "metric" : { "dcg": {}}
         }
 
   - match: {rank_eval.quality_level: 13.84826362927298}
@@ -85,7 +85,7 @@
                     {"_index" : "foo", "_type" : "bar", "_id" : "doc6", "rating": 2}]
             }, 
           ],
-          "metric" : { "dcg_at_n": { "size": 6}}
+          "metric" : { "dcg": { }}
         }
 
   - match: {rank_eval.quality_level: 10.29967439154499}
@@ -121,7 +121,7 @@
                 {"_index" : "foo", "_type" : "bar", "_id" : "doc6", "rating": 2}]
           }, 
         ],
-        "metric" : { "dcg_at_n": { "size": 6}}
+        "metric" : { "dcg": { }}
       }
 
   - match: {rank_eval.quality_level: 12.073969010408984}

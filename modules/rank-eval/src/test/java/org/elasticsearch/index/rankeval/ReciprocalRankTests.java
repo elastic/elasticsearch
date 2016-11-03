@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
-import java.util.concurrent.ExecutionException;
 
 public class ReciprocalRankTests extends ESTestCase {
 
@@ -98,7 +97,7 @@ public class ReciprocalRankTests extends ESTestCase {
      * e.g. we set it to 2 here and expect dics 0-2 to be not relevant, so first relevant doc has
      * third ranking position, so RR should be 1/3
      */
-    public void testPrecisionAtFiveRelevanceThreshold() throws IOException, InterruptedException, ExecutionException {
+    public void testPrecisionAtFiveRelevanceThreshold() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "testtype", "0", 0));
         rated.add(new RatedDocument("test", "testtype", "1", 1));

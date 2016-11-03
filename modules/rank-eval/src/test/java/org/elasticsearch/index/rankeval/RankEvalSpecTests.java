@@ -93,7 +93,7 @@ public class RankEvalSpecTests extends ESTestCase {
         if (randomBoolean()) {
             metric = PrecisionTests.createTestItem();
         } else {
-            metric = DiscountedCumulativeGainAtTests.createTestItem();
+            metric = DiscountedCumulativeGainTests.createTestItem();
         }
 
         RankEvalSpec testItem = new RankEvalSpec(specs, metric);

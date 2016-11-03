@@ -429,6 +429,12 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesQueriesRegistry, clusterService, client, indicesQueryCache, mapperRegistry, indicesFieldDataCache);
     }
 
+    /**
+     * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
+     * This *should not* be used for document parsing. Doing so will result in an exception.
+     *
+     * Note: the returned {@link MapperService} should be closed when unneeded.
+     */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final Index index = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
@@ -1134,7 +1140,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public void loadIntoContext(ShardSearchRequest request, SearchContext context, QueryPhase queryPhase) throws Exception {
         assert canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
-        
+
         boolean[] loadedFromCache = new boolean[] { true };
         BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
             queryPhase.execute(context);

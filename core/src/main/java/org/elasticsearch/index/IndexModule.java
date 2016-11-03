@@ -360,6 +360,10 @@ public final class IndexModule {
                 searchOperationListeners, indexOperationListeners);
     }
 
+    /**
+     * creates a new mapper service to do administrative work like mapping updates. This *should not* be used for document parsing.
+     * doing so will result in an exception.
+     */
     public MapperService newIndexMapperService(MapperRegistry mapperRegistry) throws IOException {
         return new MapperService(indexSettings, analysisRegistry.build(indexSettings),
             new SimilarityService(indexSettings, similarities), mapperRegistry,

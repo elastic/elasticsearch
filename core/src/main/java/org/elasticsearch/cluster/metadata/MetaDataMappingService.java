@@ -221,12 +221,12 @@ public class MetaDataMappingService extends AbstractComponent {
                             final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetaData.getIndex()) == false) {
                                 MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
+                                indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
                                 for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
                                     mapperService.merge(mapping.value.type(), mapping.value.source(),
                                         MapperService.MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
                                 }
-                                indexMapperServices.put(index, mapperService);
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
@@ -279,9 +279,9 @@ public class MetaDataMappingService extends AbstractComponent {
                             for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
                                 String parentType = newMapper.parentFieldMapper().type();
                                 if (parentType.equals(mapping.value.type()) &&
-                                    mapperService.getParentTypes().contains(parentType) == false) {
+                                        mapperService.getParentTypes().contains(parentType) == false) {
                                     throw new IllegalArgumentException("can't add a _parent field that points to an " +
-                                            "already existing type, that isn't already a parent");
+                                        "already existing type, that isn't already a parent");
                                 }
                             }
                         }

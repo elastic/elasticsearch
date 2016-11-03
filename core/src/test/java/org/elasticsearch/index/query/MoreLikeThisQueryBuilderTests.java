@@ -301,6 +301,11 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertEquals(expectedItem, newItem);
     }
 
+    @Override
+    protected boolean isCachable(MoreLikeThisQueryBuilder queryBuilder) {
+        return queryBuilder.likeItems().length == 0; // items are always fetched
+    }
+
     public void testFromJson() throws IOException {
         String json =
                 "{\n" +

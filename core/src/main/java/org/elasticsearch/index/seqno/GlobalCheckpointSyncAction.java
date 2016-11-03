@@ -41,6 +41,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.io.UnsupportedEncodingException;
 
 public class GlobalCheckpointSyncAction extends TransportReplicationAction<GlobalCheckpointSyncAction.PrimaryRequest,
     GlobalCheckpointSyncAction.ReplicaRequest, ReplicationResponse> {
@@ -68,6 +70,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         long checkpoint = indexShard.getGlobalCheckpoint();
+        syncTranslog(indexShard);
         return new PrimaryResult(new ReplicaRequest(request, checkpoint), new ReplicationResponse());
     }
 
@@ -76,7 +79,16 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         indexShard.updateGlobalCheckpointOnReplica(request.checkpoint);
+        syncTranslog(indexShard);
         return new ReplicaResult();
+    }
+
+    private void syncTranslog(final IndexShard indexShard) {
+        try {
+            indexShard.getTranslog().sync();
+        } catch (final IOException e) {
+            throw new UncheckedIOException("failed to sync translog after updating global checkpoint for shard " + indexShard.shardId(), e);
+        }
     }
 
     public void updateCheckpointForShard(ShardId shardId) {
@@ -135,4 +147,5 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
             return checkpoint;
         }
     }
+
 }

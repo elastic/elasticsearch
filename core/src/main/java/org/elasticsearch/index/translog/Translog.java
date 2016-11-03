@@ -558,7 +558,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Ensures that all locations in the given stream have been synced / written to the underlying storage.
-     * This method allows for internal optimization to minimize the amout of fsync operations if multiple
+     * This method allows for internal optimization to minimize the amount of fsync operations if multiple
      * locations must be synced.
      *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>

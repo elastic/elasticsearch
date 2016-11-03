@@ -588,8 +588,7 @@ public class InternalEngineTests extends ESTestCase {
                         this.config().getIndexSettings(),
                         maxSeqNo.get(),
                         localCheckpoint.get(),
-                        globalCheckpoint.get(),
-                        () -> {});
+                        globalCheckpoint.get());
                 }
             };
             CommitStats stats1 = engine.commitStats();
@@ -1712,6 +1711,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(
                 Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
                 equalTo(localCheckpoint));
+            initialEngine.getTranslog().sync(); // to guarantee the global checkpoint is written to the translog checkpoint
             assertThat(
                 initialEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
                 equalTo(globalCheckpoint));

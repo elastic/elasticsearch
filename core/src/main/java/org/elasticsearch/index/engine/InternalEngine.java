@@ -167,9 +167,7 @@ public class InternalEngine extends Engine {
                                 engineConfig.getIndexSettings(),
                                 seqNoStats.getMaxSeqNo(),
                                 seqNoStats.getLocalCheckpoint(),
-                                seqNoStats.getGlobalCheckpoint(),
-                                this::onGlobalCheckpointUpdate
-                            );
+                                seqNoStats.getGlobalCheckpoint());
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer);
                 assert translog.getGeneration() != null;
@@ -358,19 +356,6 @@ public class InternalEngine extends Engine {
         }
 
         return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
-    }
-
-    /**
-     * Sync the translog after the global checkpoint is updated.
-     */
-    void onGlobalCheckpointUpdate() {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
-            translog.sync();
-        } catch (final IOException e) {
-            maybeFailEngine("on global checkpoint update", e);
-            throw new EngineException(shardId, "failed on global checkpoint update", e);
-        }
     }
 
     private SearcherManager createSearcherManager() throws EngineException {

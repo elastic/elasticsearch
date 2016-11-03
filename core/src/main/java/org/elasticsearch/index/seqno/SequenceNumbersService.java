@@ -38,7 +38,6 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     final LocalCheckpointService localCheckpointService;
     final GlobalCheckpointService globalCheckpointService;
-    private final Runnable onGlobalCheckpointUpdate;
 
     /**
      * Initialize the sequence number service. The {@code maxSeqNo} should be set to the last sequence number assigned by this shard, or
@@ -51,19 +50,16 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * @param maxSeqNo                 the last sequence number assigned by this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
      * @param localCheckpoint          the last known local checkpoint for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
      * @param globalCheckpoint         the last known global checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
-     * @param onGlobalCheckpointUpdate invoked when the global checkpoint is updated
      */
     public SequenceNumbersService(
         final ShardId shardId,
         final IndexSettings indexSettings,
         final long maxSeqNo,
         final long localCheckpoint,
-        final long globalCheckpoint,
-        final Runnable onGlobalCheckpointUpdate) {
+        final long globalCheckpoint) {
         super(shardId, indexSettings);
         localCheckpointService = new LocalCheckpointService(shardId, indexSettings, maxSeqNo, localCheckpoint);
         globalCheckpointService = new GlobalCheckpointService(shardId, indexSettings, globalCheckpoint);
-        this.onGlobalCheckpointUpdate = onGlobalCheckpointUpdate;
     }
 
     /**
@@ -124,11 +120,20 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
+     *
+     * @return true if the checkpoint has been updated or if it can not be updated since one of the local checkpoints
+     * of one of the active allocations is not known.
+     */
+    public boolean updateGlobalCheckpointOnPrimary() {
+        return globalCheckpointService.updateCheckpointOnPrimary();
+    }
+
+    /**
      * updates the global checkpoint on a replica shard (after it has been updated by the primary).
      */
     public void updateGlobalCheckpointOnReplica(long checkpoint) {
         globalCheckpointService.updateCheckpointOnReplica(checkpoint);
-        onGlobalCheckpointUpdate.run();
     }
 
     /**
@@ -142,17 +147,4 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         globalCheckpointService.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
     }
 
-    /**
-     * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
-     *
-     * @return true if the checkpoint has been updated or if it can not be updated since one of the local checkpoints
-     * of one of the active allocations is not known.
-     */
-    public boolean updateGlobalCheckpointOnPrimary() {
-        final boolean maybeUpdateGlobalCheckpoint = globalCheckpointService.updateCheckpointOnPrimary();
-        if (maybeUpdateGlobalCheckpoint) {
-            onGlobalCheckpointUpdate.run();
-        }
-        return maybeUpdateGlobalCheckpoint;
-    }
 }

@@ -35,11 +35,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
-import java.util.concurrent.ExecutionException;
 
 public class PrecisionAtNTests extends ESTestCase {
 
-    public void testPrecisionAtFiveCalculation() throws IOException, InterruptedException, ExecutionException {
+    public void testPrecisionAtFiveCalculation() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
         EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
@@ -48,7 +47,7 @@ public class PrecisionAtNTests extends ESTestCase {
         assertEquals(1, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
-    public void testPrecisionAtFiveIgnoreOneResult() throws IOException, InterruptedException, ExecutionException {
+    public void testPrecisionAtFiveIgnoreOneResult() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
@@ -65,7 +64,7 @@ public class PrecisionAtNTests extends ESTestCase {
      * test that the relevant rating threshold can be set to something larger than 1.
      * e.g. we set it to 2 here and expect dics 0-2 to be not relevant, doc 3 and 4 to be relevant
      */
-    public void testPrecisionAtFiveRelevanceThreshold() throws IOException, InterruptedException, ExecutionException {
+    public void testPrecisionAtFiveRelevanceThreshold() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "testtype", "0", 0));
         rated.add(new RatedDocument("test", "testtype", "1", 1));
@@ -80,7 +79,7 @@ public class PrecisionAtNTests extends ESTestCase {
         assertEquals(5, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
-    public void testPrecisionAtFiveCorrectIndex() throws IOException, InterruptedException, ExecutionException {
+    public void testPrecisionAtFiveCorrectIndex() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test_other", "testtype", "0", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test_other", "testtype", "1", Rating.RELEVANT.ordinal()));
@@ -94,7 +93,7 @@ public class PrecisionAtNTests extends ESTestCase {
         assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
-    public void testPrecisionAtFiveCorrectType() throws IOException, InterruptedException, ExecutionException {
+    public void testPrecisionAtFiveCorrectType() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "other_type", "0", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "other_type", "1", Rating.RELEVANT.ordinal()));
@@ -105,6 +104,14 @@ public class PrecisionAtNTests extends ESTestCase {
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
         assertEquals(2, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+    }
+
+    public void testNoRatedDocs() throws Exception {
+        List<RatedDocument> rated = new ArrayList<>();
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
+        assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(0, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(0, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testParseFromXContent() throws IOException {

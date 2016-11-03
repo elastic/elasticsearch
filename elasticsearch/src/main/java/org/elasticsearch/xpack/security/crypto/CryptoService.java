@@ -13,6 +13,7 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +33,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -59,12 +61,14 @@ public class CryptoService extends AbstractComponent {
     private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$[^\\$]*\\$\\$.+");
     private static final byte[] HKDF_APP_INFO = "es-security-crypto-service".getBytes(StandardCharsets.UTF_8);
 
-    public static final Setting<String> ENCRYPTION_ALGO_SETTING =
-        new Setting<>(setting("encryption.algorithm"), s -> DEFAULT_ENCRYPTION_ALGORITHM, s -> s, Setting.Property.NodeScope);
-    public static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING =
-        Setting.intSetting(setting("encryption_key.length"), DEFAULT_KEY_LENGTH, Setting.Property.NodeScope);
-    public static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING =
-        new Setting<>(setting("encryption_key.algorithm"), DEFAULT_KEY_ALGORITH, s -> s, Setting.Property.NodeScope);
+    private static final Setting<Boolean> SYSTEM_KEY_REQUIRED_SETTING =
+            Setting.boolSetting(setting("system_key.required"), false, Property.NodeScope);
+    private static final Setting<String> ENCRYPTION_ALGO_SETTING =
+            new Setting<>(setting("encryption.algorithm"), s -> DEFAULT_ENCRYPTION_ALGORITHM, s -> s, Property.NodeScope);
+    private static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING =
+            Setting.intSetting(setting("encryption_key.length"), DEFAULT_KEY_LENGTH, Property.NodeScope);
+    private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING =
+            new Setting<>(setting("encryption_key.algorithm"), DEFAULT_KEY_ALGORITH, s -> s, Property.NodeScope);
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final String encryptionAlgorithm;
@@ -93,7 +97,7 @@ public class CryptoService extends AbstractComponent {
         }
 
         keyFile = resolveSystemKey(env);
-        systemKey = readSystemKey(keyFile);
+        systemKey = readSystemKey(keyFile, SYSTEM_KEY_REQUIRED_SETTING.get(settings));
         randomKey = generateSecretKey(RANDOM_KEY_SIZE);
         randomKeyBase64 = Base64.getUrlEncoder().encodeToString(randomKey.getEncoded());
 
@@ -139,16 +143,17 @@ public class CryptoService extends AbstractComponent {
         }
     }
 
-    private static SecretKey readSystemKey(Path file) {
-        if (!Files.exists(file)) {
-            return null;
-        }
-        try {
+    private static SecretKey readSystemKey(Path file, boolean required) throws IOException {
+        if (Files.exists(file)) {
             byte[] bytes = Files.readAllBytes(file);
             return new SecretKeySpec(bytes, KEY_ALGO);
-        } catch (IOException e) {
-            throw new ElasticsearchException("could not read secret key", e);
         }
+
+        if (required) {
+            throw new FileNotFoundException("[" + file + "] must be present with a valid key");
+        }
+
+        return null;
     }
 
     /**
@@ -492,5 +497,6 @@ public class CryptoService extends AbstractComponent {
         settings.add(ENCRYPTION_KEY_LENGTH_SETTING);
         settings.add(ENCRYPTION_KEY_ALGO_SETTING);
         settings.add(ENCRYPTION_ALGO_SETTING);
+        settings.add(SYSTEM_KEY_REQUIRED_SETTING);
     }
 }

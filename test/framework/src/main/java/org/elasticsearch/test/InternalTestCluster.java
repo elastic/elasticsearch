@@ -1054,7 +1054,12 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
+                    try {
+                        indexShard.ensureNoActiveOperations();
+                    } catch (IllegalStateException ise) {
+                        throw new AssertionError("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name +
+                            " not 0 but " + indexShard.getActiveOperationsCount(), ise);
+                    }
                 }
             }
         }

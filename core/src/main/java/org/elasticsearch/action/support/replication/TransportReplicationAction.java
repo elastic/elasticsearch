@@ -366,6 +366,11 @@ public abstract class TransportReplicationAction<
                 executeOnReplicas, replicasProxy, clusterService::state, logger, actionName
             );
         }
+
+        @Override
+        public String toString() {
+            return "AsyncPrimaryAction for " + request.getDescription();
+        }
     }
 
     protected class PrimaryResult implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
@@ -582,6 +587,11 @@ public abstract class TransportReplicationAction<
             public void onFailure(Exception e) {
                 responseWithFailure(e);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "AsyncReplicaAction for " + request.getDescription();
         }
     }
 
@@ -880,6 +890,10 @@ public abstract class TransportReplicationAction<
             @Override
             public void onFailure(Exception e) {
                 onReferenceAcquired.onFailure(e);
+            }
+
+            public String toString() {
+                return onReferenceAcquired.toString();
             }
         };
 

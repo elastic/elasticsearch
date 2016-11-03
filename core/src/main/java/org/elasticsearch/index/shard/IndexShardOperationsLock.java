@@ -27,7 +27,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -44,10 +47,13 @@ public class IndexShardOperationsLock implements Closeable {
     @Nullable private List<ActionListener<Releasable>> delayedOperations; // operations that are delayed due to relocation hand-off
     private volatile boolean closed;
 
-    public IndexShardOperationsLock(ShardId shardId, Logger logger, ThreadPool threadPool) {
+    private final Set<ActiveOperation> operationsTracker; // tracks active operations when assertions are enabled
+
+    public IndexShardOperationsLock(ShardId shardId, Logger logger, ThreadPool threadPool, boolean trackActiveOperations) {
         this.shardId = shardId;
         this.logger = logger;
         this.threadPool = threadPool;
+        this.operationsTracker = trackActiveOperations ? Collections.newSetFromMap(new IdentityHashMap<>()) : null;
     }
 
     @Override
@@ -107,7 +113,6 @@ public class IndexShardOperationsLock implements Closeable {
      * ActionListener will be called on the calling thread. During calls of {@link #blockOperations(long, TimeUnit, Runnable)}, lock
      * acquisition can be delayed. The provided ActionListener will then be called using the provided executor once blockOperations
      * terminates.
-     *
      * @param onAcquired ActionListener that is invoked once acquisition is successful or failed
      * @param executorOnDelay executor to use for delayed call
      * @param forceExecution whether the runnable should force its execution in case it gets rejected
@@ -120,7 +125,7 @@ public class IndexShardOperationsLock implements Closeable {
         Releasable releasable;
         try {
             synchronized (this) {
-                releasable = tryAcquire();
+                releasable = tryAcquire(onAcquired);
                 if (releasable == null) {
                     // blockOperations is executing, this operation will be retried by blockOperations once it finishes
                     if (delayedOperations == null) {
@@ -142,14 +147,41 @@ public class IndexShardOperationsLock implements Closeable {
         onAcquired.onResponse(releasable);
     }
 
-    @Nullable private Releasable tryAcquire() throws InterruptedException {
+    @Nullable private Releasable tryAcquire(ActionListener<Releasable> onAcquired) throws InterruptedException {
         if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the untimed tryAcquire methods do not honor the fairness setting
             AtomicBoolean closed = new AtomicBoolean();
-            return () -> {
-                if (closed.compareAndSet(false, true)) {
-                    semaphore.release(1);
-                }
-            };
+            if (operationsTracker == null) {
+                return () -> {
+                    if (closed.compareAndSet(false, true)) {
+                        semaphore.release(1);
+                    }
+                };
+            } else {
+                Throwable throwable = new Throwable(); // generate caller stack trace
+                ActiveOperation activeOperation = new ActiveOperation() {
+                    @Override
+                    public Throwable getCallerStackTrace() {
+                        return throwable;
+                    }
+
+                    @Override
+                    public ActionListener<Releasable> getOperation() {
+                        return onAcquired;
+                    }
+
+                    @Override
+                    public void close() {
+                        if (closed.compareAndSet(false, true)) {
+                            if (operationsTracker != null) {
+                                operationsTracker.remove(this);
+                            }
+                            semaphore.release(1);
+                        }
+                    }
+                };
+                operationsTracker.add(activeOperation);
+                return activeOperation;
+            }
         }
         return null;
     }
@@ -162,5 +194,29 @@ public class IndexShardOperationsLock implements Closeable {
         } else {
             return TOTAL_PERMITS - availablePermits;
         }
+    }
+
+    /**
+     * Throws an IllegalStateException if not all operations have been released. Uses the toString() of the ActionListener that was passed
+     * to the acquire method to provide additional context information.
+     */
+    public void ensureNoActiveOperations() {
+        int numActiveOperations = getActiveOperationsCount();
+        if (numActiveOperations > 0) {
+            if (operationsTracker != null) {
+                for (ActiveOperation activeOperation : operationsTracker) {
+                    Throwable callerStackTrace = activeOperation.getCallerStackTrace();
+                    ActionListener<Releasable> operation = activeOperation.getOperation();
+                    throw new IllegalStateException(numActiveOperations + " active operations in progress, one of which is: " + operation,
+                        callerStackTrace);
+                }
+            }
+            throw new IllegalStateException(numActiveOperations + " active operations in progress");
+        }
+    }
+
+    interface ActiveOperation extends Releasable {
+        Throwable getCallerStackTrace();
+        ActionListener<Releasable> getOperation();
     }
 }

@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -35,8 +34,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -44,6 +43,7 @@ public class IndexShardOperationsLockTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
+    private boolean trackActiveOperations;
     private IndexShardOperationsLock block;
 
     @BeforeClass
@@ -59,7 +59,8 @@ public class IndexShardOperationsLockTests extends ESTestCase {
 
     @Before
     public void createIndexShardOperationsLock() {
-         block = new IndexShardOperationsLock(new ShardId("blubb", "id", 0), logger, threadPool);
+        trackActiveOperations = randomBoolean();
+        block = new IndexShardOperationsLock(new ShardId("blubb", "id", 0), logger, threadPool, trackActiveOperations);
     }
 
     @After
@@ -215,5 +216,29 @@ public class IndexShardOperationsLockTests extends ESTestCase {
         assertThat(block.getActiveOperationsCount(), equalTo(1));
         future3.get().close();
         assertThat(block.getActiveOperationsCount(), equalTo(0));
+    }
+
+    public void testEnsureNoActiveOperations() throws ExecutionException, InterruptedException {
+        PlainActionFuture<Releasable> future = new PlainActionFuture<Releasable>() {
+            @Override
+            public String toString() {
+                return "this is a message";
+            }
+        };
+        block.acquire(future, ThreadPool.Names.GENERIC, true);
+        assertTrue(future.isDone());
+        assertThat(block.getActiveOperationsCount(), equalTo(1));
+        IllegalStateException rte = expectThrows(IllegalStateException.class, () -> block.ensureNoActiveOperations());
+        assertThat(rte.getMessage(), containsString("1 active operations in progress"));
+        if (trackActiveOperations) {
+            assertThat(rte.getMessage(), containsString("this is a message"));
+            assertNotNull(rte.getCause());
+        } else {
+            assertNull(rte.getCause());
+        }
+
+        future.get().close();
+        assertThat(block.getActiveOperationsCount(), equalTo(0));
+        block.ensureNoActiveOperations();
     }
 }

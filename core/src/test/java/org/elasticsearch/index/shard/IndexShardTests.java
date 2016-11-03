@@ -115,7 +115,6 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.elasticsearch.common.lucene.Lucene.readScoreDoc;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;

@@ -272,7 +272,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
-        indexShardOperationsLock = new IndexShardOperationsLock(shardId, logger, threadPool);
+        boolean trackActiveOperations = false;
+        assert (trackActiveOperations = true);
+        // only enable operations tracker when assertions are enabled
+        indexShardOperationsLock = new IndexShardOperationsLock(shardId, logger, threadPool, trackActiveOperations);
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = buildRefreshListeners();
@@ -1670,6 +1673,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public int getActiveOperationsCount() {
         return indexShardOperationsLock.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
+    }
+
+    /**
+     * Throws IllegalStateException if there are active operations on the shard
+     */
+    public void ensureNoActiveOperations() {
+        indexShardOperationsLock.ensureNoActiveOperations();
     }
 
     private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {

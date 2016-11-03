@@ -173,7 +173,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected void beforeIndexDeletion() {
+    protected void beforeIndexDeletion() throws IOException {
         if (disableBeforeIndexDeletion == false) {
             super.beforeIndexDeletion();
         }

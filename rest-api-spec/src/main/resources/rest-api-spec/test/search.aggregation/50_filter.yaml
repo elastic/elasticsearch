@@ -17,17 +17,11 @@ setup:
                     type: keyword
 
   - do:
-      cluster.health:
-        wait_for_status: green
-
----
-"Filter aggs":
-  - do:
-      index:
-        index: test
-        type: test
-        id: foo|bar|baz0
-        body: { "notifications" : ["abc"] }
+        index:
+          index: test
+          type: test
+          id: foo|bar|baz0
+          body: { "notifications" : ["abc"] }
 
   - do:
       index:
@@ -36,9 +30,14 @@ setup:
         id: foo|bar|baz1
         body: { "mentions" : ["abc"] }
 
-
   - do:
       indices.refresh: {}
+
+---
+"Filter aggs with terms lookup ensure not cached":
+  - skip:
+    version: " - 5.0.0"
+    reason:  This using filter aggs that needs rewriting, this was fixed in 5.0.1
 
   - do:
       search:
@@ -59,6 +58,8 @@ setup:
   - match: { _all.total.request_cache.miss_count: 0 }
   - is_true: indices.test
 
+---
+"Filter aggs no lookup and ensure it's cached":
   # now run without lookup and ensure we get cached or at least do the lookup
   - do:
       search:

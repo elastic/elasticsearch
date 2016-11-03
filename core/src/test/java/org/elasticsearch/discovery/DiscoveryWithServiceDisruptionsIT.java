@@ -151,7 +151,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected void beforeIndexDeletion() {
+    protected void beforeIndexDeletion() throws IOException {
         // some test may leave operations in flight
         // this is because the disruption schemes swallow requests by design
         // as such, these operations will never be marked as finished

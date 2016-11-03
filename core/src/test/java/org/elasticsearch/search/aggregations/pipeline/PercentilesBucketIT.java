@@ -589,11 +589,8 @@ public class PercentilesBucketIT extends ESIntegTestCase {
 
     private void assertPercentileBucket(double[] percents, double[] values, PercentilesBucket percentiles) {
         for (Double p : percents) {
-            if (p.equals(100.0)) {
-                assertThat(percentiles.percentile(p), equalTo(Arrays.stream(values).max().getAsDouble()));
-            } else {
-                assertThat(percentiles.percentile(p), equalTo(values[(int) ((p / 100) * values.length)]));
-            }
+            int index = (int) Math.round((p / 100.0) * (values.length - 1));
+            assertThat(percentiles.percentile(p), equalTo(values[index]));
         }
     }
 }

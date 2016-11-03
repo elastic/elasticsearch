@@ -31,8 +31,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -63,6 +65,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -87,6 +91,8 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
@@ -1013,7 +1019,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public void beforeIndexDeletion() {
+    public void beforeIndexDeletion() throws IOException {
         // Check that the operations counter on index shard has reached 0.
         // The assumption here is that after a test there are no ongoing write operations.
         // test that have ongoing write operations after the test (for example because ttl is used
@@ -1048,13 +1054,30 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void assertShardIndexCounter() {
+    private void assertShardIndexCounter() throws IOException {
         final Collection<NodeAndClient> nodesAndClients = nodes.values();
         for (NodeAndClient nodeAndClient : nodesAndClients) {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
+                    int activeOperationsCount = indexShard.getActiveOperationsCount();
+                    if (activeOperationsCount > 0) {
+                        TaskManager taskManager = getInstance(TransportService.class, nodeAndClient.name).getTaskManager();
+                        DiscoveryNode localNode = getInstance(ClusterService.class, nodeAndClient.name).localNode();
+                        List<TaskInfo> taskInfos = taskManager.getTasks().values().stream()
+                            .filter(task -> task instanceof ReplicationTask)
+                            .map(task -> task.taskInfo(localNode, true))
+                            .collect(Collectors.toList());
+                        ListTasksResponse response = new ListTasksResponse(taskInfos, Collections.emptyList(), Collections.emptyList());
+                        XContentBuilder builder = XContentFactory.jsonBuilder()
+                            .prettyPrint()
+                            .startObject()
+                            .value(response)
+                            .endObject();
+                        throw new AssertionError("expected index shard counter on shard " + indexShard.shardId() + " on node " +
+                            nodeAndClient.name + " to be 0 but was " + activeOperationsCount + ". Current replication tasks on node:\n" +
+                            builder.string());
+                    }
                 }
             }
         }

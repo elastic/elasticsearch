@@ -1,0 +1,176 @@
+[[rank-eval]]
+= Ranking Evaluation
+
+[partintro]
+--
+
+Imagine having built and deployed a search application: Users are happily
+entering queries into your search frontend. Your application takes these
+queries, combines them with additional information (e.g. the search history of
+those users, the country the user request is coming from, maybe even the
+operating system and browser the user has running). You app creates a dedicated
+Elasticsearch query from that, and returns it's results back to the user.
+Imagine further that you are tasked with tweaking the Elasticsearch query that
+is being created to return specific results for a certain set of queries without
+breaking others. How should that be done?
+
+One possible solution is to gather a sample of user queries representative of
+how the search application is used, retrieve the search results that are being
+returned both, by the old as well as the old Elasticsearch query. As a next step
+these search results would be manually annotated for their relevancy to the
+original user query. Based on this set of rated requests we can compute one of a
+couple of metrics telling us more about how many relevant search results are
+being returned.
+
+This approach has a couple of caveats: Coming up with these ratings
+usually is time consuming and expensive, as this is done in retrospect we
+usually have to guess what the actual information need of the user was that lead
+them to issue their query. Still it can be a nice approximation for how well our
+translation from user query to Elasticsearch query works for providing the user
+with relevant search results. Elasticsearch provides a ranking evaluation API
+that lets you compute scores for your current ranking function based on
+annotated search results.
+--
+
+== Plain ranking evaluation
+
+In its most simple form, for each query a set of ratings can be supplied:
+
+[source,js]
+-----------------------------
+GET /_rank_eval
+{
+    "requests": [
+    {
+        "id": "JFK query",                              <1>
+        "request": {"query": {"match": {"opening_text": {"query": "JFK"}}}},    <2>
+        "ratings": [                                    <3>
+        {
+          "rating": 1.5,                                <4>
+          "_type": "page",                              <5>
+          "_id": "13736278",                            <6>
+          "_index": "enwiki_rank"                       <7>
+        },
+        {
+          "rating": 1,
+          "_type": "page",
+          "_id": "30900421",
+          "_index": "enwiki_rank"
+        }],  
+      "summary_fields": ["title"],                      <8>
+    },
+    "metric": {                                         <9>
+      "reciprocal_rank": {}
+   }
+}
+------------------------------
+// CONSOLE
+
+<1> A human readable id for the rated query (that will be re-used in the response to provide further details).
+<2> The actual Elasticsearch query to execute.
+<3> A set of ratings for how well a certain document fits as response for the query.
+<4> A rating expressing how well the document fits the query, higher is better, are treated as int values.
+<5> The type where the rated document lives.
+<6> The id of the rated document.
+<7> The index where the rated document lives.
+<8> For a verbose response, specify which properties of a search hit should be returned in addition to index/type/id.
+<9> A metric to use for evaluation. Currently valid are `precision_atn`, `reciprocal_rank` and `dcg_at_n`
+
+
+== Template based ranking evaluation
+
+[source,js]
+--------------------------------
+GET _rank_eval/template
+{
+  "template": {
+        "inline": {"query": {"match": {"{{wiki_field}}": {"query": "{{query_string}}"}}}}},  <1>
+  "requests": [
+  {
+      "id": "JFK query"
+      "ratings": [
+        {
+          "rating": 1.5,
+          "_type": "page",
+          "_id": "13736278",
+          "_index": "enwiki_rank"
+        },
+        {
+          "rating": 1,
+          "_type": "page",
+          "_id": "30900421",
+          "_index": "enwiki_rank"
+        }      ],
+      "params": {
+        "query_string": "JFK",                          <2>
+        "wiki_field": "opening_text"                    <2>
+      },
+    }],
+    "metric": {
+      "precision": {
+        "relevant_rating_threshold": 2
+      }
+   }
+}
+--------------------------------
+// CONSOLE
+
+<1> The template to use for every rated search request.
+<2> The parameters to use to fill the template above.
+
+
+== Valid evaluation metrics
+
+=== Precision
+
+Works well as an easy to explain evaluation metric. Caveat: All
+result positions are treated equally. So a ranking of ten results that contains
+one relevant result in position 10 is equally good as a ranking of ten results
+that contains one relevant result in position 1.
+
+[source,js]
+--------------------------------
+{
+    "metric": {
+      "precision": {
+        "relevant_rating_threshold": 2              <1>
+      }
+   }
+}
+--------------------------------
+
+<1> For graded relevance ratings only ratings above this threshold are
+considered as relevant results for the given query.
+
+
+=== Reciprocal rank
+
+For any given query this is the reciprocal of the rank of the
+first relevant document retrieved.
+
+[source,js]
+--------------------------------
+{
+    "metric": {
+        "reciprocal_rank": {}
+    }
+}
+--------------------------------
+
+
+=== Normalized discounted cumulative gain
+In contrast to the two metrics above this
+takes both, the grade of the result found as well as the position of the
+document returned into account.
+
+
+[source,js]
+--------------------------------
+{
+    "metric": {
+       "dcg": {}
+    }
+}
+--------------------------------
+
+

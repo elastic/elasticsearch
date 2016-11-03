@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -195,12 +196,25 @@ public class S3Repository extends BlobStoreRepository {
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
+
+        /**
+         * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
+         * the available memory for smaller heaps.
+         */
+        ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
+                Math.max(
+                        ByteSizeUnit.MB.toBytes(5), // minimum value
+                        Math.min(
+                                ByteSizeUnit.MB.toBytes(100),
+                                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)),
+                ByteSizeUnit.BYTES);
+
         /**
          * buffer_size
          * @see  Repositories#BUFFER_SIZE_SETTING
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+            Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE,
                 new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
         /**
          * max_retries

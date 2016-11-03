@@ -122,5 +122,8 @@ public class S3RepositoryTests extends ESTestCase {
         ByteSizeValue defaultBufferSize = S3Repository.Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
         assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(new ByteSizeValue(100, ByteSizeUnit.MB)));
         assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(new ByteSizeValue(5, ByteSizeUnit.MB)));
+
+        ByteSizeValue defaultNodeBufferSize = S3Repository.Repositories.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
+        assertEquals(defaultBufferSize, defaultNodeBufferSize);
     }
 }

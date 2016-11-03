@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.After;
@@ -26,9 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.is;
  * The cluster started by the integrations tests may also index into itself...
  */
 @ClusterScope(scope = Scope.TEST)
+@TestLogging("org.elasticsearch.xpack.security.audit.index:TRACE")
 public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + TEST_CLUSTER_NODE_PREFIX;
@@ -112,15 +114,15 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                 numNodes, numNodes,
                 cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), getClientWrapper());
         remoteCluster.beforeTest(random(), 0.5);
+        assertNoTimeout(remoteCluster.client().admin().cluster().prepareHealth().setWaitForGreenStatus().get());
     }
 
     @After
     public void stopRemoteCluster() throws Exception {
         if (remoteCluster != null) {
-            /*Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
-            for (IndexAuditTrail auditTrail : auditTrails) {
-                auditTrail.close();
-            }*/
+            remoteCluster.getInstance(AuditTrailService.class).getAuditTrails().stream()
+                    .filter(t -> t.name().equals(IndexAuditTrail.NAME))
+                    .forEach((auditTrail) -> ((IndexAuditTrail) auditTrail).stop());
 
             try {
                 remoteCluster.wipe(Collections.<String>emptySet());
@@ -131,12 +133,9 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         }
 
         // stop the index audit trail so that the shards aren't locked causing the test to fail
-        /*if (outputs.contains("index")) {
-            Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
-            for (IndexAuditTrail auditTrail : auditTrails) {
-                auditTrail.close();
-            }
-        }*/
+        internalCluster().getInstance(AuditTrailService.class).getAuditTrails().stream()
+                .filter(t -> t.name().equals(IndexAuditTrail.NAME))
+                .forEach((auditTrail) -> ((IndexAuditTrail) auditTrail).stop());
     }
 
     public void testThatRemoteAuditInstancesAreStarted() throws Exception {
@@ -146,7 +145,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         assertTrue(auditTrail.isPresent());
         IndexAuditTrail indexAuditTrail = (IndexAuditTrail)auditTrail.get();
 
-        awaitBusy(() -> indexAuditTrail.state() == IndexAuditTrail.State.STARTED, 2L, TimeUnit.SECONDS);
+        awaitBusy(() -> indexAuditTrail.state() == IndexAuditTrail.State.STARTED);
         assertThat(indexAuditTrail.state(), is(IndexAuditTrail.State.STARTED));
     }
 }

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
+
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -33,7 +35,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -45,6 +46,8 @@ import static org.hamcrest.Matchers.hasKey;
 /**
  * Tests for monitoring indexes created before {@link Version#CURRENT}.
  */
+//Give ourselves 30 seconds instead o 5 to shut down. Sometimes it takes a while, especially on weak hardware. But we do get there.
+@ThreadLeakLingering(linger = 30000)
 public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
     private final boolean httpExporter = randomBoolean();
 
@@ -55,7 +58,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
                 // Don't clean old monitoring indexes - we want to make sure we can load them
                 .put(MonitoringSettings.HISTORY_DURATION.getKey(), TimeValue.timeValueHours(1000 * 365 * 24).getStringRep())
                 // Speed up the exporter so we don't have to wait around for it
-                .put(MonitoringSettings.INTERVAL.getKey(), timeValueMillis(500).getStringRep());
+                .put(MonitoringSettings.INTERVAL.getKey(), timeValueSeconds(1).getStringRep());
 
         if (httpExporter) {
             /* If we want to test the http exporter we have to create it but disable it. We need to create it so we don't use the default
@@ -91,6 +94,11 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
 
     private void checkVersionInternal(Version version) throws Exception {
         if (version.before(Version.V_2_3_0)) {
+            // Slow down monitoring from its previously super fast pace so we can shut down without trouble
+            Settings.Builder settings = Settings.builder()
+                    .put(MonitoringSettings.INTERVAL.getKey(), timeValueSeconds(10).getStringRep());
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+
             /* We can't do anything with indexes created before 2.3 so we just assert that we didn't delete them or do anything otherwise
              * crazy. */
             SearchResponse response = client().prepareSearch(".marvel-es-data").get();

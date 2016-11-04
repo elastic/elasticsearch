@@ -44,7 +44,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.index.store.IndexStore;
@@ -59,7 +58,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -92,13 +90,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            // TODO only restorePersistentSettingsTest needs this maybe factor out?
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

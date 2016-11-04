@@ -25,8 +25,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,6 +43,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -173,11 +176,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     QuerySearchResultProvider querySearchResultProvider = service.executeQueryPhase(
                         new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            new SearchSourceBuilder(), new String[0], false));
+                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                        new SearchTask(123L, "", "", "", null));
                     IntArrayList intCursors = new IntArrayList(1);
                     intCursors.add(0);
                     ShardFetchRequest req = new ShardFetchRequest(querySearchResultProvider.id(), intCursors, null /* not a scroll */);
-                    service.executeFetchPhase(req);
+                    service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null));
                 } catch (AlreadyClosedException ex) {
                     throw ex;
                 } catch (IllegalStateException ex) {

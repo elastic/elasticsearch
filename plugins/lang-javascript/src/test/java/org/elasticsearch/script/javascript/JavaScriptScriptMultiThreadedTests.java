@@ -23,7 +23,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -56,7 +56,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
                         vars.put("y", y);
-                        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), vars);
+                        ExecutableScript script = se.executable(new CompiledScript(ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), vars);
                         for (int i = 0; i < between(100, 1000); i++) {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
@@ -95,7 +95,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                         long x = Randomness.get().nextInt();
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
-                        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), vars);
+                        ExecutableScript script = se.executable(new CompiledScript(ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), vars);
                         for (int i = 0; i < between(100, 1000); i++) {
                             long y = Randomness.get().nextInt();
                             long addition = x + y;
@@ -141,7 +141,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                             long addition = x + y;
                             runtimeVars.put("x", x);
                             runtimeVars.put("y", y);
-                            long result = ((Number) se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), runtimeVars).run()).longValue();
+                            long result = ((Number) se.executable(new CompiledScript(ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), runtimeVars).run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
                     } catch (Exception e) {

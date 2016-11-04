@@ -19,10 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
-import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
@@ -37,7 +34,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
@@ -83,7 +79,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         //once nodes are connected we'll just return errors for each sendRequest call
         triedNodes.add(node);
 
-        if (RandomInts.randomInt(random, 100) > 10) {
+        if (random.nextInt(100) > 10) {
             connectTransportExceptions.incrementAndGet();
             throw new ConnectTransportException(node, "node not available");
         } else {

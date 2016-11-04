@@ -40,7 +40,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
         if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
             assertEquals(new MatchNoDocsQuery(), query);
         } else {
-            assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(queryBuilder.type())), query);
+            assertEquals(new TypeFieldMapper.TypesQuery(new BytesRef(queryBuilder.type())), query);
         }
     }
 

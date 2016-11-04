@@ -46,6 +46,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -114,14 +116,14 @@ public class TransportService extends AbstractLifecycleComponent {
     private final Logger tracerLog;
 
     volatile String[] tracerLogInclude;
-    volatile String[] tracelLogExclude;
+    volatile String[] tracerLogExclude;
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
 
     /**
      * Build the service.
-     * 
+     *
      * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
      *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
      */
@@ -173,8 +175,8 @@ public class TransportService extends AbstractLifecycleComponent {
         this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
     }
 
-    void setTracerLogExclude(List<String> tracelLogExclude) {
-        this.tracelLogExclude = tracelLogExclude.toArray(Strings.EMPTY_ARRAY);
+    void setTracerLogExclude(List<String> tracerLogExclude) {
+        this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
 
     @Override
@@ -462,6 +464,27 @@ public class TransportService extends AbstractLifecycleComponent {
         asyncSender.sendRequest(node, action, request, options, handler);
     }
 
+    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+                                                               final TransportRequest request, final Task parentTask,
+                                                               final TransportResponseHandler<T> handler) {
+        sendChildRequest(node, action, request, parentTask, TransportRequestOptions.EMPTY, handler);
+    }
+
+    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+                                                               final TransportRequest request, final Task parentTask,
+                                                               final TransportRequestOptions options,
+                                                               final TransportResponseHandler<T> handler) {
+        request.setParentTask(localNode.getId(), parentTask.getId());
+        try {
+            taskManager.registerChildTask(parentTask, node.getId());
+            sendRequest(node, action, request, options, handler);
+        } catch (TaskCancelledException ex) {
+            // The parent task is already cancelled - just fail the request
+            handler.handleException(new TransportException(ex));
+        }
+
+    }
+
     private <T extends TransportResponse> void sendRequestInternal(final DiscoveryNode node, final String action,
                                                                    final TransportRequest request,
                                                                    final TransportRequestOptions options,
@@ -589,8 +612,8 @@ public class TransportService extends AbstractLifecycleComponent {
                 return false;
             }
         }
-        if (tracelLogExclude.length > 0) {
-            return !Regex.simpleMatch(tracelLogExclude, action);
+        if (tracerLogExclude.length > 0) {
+            return !Regex.simpleMatch(tracerLogExclude, action);
         }
         return true;
     }
@@ -613,7 +636,7 @@ public class TransportService extends AbstractLifecycleComponent {
      */
     public final <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory,
                                                     String executor, TransportRequestHandler<Request> handler) {
-        handler = interceptor.interceptHandler(action, handler);
+        handler = interceptor.interceptHandler(action, executor, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, requestFactory, taskManager, handler, executor, false, true);
         registerRequestHandler(reg);
@@ -623,7 +646,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * Registers a new request handler
      *
      * @param action                The action the request handler is associated with
-     * @param request               The request class that will be used to constrcut new instances for streaming
+     * @param request               The request class that will be used to construct new instances for streaming
      * @param executor              The executor the request handling will be executed on
      * @param forceExecution        Force execution on the executor queue and never reject it
      * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
@@ -633,7 +656,7 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                           String executor, boolean forceExecution,
                                                                           boolean canTripCircuitBreaker,
                                                                           TransportRequestHandler<Request> handler) {
-        handler = interceptor.interceptHandler(action, handler);
+        handler = interceptor.interceptHandler(action, executor, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, request, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
         registerRequestHandler(reg);

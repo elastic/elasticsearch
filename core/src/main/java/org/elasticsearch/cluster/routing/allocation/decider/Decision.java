@@ -138,6 +138,18 @@ public abstract class Decision implements ToXContent {
                     throw new IllegalArgumentException("Invalid Type [" + type + "]");
             }
         }
+
+        public boolean higherThan(Type other) {
+            if (this == NO) {
+                return false;
+            } else if (other == NO) {
+                return true;
+            } else if (other == THROTTLE && this == YES) {
+                return true;
+            }
+            return false;
+        }
+
     }
 
     /**
@@ -210,7 +222,7 @@ public abstract class Decision implements ToXContent {
         }
 
         /**
-         * Returns the explanation string, fully formatted. Only formats the string once
+         * Returns the explanation string, fully formatted.  Only formats the string once.
          */
         @Nullable
         public String getExplanation() {

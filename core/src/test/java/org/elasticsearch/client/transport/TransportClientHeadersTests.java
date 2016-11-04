@@ -130,9 +130,9 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
             public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
                 return Collections.singletonList(new TransportInterceptor() {
                     @Override
-                    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
-                                                                                TransportRequestHandler<T> actualHandler) {
-                        return instance.interceptHandler(action, actualHandler);
+                    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                                TransportRequestHandler<T> actualHandler) {
+                        return instance.interceptHandler(action, executor, actualHandler);
                     }
 
                     @Override

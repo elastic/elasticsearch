@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -76,6 +77,17 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         getResponse = client().prepareGet(dateMathExp3, "type", "3").get();
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("3"));
+
+        MultiGetResponse mgetResponse = client().prepareMultiGet()
+            .add(dateMathExp1, "type", "1")
+            .add(dateMathExp2, "type", "2")
+            .add(dateMathExp3, "type", "3").get();
+        assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(mgetResponse.getResponses()[0].getResponse().getId(), equalTo("1"));
+        assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(true));
+        assertThat(mgetResponse.getResponses()[1].getResponse().getId(), equalTo("2"));
+        assertThat(mgetResponse.getResponses()[2].getResponse().isExists(), is(true));
+        assertThat(mgetResponse.getResponses()[2].getResponse().getId(), equalTo("3"));
 
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3).get();
         assertThat(indicesStatsResponse.getIndex(index1), notNullValue());

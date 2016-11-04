@@ -41,7 +41,6 @@ import org.hamcrest.CoreMatchers;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.lang.NumberFormatException;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -256,85 +255,60 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        try {
+        expectThrows(MapperParsingException.class, () ->
             defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("point").field("lat", -91).field("lon", 1.3).endObject()
                     .endObject()
-                    .bytes());
-            fail();
-        } catch (MapperParsingException e) {
+                    .bytes()));
 
-        }
-
-        try {
+        expectThrows(MapperParsingException.class, () ->
             defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("point").field("lat", 91).field("lon", 1.3).endObject()
                     .endObject()
-                    .bytes());
-            fail();
-        } catch (MapperParsingException e) {
+                    .bytes()));
 
-        }
-
-        try {
+        expectThrows(MapperParsingException.class, () ->
             defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("point").field("lat", 1.2).field("lon", -181).endObject()
                     .endObject()
-                    .bytes());
-            fail();
-        } catch (MapperParsingException e) {
+                    .bytes()));
 
-        }
-
-        try {
+        expectThrows(MapperParsingException.class, () ->
             defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("point").field("lat", 1.2).field("lon", 181).endObject()
                     .endObject()
-                    .bytes());
-            fail();
-        } catch (MapperParsingException e) {
+                    .bytes()));
 
-        }
-
-        try {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("point").field("lat", "-").field("lon", 1.3).endObject()
                     .endObject()
-                    .bytes());
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
-            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
-        }
+                    .bytes()));
+        assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+        assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
 
-        try {
+        e = expectThrows(MapperParsingException.class, () ->
             defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("point").field("lat", 1.2).field("lon", "-").endObject()
                     .endObject()
-                    .bytes());
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
-            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
-        }
+                    .bytes()));
+        assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+        assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
 
-        try {
+        e = expectThrows(MapperParsingException.class, () ->
             defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("point").field("lat", "-").field("lon", "-").endObject()
                     .endObject()
-                    .bytes());
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
-            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
-        }
+                    .bytes()));
+        assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+        assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
     }
 
     public void testNoValidateLegacyLatLonValues() throws Exception {
@@ -743,92 +717,84 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            try {
-                String normalizeMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                    .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject()
-                    .endObject().endObject().string();
-                parser.parse("type", new CompressedXContent(normalizeMapping));
-            } catch (MapperParsingException e) {
-                assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [geohash : true]");
-            }
+            String normalizeMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject().endObject().endObject()
+                    .string();
+            Exception e = expectThrows(MapperParsingException.class, () ->
+                parser.parse("type", new CompressedXContent(normalizeMapping)));
+            assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [geohash : true]");
         }
 
-        try {
-            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point");
+        {
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("point").field("type", "geo_point");
             if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String validateMapping = xContentBuilder.field("validate", true).endObject().endObject().endObject().endObject().string();
-            parser.parse("type", new CompressedXContent(validateMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
-        } catch (MapperParsingException e) {
+            Exception e = expectThrows(MapperParsingException.class, () ->
+                parser.parse("type", new CompressedXContent(validateMapping)));
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate : true]");
         }
 
-        try {
+        {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
             if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String validateMapping = xContentBuilder.field("validate_lat", true).endObject().endObject().endObject().endObject().string();
-            parser.parse("type", new CompressedXContent(validateMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
-        } catch (MapperParsingException e) {
+            Exception e = expectThrows(MapperParsingException.class, () ->
+                parser.parse("type", new CompressedXContent(validateMapping)));
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate_lat : true]");
         }
 
-        try {
+        {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
             if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String validateMapping = xContentBuilder.field("validate_lon", true).endObject().endObject().endObject().endObject().string();
-            parser.parse("type", new CompressedXContent(validateMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
-        } catch (MapperParsingException e) {
+            Exception e = expectThrows(MapperParsingException.class, () ->
+                parser.parse("type", new CompressedXContent(validateMapping)));
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [validate_lon : true]");
         }
 
         // test deprecated normalize
-        try {
+        {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
             if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String normalizeMapping = xContentBuilder.field("normalize", true).endObject().endObject().endObject().endObject().string();
-            parser.parse("type", new CompressedXContent(normalizeMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
-        } catch (MapperParsingException e) {
+            Exception e = expectThrows(MapperParsingException.class, () ->
+                parser.parse("type", new CompressedXContent(normalizeMapping)));
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize : true]");
         }
 
-        try {
+        {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
             if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String normalizeMapping = xContentBuilder.field("normalize_lat", true).endObject().endObject().endObject().endObject().string();
-            parser.parse("type", new CompressedXContent(normalizeMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
-        } catch (MapperParsingException e) {
+            Exception e = expectThrows(MapperParsingException.class, () ->
+                parser.parse("type", new CompressedXContent(normalizeMapping)));
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize_lat : true]");
         }
 
-        try {
+        {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
             if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String normalizeMapping = xContentBuilder.field("normalize_lon", true).endObject().endObject().endObject().endObject().string();
-            parser.parse("type", new CompressedXContent(normalizeMapping));
-            fail("process completed successfully when " + MapperParsingException.class.getName() + " expected");
-        } catch (MapperParsingException e) {
+            Exception e = expectThrows(MapperParsingException.class, () ->
+                parser.parse("type", new CompressedXContent(normalizeMapping)));
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize_lon : true]");
         }
     }
@@ -844,20 +810,17 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false)
                 .field("geohash", false).endObject().endObject().endObject().endObject().string();
-        try {
-            mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [point] has different [lat_lon]"));
-            assertThat(e.getMessage(), containsString("mapper [point] has different [geohash]"));
-            assertThat(e.getMessage(), containsString("mapper [point] has different [geohash_precision]"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () ->
+            mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), containsString("mapper [point] has different [lat_lon]"));
+        assertThat(e.getMessage(), containsString("mapper [point] has different [geohash]"));
+        assertThat(e.getMessage(), containsString("mapper [point] has different [geohash_precision]"));
 
         // correct mapping and ensure no failures
-        stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String stage2MappingCorrect = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
                 .field("geohash", true).endObject().endObject().endObject().endObject().string();
-        mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("type", new CompressedXContent(stage2MappingCorrect), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testLegacyGeoHashSearch() throws Exception {

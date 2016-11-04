@@ -8,12 +8,12 @@ Security plugins add a security layer to  Elasticsearch.
 
 The core security plugins are:
 
-link:/products/shield[Shield]::
+link:/products/x-pack/security[X-Pack]::
 
-Shield is the Elastic product that makes it easy for anyone to add
-enterprise-grade security to their ELK stack. Designed to address the growing security
-needs of thousands of enterprises using ELK today, Shield provides peace of
-mind when it comes to protecting your data.
+X-Pack is the Elastic product that makes it easy for anyone to add
+enterprise-grade security to their Elastic Stack. Designed to address the
+growing security needs of thousands of enterprises using the Elastic Stack
+today, X-Pack provides peace of mind when it comes to protecting your data.
 
 [float]
 === Community contributed security plugins
@@ -25,4 +25,3 @@ The following plugins have been contributed by our community:
 
 * https://github.com/sscarduzio/elasticsearch-readonlyrest-plugin[Readonly REST]:
   High performance access control for Elasticsearch native REST API (by Simone Scarduzio)
-

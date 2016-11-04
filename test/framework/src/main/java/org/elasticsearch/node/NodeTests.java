@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -46,13 +47,12 @@ public class NodeTests extends ESTestCase {
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("discovery.type", "local")
-            .put("transport.type", "local")
+            .put("transport.type", "mock-socket-network")
             .put(Node.NODE_DATA_SETTING.getKey(), true);
         if (name != null) {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
-        try (Node node = new MockNode(settings.build(), Collections.emptyList())) {
+        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             if (name == null) {
                 assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(node.getNodeEnvironment().nodeId().substring(0, 7)));

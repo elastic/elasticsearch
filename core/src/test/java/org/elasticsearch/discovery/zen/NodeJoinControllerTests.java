@@ -42,7 +42,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -677,10 +676,10 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     protected void assertNodesInCurrentState(List<DiscoveryNode> expectedNodes) {
         final ClusterState state = clusterService.state();
-        logger.info("assert for [{}] in:\n{}", expectedNodes, state.prettyPrint());
+        logger.info("assert for [{}] in:\n{}", expectedNodes, state);
         DiscoveryNodes discoveryNodes = state.nodes();
         for (DiscoveryNode node : expectedNodes) {
-            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));
+            assertThat("missing " + node + "\n" + discoveryNodes, discoveryNodes.get(node.getId()), equalTo(node));
         }
         assertThat(discoveryNodes.getSize(), equalTo(expectedNodes.size()));
     }

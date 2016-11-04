@@ -145,6 +145,91 @@ public class ClusterStateCreationUtils {
     }
 
     /**
+     * Creates cluster state with an index that has #(numberOfPrimaries) primary shards in the started state and no replicas.
+     * The cluster state contains #(numberOfNodes) nodes and assigns primaries to those nodes.
+     */
+    public static ClusterState state(String index, final int numberOfNodes, final int numberOfPrimaries) {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        Set<String> nodes = new HashSet<>();
+        for (int i = 0; i < numberOfNodes; i++) {
+            final DiscoveryNode node = newNode(i);
+            discoBuilder = discoBuilder.add(node);
+            nodes.add(node.getId());
+        }
+        discoBuilder.localNodeId(newNode(0).getId());
+        discoBuilder.masterNodeId(randomFrom(nodes));
+        IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
+
+        RoutingTable.Builder routing = new RoutingTable.Builder();
+        routing.addAsNew(indexMetaData);
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetaData.getIndex());
+        for (int i = 0; i < numberOfPrimaries; i++) {
+            ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED));
+            indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
+        }
+
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
+        state.routingTable(RoutingTable.builder().add(indexRoutingTable).build());
+        return state.build();
+    }
+
+
+
+    /**
+     * Creates cluster state with the given indices, each index containing #(numberOfPrimaries)
+     * started primary shards and no replicas.  The cluster state contains #(numberOfNodes) nodes
+     * and assigns primaries to those nodes.
+     */
+    public static ClusterState state(final int numberOfNodes, final String[] indices, final int numberOfPrimaries) {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        Set<String> nodes = new HashSet<>();
+        for (int i = 0; i < numberOfNodes; i++) {
+            final DiscoveryNode node = newNode(i);
+            discoBuilder = discoBuilder.add(node);
+            nodes.add(node.getId());
+        }
+        discoBuilder.localNodeId(newNode(0).getId());
+        discoBuilder.masterNodeId(newNode(0).getId());
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        for (String index : indices) {
+            IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
+                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries).put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
+
+            RoutingTable.Builder routing = new RoutingTable.Builder();
+            routing.addAsNew(indexMetaData);
+
+            IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetaData.getIndex());
+            for (int i = 0; i < numberOfPrimaries; i++) {
+                ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                indexShardRoutingBuilder.addShard(
+                    TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED));
+                indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
+            }
+
+            metaData.put(indexMetaData, false);
+            routingTable.add(indexRoutingTable);
+        }
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        state.metaData(metaData.generateClusterUuidIfNeeded().build());
+        state.routingTable(routingTable.build());
+        return state.build();
+    }
+
+    /**
      * Creates cluster state with several shards and one replica and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndOneReplica(String index, int numberOfShards) {

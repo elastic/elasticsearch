@@ -30,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -63,7 +62,7 @@ public class NativeScriptTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(ScriptType.values());
-            builder.put("script" + "." + scriptType.getScriptType(), randomBoolean());
+            builder.put("script" + "." + scriptType.getName(), randomBoolean());
         } else {
             ScriptContext scriptContext = randomFrom(ScriptContext.Standard.values());
             builder.put("script" + "." + scriptContext.getKey(), randomBoolean());

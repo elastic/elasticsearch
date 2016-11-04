@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -112,6 +111,7 @@ public class MapperService extends AbstractIndexComponent {
     private volatile FieldTypeLookup fieldTypes;
     private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
+    private boolean allEnabled = false; // updated dynamically to true when _all is enabled
 
     private final DocumentMapperParser documentParser;
 
@@ -149,6 +149,13 @@ public class MapperService extends AbstractIndexComponent {
 
     public boolean hasNested() {
         return this.hasNested;
+    }
+
+    /**
+     * Returns true if the "_all" field is enabled for the type
+     */
+    public boolean allEnabled() {
+        return this.allEnabled;
     }
 
     /**
@@ -369,6 +376,7 @@ public class MapperService extends AbstractIndexComponent {
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
         this.parentTypes = parentTypes;
+        this.allEnabled = mapper.allFieldMapper().enabled();
 
         assert assertSerialization(newMapper);
         assert assertMappersShareSameFieldType();

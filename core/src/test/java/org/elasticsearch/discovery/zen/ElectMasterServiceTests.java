@@ -76,7 +76,7 @@ public class ElectMasterServiceTests extends ESTestCase {
 
     public void testSortByMasterLikelihood() {
         List<DiscoveryNode> nodes = generateRandomNodes();
-        List<DiscoveryNode> sortedNodes = electMasterService().sortByMasterLikelihood(nodes);
+        List<DiscoveryNode> sortedNodes = ElectMasterService.sortByMasterLikelihood(nodes);
         assertEquals(nodes.size(), sortedNodes.size());
         DiscoveryNode prevNode = sortedNodes.get(0);
         for (int i = 1; i < sortedNodes.size(); i++) {

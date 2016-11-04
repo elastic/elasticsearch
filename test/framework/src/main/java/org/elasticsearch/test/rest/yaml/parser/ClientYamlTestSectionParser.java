@@ -36,16 +36,17 @@ public class ClientYamlTestSectionParser implements ClientYamlTestFragmentParser
         try {
             parser.nextToken();
             testSection.setSkipSection(parseContext.parseSkipSection());
-    
+
             while ( parser.currentToken() != XContentParser.Token.END_ARRAY) {
                 parseContext.advanceToFieldName();
                 testSection.addExecutableSection(parseContext.parseExecutableSection());
             }
-    
+
             parser.nextToken();
-            assert parser.currentToken() == XContentParser.Token.END_OBJECT;
+            assert parser.currentToken() == XContentParser.Token.END_OBJECT : "malformed section [" + testSection.getName() + "] expected "
+                + XContentParser.Token.END_OBJECT  + " but was " + parser.currentToken();
             parser.nextToken();
-    
+
             return testSection;
         } catch (Exception e) {
             throw new ClientYamlTestParseException("Error parsing test named [" + testSection.getName() + "]", e);

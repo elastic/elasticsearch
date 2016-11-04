@@ -163,7 +163,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
-        final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+        final int availableProcessors = EsExecutors.numberOfProcessors(settings);
         final int halfProcMaxAt5 = halfNumberOfProcessorsMaxFive(availableProcessors);
         final int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);
         final int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);

@@ -68,17 +68,6 @@
         type:   test
         id:     1
         q: field:BA*
-        lowercase_expanded_terms: false
-
-  - is_false: matched
-
-  - do:
-      explain:
-        index:  test
-        type:   test
-        id:     1
-        q: field:BA*
-        analyze_wildcard: true
 
   - is_true: matched
 

@@ -137,6 +137,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         THREAD_POOL = new TestThreadPool(TransportInstanceSingleOperationActionTests.class.getSimpleName());
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -156,6 +157,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         );
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

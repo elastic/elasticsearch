@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
@@ -83,9 +84,9 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     protected abstract ShardResponse newShardResponse();
 
-    protected abstract ShardResponse shardOperation(ShardRequest request);
+    protected abstract ShardResponse shardOperation(ShardRequest request) throws IOException;
 
-    protected ShardResponse shardOperation(ShardRequest request, Task task) {
+    protected ShardResponse shardOperation(ShardRequest request, Task task) throws IOException {
         return shardOperation(request);
     }
 

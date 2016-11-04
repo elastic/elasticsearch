@@ -60,8 +60,8 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -178,7 +178,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
                 .waitForNoRelocatingShards(true)).actionGet();
         if (health.isTimedOut()) {
-            logger.info("cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            logger.info("cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
             assertThat("timed out waiting for green state", health.isTimedOut(), equalTo(false));
         }
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -284,7 +285,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
             .health(Requests.clusterHealthRequest("test")).get();
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
-            logger.info("cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            logger.info("cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
         ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -445,7 +447,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ClusterHealthResponse actionGet = client().admin().cluster()
             .health(Requests.clusterHealthRequest("test").waitForGreenStatus()).actionGet();
         if (actionGet.isTimedOut()) {
-            logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            logger.info("ensureGreen timed out, cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
         // we are green so primaries got not corrupted.

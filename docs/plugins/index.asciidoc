@@ -3,7 +3,7 @@
 :ref:            https://www.elastic.co/guide/en/elasticsearch/reference/master
 :guide:          https://www.elastic.co/guide
 :version:        6.0.0-alpha1
-:lucene_version: 6.2.0
+:lucene_version: 6.3.0
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
 
 [[intro]]

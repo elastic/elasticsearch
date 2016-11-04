@@ -29,8 +29,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -206,6 +204,11 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         return finalSettings.build();
     }
 
+    @Override
+    protected boolean addMockZenPings() {
+        return false;
+    }
+
     protected int minExternalNodes() { return 1; }
 
     protected int maxExternalNodes() {
@@ -243,7 +246,6 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     protected Settings commonNodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(requiredSettings());
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? "netty3" : "netty4"); // run same transport  / disco as external
-        builder.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen");
         return builder.build();
     }
 

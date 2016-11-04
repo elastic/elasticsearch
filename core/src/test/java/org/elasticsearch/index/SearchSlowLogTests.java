@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
@@ -81,8 +82,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                     }
 
                     @Override
-                    public String[] filteringAliases() {
-                        return new String[0];
+                    public QueryBuilder filteringAliases() {
+                        return null;
                     }
 
                     @Override

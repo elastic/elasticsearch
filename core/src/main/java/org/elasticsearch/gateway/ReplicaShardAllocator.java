@@ -153,7 +153,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         Tuple<Decision, Map<String, Decision>> allocateDecision = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation, explain);
         if (allocateDecision.v1().type() != Decision.Type.YES) {
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
-            return ShardAllocationDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.v1()),
+            return ShardAllocationDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.v1().type()),
                 explain ? "all nodes returned a " + allocateDecision.v1().type() + " decision for allocating the replica shard" : null,
                 allocateDecision.v2());
         }

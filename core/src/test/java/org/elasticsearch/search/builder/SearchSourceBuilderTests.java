@@ -40,6 +40,8 @@ import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 
@@ -96,40 +98,13 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testEqualsAndHashcode() throws IOException {
-        SearchSourceBuilder firstBuilder = createSearchSourceBuilder();
-        assertNotNull("source builder is equal to null", firstBuilder);
-        assertFalse("source builder is equal to incompatible type", firstBuilder.equals(""));
-        assertTrue("source builder is not equal to self", firstBuilder.equals(firstBuilder));
-        assertThat("same source builder's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
-                equalTo(firstBuilder.hashCode()));
-
-        SearchSourceBuilder secondBuilder = copyBuilder(firstBuilder);
-        assertTrue("source builder is not equal to self", secondBuilder.equals(secondBuilder));
-        assertTrue("source builder is not equal to its copy", firstBuilder.equals(secondBuilder));
-        assertTrue("source builder is not symmetric", secondBuilder.equals(firstBuilder));
-        assertThat("source builder copy's hashcode is different from original hashcode",
-                secondBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
-
-        SearchSourceBuilder thirdBuilder = copyBuilder(secondBuilder);
-        assertTrue("source builder is not equal to self", thirdBuilder.equals(thirdBuilder));
-        assertTrue("source builder is not equal to its copy", secondBuilder.equals(thirdBuilder));
-        assertThat("source builder copy's hashcode is different from original hashcode",
-                secondBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
-        assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-        assertThat("source builder copy's hashcode is different from original hashcode",
-                firstBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
-        assertTrue("equals is not symmetric", thirdBuilder.equals(secondBuilder));
-        assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
+        // TODO add test checking that changing any member of this class produces an object that is not equal to the original
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);
     }
 
     //we use the streaming infra to create a copy of the builder provided as argument
-    private SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            builder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return new SearchSourceBuilder(in);
-            }
-        }
+    private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
+        return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new);
     }
 
     public void testParseIncludeExclude() throws IOException {

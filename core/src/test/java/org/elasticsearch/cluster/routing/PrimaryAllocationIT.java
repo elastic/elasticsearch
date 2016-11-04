@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimary
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -63,9 +62,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-        .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
+    protected boolean addMockZenPings() {
+        return false;
     }
 
     private void createStaleReplicaScenario() throws Exception {
@@ -154,7 +152,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true)).get();
 
         logger.info("--> wait until shard is failed and becomes unassigned again");
-        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
+        assertBusy(() ->
+            assertTrue(client().admin().cluster().prepareState().get().getState().toString(),
+                client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
         assertThat(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").getShards().get(0).primaryShard().unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
     }
 

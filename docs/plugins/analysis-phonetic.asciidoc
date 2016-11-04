@@ -82,7 +82,11 @@ PUT phonetic_sample
   }
 }
 
-POST phonetic_sample/_analyze?analyzer=my_analyzer&text=Joe Bloggs <1>
+GET phonetic_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Joe Bloggs" <1>
+}
 --------------------------------------------------
 // CONSOLE
 

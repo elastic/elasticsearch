@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -29,18 +29,48 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class ScriptProcessorFactoryTests extends ESTestCase {
 
     private ScriptProcessor.Factory factory;
+    private static final Map<String, String> ingestScriptParamToType;
+    static {
+        Map<String, String> map = new HashMap<>();
+        map.put("id", "stored");
+        map.put("inline", "inline");
+        map.put("file", "file");
+        ingestScriptParamToType = Collections.unmodifiableMap(map);
+    }
 
     @Before
     public void init() {
         factory = new ScriptProcessor.Factory(mock(ScriptService.class));
     }
 
+    public void testFactoryValidationWithDefaultLang() throws Exception {
+        Map<String, Object> configMap = new HashMap<>();
+        String randomType = randomFrom("id", "inline", "file");
+        configMap.put(randomType, "foo");
+        ScriptProcessor processor = factory.create(null, randomAsciiOfLength(10), configMap);
+        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
+        assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
+    }
+
+    public void testFactoryValidationWithParams() throws Exception {
+        Map<String, Object> configMap = new HashMap<>();
+        String randomType = randomFrom("id", "inline", "file");
+        Map<String, Object> randomParams = Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10));
+        configMap.put(randomType, "foo");
+        configMap.put("params", randomParams);
+        ScriptProcessor processor = factory.create(null, randomAsciiOfLength(10), configMap);
+        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        assertThat(processor.getScript().getType().toString(), equalTo(ingestScriptParamToType.get(randomType)));
+        assertThat(processor.getScript().getParams(), equalTo(randomParams));
+    }
 
     public void testFactoryValidationForMultipleScriptingTypes() throws Exception {
         Map<String, Object> configMap = new HashMap<>();

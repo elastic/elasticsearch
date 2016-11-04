@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -78,7 +79,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        request.request().filteringAlias(indexNameExpressionResolver.filteringAliases(state, request.concreteIndex(), request.request().index()));
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(),
+            request.request().index());
+        request.request().filteringAlias(aliasFilter);
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
@@ -86,7 +89,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) {
+    protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
         ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(shardId,
             new String[]{request.type()}, request.nowInMillis, request.filteringAlias());
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, null);

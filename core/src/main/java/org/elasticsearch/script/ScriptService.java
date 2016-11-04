@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,8 +45,6 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -70,7 +67,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
@@ -628,68 +624,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         @Override
         public void onFileChanged(Path file) {
             onFileInit(file);
-        }
-
-    }
-
-    /**
-     * The type of a script, more specifically where it gets loaded from:
-     * - provided dynamically at request time
-     * - loaded from an index
-     * - loaded from file
-     */
-    public enum ScriptType {
-
-        INLINE(0, "inline", "inline", false),
-        STORED(1, "id", "stored", false),
-        FILE(2, "file", "file", true);
-
-        private final int val;
-        private final ParseField parseField;
-        private final String scriptType;
-        private final boolean defaultScriptEnabled;
-
-        public static ScriptType readFrom(StreamInput in) throws IOException {
-            int scriptTypeVal = in.readVInt();
-            for (ScriptType type : values()) {
-                if (type.val == scriptTypeVal) {
-                    return type;
-                }
-            }
-            throw new IllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal + "] expected one of ["
-                    + INLINE.val + "," + FILE.val + "," + STORED.val + "]");
-        }
-
-        public static void writeTo(ScriptType scriptType, StreamOutput out) throws IOException{
-            if (scriptType != null) {
-                out.writeVInt(scriptType.val);
-            } else {
-                out.writeVInt(INLINE.val); //Default to inline
-            }
-        }
-
-        ScriptType(int val, String name, String scriptType, boolean defaultScriptEnabled) {
-            this.val = val;
-            this.parseField = new ParseField(name);
-            this.scriptType = scriptType;
-            this.defaultScriptEnabled = defaultScriptEnabled;
-        }
-
-        public ParseField getParseField() {
-            return parseField;
-        }
-
-        public boolean getDefaultScriptEnabled() {
-            return defaultScriptEnabled;
-        }
-
-        public String getScriptType() {
-            return scriptType;
-        }
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
         }
 
     }

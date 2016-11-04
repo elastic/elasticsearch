@@ -108,6 +108,7 @@ GET _cat/tasks
 // CONSOLE
 
 [float]
+[[task-cancellation]]
 === Task Cancellation
 
 If a long-running task supports cancellation, it can be cancelled by the following command:

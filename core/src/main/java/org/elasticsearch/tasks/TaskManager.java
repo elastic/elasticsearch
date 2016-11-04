@@ -459,7 +459,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
             if (cancellationReason == null) {
                 nodesWithChildTasks.add(nodeId);
             } else {
-                throw new IllegalStateException("cannot register child task request, the task is already cancelled");
+                throw new TaskCancelledException("cannot register child task request, the task is already cancelled");
             }
         }
     }

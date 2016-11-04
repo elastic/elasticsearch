@@ -34,7 +34,7 @@ POST /logs_write/_rollover <2>
 // TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
 <1> Creates an index called `logs-0000001` with the alias `logs_write`.
 <2> If the index pointed to by `logs_write` was created 7 or more days ago, or
-    contains 1,000 or more documents, then the `logs-0002` index is created
+    contains 1,000 or more documents, then the `logs-000002` index is created
     and the `logs_write` alias is updated to point to `logs-000002`.
 
 The above request might return the following response:
@@ -95,7 +95,8 @@ over. For instance:
 
 [source,js]
 --------------------------------------------------
-PUT /<logs-{now/d}-1> <1>
+# PUT /<logs-{now/d}-1> with URI encoding:
+PUT /%3Clogs-%7Bnow%2Fd%7D-1%3E <1>
 {
   "aliases": {
     "logs_write": {}
@@ -117,7 +118,7 @@ POST /logs_write/_rollover <2>
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/\{now\//{2016.10.31||%2f/]
+// TEST[s/now/2016.10.31||/]
 <1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
 <2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
 

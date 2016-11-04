@@ -51,6 +51,7 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -136,6 +137,9 @@ public class FetchPhase implements SearchPhase {
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+            if(context.isCancelled()) {
+                throw new TaskCancelledException("cancelled");
+            }
             int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
             int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
             LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);

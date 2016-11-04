@@ -80,8 +80,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
             .withAllDeprecated("use validation_method instead");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
-    private static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
-    private static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
 
     private final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
@@ -511,7 +509,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        List<GeoPoint> localPoints = new ArrayList<GeoPoint>();
+        List<GeoPoint> localPoints = new ArrayList<>();
         for (GeoPoint geoPoint : this.points) {
             localPoints.add(new GeoPoint(geoPoint));
         }

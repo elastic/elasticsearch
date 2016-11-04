@@ -6,3 +6,17 @@
 
   - is_true: cluster_name
   - is_true: nodes
+
+---
+"Nodes stats level":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.stats:
+        metric: [ indices ]
+        level: "indices"
+
+  - is_true: nodes.$master.indices.indices

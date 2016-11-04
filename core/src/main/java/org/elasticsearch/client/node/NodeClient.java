@@ -46,7 +46,7 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
-    public void intialize(Map<GenericAction, TransportAction> actions) {
+    public void initialize(Map<GenericAction, TransportAction> actions) {
         this.actions = actions;
     }
 

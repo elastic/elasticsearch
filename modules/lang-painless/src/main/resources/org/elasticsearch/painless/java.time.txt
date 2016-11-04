@@ -30,13 +30,7 @@ class Clock -> java.time.Clock extends Object {
   Instant instant()
   long millis()
   Clock offset(Clock,Duration)
-  Clock system(ZoneId)
-  Clock systemDefaultZone()
-  Clock systemUTC()
   Clock tick(Clock,Duration)
-  Clock tickMinutes(ZoneId)
-  Clock tickSeconds(ZoneId)
-  Clock withZone(ZoneId)
 }
 
 class Duration -> java.time.Duration extends Comparable,TemporalAmount,Object {

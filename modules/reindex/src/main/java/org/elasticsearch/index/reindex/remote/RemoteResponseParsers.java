@@ -83,10 +83,28 @@ final class RemoteResponseParsers {
                 throw new ParsingException(p.getTokenLocation(), "[hit] failed to parse [_source]", e);
             }
         }, new ParseField("_source"));
-        HIT_PARSER.declareString(BasicHit::setRouting, new ParseField("_routing"));
-        HIT_PARSER.declareString(BasicHit::setParent, new ParseField("_parent"));
-        HIT_PARSER.declareLong(BasicHit::setTTL, new ParseField("_ttl"));
+        ParseField routingField = new ParseField("_routing");
+        ParseField parentField = new ParseField("_parent");
+        ParseField ttlField = new ParseField("_ttl");
+        HIT_PARSER.declareString(BasicHit::setRouting, routingField);
+        HIT_PARSER.declareString(BasicHit::setParent, parentField);
+        HIT_PARSER.declareLong(BasicHit::setTTL, ttlField);
         HIT_PARSER.declareLong(BasicHit::setTimestamp, new ParseField("_timestamp"));
+        // Pre-2.0.0 parent and routing come back in "fields"
+        class Fields {
+            String routing;
+            String parent;
+            long ttl;
+        }
+        ObjectParser<Fields, ParseFieldMatcherSupplier> fieldsParser = new ObjectParser<>("fields", Fields::new);
+        HIT_PARSER.declareObject((hit, fields) -> {
+            hit.setRouting(fields.routing);
+            hit.setParent(fields.parent);
+            hit.setTTL(fields.ttl);
+        }, fieldsParser, new ParseField("fields"));
+        fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
+        fieldsParser.declareString((fields, parent) -> fields.parent = parent, parentField);
+        fieldsParser.declareLong((fields, ttl) -> fields.ttl = ttl, ttlField);
     }
 
     /**

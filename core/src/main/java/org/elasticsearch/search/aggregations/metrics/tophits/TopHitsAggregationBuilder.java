@@ -44,6 +44,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -54,6 +55,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHitsAggregationBuilder> {
@@ -539,9 +541,15 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }
-        return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder,
-            storedFieldsContext, fieldDataFields, fields, fetchSourceContext, context,
-            parent, subfactoriesBuilder, metaData);
+
+        final Optional<SortAndFormats> optionalSort;
+        if (sorts == null) {
+            optionalSort = Optional.empty();
+        } else {
+            optionalSort = SortBuilder.buildSort(sorts, context.searchContext().getQueryShardContext());
+        }
+        return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, optionalSort, highlightBuilder,
+                storedFieldsContext, fieldDataFields, fields, fetchSourceContext, context, parent, subfactoriesBuilder, metaData);
     }
 
     @Override

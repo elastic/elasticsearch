@@ -48,4 +48,12 @@ class DeleteVersionValue extends VersionValue {
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED;
     }
+
+    @Override
+    public String toString() {
+        return "DeleteVersionValue{" +
+            "version=" + version() + ", " +
+            "time=" + time +
+            '}';
+    }
 }

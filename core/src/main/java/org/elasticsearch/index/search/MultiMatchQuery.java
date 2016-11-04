@@ -31,6 +31,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -256,6 +257,14 @@ public class MultiMatchQuery extends MatchQuery {
                 // of ip addresses and the value can't be parsed, so ignore this
                 // field
                 continue;
+            } catch (ElasticsearchParseException parseException) {
+                // date fields throw an ElasticsearchParseException with the
+                // underlying IAE as the cause, ignore this field if that is
+                // the case
+                if (parseException.getCause() instanceof IllegalArgumentException) {
+                    continue;
+                }
+                throw parseException;
             }
             float boost = ft.boost;
             while (query instanceof BoostQuery) {

@@ -73,6 +73,13 @@ setup() {
     verify_archive_installation
 }
 
+@test "[TAR] verify elasticsearch-plugin list runs without any plugins installed" {
+    # previously this would fail because the archive installations did
+    # not create an empty plugins directory
+    local plugins_list=`$ESHOME/bin/elasticsearch-plugin list`
+    [[ -z $plugins_list ]]
+}
+
 @test "[TAR] elasticsearch fails if java executable is not found" {
   local JAVA=$(which java)
 

@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
@@ -38,13 +39,16 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
     private final SearchPhaseController searchPhaseController;
 
     SearchQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                   Function<String, DiscoveryNode> nodeIdToDiscoveryNode, Map<String, String[]> perIndexFilteringAliases,
+                                   Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
+                                   Map<String, AliasFilter> aliasFilter,
                                    SearchPhaseController searchPhaseController, Executor executor,
                                    SearchRequest request, ActionListener<SearchResponse> listener,
-                                   GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
-        super(logger, searchTransportService, nodeIdToDiscoveryNode, perIndexFilteringAliases, executor,
-                request, listener, shardsIts, startTime, clusterStateVersion);
+                                   GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
+                                   SearchTask task) {
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor,
+                request, listener, shardsIts, startTime, clusterStateVersion, task);
         this.searchPhaseController = searchPhaseController;
+
     }
 
     @Override
@@ -55,7 +59,7 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
     @Override
     protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
                                          ActionListener<QueryFetchSearchResult> listener) {
-        searchTransportService.sendExecuteFetch(node, request, listener);
+        searchTransportService.sendExecuteFetch(node, request, task, listener);
     }
 
     @Override

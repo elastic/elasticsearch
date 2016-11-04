@@ -124,6 +124,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         out.writeOptionalString(postFilter);
     }
 
+    String field() {
+        return this.field;
+    }
+
     /**
      * The global suggest mode controls what suggested terms are included or
      * controls for what suggest text tokens, terms should be suggested for.
@@ -142,6 +146,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return this;
     }
 
+    String suggestMode() {
+        return suggestMode;
+    }
+
     /**
      * Sets how similar the suggested terms at least need to be compared to
      * the original suggest text tokens. A value between 0 and 1 can be
@@ -155,6 +163,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return this;
     }
 
+    Float accuracy() {
+        return this.accuracy;
+    }
+
     /**
      * Sets the maximum suggestions to be returned per suggest text term.
      */
@@ -164,6 +176,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         }
         this.size = size;
         return this;
+    }
+
+    Integer size() {
+        return size;
     }
 
     /**
@@ -181,6 +197,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     public DirectCandidateGeneratorBuilder sort(String sort) {
         this.sort = sort;
         return this;
+    }
+
+    String sort() {
+        return sort;
     }
 
     /**
@@ -205,6 +225,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return this;
     }
 
+    String stringDistance() {
+        return stringDistance;
+    }
+
     /**
      * Sets the maximum edit distance candidate suggestions can have in
      * order to be considered as a suggestion. Can only be a value between 1
@@ -219,6 +243,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return this;
     }
 
+    Integer maxEdits() {
+        return maxEdits;
+    }
+
     /**
      * A factor that is used to multiply with the size in order to inspect
      * more candidate suggestions. Can improve accuracy at the cost of
@@ -227,6 +255,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     public DirectCandidateGeneratorBuilder maxInspections(Integer maxInspections) {
         this.maxInspections = maxInspections;
         return this;
+    }
+
+    Integer maxInspections() {
+        return maxInspections;
     }
 
     /**
@@ -245,6 +277,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return this;
     }
 
+    Float maxTermFreq() {
+        return maxTermFreq;
+    }
+
     /**
      * Sets the number of minimal prefix characters that must match in order
      * be a candidate suggestion. Defaults to 1. Increasing this number
@@ -256,6 +292,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return this;
     }
 
+    Integer prefixLength() {
+        return prefixLength;
+    }
+
     /**
      * The minimum length a suggest text term must have in order to be
      * corrected. Defaults to <tt>4</tt>.
@@ -263,6 +303,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     public DirectCandidateGeneratorBuilder minWordLength(int minWordLength) {
         this.minWordLength = minWordLength;
         return this;
+    }
+
+    Integer minWordLength() {
+        return minWordLength;
     }
 
     /**
@@ -278,6 +322,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return this;
     }
 
+    Float minDocFreq() {
+        return minDocFreq;
+    }
+
     /**
      * Sets a filter (analyzer) that is applied to each of the tokens passed to this candidate generator.
      * This filter is applied to the original token before candidates are generated.
@@ -287,6 +335,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return this;
     }
 
+    String preFilter() {
+        return preFilter;
+    }
+
     /**
      * Sets a filter (analyzer) that is applied to each of the generated tokens
      * before they are passed to the actual phrase scorer.
@@ -294,6 +346,10 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     public DirectCandidateGeneratorBuilder postFilter(String postFilter) {
         this.postFilter = postFilter;
         return this;
+    }
+
+    String postFilter() {
+        return postFilter;
     }
 
     /**

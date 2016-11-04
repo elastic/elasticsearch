@@ -301,6 +301,11 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertEquals(expectedItem, newItem);
     }
 
+    @Override
+    protected boolean isCachable(MoreLikeThisQueryBuilder queryBuilder) {
+        return queryBuilder.likeItems().length == 0; // items are always fetched
+    }
+
     public void testFromJson() throws IOException {
         String json =
                 "{\n" +
@@ -367,5 +372,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
         assertEquals("Deprecated field [mlt] used, expected [more_like_this] instead", e.getMessage());
+
+        checkWarningHeaders("Deprecated field [mlt] used, expected [more_like_this] instead");
     }
 }

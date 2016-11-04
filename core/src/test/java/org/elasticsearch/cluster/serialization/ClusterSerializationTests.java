@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.serialization;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -56,7 +56,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
 
-        assertThat(serializedClusterState.routingTable().prettyPrint(), equalTo(clusterState.routingTable().prettyPrint()));
+        assertThat(serializedClusterState.routingTable().toString(), equalTo(clusterState.routingTable().toString()));
     }
 
     public void testRoutingTableSerialization() throws Exception {
@@ -81,7 +81,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         StreamInput inStream = outStream.bytes().streamInput();
         RoutingTable target = RoutingTable.Builder.readFrom(inStream);
 
-        assertThat(target.prettyPrint(), equalTo(source.prettyPrint()));
+        assertThat(target.toString(), equalTo(source.toString()));
     }
 
 }

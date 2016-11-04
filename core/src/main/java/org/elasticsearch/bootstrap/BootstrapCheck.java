@@ -308,7 +308,8 @@ final class BootstrapCheck {
 
     static class MaxNumberOfThreadsCheck implements Check {
 
-        private final long maxNumberOfThreadsThreshold = 1 << 11;
+        // this should be plenty for machines up to 256 cores
+        private final long maxNumberOfThreadsThreshold = 1 << 12;
 
         @Override
         public boolean check() {

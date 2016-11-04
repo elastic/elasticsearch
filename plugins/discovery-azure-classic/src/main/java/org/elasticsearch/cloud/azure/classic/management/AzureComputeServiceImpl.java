@@ -19,6 +19,9 @@
 
 package org.elasticsearch.cloud.azure.classic.management;
 
+import java.io.IOException;
+import java.util.ServiceLoader;
+
 import com.microsoft.windowsazure.Configuration;
 import com.microsoft.windowsazure.core.Builder;
 import com.microsoft.windowsazure.core.DefaultBuilder;
@@ -30,11 +33,7 @@ import com.microsoft.windowsazure.management.configuration.ManagementConfigurati
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-
-import java.io.IOException;
-import java.util.ServiceLoader;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     implements AzureComputeService {
@@ -42,7 +41,6 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     private final ComputeManagementClient client;
     private final String serviceName;
 
-    @Inject
     public AzureComputeServiceImpl(Settings settings) {
         super(settings);
         String subscriptionId = Management.SUBSCRIPTION_ID_SETTING.get(settings);

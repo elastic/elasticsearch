@@ -115,6 +115,7 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
+import static org.elasticsearch.common.lucene.Lucene.readScoreDoc;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -470,8 +471,6 @@ public class IndexShardTests extends IndexShardTestCase {
                         throw new RuntimeException(ex);
                     }
                 }
-
-                ;
             };
             thread[i].start();
         }
@@ -566,11 +565,15 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                if (created) {
-                    postIndexCreate.incrementAndGet();
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
+                if (result.hasFailure() == false) {
+                    if (result.isCreated()) {
+                        postIndexCreate.incrementAndGet();
+                    } else {
+                        postIndexUpdate.incrementAndGet();
+                    }
                 } else {
-                    postIndexUpdate.incrementAndGet();
+                    postIndex(index, result.getFailure());
                 }
             }
 
@@ -586,8 +589,12 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
-                postDelete.incrementAndGet();
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+                if (result.hasFailure() == false) {
+                    postDelete.incrementAndGet();
+                } else {
+                    postDelete(delete, result.getFailure());
+                }
             }
 
             @Override
@@ -1129,7 +1136,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
                 postIndex.incrementAndGet();
             }
 
@@ -1140,7 +1147,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
                 postDelete.incrementAndGet();
 
             }
@@ -1172,6 +1179,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 throw new RuntimeException("boom");
             }
 
+            @Override
             public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }

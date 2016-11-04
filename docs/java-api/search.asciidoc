@@ -58,7 +58,7 @@ SearchResponse scrollResp = client.prepareSearch(test)
         .addSort(FieldSortBuilder.DOC_FIELD_NAME, SortOrder.ASC)
         .setScroll(new TimeValue(60000))
         .setQuery(qb)
-        .setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
+        .setSize(100).execute().actionGet(); //max of 100 hits will be returned for each scroll
 //Scroll until no hits are returned
 do {
     for (SearchHit hit : scrollResp.getHits().getHits()) {
@@ -68,10 +68,6 @@ do {
     scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(60000)).execute().actionGet();
 } while(scrollResp.getHits().getHits().length != 0); // Zero hits mark the end of the scroll and the while loop.
 --------------------------------------------------
-[NOTE]
-====
-The size-parameter is per shard, so if you run a query against multiple indices (leading to many shards being involved in the query) the result might be more documents per execution of the scroll than you would expect!
-====
 
 [[java-search-msearch]]
 === MultiSearch API
@@ -81,12 +77,12 @@ documentation
 
 [source,java]
 --------------------------------------------------
-SearchRequestBuilder srb1 = node.client()
+SearchRequestBuilder srb1 = client
     .prepareSearch().setQuery(QueryBuilders.queryStringQuery("elasticsearch")).setSize(1);
-SearchRequestBuilder srb2 = node.client()
+SearchRequestBuilder srb2 = client
     .prepareSearch().setQuery(QueryBuilders.matchQuery("name", "kimchy")).setSize(1);
 
-MultiSearchResponse sr = node.client().prepareMultiSearch()
+MultiSearchResponse sr = client.prepareMultiSearch()
         .add(srb1)
         .add(srb2)
         .execute().actionGet();
@@ -107,7 +103,7 @@ The following code shows how to add two aggregations within your search:
 
 [source,java]
 --------------------------------------------------
-SearchResponse sr = node.client().prepareSearch()
+SearchResponse sr = client.prepareSearch()
     .setQuery(QueryBuilders.matchAllQuery())
     .addAggregation(
             AggregationBuilders.terms("agg1").field("field")

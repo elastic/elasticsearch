@@ -93,14 +93,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/stop-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/synonym-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/word-delimiter-tokenfilter.asciidoc',
-  'reference/cat/master.asciidoc',
-  'reference/cat/nodeattrs.asciidoc',
-  'reference/cat/nodes.asciidoc',
-  'reference/cat/pending_tasks.asciidoc',
-  'reference/cat/plugins.asciidoc',
   'reference/cat/recovery.asciidoc',
-  'reference/cat/repositories.asciidoc',
-  'reference/cat/segments.asciidoc',
   'reference/cat/shards.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
@@ -182,7 +175,7 @@ integTest {
     configFile 'userdict_ja.txt'
     configFile 'KeywordTokenizer.rbbi'
     // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', 'myself'
+    setting 'reindex.remote.whitelist', '127.0.0.1:*'
   }
 }
 

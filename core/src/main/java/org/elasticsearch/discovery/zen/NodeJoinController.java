@@ -40,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.membership.MembershipAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -465,7 +464,7 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<DiscoveryNode> joiningNodes) {
-            assert currentState.nodes().getMasterNodeId() == null : currentState.prettyPrint();
+            assert currentState.nodes().getMasterNodeId() == null : currentState;
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
             ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())

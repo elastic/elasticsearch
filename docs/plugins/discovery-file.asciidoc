@@ -89,5 +89,5 @@ running on the default port:
 ----------------------------------------------------------------
 
 Host names are allowed instead of IP addresses (similar to 
-`discovery.zen.ping.unicast.hosts`), and IPv6 addresses must be 
+`discovery.zen.ping.unicast.hosts`), and IPv6 addresses must be
 specified in brackets with the port coming after the brackets. 

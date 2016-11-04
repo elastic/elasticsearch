@@ -28,10 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -138,7 +135,7 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script("script1", ScriptService.ScriptType.STORED, GroovyScriptEngineService.NAME, null)).get();
+                    .setScript(new Script("script1", ScriptType.STORED, GroovyScriptEngineService.NAME, null)).get();
             fail("update script should have been rejected");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));

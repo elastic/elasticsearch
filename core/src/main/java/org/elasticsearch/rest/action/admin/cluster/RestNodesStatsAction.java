@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -114,8 +115,16 @@ public class RestNodesStatsAction extends BaseRestHandler {
         return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
+    private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
+    }
+
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
     }
+
 }

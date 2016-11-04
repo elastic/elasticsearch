@@ -103,28 +103,33 @@ public class EnableAllocationDecider extends AllocationDecider {
 
         final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
         final Allocation enable;
+        final boolean usedIndexSetting;
         if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetaData.getSettings())) {
             enable = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexMetaData.getSettings());
+            usedIndexSetting = true;
         } else {
             enable = this.enableAllocation;
+            usedIndexSetting = false;
         }
         switch (enable) {
             case ALL:
                 return allocation.decision(Decision.YES, NAME, "all allocations are allowed");
             case NONE:
-                return allocation.decision(Decision.NO, NAME, "no allocations are allowed");
+                return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to {}", setting(enable, usedIndexSetting));
             case NEW_PRIMARIES:
                 if (shardRouting.primary() && shardRouting.active() == false &&
                     shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
                     return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden");
+                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden due to {}",
+                                                setting(enable, usedIndexSetting));
                 }
             case PRIMARIES:
                 if (shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden");
+                    return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden due to {}",
+                                                setting(enable, usedIndexSetting));
                 }
             default:
                 throw new IllegalStateException("Unknown allocation option");
@@ -139,31 +144,58 @@ public class EnableAllocationDecider extends AllocationDecider {
 
         Settings indexSettings = allocation.metaData().getIndexSafe(shardRouting.index()).getSettings();
         final Rebalance enable;
+        final boolean usedIndexSetting;
         if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {
             enable = INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexSettings);
+            usedIndexSetting = true;
         } else {
             enable = this.enableRebalance;
+            usedIndexSetting = false;
         }
         switch (enable) {
             case ALL:
                 return allocation.decision(Decision.YES, NAME, "all rebalancing is allowed");
             case NONE:
-                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed");
+                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to {}", setting(enable, usedIndexSetting));
             case PRIMARIES:
                 if (shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "primary rebalancing is allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden");
+                    return allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to {}",
+                                                setting(enable, usedIndexSetting));
                 }
             case REPLICAS:
                 if (shardRouting.primary() == false) {
                     return allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden");
+                    return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to {}",
+                                                setting(enable, usedIndexSetting));
                 }
             default:
                 throw new IllegalStateException("Unknown rebalance option");
         }
+    }
+
+    private static String setting(Allocation allocation, boolean usedIndexSetting) {
+        StringBuilder buf = new StringBuilder("[");
+        if (usedIndexSetting) {
+            buf.append(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey());
+        } else {
+            buf.append(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey());
+        }
+        buf.append("=").append(allocation.toString().toLowerCase(Locale.ROOT)).append("]");
+        return buf.toString();
+    }
+
+    private static String setting(Rebalance rebalance, boolean usedIndexSetting) {
+        StringBuilder buf = new StringBuilder("[");
+        if (usedIndexSetting) {
+            buf.append(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey());
+        } else {
+            buf.append(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey());
+        }
+        buf.append("=").append(rebalance.toString().toLowerCase(Locale.ROOT)).append("]");
+        return buf.toString();
     }
 
     /**

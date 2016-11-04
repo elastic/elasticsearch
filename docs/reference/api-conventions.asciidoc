@@ -219,6 +219,7 @@ Some examples are:
 `2015-01-01||+1M/d`::   `2015-01-01` plus one month, rounded down to the nearest day.
 
 [float]
+[[common-options-response-filtering]]
 === Response Filtering
 
 All REST APIs accept a `filter_path` parameter that can be used to reduce

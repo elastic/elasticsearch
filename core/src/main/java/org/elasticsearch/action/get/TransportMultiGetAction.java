@@ -64,16 +64,11 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
 
-            if (!clusterState.metaData().hasConcreteIndex(item.index())) {
-                responses.set(i, newItemFailure(item.index(), item.type(), item.id(), new IndexNotFoundException(item.index())));
-                continue;
-            }
-
             String concreteSingleIndex;
             try {
-                item.routing(clusterState.metaData().resolveIndexRouting(item.parent(), item.routing(), item.index()));
                 concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
 
+                item.routing(clusterState.metaData().resolveIndexRouting(item.parent(), item.routing(), concreteSingleIndex));
                 if ((item.routing() == null) && (clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type()))) {
                     String message = "routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]";
                     responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(), new IllegalArgumentException(message)));

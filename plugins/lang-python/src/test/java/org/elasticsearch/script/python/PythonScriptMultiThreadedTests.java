@@ -23,7 +23,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -40,7 +40,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
     public void testExecutableNoRuntimeParams() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
-        final CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "python", compiled);
+        final CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, "testExecutableNoRuntimeParams", "python", compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[4];
@@ -126,7 +126,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
     public void testExecute() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
-        final CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecute", "python", compiled);
+        final CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, "testExecute", "python", compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[4];

@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URI;
@@ -59,6 +61,8 @@ public class ClientYamlTestClient {
     //query_string params that don't need to be declared in the spec, they are supported by default
     private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet("pretty", "source", "filter_path");
 
+    private static boolean loggedInit = false;
+
     private final ClientYamlSuiteRestSpec restSpec;
     private final RestClient restClient;
     private final Version esVersion;
@@ -70,8 +74,20 @@ public class ClientYamlTestClient {
         Tuple<Version, Version> versionTuple = readMasterAndMinNodeVersion(hosts.size());
         this.esVersion = versionTuple.v1();
         Version masterVersion = versionTuple.v2();
-        // this will be logged in each test such that if something fails we get it in the logs for each test
-        logger.info("initializing client, minimum es version: [{}] master version: [{}] hosts: {}", esVersion, masterVersion, hosts);
+        if (false == loggedInit) {
+            /* This will be logged once per suite which lines up with randomized runner's dumping the output of all failing suites. It'd
+             * be super noisy to log this once per test. We can't log it in a @BeforeClass method because we need the class variables. */
+            logger.info("initializing client, minimum es version: [{}] master version: [{}] hosts: {}", esVersion, masterVersion, hosts);
+            loggedInit = true;
+        }
+    }
+
+    /**
+     * Reset {@link #loggedInit} so we log the connection setup before this suite.
+     */
+    @BeforeClass
+    public static void clearLoggedInit() {
+        loggedInit = false;
     }
 
     private Tuple<Version, Version> readMasterAndMinNodeVersion(int numHosts) throws IOException {

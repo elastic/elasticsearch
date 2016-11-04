@@ -869,15 +869,45 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-            .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
-        if (actionGet.isTimedOut()) {
-            logger.info("ensureGreen timed out, cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
-            fail("timed out waiting for green state");
+        return ensureGreenOrYellow(true, timeout, indices);
+    }
+
+    /**
+     * Ensures the cluster has a yellow state via the cluster health API.
+     */
+    public ClusterHealthStatus ensureYellow(String... indices) {
+        return ensureGreenOrYellow(false, TimeValue.timeValueSeconds(30), indices);
+    }
+
+    private ClusterHealthStatus ensureGreenOrYellow(boolean green, TimeValue timeout, String... indices) {
+        String color = green ? "green" : "yellow";
+        String method = green ? "ensureGreen" : "ensureYellow";
+
+        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(indices)
+            .timeout(timeout)
+            .waitForEvents(Priority.LANGUID)
+            .waitForNoRelocatingShards(true);
+        if (green) {
+            healthRequest.waitForGreenStatus();
+        } else {
+            healthRequest.waitForYellowStatus();
         }
-        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);
+        if (cluster() != null) {
+            healthRequest.waitForNodes(Integer.toString(cluster().size()));
+        }
+
+        ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
+        if (actionGet.isTimedOut()) {
+            logger.info("{} timed out, cluster state:\n{}\n{}",
+                method,
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get());
+            fail("timed out waiting for " + color + " state");
+        }
+        if (green) {
+            assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        }
+        logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
         return actionGet.getStatus();
     }
 
@@ -989,21 +1019,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
             Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), n))
             .get().isAcknowledged());
-    }
-
-    /**
-     * Ensures the cluster has a yellow state via the cluster health API.
-     */
-    public ClusterHealthStatus ensureYellow(String... indices) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-            .health(Requests.clusterHealthRequest(indices).waitForNoRelocatingShards(true).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
-        if (actionGet.isTimedOut()) {
-            logger.info("ensureYellow timed out, cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
-            assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
-        }
-        logger.debug("indices {} are yellow", indices.length == 0 ? "[_all]" : indices);
-        return actionGet.getStatus();
     }
 
     /**

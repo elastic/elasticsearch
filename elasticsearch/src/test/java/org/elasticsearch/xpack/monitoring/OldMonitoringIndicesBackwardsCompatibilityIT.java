@@ -55,7 +55,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
                 // Don't clean old monitoring indexes - we want to make sure we can load them
                 .put(MonitoringSettings.HISTORY_DURATION.getKey(), TimeValue.timeValueHours(1000 * 365 * 24).getStringRep())
                 // Speed up the exporter so we don't have to wait around for it
-                .put(MonitoringSettings.INTERVAL.getKey(), timeValueMillis(100).getStringRep());
+                .put(MonitoringSettings.INTERVAL.getKey(), timeValueMillis(500).getStringRep());
 
         if (httpExporter) {
             /* If we want to test the http exporter we have to create it but disable it. We need to create it so we don't use the default

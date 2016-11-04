@@ -1516,6 +1516,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testIndexWriterInfoStream() throws IllegalAccessException {
         assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender("testIndexWriterInfoStream");
+        mockAppender.start();
 
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
@@ -1538,6 +1539,7 @@ public class InternalEngineTests extends ESTestCase {
 
         } finally {
             Loggers.removeAppender(rootLogger, mockAppender);
+            mockAppender.stop();
             Loggers.setLevel(rootLogger, savedLevel);
         }
     }
@@ -1546,6 +1548,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testIndexWriterIFDInfoStream() throws IllegalAccessException {
         assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
+        mockAppender.start();
 
         final Logger iwIFDLogger = Loggers.getLogger("org.elasticsearch.index.engine.Engine.IFD");
 
@@ -1569,6 +1572,7 @@ public class InternalEngineTests extends ESTestCase {
 
         } finally {
             Loggers.removeAppender(iwIFDLogger, mockAppender);
+            mockAppender.stop();
             Loggers.setLevel(iwIFDLogger, (Level) null);
         }
     }

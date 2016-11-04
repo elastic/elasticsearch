@@ -74,6 +74,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = ESLoggerFactory.getLogger("testGetMaxMapCountIOException");
             final MockLogAppender appender = new MockLogAppender();
+            appender.start();
             appender.addExpectation(
                     new ParameterizedMessageLoggingExpectation(
                             "expected logged I/O exception",
@@ -87,6 +88,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
             verify(reader).close();
             Loggers.removeAppender(logger, appender);
+            appender.stop();
         }
 
         {
@@ -94,6 +96,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = ESLoggerFactory.getLogger("testGetMaxMapCountNumberFormatException");
             final MockLogAppender appender = new MockLogAppender();
+            appender.start();
             appender.addExpectation(
                     new ParameterizedMessageLoggingExpectation(
                             "expected logged number format exception",
@@ -107,6 +110,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
             verify(reader).close();
             Loggers.removeAppender(logger, appender);
+            appender.stop();
         }
 
     }

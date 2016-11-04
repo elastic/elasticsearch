@@ -742,6 +742,7 @@ public class ClusterServiceTests extends ESTestCase {
     @TestLogging("org.elasticsearch.cluster.service:TRACE") // To ensure that we log cluster state events on TRACE level
     public void testClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test1",
@@ -838,6 +839,7 @@ public class ClusterServiceTests extends ESTestCase {
             latch.await();
         } finally {
             Loggers.removeAppender(clusterLogger, mockAppender);
+            mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();
     }
@@ -845,6 +847,7 @@ public class ClusterServiceTests extends ESTestCase {
     @TestLogging("org.elasticsearch.cluster.service:WARN") // To ensure that we log cluster state events on WARN level
     public void testLongClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
         mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                         "test1 shouldn't see because setting is too low",
@@ -968,6 +971,7 @@ public class ClusterServiceTests extends ESTestCase {
             latch.await();
         } finally {
             Loggers.removeAppender(clusterLogger, mockAppender);
+            mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();
     }

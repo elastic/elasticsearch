@@ -252,7 +252,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
         LegacyNumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext(null));
-            rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true).rewrite(null);
+            rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true);
         } finally {
             SearchContext.removeCurrent();
         }
@@ -278,7 +278,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
         LegacyNumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext(null));
-            rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true).rewrite(null);
+            rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true);
         } finally {
             SearchContext.removeCurrent();
         }

@@ -27,7 +27,9 @@ public class CapturingLogger {
         final String name = caller.getClassName() + "." + caller.getMethodName() + "." + level.toString();
         final Logger logger = ESLoggerFactory.getLogger(name);
         Loggers.setLevel(logger, level);
-        Loggers.addAppender(logger, new MockAppender(name));
+        final MockAppender appender = new MockAppender(name);
+        appender.start();
+        Loggers.addAppender(logger, appender);
         return logger;
     }
 

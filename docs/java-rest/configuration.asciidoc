@@ -81,9 +81,9 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .build();
 --------------------------------------------------
 
-You can disable Preemptive Authorization, which means that every request will be sent without
+You can disable Preemptive Authentication, which means that every request will be sent without
 authorization headers to see if it is accepted and, upon receiving a HTTP 401 response, it will
-resend the exact same request with the basic authorization header. If you wish to do this, then
+resend the exact same request with the basic authentication header. If you wish to do this, then
 you can do so by disabling it via the `HttpAsyncClientBuilder`:
 
 [source,java]
@@ -96,7 +96,7 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
             @Override
             public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
-                // disable preemptive authorization
+                // disable preemptive authentication
                 httpClientBuilder.disableAuthCaching();
                 return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
             }

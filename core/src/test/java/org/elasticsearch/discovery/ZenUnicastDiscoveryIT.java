@@ -66,7 +66,7 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(currentNumNodes - unicastHostOrdinals.length).get();
 
         if (client().admin().cluster().prepareHealth().setWaitForNodes("" + currentNumNodes).get().isTimedOut()) {
-            logger.info("cluster forming timed out, cluster state:\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint());
+            logger.info("cluster forming timed out, cluster state:\n{}", client().admin().cluster().prepareState().get().getState());
             fail("timed out waiting for cluster to form with [" + currentNumNodes + "] nodes");
         }
     }

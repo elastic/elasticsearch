@@ -289,5 +289,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
                 e.getMessage());
     }
+
+    @Override
+    protected boolean isCachable(TermsQueryBuilder queryBuilder) {
+        // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
+        // that's why we return true here all the time
+        return super.isCachable(queryBuilder);
+    }
 }
 

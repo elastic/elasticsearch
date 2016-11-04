@@ -53,7 +53,6 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -99,7 +98,7 @@ public class TestSearchContext extends SearchContext {
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
-        queryShardContext = indexService.newQueryShardContext();
+        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {

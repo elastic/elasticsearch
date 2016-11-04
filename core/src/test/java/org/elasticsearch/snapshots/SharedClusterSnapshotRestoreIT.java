@@ -34,10 +34,14 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStat
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
@@ -54,6 +58,8 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -64,10 +70,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.ingest.IngestTestPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.StoredScriptsIT;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.channels.SeekableByteChannel;
@@ -76,6 +88,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -86,7 +99,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAliasesExist;
@@ -109,6 +124,14 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(IngestTestPlugin.class,
+            StoredScriptsIT.CustomScriptPlugin.class,
+            MockRepository.Plugin.class);
+    }
+
     public void testBasicWorkFlow() throws Exception {
         Client client = client();
 
@@ -459,11 +482,39 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", location)));
 
-        logger.info("-->  creating test template");
-        assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-            .startObject("field1").field("type", "string").field("store", "yes").endObject()
-            .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
-            .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
+        boolean testTemplate = randomBoolean();
+        boolean testPipeline = randomBoolean();
+        boolean testScript = (testTemplate == false && testPipeline == false) || randomBoolean(); // At least something should be stored
+
+        if(testTemplate) {
+            logger.info("-->  creating test template");
+            assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
+                .startObject("field1").field("type", "string").field("store", "yes").endObject()
+                .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
+        }
+
+        if(testPipeline) {
+            logger.info("-->  creating test pipeline");
+            BytesReference pipelineSource = jsonBuilder().startObject()
+                .field("description", "my_pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject().bytes();
+            assertAcked(client().admin().cluster().preparePutPipeline("barbaz", pipelineSource).get());
+        }
+
+        if(testScript) {
+            logger.info("-->  creating test script");
+            assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MockScriptEngine.NAME)
+                .setId("foobar")
+                .setSource(new BytesArray("{\"script\":\"1\"}")));
+        }
 
         logger.info("--> snapshot without global state");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-no-global-state").setIndices().setIncludeGlobalState(false).setWaitForCompletion(true).get();
@@ -477,26 +528,52 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-with-global-state").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
-        logger.info("-->  delete test template");
-        cluster().wipeTemplates("test-template");
-        GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
-        assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
+        if (testTemplate) {
+            logger.info("-->  delete test template");
+            cluster().wipeTemplates("test-template");
+            GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
+            assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
+        }
+
+        if (testPipeline) {
+            logger.info("-->  delete test pipeline");
+            assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("barbaz")).get());
+        }
+
+        if (testScript) {
+            logger.info("-->  delete test script");
+            assertAcked(client().admin().cluster().prepareDeleteStoredScript(MockScriptEngine.NAME, "foobar").get());
+        }
 
         logger.info("--> try restoring cluster state from snapshot without global state");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state").setWaitForCompletion(true).setRestoreGlobalState(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template wasn't restored");
-        getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> restore cluster state");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-with-global-state").setWaitForCompletion(true).setRestoreGlobalState(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
-        logger.info("--> check that template is restored");
-        getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
-        assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
+        if (testTemplate) {
+            logger.info("--> check that template is restored");
+            getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
+            assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
+        }
+
+        if (testPipeline) {
+            logger.info("--> check that pipeline is restored");
+            GetPipelineResponse getPipelineResponse = client().admin().cluster().prepareGetPipeline("barbaz").get();
+            assertTrue(getPipelineResponse.isFound());
+        }
+
+        if (testScript) {
+            logger.info("--> check that script is restored");
+            GetStoredScriptResponse getStoredScriptResponse = client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get();
+            assertNotNull(getStoredScriptResponse.getStoredScript());
+        }
 
         createIndex("test-idx");
         ensureGreen();
@@ -514,9 +591,19 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-no-global-state-with-index").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
-        logger.info("-->  delete test template and index ");
+        logger.info("-->  delete global state and index ");
         cluster().wipeIndices("test-idx");
-        cluster().wipeTemplates("test-template");
+        if (testTemplate) {
+            cluster().wipeTemplates("test-template");
+        }
+        if (testPipeline) {
+            assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("barbaz")).get());
+        }
+
+        if (testScript) {
+            assertAcked(client().admin().cluster().prepareDeleteStoredScript(MockScriptEngine.NAME, "foobar").get());
+        }
+
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
@@ -525,9 +612,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        logger.info("--> check that template wasn't restored but index was");
+        logger.info("--> check that global state wasn't restored but index was");
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
+        assertFalse(client().admin().cluster().prepareGetPipeline("barbaz").get().isFound());
+        assertNull(client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get().getStoredScript());
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
     }

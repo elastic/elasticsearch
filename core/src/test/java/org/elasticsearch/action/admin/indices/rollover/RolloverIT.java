@@ -130,7 +130,7 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .addMaxIndexAgeCondition(TimeValue.timeValueHours(4)).get();
         assertThat(response.getOldIndex(), equalTo("test_index-0"));
-        assertThat(response.getNewIndex(), equalTo("test_index-0"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000001"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(1));

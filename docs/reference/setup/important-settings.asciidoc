@@ -12,7 +12,6 @@ configured before going into production.
 * <<network.host,`network.host`>>
 * <<unicast.hosts,`discovery.zen.ping.unicast.hosts`>>
 * <<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>
-* <<node.max_local_storage_nodes,`node.max_local_storage_nodes`>>
 
 [float]
 [[path-settings]]
@@ -188,29 +187,3 @@ be thrown which will prevent the node from starting.
 
 [float]
 [[node.max_local_storage_nodes]]
-=== `node.max_local_storage_nodes`
-
-It is possible to start more than one node on the same server from the same
-`$ES_HOME`, just by doing the following:
-
-[source,sh]
---------------------------------------------------
-./bin/elasticsearch -d
-./bin/elasticsearch -d
---------------------------------------------------
-
-This works just fine: the data directory structure is designed to let multiple
-nodes coexist.  However, a single instance of Elasticsearch is able to use all
-of the resources of a single server and it seldom makes sense to run multiple
-nodes on the same server in production.
-
-It is, however, possible to start more than one node on the same server by
-mistake and to be completely unaware that this problem exists. To prevent more
-than one node from sharing the same data directory, it is advisable to add the
-following setting:
-
-[source,yaml]
---------------------------------------------------
-node.max_local_storage_nodes: 1
---------------------------------------------------
-

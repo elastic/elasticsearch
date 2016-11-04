@@ -23,11 +23,11 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -51,9 +51,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -98,7 +100,6 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
-import org.elasticsearch.indices.AbstractIndexShardCacheEntity.Loader;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -132,8 +133,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -1110,7 +1113,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (shard == null) {
             return;
         }
-        indicesRequestCache.clear(new IndexShardCacheEntity(shard, null));
+        indicesRequestCache.clear(new IndexShardCacheEntity(shard));
         logger.trace("{} explicit cache clear", shard.shardId());
     }
 
@@ -1122,13 +1125,19 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public void loadIntoContext(ShardSearchRequest request, SearchContext context, QueryPhase queryPhase) throws Exception {
         assert canCache(request, context);
-        final IndexShardCacheEntity entity = new IndexShardCacheEntity(context.indexShard(), out -> {
-            queryPhase.execute(context);
-            context.queryResult().writeToNoId(out);
-        });
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
-        final BytesReference bytesReference = indicesRequestCache.getOrCompute(entity, directoryReader, request.cacheKey());
-        if (entity.loadedFromCache()) {
+        
+        boolean[] loadedFromCache = new boolean[] { true };
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+            queryPhase.execute(context);
+            try {
+                context.queryResult().writeToNoId(out);
+            } catch (IOException e) {
+                throw new AssertionError("Could not serialize response", e);
+            }
+            loadedFromCache[0] = false;
+        });
+        if (loadedFromCache[0]) {
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
             StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
@@ -1154,7 +1163,11 @@ public class IndicesService extends AbstractLifecycleComponent
         }
         BytesReference cacheKey = new BytesArray("fieldstats:" + field);
         BytesReference statsRef = cacheShardLevelResult(shard, searcher.getDirectoryReader(), cacheKey, out -> {
-            out.writeOptionalWriteable(fieldType.stats(searcher.reader()));
+            try {
+                out.writeOptionalWriteable(fieldType.stats(searcher.reader()));
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to write field stats output", e);
+            }
         });
         try (StreamInput in = statsRef.streamInput()) {
             return in.readOptionalWriteable(FieldStats::readFrom);
@@ -1173,17 +1186,33 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param loader loads the data into the cache if needed
      * @return the contents of the cache or the result of calling the loader
      */
-    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey, Loader loader)
+    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey, Consumer<StreamOutput> loader)
             throws Exception {
-        IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard, loader);
-        return indicesRequestCache.getOrCompute(cacheEntity, reader, cacheKey);
+        IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
+        Supplier<BytesReference> supplier = () -> {
+            /* BytesStreamOutput allows to pass the expected size but by default uses
+             * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
+             * a date histogram with 3 buckets is ~100byte so 16k might be very wasteful
+             * since we don't shrink to the actual size once we are done serializing.
+             * By passing 512 as the expected size we will resize the byte array in the stream
+             * slowly until we hit the page size and don't waste too much memory for small query
+             * results.*/
+            final int expectedSizeInBytes = 512;
+            try (BytesStreamOutput out = new BytesStreamOutput(expectedSizeInBytes)) {
+                loader.accept(out);
+                // for now, keep the paged data structure, which might have unused bytes to fill a page, but better to keep
+                // the memory properly paged instead of having varied sized bytes
+                return out.bytes();
+            }
+        };
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
         private final IndexShard indexShard;
 
-        protected IndexShardCacheEntity(IndexShard indexShard, Loader loader) {
-            super(loader);
+        protected IndexShardCacheEntity(IndexShard indexShard) {
             this.indexShard = indexShard;
         }
 
@@ -1200,6 +1229,13 @@ public class IndicesService extends AbstractLifecycleComponent
         @Override
         public Object getCacheIdentity() {
             return indexShard;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            // No need to take the IndexShard into account since it is shared
+            // across many entities
+            return BASE_RAM_BYTES_USED;
         }
     }
 

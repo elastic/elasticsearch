@@ -313,6 +313,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         assertSerialization(qb);
 
+        checkWarningHeaders("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
+                "Deprecated field [slop] used, replaced by [match_phrase query]");
+
         // Now check with strict parsing an exception is thrown
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
         assertThat(e.getMessage(),
@@ -346,6 +349,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         assertSerialization(qb);
 
+        checkWarningHeaders("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
+                "Deprecated field [slop] used, replaced by [match_phrase query]");
+
         // Now check with strict parsing an exception is thrown
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
         assertThat(e.getMessage(),
@@ -372,6 +378,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "}";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
         assertThat(qb, equalTo(expectedQB));
+        checkWarningHeaders("Deprecated field [" + type + "] used, expected [match] instead",
+                "Deprecated field [slop] used, replaced by [match_phrase query]");
 
         // Now check with strict parsing an exception is thrown
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));

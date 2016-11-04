@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,10 +34,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.PingContextProvider;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -47,6 +44,7 @@ import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
@@ -62,7 +60,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class UnicastZenPingTests extends ESTestCase {
     private static final UnicastHostsProvider EMPTY_HOSTS_PROVIDER = Collections::emptyList;
 
-    public void testSimplePings() throws InterruptedException {
+    public void testSimplePings() throws IOException, InterruptedException {
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
         Settings settings = Settings.builder()
@@ -97,7 +95,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         Settings hostsSettingsMismatch = Settings.builder().put(hostsSettings).put(settingsMismatch).build();
         UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
-        zenPingA.setPingContextProvider(new PingContextProvider() {
+        zenPingA.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().add(handleA.node).localNodeId("UZP_A").build();
@@ -108,10 +106,9 @@ public class UnicastZenPingTests extends ESTestCase {
                 return ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)).build();
             }
         });
-        zenPingA.start();
 
         UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, EMPTY_HOSTS_PROVIDER);
-        zenPingB.setPingContextProvider(new PingContextProvider() {
+        zenPingB.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().add(handleB.node).localNodeId("UZP_B").build();
@@ -122,7 +119,6 @@ public class UnicastZenPingTests extends ESTestCase {
                 return state;
             }
         });
-        zenPingB.start();
 
         UnicastZenPing zenPingC = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, EMPTY_HOSTS_PROVIDER) {
             @Override
@@ -130,7 +126,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 return versionD;
             }
         };
-        zenPingC.setPingContextProvider(new PingContextProvider() {
+        zenPingC.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C").build();
@@ -141,10 +137,9 @@ public class UnicastZenPingTests extends ESTestCase {
                 return state;
             }
         });
-        zenPingC.start();
 
         UnicastZenPing zenPingD = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, EMPTY_HOSTS_PROVIDER);
-        zenPingD.setPingContextProvider(new PingContextProvider() {
+        zenPingD.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().add(handleD.node).localNodeId("UZP_D").build();
@@ -155,7 +150,6 @@ public class UnicastZenPingTests extends ESTestCase {
                 return state;
             }
         });
-        zenPingD.start();
 
         try {
             logger.info("ping from UZP_A");
@@ -185,15 +179,12 @@ public class UnicastZenPingTests extends ESTestCase {
             assertThat(pingResponses.size(), equalTo(0));
             assertCounters(handleD, handleA, handleB, handleC, handleD);
         } finally {
-            zenPingA.close();
-            zenPingB.close();
-            zenPingC.close();
-            zenPingD.close();
-            handleA.transportService.close();
-            handleB.transportService.close();
-            handleC.transportService.close();
-            handleD.transportService.close();
-            terminate(threadPool);
+            try {
+                IOUtils.close(zenPingA, zenPingB, zenPingC, zenPingD,
+                    handleA.transportService, handleB.transportService, handleC.transportService, handleD.transportService);
+            } finally {
+                terminate(threadPool);
+            }
         }
     }
 

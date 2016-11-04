@@ -76,6 +76,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -319,7 +322,8 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId(), classpathPlugins);
+            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId(),
+                s -> newTribeClientNode(s, classpathPlugins));
             resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
@@ -393,7 +397,10 @@ public class Node implements Closeable {
                     b.bind(HttpServer.class).toProvider(Providers.of(null));
                 };
             }
-            modules.add(new DiscoveryModule(this.settings, transportService, networkService, pluginsService.filterPlugins(DiscoveryPlugin.class)));
+            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, transportService, networkService,
+                pluginsService.filterPlugins(DiscoveryPlugin.class));
+            final ZenPing zenPing = newZenPing(settings, threadPool, transportService, discoveryModule.getHostsProvider());
+            modules.add(discoveryModule);
             pluginsService.processModules(modules);
             modules.add(b -> {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
@@ -425,6 +432,7 @@ public class Node implements Closeable {
                     b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
                     b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
                         indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
+                    b.bind(ZenPing.class).toInstance(zenPing);
                     {
                         RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
@@ -880,5 +888,16 @@ public class Node implements Closeable {
             }
         }
         return customNameResolvers;
+    }
+
+    /** Create a new ZenPing instance for use in zen discovery. */
+    protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                 UnicastHostsProvider hostsProvider) {
+        return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
+    }
+
+    /** Constructs an internal node used as a client into a cluster fronted by this tribe node. */
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        return new Node(new Environment(settings), classpathPlugins);
     }
 }

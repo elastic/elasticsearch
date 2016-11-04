@@ -36,6 +36,7 @@ import org.elasticsearch.discovery.zen.NodesFaultDetection;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledFuture;
 
@@ -75,10 +76,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
     }
 
-    public void connectToAddedNodes(ClusterChangedEvent event) {
+    public void connectToNodes(List<DiscoveryNode> addedNodes) {
 
         // TODO: do this in parallel (and wait)
-        for (final DiscoveryNode node : event.nodesDelta().addedNodes()) {
+        for (final DiscoveryNode node : addedNodes) {
             try (Releasable ignored = nodeLocks.acquire(node)) {
                 Integer current = nodes.put(node, 0);
                 assert current == null : "node " + node + " was added in event but already in internal nodes";
@@ -87,8 +88,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
     }
 
-    public void disconnectFromRemovedNodes(ClusterChangedEvent event) {
-        for (final DiscoveryNode node : event.nodesDelta().removedNodes()) {
+    public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
+        for (final DiscoveryNode node : removedNodes) {
             try (Releasable ignored = nodeLocks.acquire(node)) {
                 Integer current = nodes.remove(node);
                 assert current != null : "node " + node + " was removed in event but not in internal nodes";

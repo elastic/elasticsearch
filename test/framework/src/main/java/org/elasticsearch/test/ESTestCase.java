@@ -25,7 +25,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
@@ -237,6 +237,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void ensureCleanedUp() throws Exception {
+        checkStaticState();
+    }
+
+    // separate method so that this can be checked again after suite scoped cluster is shut down
+    protected static void checkStaticState() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
         MockBigArrays.ensureAllArraysAreReleased();
         // field cache should NEVER get loaded.
@@ -288,7 +293,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @see #scaledRandomIntBetween(int, int)
      */
     public static int randomIntBetween(int min, int max) {
-        return RandomInts.randomIntBetween(random(), min, max);
+        return RandomNumbers.randomIntBetween(random(), min, max);
     }
 
     /**

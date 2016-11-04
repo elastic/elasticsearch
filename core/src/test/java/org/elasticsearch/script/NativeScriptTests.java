@@ -62,7 +62,7 @@ public class NativeScriptTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(ScriptType.values());
-            builder.put("script" + "." + scriptType.getScriptType(), randomBoolean());
+            builder.put("script" + "." + scriptType.getName(), randomBoolean());
         } else {
             ScriptContext scriptContext = randomFrom(ScriptContext.Standard.values());
             builder.put("script" + "." + scriptContext.getKey(), randomBoolean());

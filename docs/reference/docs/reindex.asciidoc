@@ -421,6 +421,42 @@ version.
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 
+Reindexing from a remote server uses an on-heap buffer that defaults to a
+maximum size of 200mb. If the remote index includes very large documents you'll
+need to use a smaller batch size. The example below sets the batch size `10`
+which is very, very small.
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "http://otherhost:9200",
+      "username": "user",
+      "password": "pass"
+    },
+    "index": "source",
+    "size": 10,
+    "query": {
+      "match": {
+        "test": "data"
+      }
+    }
+  },
+  "dest": {
+    "index": "dest"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:host]
+// TEST[s/^/PUT source\n/]
+// TEST[s/otherhost:9200",/\${host}"/]
+// TEST[s/"username": "user",//]
+// TEST[s/"password": "pass"//]
+
+
 [float]
 === URL Parameters
 

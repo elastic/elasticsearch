@@ -57,4 +57,11 @@ class VersionValue implements Accountable {
     public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
     }
+
+    @Override
+    public String toString() {
+        return "VersionValue{" +
+            "version=" + version +
+            '}';
+    }
 }

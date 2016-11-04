@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
@@ -62,7 +62,7 @@ public class RequestLoggerTests extends RestClientTestCase {
         }
 
         HttpRequestBase request;
-        int requestType = RandomInts.randomIntBetween(getRandom(), 0, 7);
+        int requestType = RandomNumbers.randomIntBetween(getRandom(), 0, 7);
         switch(requestType) {
             case 0:
                 request = new HttpGetWithEntity(uri);
@@ -99,7 +99,7 @@ public class RequestLoggerTests extends RestClientTestCase {
             expected += " -d '" + requestBody + "'";
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             HttpEntity entity;
-            switch(RandomInts.randomIntBetween(getRandom(), 0, 3)) {
+            switch(RandomNumbers.randomIntBetween(getRandom(), 0, 3)) {
                 case 0:
                     entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
                     break;
@@ -128,12 +128,12 @@ public class RequestLoggerTests extends RestClientTestCase {
 
     public void testTraceResponse() throws IOException {
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
-        int statusCode = RandomInts.randomIntBetween(getRandom(), 200, 599);
+        int statusCode = RandomNumbers.randomIntBetween(getRandom(), 200, 599);
         String reasonPhrase = "REASON";
         BasicStatusLine statusLine = new BasicStatusLine(protocolVersion, statusCode, reasonPhrase);
         String expected = "# " + statusLine.toString();
         BasicHttpResponse httpResponse = new BasicHttpResponse(statusLine);
-        int numHeaders = RandomInts.randomIntBetween(getRandom(), 0, 3);
+        int numHeaders = RandomNumbers.randomIntBetween(getRandom(), 0, 3);
         for (int i = 0; i < numHeaders; i++) {
             httpResponse.setHeader("header" + i, "value");
             expected += "\n# header" + i + ": value";

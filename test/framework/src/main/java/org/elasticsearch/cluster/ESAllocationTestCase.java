@@ -146,7 +146,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState lastClusterState;
         do {
             lastClusterState = clusterState;
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
+            logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
             clusterState = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
         } while (lastClusterState.equals(clusterState) == false);
         return clusterState;

@@ -19,6 +19,26 @@
 
 package org.elasticsearch.discovery.zen;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -30,8 +50,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -56,34 +75,13 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.discovery.zen.ZenPing.PingResponse.readPingResponse;
 
-public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPing {
+public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
     public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
@@ -125,15 +123,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
 
     private volatile boolean closed = false;
 
-    @Inject
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          UnicastHostsProvider unicastHostsProviders) {
+                          UnicastHostsProvider unicastHostsProvider) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-
-        this.hostsProvider = unicastHostsProviders;
+        this.hostsProvider = unicastHostsProvider;
 
         this.concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         List<String> hosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
@@ -190,26 +186,14 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
     }
 
     @Override
-    protected void doStart() {
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
+    public void close() throws IOException {
         ThreadPool.terminate(unicastConnectExecutor, 0, TimeUnit.SECONDS);
-        try {
-            IOUtils.close(receivedResponses.values());
-        } catch (IOException e) {
-            throw new ElasticsearchException("Error wile closing send ping handlers", e);
-        }
+        IOUtils.close(receivedResponses.values());
         closed = true;
     }
 
     @Override
-    public void setPingContextProvider(PingContextProvider contextProvider) {
+    public void start(PingContextProvider contextProvider) {
         this.contextProvider = contextProvider;
     }
 
@@ -501,9 +485,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
     }
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
-        if (!lifecycle.started()) {
-            throw new IllegalStateException("received ping request while not started");
-        }
         temporalResponses.add(request.pingResponse);
         threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {
             @Override

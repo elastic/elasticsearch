@@ -217,7 +217,8 @@ The following settings are supported:
     to split the chunk into several parts, each of `buffer_size` length, and
     to upload each part in its own request. Note that setting a buffer
     size lower than `5mb` is not allowed since it will prevents the use of the
-    Multipart API and may result in upload errors. Defaults to `100mb`.
+    Multipart API and may result in upload errors. Defaults to the minimum
+    between `100mb` and `5%` of the heap size.
 
 `max_retries`::
 

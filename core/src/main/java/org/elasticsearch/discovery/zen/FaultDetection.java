@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen;
 
+import java.io.Closeable;
+
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -36,7 +38,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * A base class for {@link MasterFaultDetection} &amp; {@link NodesFaultDetection},
  * making sure both use the same setting.
  */
-public abstract class FaultDetection extends AbstractComponent {
+public abstract class FaultDetection extends AbstractComponent implements Closeable {
 
     public static final Setting<Boolean> CONNECT_ON_NETWORK_DISCONNECT_SETTING =
         Setting.boolSetting("discovery.zen.fd.connect_on_network_disconnect", false, Property.NodeScope);
@@ -80,6 +82,7 @@ public abstract class FaultDetection extends AbstractComponent {
         }
     }
 
+    @Override
     public void close() {
         transportService.removeConnectionListener(connectionListener);
     }

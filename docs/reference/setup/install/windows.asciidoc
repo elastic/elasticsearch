@@ -10,6 +10,10 @@ link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
+NOTE: Elasticsearch requires Java 8 or later. Use the
+http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
+or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+
 [[install-windows]]
 ==== Download and install the `.zip` package
 
@@ -25,11 +29,11 @@ Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
-window, `CD` to the `%ES_HOME%` directory, for instance:
+window, `cd` to the `%ES_HOME%` directory, for instance:
 
 ["source","sh",subs="attributes"]
 ----------------------------
-CD c:\elasticsearch-{version}
+cd c:\elasticsearch-{version}
 ----------------------------
 
 endif::[]
@@ -81,7 +85,7 @@ stop the service, all from the command-line.
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-c:\elasticsearch-{version}{backslash}bin>service
+c:\elasticsearch-{version}{backslash}bin>elasticsearch-service
 
 Usage: elasticsearch-service.bat install|remove|start|stop|manager [SERVICE_ID]
 --------------------------------------------------
@@ -109,7 +113,7 @@ information is made available during install:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------------
-c:\elasticsearch-{version}{backslash}bin>service install
+c:\elasticsearch-{version}{backslash}bin>elasticsearch-service install
 Installing service      :  "elasticsearch-service-x64"
 Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.

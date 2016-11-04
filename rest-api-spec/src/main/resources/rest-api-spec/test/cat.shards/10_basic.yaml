@@ -227,6 +227,9 @@
 
 ---
 "Test cat shards sort":
+  - skip:
+      version: " - 5.0.99"
+      reason:  sorting was introduced in 5.1.0
 
   - do:
       indices.create:
@@ -253,11 +256,11 @@
 
   - do:
       cat.shards:
-        h: [index, store]
-        s: [store]
+        h: [index, docs]
+        s: [docs]
 
-  - match:
+  - match: # don't use the store here it's cached and might be stale
       $body: |
-            /^ foo \s+ (\d+|\d+[.]\d+)(kb|b)\n
-               bar \s+ (\d+|\d+[.]\d+)(kb|b)\n
+            /^ foo \s+ 0\n
+               bar \s+ 1\n
             $/

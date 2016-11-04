@@ -70,9 +70,6 @@ public class SkipSectionParser implements ClientYamlTestFragmentParser<SkipSecti
         if (!Strings.hasLength(version) && features.isEmpty()) {
             throw new ClientYamlTestParseException("version or features is mandatory within skip section");
         }
-        if (Strings.hasLength(version) && !features.isEmpty()) {
-            throw new ClientYamlTestParseException("version or features are mutually exclusive");
-        }
         if (Strings.hasLength(version) && !Strings.hasLength(reason)) {
             throw new ClientYamlTestParseException("reason is mandatory within skip version section");
         }

@@ -1097,6 +1097,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
+        public DeletePipelineRequestBuilder prepareDeletePipeline(String id) {
+            return new DeletePipelineRequestBuilder(this, DeletePipelineAction.INSTANCE, id);
+        }
+
+        @Override
         public void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
             execute(GetPipelineAction.INSTANCE, request, listener);
         }

@@ -352,7 +352,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 throw mpe;
                             }
 
-                            final QueryShardContext queryShardContext = indexService.newQueryShardContext();
+                            // the context is only used for validation so it's fine to pass fake values for the shard id and the current
+                            // timestamp
+                            final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {
                                     aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext);

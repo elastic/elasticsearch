@@ -32,9 +32,10 @@ import java.lang.invoke.WrongMethodTypeException;
 /**
  * Painless invokedynamic bootstrap for the call site.
  * <p>
- * Has 7 flavors (passed as static bootstrap parameters): dynamic method call,
+ * Has 11 flavors (passed as static bootstrap parameters): dynamic method call,
  * dynamic field load (getter), and dynamic field store (setter), dynamic array load,
- * dynamic array store, iterator, and method reference.
+ * dynamic array store, iterator, method reference, unary operator, binary operator,
+ * shift operator, and dynamic array index normalize.
  * <p>
  * When a new type is encountered at the call site, we lookup from the appropriate
  * whitelist, and cache with a guard. If we encounter too many types, we stop caching.
@@ -69,6 +70,8 @@ public final class DefBootstrap {
     public static final int BINARY_OPERATOR = 8;
     /** static bootstrap parameter indicating a shift operator, e.g. foo &gt;&gt; bar */
     public static final int SHIFT_OPERATOR = 9;
+    /** static bootstrap parameter indicating a request to normalize an index for array-like-access */
+    public static final int INDEX_NORMALIZE = 10;
     
     // constants for the flags parameter of operators
     /** 
@@ -152,6 +155,8 @@ public final class DefBootstrap {
                     return Def.lookupIterator(receiver);
                 case REFERENCE:
                     return Def.lookupReference(lookup, (String) args[0], receiver, name);
+                case INDEX_NORMALIZE:
+                    return Def.lookupIndexNormalize(receiver);
                 default: throw new AssertionError();
             }
         }
@@ -448,6 +453,7 @@ public final class DefBootstrap {
             case ARRAY_LOAD:
             case ARRAY_STORE:
             case ITERATOR:
+            case INDEX_NORMALIZE:
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }

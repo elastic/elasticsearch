@@ -562,9 +562,9 @@ public class ClusterService extends AbstractLifecycleComponent {
                         executionTime,
                         previousClusterState.version(),
                         tasksSummary,
-                        previousClusterState.nodes().prettyPrint(),
-                        previousClusterState.routingTable().prettyPrint(),
-                        previousClusterState.getRoutingNodes().prettyPrint()),
+                        previousClusterState.nodes(),
+                        previousClusterState.routingTable(),
+                        previousClusterState.getRoutingNodes()),
                     e);
             }
             warnAboutSlowTaskIfNeeded(executionTime, tasksSummary);
@@ -656,7 +656,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             newClusterState.status(ClusterState.ClusterStateStatus.BEING_APPLIED);
 
             if (logger.isTraceEnabled()) {
-                logger.trace("cluster state updated, source [{}]\n{}", tasksSummary, newClusterState.prettyPrint());
+                logger.trace("cluster state updated, source [{}]\n{}", tasksSummary, newClusterState);
             } else if (logger.isDebugEnabled()) {
                 logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), tasksSummary);
             }
@@ -671,7 +671,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                 }
             }
 
-            nodeConnectionsService.connectToAddedNodes(clusterChangedEvent);
+            nodeConnectionsService.connectToNodes(clusterChangedEvent.nodesDelta().addedNodes());
 
             // if we are the master, publish the new state to all nodes
             // we publish here before we send a notification to all the listeners, since if it fails
@@ -686,6 +686,8 @@ public class ClusterService extends AbstractLifecycleComponent {
                         (Supplier<?>) () -> new ParameterizedMessage(
                             "failing [{}]: failed to commit cluster state version [{}]", tasksSummary, version),
                         t);
+                    // ensure that list of connected nodes in NodeConnectionsService is in-sync with the nodes of the current cluster state
+                    nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().addedNodes());
                     proccessedListeners.forEach(task -> task.listener.onFailure(task.source, t));
                     return;
                 }
@@ -711,7 +713,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                 }
             }
 
-            nodeConnectionsService.disconnectFromRemovedNodes(clusterChangedEvent);
+            nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().removedNodes());
 
             newClusterState.status(ClusterState.ClusterStateStatus.APPLIED);
 
@@ -757,7 +759,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             final long version = newClusterState.version();
             final String stateUUID = newClusterState.stateUUID();
-            final String prettyPrint = newClusterState.prettyPrint();
+            final String fullState = newClusterState.toString();
             logger.warn(
                 (Supplier<?>) () -> new ParameterizedMessage(
                     "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
@@ -765,7 +767,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                     version,
                     stateUUID,
                     tasksSummary,
-                    prettyPrint),
+                    fullState),
                 e);
             // TODO: do we want to call updateTask.onFailure here?
         }
@@ -824,9 +826,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "exception thrown by listener while notifying of cluster state processed from [{}], old cluster state:\n" +
                             "{}\nnew cluster state:\n{}",
-                        source,
-                        oldState.prettyPrint(),
-                        newState.prettyPrint()),
+                        source, oldState, newState),
                     e);
             }
         }

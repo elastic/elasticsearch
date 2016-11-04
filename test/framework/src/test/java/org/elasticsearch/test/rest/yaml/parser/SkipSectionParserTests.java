@@ -26,6 +26,8 @@ import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
 import org.elasticsearch.test.rest.yaml.parser.SkipSectionParser;
 import org.elasticsearch.test.rest.yaml.section.SkipSection;
 
+import java.util.Arrays;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -108,13 +110,11 @@ public class SkipSectionParserTests extends AbstractParserTestCase {
         );
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
-
-        try {
-            skipSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
-            fail("Expected RestTestParseException");
-        } catch (ClientYamlTestParseException e) {
-            assertThat(e.getMessage(), is("version or features are mutually exclusive"));
-        }
+        SkipSection parse = skipSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        assertEquals(VersionUtils.getFirstVersion(), parse.getLowerVersion());
+        assertEquals(Version.fromString("0.90.2"), parse.getUpperVersion());
+        assertEquals(Arrays.asList("regex"), parse.getFeatures());
+        assertEquals("Delete ignores the parent param", parse.getReason());
     }
 
     public void testParseSkipSectionNoReason() throws Exception {

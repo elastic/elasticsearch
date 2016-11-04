@@ -108,7 +108,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         for (String entry : blacklist) {
             this.blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
         }
-        
+
     }
 
     @Override
@@ -267,25 +267,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
 
         //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(buildSkipMessage(testCandidate.getSuitePath(), testCandidate.getSetupSection().getSkipSection()),
+        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
                 testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
         //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(buildSkipMessage(testCandidate.getSuitePath(), testCandidate.getTeardownSection().getSkipSection()),
+        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
             testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
         //skip test if test section is disabled
-        assumeFalse(buildSkipMessage(testCandidate.getTestPath(), testCandidate.getTestSection().getSkipSection()),
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
                 testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-    }
-
-    private static String buildSkipMessage(String description, SkipSection skipSection) {
-        StringBuilder messageBuilder = new StringBuilder();
-        if (skipSection.isVersionCheck()) {
-            messageBuilder.append("[").append(description).append("] skipped, reason: [").append(skipSection.getReason()).append("] ");
-        } else {
-            messageBuilder.append("[").append(description).append("] skipped, reason: features ")
-                    .append(skipSection.getFeatures()).append(" not supported");
-        }
-        return messageBuilder.toString();
     }
 
     public void test() throws IOException {

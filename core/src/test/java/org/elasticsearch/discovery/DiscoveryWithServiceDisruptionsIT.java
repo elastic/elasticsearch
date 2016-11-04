@@ -50,13 +50,12 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.MembershipAction;
-import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.discovery.zen.ZenPingService;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -153,11 +152,31 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return 1;
     }
 
+    private boolean disableBeforeIndexDeletion;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        disableBeforeIndexDeletion = false;
+    }
+
     @Override
-    protected void beforeIndexDeletion() {
-        // some test may leave operations in flight
-        // this is because the disruption schemes swallow requests by design
-        // as such, these operations will never be marked as finished
+    public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
+        if (scheme instanceof NetworkDisruption &&
+            ((NetworkDisruption) scheme).getNetworkLinkDisruptionType() instanceof NetworkUnresponsive) {
+            // the network unresponsive disruption may leave operations in flight
+            // this is because this disruption scheme swallows requests by design
+            // as such, these operations will never be marked as finished
+            disableBeforeIndexDeletion = true;
+        }
+        super.setDisruptionScheme(scheme);
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws IOException {
+        if (disableBeforeIndexDeletion == false) {
+            super.beforeIndexDeletion();
+        }
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
@@ -175,12 +194,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                if (zenPing instanceof UnicastZenPing) {
-                    ((UnicastZenPing) zenPing).clearTemporalResponses();
-                }
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
         return nodes;
     }
@@ -361,7 +377,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
             if (!success) {
                 fail("node [" + node + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
-                        + nodeState.prettyPrint());
+                        + nodeState);
             }
         }
 
@@ -448,13 +464,13 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
                 assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
                 assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
-                if (!state.routingTable().prettyPrint().equals(nodeState.routingTable().prettyPrint())) {
+                if (!state.routingTable().toString().equals(nodeState.routingTable().toString())) {
                     fail("different routing");
                 }
             } catch (AssertionError t) {
                 fail("failed comparing cluster state: " + t.getMessage() + "\n" +
-                        "--- cluster state of node [" + nodes.get(0) + "]: ---\n" + state.prettyPrint() +
-                        "\n--- cluster state [" + node + "]: ---\n" + nodeState.prettyPrint());
+                        "--- cluster state of node [" + nodes.get(0) + "]: ---\n" + state +
+                        "\n--- cluster state [" + node + "]: ---\n" + nodeState);
             }
 
         }
@@ -747,15 +763,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
         // Make sure that the end state is consistent on all nodes:
         assertDiscoveryCompleted(nodes);
-        // Use assertBusy(...) because the unfrozen node may take a while to actually join the cluster.
-        // The assertDiscoveryCompleted(...) can't know if all nodes have the old master node in all of the local cluster states
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertMaster(newMasterNode, nodes);
-            }
-        });
-
+        assertMaster(newMasterNode, nodes);
 
         assertThat(masters.size(), equalTo(2));
         for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
@@ -846,10 +854,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing) zenPing).clearTemporalResponses();
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
@@ -884,10 +891,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing) zenPing).clearTemporalResponses();
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
 
         // Simulate a network issue between the unicast target node and the rest of the cluster
@@ -1255,7 +1261,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         if (state.metaData().hasIndex("test") == false) {
-            fail("index 'test' was lost. current cluster state: " + state.prettyPrint());
+            fail("index 'test' was lost. current cluster state: " + state);
         }
 
     }
@@ -1352,14 +1358,16 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }, 10, TimeUnit.SECONDS);
     }
 
-    private void assertMaster(String masterNode, List<String> nodes) {
-        for (String node : nodes) {
-            ClusterState state = getNodeClusterState(node);
-            String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
-            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
-            String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
-            assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
-        }
+    private void assertMaster(String masterNode, List<String> nodes) throws Exception {
+        assertBusy(() -> {
+            for (String node : nodes) {
+                ClusterState state = getNodeClusterState(node);
+                String failMsgSuffix = "cluster_state:\n" + state;
+                assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
+                String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
+                assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
+            }
+        });
     }
 
     private void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {

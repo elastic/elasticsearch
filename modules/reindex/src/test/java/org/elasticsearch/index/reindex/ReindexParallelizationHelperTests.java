@@ -28,12 +28,12 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.reindex.ReindexParallelizationHelper.sliceIntoSubRequests;
-import static org.elasticsearch.search.RandomSearchRequestGenerator.createSearchRequest;
-import static org.elasticsearch.search.RandomSearchRequestGenerator.createSearchSourceBuilder;
+import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
+import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 
 public class ReindexParallelizationHelperTests extends ESTestCase {
     public void testSliceIntoSubRequests() throws IOException {
-        SearchRequest searchRequest = createSearchRequest(() -> createSearchSourceBuilder(
+        SearchRequest searchRequest = randomSearchRequest(() -> randomSearchSourceBuilder(
                 () -> null,
                 () -> null,
                 () -> null,

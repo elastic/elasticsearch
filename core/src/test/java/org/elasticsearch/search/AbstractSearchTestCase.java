@@ -82,7 +82,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
             }
             return searchExtBuilders;
         };
-        return RandomSearchRequestGenerator.createSearchSourceBuilder(
+        return RandomSearchRequestGenerator.randomSearchSourceBuilder(
                 HighlightBuilderTests::randomHighlighterBuilder,
                 SuggestBuilderTests::randomSuggestBuilder,
                 QueryRescoreBuilderTests::randomRescoreBuilder,
@@ -90,7 +90,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
     }
 
     protected SearchRequest createSearchRequest() throws IOException {
-        return RandomSearchRequestGenerator.createSearchRequest(this::createSearchSourceBuilder);
+        return RandomSearchRequestGenerator.randomSearchRequest(this::createSearchSourceBuilder);
     }
 
     private static class TestSearchExtPlugin extends Plugin implements SearchPlugin {

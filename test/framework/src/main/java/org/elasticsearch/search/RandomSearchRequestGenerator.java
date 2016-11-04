@@ -73,9 +73,9 @@ public class RandomSearchRequestGenerator {
      * Build a random search request.
      *
      * @param randomSearchSourceBuilder builds a random {@link SearchSourceBuilder}. You can use
-     *        {@link #createSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier)}.
+     *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier)}.
      */
-    public static SearchRequest createSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) throws IOException {
+    public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         if (randomBoolean()) {
             searchRequest.indices(generateRandomStringArray(10, 10, false, false));
@@ -107,7 +107,7 @@ public class RandomSearchRequestGenerator {
         return searchRequest;
     }
 
-    public static SearchSourceBuilder createSearchSourceBuilder(
+    public static SearchSourceBuilder randomSearchSourceBuilder(
             Supplier<HighlightBuilder> randomHighlightBuilder,
             Supplier<SuggestBuilder> randomSuggestBuilder,
             Supplier<RescoreBuilder<?>> randomRescoreBuilder,

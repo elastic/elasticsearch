@@ -25,6 +25,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.AuthCache;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
@@ -34,8 +35,11 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
@@ -93,6 +97,7 @@ public class RestClient implements Closeable {
     private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
     private volatile Set<HttpHost> hosts;
+    private final AuthCache authCache = new BasicAuthCache();
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
 
@@ -121,10 +126,12 @@ public class RestClient implements Closeable {
         if (hosts == null || hosts.length == 0) {
             throw new IllegalArgumentException("hosts must not be null nor empty");
         }
+        authCache.clear();
         Set<HttpHost> httpHosts = new HashSet<>();
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
             httpHosts.add(host);
+            authCache.put(host, new BasicScheme());
         }
         this.hosts = Collections.unmodifiableSet(httpHosts);
         this.blacklist.clear();
@@ -325,9 +332,11 @@ public class RestClient implements Closeable {
                                      final FailureTrackingResponseListener listener) {
         final HttpHost host = hosts.next();
         //we stream the request body if the entity allows for it
-        HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
-        HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer = httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
-        client.execute(requestProducer, asyncResponseConsumer, new FutureCallback<HttpResponse>() {
+        final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
+        final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer = httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
+        final HttpClientContext context = HttpClientContext.create();
+        context.setAuthCache(authCache);
+        client.execute(requestProducer, asyncResponseConsumer, context, new FutureCallback<HttpResponse>() {
             @Override
             public void completed(HttpResponse httpResponse) {
                 try {

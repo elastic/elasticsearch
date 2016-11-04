@@ -204,12 +204,12 @@ return the full document `_source` by default. The size of the `_source`
 can impact performance due to disk fetch and network transport overhead.
 To save some network overhead, filter out unnecessary fields from the `_source`
 using <<search-request-source-filtering, source filtering>> to minimize
-`_source` size. Note that the `_suggest` endpoint doesn't support this. The
-following demonstrates an example completion query with source filtering:
+`_source` size. Note that the _suggest endpoint doesn't support source
+filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_search
+POST music/_search?size=0
 {
     "_source": "suggest",
     "suggest": {

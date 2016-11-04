@@ -7,5 +7,5 @@
 
 ==== Log4j dependency has been upgraded
 
-The Log4j dependency has been upgraded from version 2.6.2 to version 2.7. If you're using the transport client in your application, you
-should update your Log4j dependencies accordingly.
+The Log4j dependency has been upgraded from version 2.6.2 to version 2.7. If you're using the transport client in your
+application, you should update your Log4j dependencies accordingly.

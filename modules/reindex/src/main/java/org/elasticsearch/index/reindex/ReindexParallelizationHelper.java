@@ -29,6 +29,9 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 
+/**
+ * Helps parallelize reindex requests using sliced scrolls.
+ */
 public class ReindexParallelizationHelper {
     private ReindexParallelizationHelper() {}
 
@@ -54,7 +57,7 @@ public class ReindexParallelizationHelper {
      * Slice a search request into {@code times} separate search requests slicing on {@code field}. Note that the slices are *shallow*
      * copies of this request so don't change them.
      */
-    public static SearchRequest[] sliceIntoSubRequests(SearchRequest request, String field, int times) {
+    static SearchRequest[] sliceIntoSubRequests(SearchRequest request, String field, int times) {
         SearchRequest[] slices = new SearchRequest[times];
         for (int slice = 0; slice < times; slice++) {
             SliceBuilder sliceBuilder = new SliceBuilder(field, slice, times);

@@ -256,7 +256,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(((LegacyLongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
 
         LegacyNumericRangeQuery<Long> rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType()
-                .rangeQuery("10:00:00", "11:00:00", true, true, context).rewrite(null);
+                .rangeQuery("10:00:00", "11:00:00", true, true, context);
         assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis(), DateTimeZone.UTC).getMillis() + 999));
         assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis()));
     }
@@ -283,7 +283,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(((LegacyLongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis())));
 
         LegacyNumericRangeQuery<Long> rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType()
-                .rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, context).rewrite(null);
+                .rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, context);
         assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis() + 999, DateTimeZone.UTC).getMillis()));
         assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis()));
     }

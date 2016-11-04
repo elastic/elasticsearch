@@ -161,71 +161,6 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     public static final class DateFieldType extends MappedFieldType {
-
-        final class LateParsingQuery extends Query {
-
-            final Object lowerTerm;
-            final Object upperTerm;
-            final boolean includeLower;
-            final boolean includeUpper;
-            final DateTimeZone timeZone;
-            final DateMathParser forcedDateParser;
-            private QueryShardContext queryShardContext;
-
-            public LateParsingQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser forcedDateParser, QueryShardContext queryShardContext) {
-                this.lowerTerm = lowerTerm;
-                this.upperTerm = upperTerm;
-                this.includeLower = includeLower;
-                this.includeUpper = includeUpper;
-                this.timeZone = timeZone;
-                this.forcedDateParser = forcedDateParser;
-                this.queryShardContext = queryShardContext;
-            }
-
-            @Override
-            public Query rewrite(IndexReader reader) throws IOException {
-                Query rewritten = super.rewrite(reader);
-                if (rewritten != this) {
-                    return rewritten;
-                }
-                return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, queryShardContext);
-            }
-
-            // Even though we only cache rewritten queries it is good to let all queries implement hashCode() and equals():
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (sameClassAs(o) == false) return false;
-
-                LateParsingQuery that = (LateParsingQuery) o;
-                if (includeLower != that.includeLower) return false;
-                if (includeUpper != that.includeUpper) return false;
-                if (lowerTerm != null ? !lowerTerm.equals(that.lowerTerm) : that.lowerTerm != null) return false;
-                if (upperTerm != null ? !upperTerm.equals(that.upperTerm) : that.upperTerm != null) return false;
-                if (timeZone != null ? !timeZone.equals(that.timeZone) : that.timeZone != null) return false;
-
-                return true;
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(classHash(), lowerTerm, upperTerm, includeLower, includeUpper, timeZone);
-            }
-
-            @Override
-            public String toString(String s) {
-                final StringBuilder sb = new StringBuilder();
-                return sb.append(name()).append(':')
-                    .append(includeLower ? '[' : '{')
-                    .append((lowerTerm == null) ? "*" : lowerTerm.toString())
-                    .append(" TO ")
-                    .append((upperTerm == null) ? "*" : upperTerm.toString())
-                    .append(includeUpper ? ']' : '}')
-                    .toString();
-            }
-        }
-
         protected FormatDateTimeFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
@@ -317,7 +252,7 @@ public class DateFieldMapper extends FieldMapper {
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
-            return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, context);
+            return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, context);
         }
 
         Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,

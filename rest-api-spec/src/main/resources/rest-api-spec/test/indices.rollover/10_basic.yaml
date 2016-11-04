@@ -143,3 +143,15 @@
         body:
           conditions:
             max_docs: 1
+
+  - do:
+      catch: /invalid_index_name_exception/
+      indices.rollover:
+        new_index: invalid|index|name
+        dry_run: true
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+

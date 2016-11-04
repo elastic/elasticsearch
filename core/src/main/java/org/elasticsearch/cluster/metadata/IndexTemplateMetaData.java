@@ -29,6 +29,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.util.set.Sets;
@@ -50,6 +52,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     public static final Version V_5_1_0 = Version.fromId(5010099);
 
     public static final IndexTemplateMetaData PROTO = IndexTemplateMetaData.builder("").build();
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndexTemplateMetaData.class));
 
     private final String name;
 
@@ -497,8 +500,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                         builder.patterns(index_patterns);
                     }
                 } else if (token.isValue()) {
-                    // This is for roll-forward bwc with (#21009)
-                    if ("template".equals(currentFieldName)) {
+                    // Prior to 5.1.0, elasticsearch only supported a single index pattern called `template` (#21009)
+                    if("template".equals(currentFieldName)) {
+                        DEPRECATION_LOGGER.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
                         builder.patterns(Collections.singletonList(parser.text()));
                     } else if ("order".equals(currentFieldName)) {
                         builder.order(parser.intValue());

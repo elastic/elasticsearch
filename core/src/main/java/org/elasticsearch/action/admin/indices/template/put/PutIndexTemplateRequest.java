@@ -33,6 +33,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -59,6 +61,8 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  * A request to create an index template.
  */
 public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(PutIndexTemplateRequest.class));
 
     public static final Version V_5_1_0 = Version.fromId(5010099);
 
@@ -294,6 +298,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             if (name.equals("template")) {
                 // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
                 if(entry.getValue() instanceof String) {
+                    DEPRECATION_LOGGER.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
                     patterns(Collections.singletonList((String) entry.getValue()));
                 }
             } else if (name.equals("index_patterns")) {

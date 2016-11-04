@@ -16,7 +16,7 @@ setup:
       indices.put_template:
         name: test
         body:
-          template: 'test-*'
+          index_patterns: ['test-*']
           settings:
             number_of_shards:   1
             number_of_replicas: 0

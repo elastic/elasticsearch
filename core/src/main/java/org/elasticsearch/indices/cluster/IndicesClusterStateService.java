@@ -573,8 +573,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /**
      * Finds the routing source node for peer recovery, return null if its not found. Note, this method expects the shard
-     * routing to *require* peer recovery, use {@link ShardRouting#recoverySource()} to
-     * check if its needed or not.
+     * routing to *require* peer recovery, use {@link ShardRouting#recoverySource()} to check if its needed or not.
      */
     private static DiscoveryNode findSourceNodeForPeerRecovery(Logger logger, RoutingTable routingTable, DiscoveryNodes nodes,
                                                                ShardRouting shardRouting) {

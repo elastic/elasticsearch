@@ -57,6 +57,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -2560,9 +2561,19 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> get all snapshots with a current in-progress");
         // with ignore unavailable set to true, should not throw an exception
+        final List<String> snapshotsToGet = new ArrayList<>();
+        if (randomBoolean()) {
+            // use _current plus the individual names of the finished snapshots
+            snapshotsToGet.add("_current");
+            for (int i = 0; i < numSnapshots - 1; i++) {
+                snapshotsToGet.add(snapshotNames[i]);
+            }
+        } else {
+            snapshotsToGet.add("_all");
+        }
         getSnapshotsResponse = client.admin().cluster()
                                              .prepareGetSnapshots(repositoryName)
-                                             .addSnapshots("_all")
+                                             .setSnapshots(snapshotsToGet.toArray(Strings.EMPTY_ARRAY))
                                              .get();
         List<String> sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);

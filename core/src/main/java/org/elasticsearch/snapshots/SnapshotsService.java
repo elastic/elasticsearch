@@ -169,6 +169,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
         // first, look at the snapshots in progress
+
         final List<SnapshotsInProgress.Entry> entries =
             currentSnapshots(repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
         for (SnapshotsInProgress.Entry entry : entries) {

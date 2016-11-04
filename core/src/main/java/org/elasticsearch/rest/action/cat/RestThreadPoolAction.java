@@ -224,7 +224,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(poolStats == null ? null : poolStats.getActive());
                 table.addCell(poolStats == null ? null : poolStats.getThreads());
                 table.addCell(poolStats == null ? null : poolStats.getQueue());
-                table.addCell(maxQueueSize);
+                table.addCell(maxQueueSize == null ? -1 : maxQueueSize);
                 table.addCell(poolStats == null ? null : poolStats.getRejected());
                 table.addCell(poolStats == null ? null : poolStats.getLargest());
                 table.addCell(poolStats == null ? null : poolStats.getCompleted());

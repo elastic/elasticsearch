@@ -244,21 +244,22 @@ public abstract class ESTestCase extends LuceneTestCase {
         checkStaticState();
     }
 
-    // Log4j will write out status messages indicating problems with the Log4j usage to the status logger; we hook into this logger and
-    // assert that no such messages were written out as these would indicate a problem with our logging configuration
     private static final List<StatusData> statusData = new ArrayList<>();
-    private static final StatusConsoleListener listener = new StatusConsoleListener(Level.WARN) {
-        @Override
-        public void log(StatusData data) {
-            synchronized (statusData) {
-                statusData.add(data);
-            }
-        }
-    };
     static {
         // ensure that the status logger is set to the warn level so we do not miss any warnings with our Log4j usage
         StatusLogger.getLogger().setLevel(Level.WARN);
-        StatusLogger.getLogger().registerListener(listener);
+        // Log4j will write out status messages indicating problems with the Log4j usage to the status logger; we hook into this logger and
+        // assert that no such messages were written out as these would indicate a problem with our logging configuration
+        StatusLogger.getLogger().registerListener(new StatusConsoleListener(Level.WARN) {
+
+            @Override
+            public void log(StatusData data) {
+                synchronized (statusData) {
+                    statusData.add(data);
+                }
+            }
+
+        });
     }
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
@@ -273,12 +274,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
+                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
+                // StatusData instances to Strings as otherwise their toString output is useless
                 assertThat(
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty());
             } finally {
-                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
-                // StatusData instances to Strings as otherwise their toString output is useless
+                // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();
             }
         }

@@ -70,10 +70,10 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
      */
     public ScriptedMetricAggregationBuilder(StreamInput in) throws IOException {
         super(in, TYPE);
-        initScript = in.readOptionalWriteable(Script::readFrom);
-        mapScript = in.readOptionalWriteable(Script::readFrom);
-        combineScript = in.readOptionalWriteable(Script::readFrom);
-        reduceScript = in.readOptionalWriteable(Script::readFrom);
+        initScript = in.readOptionalWriteable(Script::new);
+        mapScript = in.readOptionalWriteable(Script::new);
+        combineScript = in.readOptionalWriteable(Script::new);
+        reduceScript = in.readOptionalWriteable(Script::new);
         if (in.readBoolean()) {
             params = in.readMap();
         }

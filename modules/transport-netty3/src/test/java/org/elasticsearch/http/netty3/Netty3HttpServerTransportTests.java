@@ -93,7 +93,7 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
 
     public void testCorsConfigDefaults() {
         final Set<String> headers = Sets.newHashSet("X-Requested-With", "Content-Type", "Content-Length");
-        final Set<String> methods = Sets.newHashSet("OPTIONS", "HEAD", "GET", "POST", "PUT", "DELETE");
+        final Set<String> methods = Sets.newHashSet("OPTIONS_PARSE_FIELD", "HEAD", "GET", "POST", "PUT", "DELETE");
         final Settings settings = Settings.builder()
                                       .put(SETTING_CORS_ENABLED.getKey(), true)
                                       .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")

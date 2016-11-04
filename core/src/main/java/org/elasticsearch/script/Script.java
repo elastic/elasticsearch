@@ -49,23 +49,6 @@ import java.util.Objects;
 public final class Script implements ToXContent, Writeable {
 
     /**
-     * ScriptField is a wrapper for {@link ParseField}s used to parse XContent for {@link Script}s.
-     */
-    public interface ScriptField {
-        ParseField SCRIPT = new ParseField("script");
-        ParseField LANG = new ParseField("lang");
-        ParseField OPTIONS = new ParseField("options");
-        ParseField PARAMS = new ParseField("params");
-    }
-
-    /**
-     * ScriptOptions is a wrapper for the names of options that can be provided to the compiler during compilation.
-     */
-    public interface ScriptOptions {
-        String CONTENT_TYPE = "content_type";
-    }
-
-    /**
      * The name of the of the default scripting language.
      */
     public static final String DEFAULT_SCRIPT_LANG = "painless";
@@ -79,6 +62,31 @@ public final class Script implements ToXContent, Writeable {
      * The default {@link ScriptType}.
      */
     public static final ScriptType DEFAULT_SCRIPT_TYPE = ScriptType.INLINE;
+
+    /**
+     * Compiler option for {@link XContentType} used for templates.
+     */
+    public static final String CONTENT_TYPE_OPTION = "content_type";
+
+    /**
+     * Standard {@link ParseField} for outer level of script queries.
+     */
+    public static final ParseField SCRIPT_PARSE_FIELD = new ParseField("script");
+
+    /**
+     * Standard {@link ParseField} for lang on the inner level.
+     */
+    public static final ParseField LANG_PARSE_FIELD = new ParseField("lang");
+
+    /**
+     * Standard {@link ParseField} for options on the inner level.
+     */
+    public static final ParseField OPTIONS_PARSE_FIELD = new ParseField("options");
+
+    /**
+     * Standard {@link ParseField} for params on the inner level.
+     */
+    public static final ParseField PARAMS_PARSE_FIELD = new ParseField("params");
 
     /**
      * Convenience method to call {@link Script#parse(XContentParser, ParseFieldMatcher, String)}
@@ -199,7 +207,7 @@ public final class Script implements ToXContent, Writeable {
                 options = new HashMap<>();
 
                 if (parser.currentToken() == Token.START_OBJECT) {
-                    options.put(ScriptOptions.CONTENT_TYPE, parser.contentType().mediaType());
+                    options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
                     XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
                     idOrCode = builder.copyCurrentStructure(parser).bytes().utf8ToString();
                 } else {
@@ -235,14 +243,14 @@ public final class Script implements ToXContent, Writeable {
                     throw new ParsingException(parser.getTokenLocation(),
                         "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<id>]");
                 }
-            } else if (matcher.match(name, ScriptField.LANG)) {
+            } else if (matcher.match(name, LANG_PARSE_FIELD)) {
                 if (token == Token.VALUE_STRING) {
                     lang = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                         "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<lang>]");
                 }
-            } else if (matcher.match(name, ScriptField.OPTIONS)) {
+            } else if (matcher.match(name, OPTIONS_PARSE_FIELD)) {
                 if (token == Token.START_OBJECT) {
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == Token.FIELD_NAME) {
@@ -264,7 +272,7 @@ public final class Script implements ToXContent, Writeable {
                     throw new ParsingException(parser.getTokenLocation(),
                         "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<options>]");
                 }
-            } else if (matcher.match(name, ScriptField.PARAMS)) {
+            } else if (matcher.match(name, PARAMS_PARSE_FIELD)) {
                 if (token == Token.START_OBJECT) {
                     params = parser.map();
                 } else {
@@ -277,8 +285,8 @@ public final class Script implements ToXContent, Writeable {
                         ScriptType.INLINE.getParseField().getPreferredName() + ", " +
                         ScriptType.STORED.getParseField().getPreferredName() + ", " +
                         ScriptType.FILE.getParseField().getPreferredName() + ", " +
-                        ScriptField.LANG.getPreferredName() + ", " +
-                        ScriptField.PARAMS.getPreferredName() +
+                        LANG_PARSE_FIELD.getPreferredName() + ", " +
+                        PARAMS_PARSE_FIELD.getPreferredName() +
                         "]");
             }
         }
@@ -297,54 +305,6 @@ public final class Script implements ToXContent, Writeable {
         }
 
         return new Script(type, lang, idOrCode, options, params);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static Script readFrom(StreamInput in) throws IOException {
-        // Version 6.0 requires all Script members to be non-null and supports the potential
-        // for more options than just XContentType.  Reorders the read in contents to be in
-        // same order as the constructor.
-        if (Version.smallest(in.getVersion(), Version.V_6_0_0_alpha1) == Version.V_6_0_0_alpha1) {
-            ScriptType type = ScriptType.readFrom(in);
-            String lang = in.readString();
-            String idOrCode = in.readString();
-            Map<String, String> options = (Map)in.readMap();
-            Map<String, Object> params = in.readMap();
-
-            return new Script(type, lang, idOrCode, options, params);
-        // Prior to version 6.0 the script members are read in certain cases as optional and given
-        // default values when necessary.  Also the only option supported is for XContentType.
-        } else {
-            String idOrCode = in.readString();
-            ScriptType type;
-
-            if (in.readBoolean()) {
-                type = ScriptType.readFrom(in);
-            } else {
-                type = DEFAULT_SCRIPT_TYPE;
-            }
-
-            String lang = in.readOptionalString();
-
-            if (lang == null) {
-                lang = DEFAULT_SCRIPT_LANG;
-            }
-
-            Map<String, Object> params = in.readMap();
-
-            if (params == null) {
-                params = new HashMap<>();
-            }
-
-            Map<String, String> options = new HashMap<>();
-
-            if (in.readBoolean()) {
-                XContentType contentType = XContentType.readFrom(in);
-                options.put(ScriptOptions.CONTENT_TYPE, contentType.mediaType());
-            }
-
-            return new Script(type, lang, idOrCode, options, params);
-        }
     }
 
     private ScriptType type;
@@ -391,6 +351,59 @@ public final class Script implements ToXContent, Writeable {
     }
 
     /**
+     * Creates a {@link Script} read from an input stream.
+     */
+    @SuppressWarnings("unchecked")
+    public Script(StreamInput in) throws IOException {
+        // Version 6.0 requires all Script members to be non-null and supports the potential
+        // for more options than just XContentType.  Reorders the read in contents to be in
+        // same order as the constructor.
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            this.type = ScriptType.readFrom(in);
+            this.lang = in.readString();
+            this.idOrCode = in.readString();
+            this.options = (Map)in.readMap();
+            this.params = in.readMap();
+            // Prior to version 6.0 the script members are read in certain cases as optional and given
+            // default values when necessary.  Also the only option supported is for XContentType.
+        } else {
+            String idOrCode = in.readString();
+            ScriptType type;
+
+            if (in.readBoolean()) {
+                type = ScriptType.readFrom(in);
+            } else {
+                type = DEFAULT_SCRIPT_TYPE;
+            }
+
+            String lang = in.readOptionalString();
+
+            if (lang == null) {
+                lang = DEFAULT_SCRIPT_LANG;
+            }
+
+            Map<String, Object> params = in.readMap();
+
+            if (params == null) {
+                params = new HashMap<>();
+            }
+
+            Map<String, String> options = new HashMap<>();
+
+            if (in.readBoolean()) {
+                XContentType contentType = XContentType.readFrom(in);
+                options.put(CONTENT_TYPE_OPTION, contentType.mediaType());
+            }
+
+            this.type = type;
+            this.lang = lang;
+            this.idOrCode = idOrCode;
+            this.options = options;
+            this.params = params;
+        }
+    }
+
+    /**
      * This will build scripts into the following XContent structure:
      *
      * {@code
@@ -420,7 +433,7 @@ public final class Script implements ToXContent, Writeable {
      *
      * Note that options and params will only be included if there have been any specified respectively.
      *
-     * This also handles templates in a special way.  If the {@link ScriptOptions#CONTENT_TYPE} option
+     * This also handles templates in a special way.  If the {@link Script#CONTENT_TYPE_OPTION} option
      * is provided and the {@link ScriptType#INLINE} is specified then the template will be preserved as a raw field.
      *
      * {@code
@@ -444,7 +457,7 @@ public final class Script implements ToXContent, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject();
 
-        String contentType = options.get(ScriptOptions.CONTENT_TYPE);
+        String contentType = options.get(CONTENT_TYPE_OPTION);
 
         if (type == ScriptType.INLINE && contentType != null && builder.contentType().mediaType().equals(contentType)) {
             builder.rawField(type.getParseField().getPreferredName(), new BytesArray(idOrCode));
@@ -452,14 +465,14 @@ public final class Script implements ToXContent, Writeable {
             builder.field(type.getParseField().getPreferredName(), idOrCode);
         }
 
-        builder.field(ScriptField.LANG.getPreferredName(), lang);
+        builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
 
         if (!options.isEmpty()) {
-            builder.field(ScriptField.OPTIONS.getPreferredName(), options);
+            builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         }
 
         if (!params.isEmpty()) {
-            builder.field(ScriptField.PARAMS.getPreferredName(), params);
+            builder.field(PARAMS_PARSE_FIELD.getPreferredName(), params);
         }
 
         builder.endObject();
@@ -473,7 +486,7 @@ public final class Script implements ToXContent, Writeable {
         // Version 6.0 requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
         // same order as the constructor.
-        if (Version.smallest(out.getVersion(), Version.V_6_0_0_alpha1) == Version.V_6_0_0_alpha1) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             type.writeTo(out);
             out.writeString(lang);
             out.writeString(idOrCode);
@@ -491,8 +504,8 @@ public final class Script implements ToXContent, Writeable {
             out.writeString(lang);
             out.writeMap(params.isEmpty() ? null : params);
 
-            if (options.containsKey(ScriptOptions.CONTENT_TYPE)) {
-                XContentType contentType = XContentType.fromMediaTypeOrFormat(options.get(ScriptOptions.CONTENT_TYPE));
+            if (options.containsKey(CONTENT_TYPE_OPTION)) {
+                XContentType contentType = XContentType.fromMediaTypeOrFormat(options.get(CONTENT_TYPE_OPTION));
                 out.writeBoolean(true);
                 contentType.writeTo(out);
             } else {
@@ -524,17 +537,17 @@ public final class Script implements ToXContent, Writeable {
     }
 
     /**
-     * @return The map of user-defined params for this {@link Script}.
-     */
-    public Map<String, Object> getParams() {
-        return params;
-    }
-
-    /**
      * @return The map of compiler options for this {@link Script}.
      */
     public Map<String, String> getOptions() {
         return options;
+    }
+
+    /**
+     * @return The map of user-defined params for this {@link Script}.
+     */
+    public Map<String, Object> getParams() {
+        return params;
     }
 
     @Override

@@ -63,7 +63,7 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
     @SuppressWarnings("unchecked")
     public BucketSelectorPipelineAggregator(StreamInput in) throws IOException {
         super(in);
-        script = Script.readFrom(in);
+        script = new Script(in);
         gapPolicy = GapPolicy.readFrom(in);
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
     }

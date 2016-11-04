@@ -100,7 +100,7 @@ public class CorsRegexIT extends HttpSmokeTestCase {
 
     public void testThatPreFlightRequestWorksOnMatch() throws IOException {
         String corsValue = "http://localhost:9200";
-        Response response = getRestClient().performRequest("OPTIONS", "/",
+        Response response = getRestClient().performRequest("OPTIONS_PARSE_FIELD", "/",
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
                 new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));
         assertResponseWithOriginheader(response, corsValue);
@@ -109,7 +109,7 @@ public class CorsRegexIT extends HttpSmokeTestCase {
 
     public void testThatPreFlightRequestReturnsNullOnNonMatch() throws IOException {
         try {
-            getRestClient().performRequest("OPTIONS", "/", new BasicHeader("User-Agent", "Mozilla Bar"),
+            getRestClient().performRequest("OPTIONS_PARSE_FIELD", "/", new BasicHeader("User-Agent", "Mozilla Bar"),
                     new BasicHeader("Origin", "http://evil-host:9200"),
                     new BasicHeader("Access-Control-Request-Method", "GET"));
             fail("request should have failed");

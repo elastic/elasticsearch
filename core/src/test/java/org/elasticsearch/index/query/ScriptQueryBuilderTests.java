@@ -98,7 +98,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     protected Set<String> getObjectsHoldingArbitraryContent() {
         //script_score.script.params can contain arbitrary parameters. no error is expected when
         //adding additional objects within the params object.
-        return Collections.singleton(Script.ScriptField.PARAMS.getPreferredName());
+        return Collections.singleton(Script.PARAMS_PARSE_FIELD.getPreferredName());
     }
 
     @Override

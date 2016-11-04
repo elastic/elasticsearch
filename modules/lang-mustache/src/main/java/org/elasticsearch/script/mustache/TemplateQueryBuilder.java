@@ -36,12 +36,10 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptOptions;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -65,7 +63,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
         this(new Script(scriptType, "mustache", template,
-            ct == null ? Collections.emptyMap() : Collections.singletonMap(ScriptOptions.CONTENT_TYPE, ct.mediaType()), params));
+            ct == null ? Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()), params));
     }
 
     TemplateQueryBuilder(Script template) {
@@ -85,7 +83,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public TemplateQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        template = Script.readFrom(in);
+        template = new Script(in);
     }
 
     @Override

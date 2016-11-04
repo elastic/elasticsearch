@@ -1124,7 +1124,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     bufferStartsWith(buffer, offset, "PUT ") ||
                     bufferStartsWith(buffer, offset, "HEAD ") ||
                     bufferStartsWith(buffer, offset, "DELETE ") ||
-                    bufferStartsWith(buffer, offset, "OPTIONS ") ||
+                    bufferStartsWith(buffer, offset, "OPTIONS_PARSE_FIELD ") ||
                     bufferStartsWith(buffer, offset, "PATCH ") ||
                     bufferStartsWith(buffer, offset, "TRACE ")) {
 

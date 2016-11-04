@@ -240,7 +240,7 @@ public class RestController extends AbstractLifecycleComponent {
             handler.handleRequest(request, channel, client);
         } else {
             if (request.method() == RestRequest.Method.OPTIONS) {
-                // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+                // when we have OPTIONS_PARSE_FIELD request, simply send OK by default (with the Access Control Origin header which gets automatically added)
                 channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             } else {
                 final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";

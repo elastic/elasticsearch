@@ -81,7 +81,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
     }
 
     public void testThatTextMessageIsReturnedOnHTTPLikeRequest() throws Exception {
-        String randomMethod = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH");
+        String randomMethod = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS_PARSE_FIELD", "PATCH");
         String data = randomMethod + " / HTTP/1.1";
 
         try (Socket socket = new Socket(host, port)) {

@@ -794,7 +794,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         routing = in.readOptionalString();
         parent = in.readOptionalString();
         if (in.readBoolean()) {
-            script = Script.readFrom(in);
+            script = new Script(in);
         }
         retryOnConflict = in.readVInt();
         refreshPolicy = RefreshPolicy.readFrom(in);

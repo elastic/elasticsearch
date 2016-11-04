@@ -30,12 +30,10 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -59,7 +57,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
      */
     public ScriptScoreFunctionBuilder(StreamInput in) throws IOException {
         super(in);
-        script = Script.readFrom(in);
+        script = new Script(in);
     }
 
     @Override
@@ -74,7 +72,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        builder.field(ScriptField.SCRIPT.getPreferredName(), script);
+        builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
         builder.endObject();
     }
 
@@ -113,7 +111,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
                     script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");

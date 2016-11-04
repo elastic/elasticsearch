@@ -108,7 +108,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     protected Set<String> getObjectsHoldingArbitraryContent() {
         //script_score.script.params can contain arbitrary parameters. no error is expected when adding additional objects
         //within the params object. Score functions get parsed in the data nodes, so they are not validated in the coord node.
-        return new HashSet<>(Arrays.asList(Script.ScriptField.PARAMS.getPreferredName(), ExponentialDecayFunctionBuilder.NAME,
+        return new HashSet<>(Arrays.asList(Script.PARAMS_PARSE_FIELD.getPreferredName(), ExponentialDecayFunctionBuilder.NAME,
                 LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME));
     }
 

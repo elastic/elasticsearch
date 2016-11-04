@@ -22,7 +22,6 @@ package org.elasticsearch.script.mustache;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptOptions;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -172,7 +170,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     public void testMustRewrite() throws IOException {
         String query = "{ \"match_all\" : {}}";
         QueryBuilder builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query,
-            Collections.singletonMap(ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap()));
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         try {
             builder.toQuery(createShardContext());
             fail();
@@ -185,11 +183,11 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     public void testRewriteWithInnerName() throws IOException {
         final String query = "{ \"match_all\" : {\"_name\" : \"foobar\"}}";
         QueryBuilder builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query,
-            Collections.singletonMap(ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap()));
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(createShardContext()));
 
         builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query, Collections.singletonMap(
-            ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap())).queryName("outer");
+            Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap())).queryName("outer");
         assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
             builder.rewrite(createShardContext()));
     }
@@ -197,11 +195,11 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     public void testRewriteWithInnerBoost() throws IOException {
         final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
         QueryBuilder builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query.toString(),
-            Collections.singletonMap(ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap()));
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         assertEquals(query, builder.rewrite(createShardContext()));
 
         builder = new TemplateQueryBuilder(new Script(ScriptType.INLINE, "mockscript", query.toString(),
-            Collections.singletonMap(ScriptOptions.CONTENT_TYPE, XContentType.JSON.mediaType()), Collections.emptyMap())).boost(3);
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap())).boost(3);
         assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(createShardContext()));
     }
 

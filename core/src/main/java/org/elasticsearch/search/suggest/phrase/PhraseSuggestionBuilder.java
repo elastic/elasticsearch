@@ -139,7 +139,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         postTag = in.readOptionalString();
         separator = in.readString();
         if (in.readBoolean()) {
-            collateQuery = Script.readFrom(in);
+            collateQuery = new Script(in);
         }
         collateParams = in.readMap();
         collatePrune = in.readOptionalBoolean();

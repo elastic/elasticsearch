@@ -29,14 +29,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
@@ -84,7 +82,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      * Read from a stream.
      */
     public ScriptHeuristic(StreamInput in) throws IOException {
-        this(Script.readFrom(in));
+        this(new Script(in));
     }
 
     @Override
@@ -125,7 +123,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject(NAME);
-        builder.field(ScriptField.SCRIPT.getPreferredName());
+        builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName());
         script.toXContent(builder, builderParams);
         builder.endObject();
         return builder;
@@ -159,7 +157,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             if (token.equals(XContentParser.Token.FIELD_NAME)) {
                 currentFieldName = parser.currentName();
             } else {
-                if (context.matchField(currentFieldName, ScriptField.SCRIPT)) {
+                if (context.matchField(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
                     script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else {
                     throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);

@@ -40,7 +40,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
-import static org.elasticsearch.script.Script.ScriptField;
 
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
@@ -87,13 +86,13 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
             Map.Entry<String, Object> entry = itr.next();
             String parameterName = entry.getKey();
             Object parameterValue = entry.getValue();
-            if (parseFieldMatcher.match(parameterName, ScriptField.LANG)) {
+            if (parseFieldMatcher.match(parameterName, Script.LANG_PARSE_FIELD)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     lang = (String) parameterValue;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptField.PARAMS)) {
+            } else if (parseFieldMatcher.match(parameterName, Script.PARAMS_PARSE_FIELD)) {
                 if (parameterValue instanceof Map || parameterValue == null) {
                     params = (Map<String, Object>) parameterValue;
                 } else {

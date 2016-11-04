@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.Script.ScriptOptions;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -59,7 +58,7 @@ public class ScriptTests extends ESTestCase {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             expectedScript.writeTo(new OutputStreamStreamOutput(out));
             try (ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray())) {
-                Script actualScript = Script.readFrom(new InputStreamStreamInput(in));
+                Script actualScript = new Script(new InputStreamStreamInput(in));
                 assertThat(actualScript, equalTo(expectedScript));
             }
         }
@@ -84,7 +83,7 @@ public class ScriptTests extends ESTestCase {
             randomFrom("_lang1", "_lang2", "_lang3"),
             script,
             scriptType == ScriptType.INLINE ?
-                Collections.singletonMap(ScriptOptions.CONTENT_TYPE, xContent.type().mediaType()) : Collections.emptyMap(),
+                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType()) : Collections.emptyMap(),
             params
         );
     }

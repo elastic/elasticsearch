@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -109,16 +110,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
             indexMetaData.getIndex().getName());
         final String sourceIndexName = indexMetaData.getIndex().getName();
+        final String unresolvedName = (rolloverRequest.getNewIndexName() != null)
+            ? rolloverRequest.getNewIndexName()
+            : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
+        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+        MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
         client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
             new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {
                     final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
                         statsResponse.getTotal().getDocs(), metaData.index(sourceIndexName));
-                    final String unresolvedName = (rolloverRequest.getNewIndexName() != null)
-                        ? rolloverRequest.getNewIndexName()
-                        : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
-                    final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+
                     if (rolloverRequest.isDryRun()) {
                         listener.onResponse(
                             new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));

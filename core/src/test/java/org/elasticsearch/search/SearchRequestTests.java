@@ -27,8 +27,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,40 +97,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation
                 .scroll(randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomPositiveLong() % 100000)))));
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(), () -> randomFrom(SearchType.values()))));
-        mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), () -> {
-            try {
-                return createSearchSourceBuilder();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        })));
+        mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         randomFrom(mutators).run();
         return mutation;
-    }
-
-    public void testSliceIntoSubRequests() throws IOException {
-        SearchRequest searchRequest = createSearchRequest();
-        if (searchRequest.source() != null) {
-            // Clear the slice builder if there is one set. We can't call sliceIntoSubRequests if it is.
-            searchRequest.source().slice(null);
-        }
-        int times = between(2, 100);
-        String field = randomBoolean() ? UidFieldMapper.NAME : randomAsciiOfLength(5);
-        int currentSliceId = 0;
-        for (SearchRequest slice : searchRequest.sliceIntoSubRequests(field, times)) {
-            assertEquals(field, slice.source().slice().getField());
-            assertEquals(currentSliceId, slice.source().slice().getId());
-            assertEquals(times, slice.source().slice().getMax());
-
-            // If you clear the slice then the slice should be the same request as the parent request
-            slice.source().slice(null);
-            if (searchRequest.source() == null) {
-                // Except that adding the slice might have added an empty builder
-                searchRequest.source(new SearchSourceBuilder());
-            }
-            assertEquals(searchRequest, slice);
-            currentSliceId++;
-        }
     }
 
     private static SearchRequest copyRequest(SearchRequest searchRequest) throws IOException {

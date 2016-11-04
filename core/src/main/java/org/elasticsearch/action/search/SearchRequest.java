@@ -278,29 +278,6 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
         return source != null && source.isSuggestOnly();
     }
 
-    /**
-     * Slice this search request into {@code times} separate search requests slicing on {@code field}. Note that the slices are *shallow*
-     * copies of this request so don't change them.
-     */
-    public SearchRequest[] sliceIntoSubRequests(String field, int times) {
-        SearchRequest[] slices = new SearchRequest[times];
-        for (int slice = 0; slice < times; slice++) {
-            SliceBuilder sliceBuilder = new SliceBuilder(field, slice, times);
-            SearchSourceBuilder slicedSource;
-            if (source == null) {
-                slicedSource = new SearchSourceBuilder().slice(sliceBuilder);
-            } else {
-                if (source.slice() != null) {
-                    throw new IllegalStateException("Can't slice a request that already has a slice configuration");
-                }
-                slicedSource = source.copyWithNewSlice(sliceBuilder);
-            }
-            slices[slice] = new SearchRequest().searchType(searchType).indices(indices).routing(routing).preference(preference)
-                    .requestCache(requestCache).scroll(scroll).types(types).indicesOptions(indicesOptions).source(slicedSource);
-        }
-        return slices;
-    }
-
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new SearchTask(id, type, action, getDescription(), parentTaskId);

@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -35,7 +37,7 @@ public class ReindexParallelizationHelper {
             > void startSlices(Client client, TaskManager taskManager, Action<Request, BulkIndexByScrollResponse, ?> action,
                     String localNodeId, ParentBulkByScrollTask task, Request request, ActionListener<BulkIndexByScrollResponse> listener) {
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
-        for (final SearchRequest slice : request.getSearchRequest().sliceIntoSubRequests(UidFieldMapper.NAME, request.getSlices())) {
+        for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), UidFieldMapper.NAME, request.getSlices())) {
             // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....
             Request requestForSlice = request.forSlice(parentTaskId, slice);
             ActionListener<BulkIndexByScrollResponse> sliceListener = ActionListener.wrap(
@@ -47,4 +49,36 @@ public class ReindexParallelizationHelper {
             taskManager.registerChildTask(task, localNodeId);
         }
     }
+
+    /**
+     * Slice a search request into {@code times} separate search requests slicing on {@code field}. Note that the slices are *shallow*
+     * copies of this request so don't change them.
+     */
+    public static SearchRequest[] sliceIntoSubRequests(SearchRequest request, String field, int times) {
+        SearchRequest[] slices = new SearchRequest[times];
+        for (int slice = 0; slice < times; slice++) {
+            SliceBuilder sliceBuilder = new SliceBuilder(field, slice, times);
+            SearchSourceBuilder slicedSource;
+            if (request.source() == null) {
+                slicedSource = new SearchSourceBuilder().slice(sliceBuilder);
+            } else {
+                if (request.source().slice() != null) {
+                    throw new IllegalStateException("Can't slice a request that already has a slice configuration");
+                }
+                slicedSource = request.source().copyWithNewSlice(sliceBuilder);
+            }
+            slices[slice] = new SearchRequest()
+                    .source(slicedSource)
+                    .searchType(request.searchType())
+                    .indices(request.indices())
+                    .types(request.types())
+                    .routing(request.routing())
+                    .preference(request.preference())
+                    .requestCache(request.requestCache())
+                    .scroll(request.scroll())
+                    .indicesOptions(request.indicesOptions());
+        }
+        return slices;
+    }
+
 }

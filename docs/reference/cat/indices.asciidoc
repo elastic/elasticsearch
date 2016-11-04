@@ -10,7 +10,12 @@ GET /_cat/indices/twi*?v&s=index
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:huge_twitter]
+// TEST[s/^/POST _flush\n/]
 // TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
+// We flush very early here because the index's size is cached and we sort on
+// size below. So to get a realistic sort on size we need to flush here or else
+// the size is just whatever portion of the index is pushed out of memory
+// during test setup which isn't deterministic.
 
 Might respond with:
 
@@ -67,7 +72,6 @@ GET /_cat/indices?v&s=store.size:desc
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-// TEST[s/^/POST _flush\n/]
 
 Which looks like:
 

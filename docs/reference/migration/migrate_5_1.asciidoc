@@ -1,0 +1,11 @@
+[[breaking-changes-5.1]]
+== Breaking changes in 5.1
+
+[[breaking_51_java_api_changes]]
+[float]
+=== Java API changes
+
+==== Log4j dependency has been upgraded
+
+The Log4j dependency has been upgraded from version 2.6.2 to version 2.7. If you're using the transport client in your application, you
+should update your Log4j dependencies accordingly.

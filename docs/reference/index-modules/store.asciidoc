@@ -89,8 +89,7 @@ loaded into physical memory.
 This setting is best-effort only and may not work at all depending on the store
 type and host operating system.
 
-The `index.store.
-` is a static setting that can either be set in the
+The `index.store.` is a static setting that can either be set in the
 `config/elasticsearch.yml`:
 
 [source,yaml]

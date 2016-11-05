@@ -341,8 +341,7 @@ take effect on after completing the current batch. This prevents scroll
 timeouts.
 
 [float]
-=== Slicing
-
+[[docs-delete-by-query-manual-slice]]
 === Manually slicing
 
 Delete-by-query supports <<sliced-scroll>> allowing you to manually parallelize
@@ -413,7 +412,9 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 // TESTRESPONSE
 
-==== Automatic slicing
+[float]
+[[docs-delete-by-query-automatic-slice]]
+=== Automatic slicing
 
 You can also let delete-by-query automatically parallelize using
 <<sliced-scroll>> to slice on `_uid`:
@@ -487,7 +488,9 @@ above about distribution being uneven and you should conclude that the using
 * Each sub-requests gets a slightly different snapshot of the source index
 though these are all taken at approximately the same time.
 
-==== Picking the number of slices
+[float]
+[[docs-delete-by-query-picking-slices]]
+=== Picking the number of slices
 
 At this point we have a few recommendations around the number of `slices` to
 use (the `max` parameter in the slice API if manually parallelizing):

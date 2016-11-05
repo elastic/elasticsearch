@@ -96,6 +96,7 @@ The following deprecated queries have been removed:
 `filtered`::      Use `bool` query instead, which supports `filter` clauses too.
 `and`::           Use `must` clauses in a `bool` query instead.
 `or`::            Use `should` clauses in a `bool` query instead.
+`missing`::       Use a negated `exists` query instead.  (Also removed `_missing_` from the `query_string` query)
 `limit`::         Use the `terminate_after` parameter instead.
 `fquery`::        Is obsolete after filters and queries have been merged.
 `query`::         Is obsolete after filters and queries have been merged.

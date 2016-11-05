@@ -737,8 +737,7 @@ and it'll look like:
 Or you can search by `tag` or whatever you want.
 
 [float]
-=== Slicing
-
+[[docs-reindex-manual-slice]]
 ==== Manual slicing
 Reindex supports <<sliced-scroll>>, allowing you to manually parallelize the
 process relatively easily:
@@ -797,7 +796,9 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 // TESTRESPONSE
 
-==== Automatic slicing
+[float]
+[[docs-reindex-automatic-slice]]
+=== Automatic slicing
 
 You can also let reindex automatically parallelize using <<sliced-scroll>> to
 slice on `_uid`:
@@ -860,7 +861,9 @@ above about distribution being uneven and you should conclude that the using
 * Each sub-requests gets a slightly different snapshot of the source index
 though these are all taken at approximately the same time.
 
-==== Picking the number of slices
+[float]
+[[docs-reindex-picking-slices]]
+=== Picking the number of slices
 
 At this point we have a few recommendations around the number of `slices` to
 use (the `max` parameter in the slice API if manually parallelizing):

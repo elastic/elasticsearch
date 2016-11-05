@@ -879,7 +879,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * infinitely.
      */
     public SearchSourceBuilder rewrite(QueryShardContext context) throws IOException {
-        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder)));
+        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder, sliceBuilder)));
         QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
             queryBuilder = this.queryBuilder.rewrite(context);
@@ -890,40 +890,51 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         boolean rewritten = queryBuilder != this.queryBuilder || postQueryBuilder != this.postQueryBuilder;
         if (rewritten) {
-            return shallowCopy(queryBuilder, postQueryBuilder);
+            return shallowCopy(queryBuilder, postQueryBuilder, sliceBuilder);
         }
         return this;
     }
 
-    private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder) {
-            SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
-            rewrittenBuilder.aggregations = aggregations;
-            rewrittenBuilder.explain = explain;
-            rewrittenBuilder.extBuilders = extBuilders;
-            rewrittenBuilder.fetchSourceContext = fetchSourceContext;
-            rewrittenBuilder.docValueFields = docValueFields;
-            rewrittenBuilder.storedFieldsContext = storedFieldsContext;
-            rewrittenBuilder.from = from;
-            rewrittenBuilder.highlightBuilder = highlightBuilder;
-            rewrittenBuilder.indexBoost = indexBoost;
-            rewrittenBuilder.minScore = minScore;
-            rewrittenBuilder.postQueryBuilder = postQueryBuilder;
-            rewrittenBuilder.profile = profile;
-            rewrittenBuilder.queryBuilder = queryBuilder;
-            rewrittenBuilder.rescoreBuilders = rescoreBuilders;
-            rewrittenBuilder.scriptFields = scriptFields;
-            rewrittenBuilder.searchAfterBuilder = searchAfterBuilder;
-            rewrittenBuilder.sliceBuilder = sliceBuilder;
-            rewrittenBuilder.size = size;
-            rewrittenBuilder.sorts = sorts;
-            rewrittenBuilder.stats = stats;
-            rewrittenBuilder.suggestBuilder = suggestBuilder;
-            rewrittenBuilder.terminateAfter = terminateAfter;
-            rewrittenBuilder.timeout = timeout;
-            rewrittenBuilder.trackScores = trackScores;
-            rewrittenBuilder.version = version;
-            return rewrittenBuilder;
-        }
+    /**
+     * Create a shallow copy of this builder with a new slice configuration.
+     */
+    public SearchSourceBuilder copyWithNewSlice(SliceBuilder slice) {
+        return shallowCopy(queryBuilder, postQueryBuilder, slice);
+    }
+
+    /**
+     * Create a shallow copy of this source replaced {@link #queryBuilder}, {@link #postQueryBuilder}, and {@linkplain slice}. Used by
+     * {@link #rewrite(QueryShardContext)} and {@link #copyWithNewSlice(SliceBuilder)}.
+     */
+    private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder, SliceBuilder slice) {
+        SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
+        rewrittenBuilder.aggregations = aggregations;
+        rewrittenBuilder.explain = explain;
+        rewrittenBuilder.extBuilders = extBuilders;
+        rewrittenBuilder.fetchSourceContext = fetchSourceContext;
+        rewrittenBuilder.docValueFields = docValueFields;
+        rewrittenBuilder.storedFieldsContext = storedFieldsContext;
+        rewrittenBuilder.from = from;
+        rewrittenBuilder.highlightBuilder = highlightBuilder;
+        rewrittenBuilder.indexBoost = indexBoost;
+        rewrittenBuilder.minScore = minScore;
+        rewrittenBuilder.postQueryBuilder = postQueryBuilder;
+        rewrittenBuilder.profile = profile;
+        rewrittenBuilder.queryBuilder = queryBuilder;
+        rewrittenBuilder.rescoreBuilders = rescoreBuilders;
+        rewrittenBuilder.scriptFields = scriptFields;
+        rewrittenBuilder.searchAfterBuilder = searchAfterBuilder;
+        rewrittenBuilder.sliceBuilder = slice;
+        rewrittenBuilder.size = size;
+        rewrittenBuilder.sorts = sorts;
+        rewrittenBuilder.stats = stats;
+        rewrittenBuilder.suggestBuilder = suggestBuilder;
+        rewrittenBuilder.terminateAfter = terminateAfter;
+        rewrittenBuilder.timeout = timeout;
+        rewrittenBuilder.trackScores = trackScores;
+        rewrittenBuilder.version = version;
+        return rewrittenBuilder;
+    }
 
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up

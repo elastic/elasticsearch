@@ -66,9 +66,15 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
-        ClusterState state = clusterService.state();
-        ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService, state).start();
+        if (request.getSlices() > 1) {
+            ReindexParallelizationHelper.startSlices(client, taskManager, UpdateByQueryAction.INSTANCE, clusterService.localNode().getId(),
+                    (ParentBulkByScrollTask) task, request, listener);
+        } else {
+            ClusterState state = clusterService.state();
+            ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
+            new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService,
+                    state).start();
+        }
     }
 
     @Override
@@ -81,9 +87,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest> {
 
-        public AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
-                                        UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                                        ScriptService scriptService, ClusterState clusterState) {
+        public AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                ThreadPool threadPool, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
+                ScriptService scriptService, ClusterState clusterState) {
             super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 
@@ -120,7 +126,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
 
-            UpdateByQueryScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
+            UpdateByQueryScriptApplier(WorkingBulkByScrollTask task, ScriptService scriptService, Script script,
                                  Map<String, Object> params) {
                 super(task, scriptService, script, params);
             }

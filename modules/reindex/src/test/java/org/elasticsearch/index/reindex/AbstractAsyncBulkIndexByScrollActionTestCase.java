@@ -32,12 +32,12 @@ public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<
                 Response extends BulkIndexByScrollResponse>
         extends ESTestCase {
     protected ThreadPool threadPool;
-    protected BulkByScrollTask task;
+    protected WorkingBulkByScrollTask task;
 
     @Before
     public void setupForTest() {
         threadPool = new TestThreadPool(getTestName());
-        task = new BulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID, 0);
+        task = new WorkingBulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID, null, 0);
     }
 
     @After

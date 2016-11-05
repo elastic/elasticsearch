@@ -152,7 +152,12 @@
         "requests_per_second": {
           "type": "number",
           "default": 0,
-          "description": "The throttle to set on this request in sub-requests per second. -1 means set no throttle as does \"unlimited\" which is the only non-float this accepts."
+          "description": "The throttle for this request in sub-requests per second. -1 means no throttle."
+        },
+        "slices": {
+          "type": "integer",
+          "default": 1,
+          "description": "The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks."
         }
       }
     },

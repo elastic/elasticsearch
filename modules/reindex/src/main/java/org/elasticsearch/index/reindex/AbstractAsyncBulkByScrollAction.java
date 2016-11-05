@@ -65,7 +65,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>> {
     protected final Logger logger;
-    protected final BulkByScrollTask task;
+    protected final WorkingBulkByScrollTask task;
     protected final ThreadPool threadPool;
     /**
      * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
@@ -81,7 +81,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final Retry bulkRetry;
     private final ScrollableHitSource scrollSource;
 
-    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+    public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                            ThreadPool threadPool, Request mainRequest, ActionListener<BulkIndexByScrollResponse> listener) {
         this.task = task;
         this.logger = logger;

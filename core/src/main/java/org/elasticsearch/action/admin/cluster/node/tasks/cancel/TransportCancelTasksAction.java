@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -111,17 +112,18 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     @Override
-    protected synchronized TaskInfo taskOperation(CancelTasksRequest request, CancellableTask cancellableTask) {
+    protected synchronized void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask,
+            ActionListener<TaskInfo> listener) {
         final BanLock banLock = new BanLock(nodes -> removeBanOnNodes(cancellableTask, nodes));
         Set<String> childNodes = taskManager.cancel(cancellableTask, request.getReason(), banLock::onTaskFinished);
         if (childNodes != null) {
             if (childNodes.isEmpty()) {
                 logger.trace("cancelling task {} with no children", cancellableTask.getId());
-                return cancellableTask.taskInfo(clusterService.localNode(), false);
+                listener.onResponse(cancellableTask.taskInfo(clusterService.localNode().getId(), false));
             } else {
                 logger.trace("cancelling task {} with children on nodes [{}]", cancellableTask.getId(), childNodes);
                 setBanOnNodes(request.getReason(), cancellableTask, childNodes, banLock);
-                return cancellableTask.taskInfo(clusterService.localNode(), false);
+                listener.onResponse(cancellableTask.taskInfo(clusterService.localNode().getId(), false));
             }
         } else {
             logger.trace("task {} is already cancelled", cancellableTask.getId());

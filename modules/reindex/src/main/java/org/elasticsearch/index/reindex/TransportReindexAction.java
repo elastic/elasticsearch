@@ -105,12 +105,18 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
-        ClusterState state = clusterService.state();
-        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(), indexNameExpressionResolver,
-                autoCreateIndex, state);
-        ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService, state).start();
+        if (request.getSlices() > 1) {
+            ReindexParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE, clusterService.localNode().getId(),
+                    (ParentBulkByScrollTask) task, request, listener);
+        } else {
+            checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+            ClusterState state = clusterService.state();
+            validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
+                    indexNameExpressionResolver, autoCreateIndex, state);
+            ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
+            new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService,
+                    state).start();
+        }
     }
 
     @Override
@@ -229,9 +235,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
          */
         private List<Thread> createdThreads = emptyList();
 
-        public AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
-                                        ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                                        ScriptService scriptService, ClusterState clusterState) {
+        public AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                ThreadPool threadPool, ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener,
+                ScriptService scriptService, ClusterState clusterState) {
             super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 
@@ -350,7 +356,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         class ReindexScriptApplier extends ScriptApplier {
 
-            ReindexScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
+            ReindexScriptApplier(WorkingBulkByScrollTask task, ScriptService scriptService, Script script,
                                  Map<String, Object> params) {
                 super(task, scriptService, script, params);
             }

@@ -20,12 +20,14 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,14 +42,17 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static java.lang.Math.abs;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Round trip tests for all Streamable things declared in this plugin.
@@ -73,19 +78,18 @@ public class RoundTripTests extends ESTestCase {
         ReindexRequest tripped = new ReindexRequest();
         roundTrip(reindex, tripped);
         assertRequestEquals(reindex, tripped);
-        assertEquals(reindex.getDestination().version(), tripped.getDestination().version());
-        assertEquals(reindex.getDestination().index(), tripped.getDestination().index());
-        if (reindex.getRemoteInfo() == null) {
-            assertNull(tripped.getRemoteInfo());
-        } else {
-            assertNotNull(tripped.getRemoteInfo());
-            assertEquals(reindex.getRemoteInfo().getScheme(), tripped.getRemoteInfo().getScheme());
-            assertEquals(reindex.getRemoteInfo().getHost(), tripped.getRemoteInfo().getHost());
-            assertEquals(reindex.getRemoteInfo().getQuery(), tripped.getRemoteInfo().getQuery());
-            assertEquals(reindex.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
-            assertEquals(reindex.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
-            assertEquals(reindex.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
-        }
+
+        // Try slices with a version that doesn't support slices. That should fail.
+        reindex.setSlices(between(2, 1000));
+        Exception e = expectThrows(UnsupportedOperationException.class, () -> roundTrip(Version.V_5_0_0_rc1, reindex, null));
+        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
+                + "Version is [5.0.0-rc1] but must be [5.1.0]", e.getMessage());
+
+        // Try without slices with a version that doesn't support slices. That should work.
+        tripped = new ReindexRequest();
+        reindex.setSlices(1);
+        roundTrip(Version.V_5_0_0_rc1, reindex, tripped);
+        assertRequestEquals(reindex, tripped);
     }
 
     public void testUpdateByQueryRequest() throws IOException {
@@ -98,9 +102,42 @@ public class RoundTripTests extends ESTestCase {
         roundTrip(update, tripped);
         assertRequestEquals(update, tripped);
         assertEquals(update.getPipeline(), tripped.getPipeline());
+
+        // Try slices with a version that doesn't support slices. That should fail.
+        update.setSlices(between(2, 1000));
+        Exception e = expectThrows(UnsupportedOperationException.class, () -> roundTrip(Version.V_5_0_0_rc1, update, null));
+        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
+                + "Version is [5.0.0-rc1] but must be [5.1.0]", e.getMessage());
+
+        // Try without slices with a version that doesn't support slices. That should work.
+        tripped = new UpdateByQueryRequest();
+        update.setSlices(1);
+        roundTrip(Version.V_5_0_0_rc1, update, tripped);
+        assertRequestEquals(update, tripped);
+        assertEquals(update.getPipeline(), tripped.getPipeline());
     }
 
-    private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
+    public void testDeleteByQueryRequest() throws IOException {
+        DeleteByQueryRequest delete = new DeleteByQueryRequest(new SearchRequest());
+        randomRequest(delete);
+        DeleteByQueryRequest tripped = new DeleteByQueryRequest();
+        roundTrip(delete, tripped);
+        assertRequestEquals(delete, tripped);
+
+        // Try slices with a version that doesn't support slices. That should fail.
+        delete.setSlices(between(2, 1000));
+        Exception e = expectThrows(UnsupportedOperationException.class, () -> roundTrip(Version.V_5_0_0_rc1, delete, null));
+        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
+                + "Version is [5.0.0-rc1] but must be [5.1.0]", e.getMessage());
+
+        // Try without slices with a version that doesn't support slices. That should work.
+        tripped = new DeleteByQueryRequest();
+        delete.setSlices(1);
+        roundTrip(Version.V_5_0_0_rc1, delete, tripped);
+        assertRequestEquals(delete, tripped);
+    }
+
+    private void randomRequest(AbstractBulkByScrollRequest<?> request) {
         request.getSearchRequest().indices("test");
         request.getSearchRequest().source().size(between(1, 1000));
         request.setSize(random().nextBoolean() ? between(1, Integer.MAX_VALUE) : -1);
@@ -108,19 +145,45 @@ public class RoundTripTests extends ESTestCase {
         request.setRefresh(rarely());
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
         request.setWaitForActiveShards(randomIntBetween(0, 10));
-        request.setScript(random().nextBoolean() ? null : randomScript());
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
+        request.setSlices(between(1, Integer.MAX_VALUE));
+    }
+
+    private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
+        randomRequest((AbstractBulkByScrollRequest<?>) request);
+        request.setScript(random().nextBoolean() ? null : randomScript());
+    }
+
+    private void assertRequestEquals(ReindexRequest request, ReindexRequest tripped) {
+        assertRequestEquals((AbstractBulkIndexByScrollRequest<?>) request, (AbstractBulkIndexByScrollRequest<?>) tripped);
+        assertEquals(request.getDestination().version(), tripped.getDestination().version());
+        assertEquals(request.getDestination().index(), tripped.getDestination().index());
+        if (request.getRemoteInfo() == null) {
+            assertNull(tripped.getRemoteInfo());
+        } else {
+            assertNotNull(tripped.getRemoteInfo());
+            assertEquals(request.getRemoteInfo().getScheme(), tripped.getRemoteInfo().getScheme());
+            assertEquals(request.getRemoteInfo().getHost(), tripped.getRemoteInfo().getHost());
+            assertEquals(request.getRemoteInfo().getQuery(), tripped.getRemoteInfo().getQuery());
+            assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
+            assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
+            assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
+        }
     }
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
             AbstractBulkIndexByScrollRequest<?> tripped) {
+        assertRequestEquals((AbstractBulkByScrollRequest<?>) request, (AbstractBulkByScrollRequest<?>) tripped);
+        assertEquals(request.getScript(), tripped.getScript());
+    }
+
+    private void assertRequestEquals(AbstractBulkByScrollRequest<?> request, AbstractBulkByScrollRequest<?> tripped) {
         assertArrayEquals(request.getSearchRequest().indices(), tripped.getSearchRequest().indices());
         assertEquals(request.getSearchRequest().source().size(), tripped.getSearchRequest().source().size());
         assertEquals(request.isAbortOnVersionConflict(), tripped.isAbortOnVersionConflict());
         assertEquals(request.isRefresh(), tripped.isRefresh());
         assertEquals(request.getTimeout(), tripped.getTimeout());
         assertEquals(request.getWaitForActiveShards(), tripped.getWaitForActiveShards());
-        assertEquals(request.getScript(), tripped.getScript());
         assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
         assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0d);
@@ -131,7 +194,16 @@ public class RoundTripTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         status.writeTo(out);
         BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
-        assertTaskStatusEquals(status, tripped);
+        assertTaskStatusEquals(out.getVersion(), status, tripped);
+
+        // Also check round tripping pre-5.1 which is the first version to support parallelized scroll
+        out = new BytesStreamOutput();
+        out.setVersion(Version.V_5_0_0_rc1); // This can be V_5_0_0
+        status.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_5_0_0_rc1);
+        tripped = new BulkByScrollTask.Status(in);
+        assertTaskStatusEquals(Version.V_5_0_0_rc1, status, tripped);
     }
 
     public void testReindexResponse() throws IOException {
@@ -166,10 +238,38 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private BulkByScrollTask.Status randomStatus() {
-        return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomInt(Integer.MAX_VALUE), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                parseTimeValue(randomPositiveTimeValue(), "test"), abs(random().nextFloat()),
-                random().nextBoolean() ? null : randomSimpleString(random()), parseTimeValue(randomPositiveTimeValue(), "test"));
+        if (randomBoolean()) {
+            return randomWorkingStatus(null);
+        }
+        boolean canHaveNullStatues = randomBoolean();
+        List<BulkByScrollTask.StatusOrException> statuses = IntStream.range(0, between(0, 10))
+                .mapToObj(i -> {
+                    if (canHaveNullStatues && rarely()) {
+                        return null;
+                    }
+                    if (randomBoolean()) {
+                        return new BulkByScrollTask.StatusOrException(new ElasticsearchException(randomAsciiOfLength(5)));
+                    }
+                    return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
+                })
+                .collect(toList());
+        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+    }
+
+    private BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
+        // These all should be believably small because we sum them if we have multiple workers
+        int total = between(0, 10000000);
+        int updated = between(0, total);
+        int created = between(0, total - updated);
+        int deleted = between(0, total - updated - created);
+        int noops = total - updated - created - deleted;
+        int batches = between(0, 10000);
+        long versionConflicts = between(0, total);
+        long bulkRetries = between(0, 10000000);
+        long searchRetries = between(0, 100000);
+        return new BulkByScrollTask.Status(sliceId, total, updated, created, deleted, batches, versionConflicts, noops, bulkRetries,
+                searchRetries, parseTimeValue(randomPositiveTimeValue(), "test"), abs(random().nextFloat()),
+                randomBoolean() ? null : randomSimpleString(random()), parseTimeValue(randomPositiveTimeValue(), "test"));
     }
 
     private List<Failure> randomIndexingFailures() {
@@ -194,9 +294,16 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private void roundTrip(Streamable example, Streamable empty) throws IOException {
+        roundTrip(Version.CURRENT, example, empty);
+    }
+
+    private void roundTrip(Version version, Streamable example, Streamable empty) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
         example.writeTo(out);
-        empty.readFrom(out.bytes().streamInput());
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(version);
+        empty.readFrom(in);
     }
 
     private Script randomScript() {
@@ -208,7 +315,7 @@ public class RoundTripTests extends ESTestCase {
 
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {
         assertEquals(expected.getTook(), actual.getTook());
-        assertTaskStatusEquals(expected.getStatus(), actual.getStatus());
+        assertTaskStatusEquals(Version.CURRENT, expected.getStatus(), actual.getStatus());
         assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
         for (int i = 0; i < expected.getBulkFailures().size(); i++) {
             Failure expectedFailure = expected.getBulkFailures().get(i);
@@ -232,7 +339,8 @@ public class RoundTripTests extends ESTestCase {
 
     }
 
-    private void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+    private void assertTaskStatusEquals(Version version, BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+        assertEquals(expected.getTotal(), actual.getTotal());
         assertEquals(expected.getUpdated(), actual.getUpdated());
         assertEquals(expected.getCreated(), actual.getCreated());
         assertEquals(expected.getDeleted(), actual.getDeleted());
@@ -245,5 +353,23 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
         assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
+        if (version.onOrAfter(BulkByScrollTask.V_5_1_0_UNRELEASED)) {
+            assertThat(actual.getSliceStatuses(), hasSize(expected.getSliceStatuses().size()));
+            for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
+                BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
+                if (sliceStatus == null) {
+                    assertNull(actual.getSliceStatuses().get(i));
+                } else if (sliceStatus.getException() == null) {
+                    assertNull(actual.getSliceStatuses().get(i).getException());
+                    assertTaskStatusEquals(version, sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
+                } else {
+                    assertNull(actual.getSliceStatuses().get(i).getStatus());
+                    // Just check the message because we're not testing exception serialization in general here.
+                    assertEquals(sliceStatus.getException().getMessage(), actual.getSliceStatuses().get(i).getException().getMessage());
+                }
+            }
+        } else {
+            assertEquals(emptyList(), actual.getSliceStatuses());
+        }
     }
 }

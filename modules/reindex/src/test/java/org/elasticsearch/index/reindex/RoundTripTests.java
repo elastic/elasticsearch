@@ -79,11 +79,11 @@ public class RoundTripTests extends ESTestCase {
         roundTrip(reindex, tripped);
         assertRequestEquals(reindex, tripped);
 
-        // Try slices with a version that doesn't support slices. That should fail.
+        // Try slices with a version that doesn't support slices. That should silently fall back to one slice.
         reindex.setSlices(between(2, 1000));
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> roundTrip(Version.V_5_0_0_rc1, reindex, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.0]", e.getMessage());
+        roundTrip(Version.V_5_0_0_rc1, reindex, tripped);
+        reindex.setSlices(1);
+        assertRequestEquals(reindex, tripped);
 
         // Try without slices with a version that doesn't support slices. That should work.
         tripped = new ReindexRequest();
@@ -103,11 +103,12 @@ public class RoundTripTests extends ESTestCase {
         assertRequestEquals(update, tripped);
         assertEquals(update.getPipeline(), tripped.getPipeline());
 
-        // Try slices with a version that doesn't support slices. That should fail.
+        // Try slices with a version that doesn't support slices. That should silently fall back to one slice.
         update.setSlices(between(2, 1000));
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> roundTrip(Version.V_5_0_0_rc1, update, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.0]", e.getMessage());
+        roundTrip(Version.V_5_0_0_rc1, update, tripped);
+        update.setSlices(1);
+        assertRequestEquals(update, tripped);
+        assertEquals(update.getPipeline(), tripped.getPipeline());
 
         // Try without slices with a version that doesn't support slices. That should work.
         tripped = new UpdateByQueryRequest();
@@ -124,11 +125,11 @@ public class RoundTripTests extends ESTestCase {
         roundTrip(delete, tripped);
         assertRequestEquals(delete, tripped);
 
-        // Try slices with a version that doesn't support slices. That should fail.
+        // Try slices with a version that doesn't support slices. That should silently fall back to one slice.
         delete.setSlices(between(2, 1000));
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> roundTrip(Version.V_5_0_0_rc1, delete, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.0]", e.getMessage());
+        roundTrip(Version.V_5_0_0_rc1, delete, tripped);
+        delete.setSlices(1);
+        assertRequestEquals(delete, tripped);
 
         // Try without slices with a version that doesn't support slices. That should work.
         tripped = new DeleteByQueryRequest();

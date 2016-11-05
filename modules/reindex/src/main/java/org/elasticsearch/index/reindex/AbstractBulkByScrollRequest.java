@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -422,11 +423,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeFloat(requestsPerSecond);
         if (out.getVersion().onOrAfter(BulkByScrollTask.V_5_1_0_UNRELEASED)) {
             out.writeVInt(slices);
-        } else {
-            if (slices > 1) {
-                throw new UnsupportedOperationException("Attempting to send sliced reindex-style request to a node that doesn't support "
-                        + "it. Version is [" + out.getVersion() + "] but must be [" + BulkByScrollTask.V_5_1_0_UNRELEASED + "]");
-            }
         }
     }
 

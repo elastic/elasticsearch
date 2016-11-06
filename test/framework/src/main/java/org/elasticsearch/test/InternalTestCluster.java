@@ -1548,12 +1548,17 @@ public final class InternalTestCluster extends TestCluster {
 
     private int updateMinMasterNodes(Settings settings, int nodesBeingStarted) {
         int currentMasters = (int)nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
-        boolean hasRunningMasters = currentMasters > 0;
-        if (Node.NODE_MASTER_SETTING.get(settings)) {
-            currentMasters += 1;
-        }
-        final int defaultMinMasterNodes = (currentMasters / 2) + 1;
-        if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings) == false) {
+        int mastersAfterState = Node.NODE_MASTER_SETTING.get(settings) ? currentMasters + nodesBeingStarted : currentMasters;
+        final int defaultMinMasterNodes = mastersAfterState / 2 + 1;
+        if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings)) {
+            // not automatically updating, user is in control
+        } else if (currentMasters == 0) {
+            // there is no one to update
+        } else if (currentMasters == 1) {
+            // we cant really update min master node as it will cause the master to reject it (there is only one)
+            // so instead ensure there is a master
+            client().admin().cluster().prepareHealth().get();
+        } else {
             // auto management
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes)

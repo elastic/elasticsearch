@@ -951,7 +951,9 @@ public final class InternalTestCluster extends TestCluster {
             if (wipeData) {
                 wipePendingDataDirectories();
             }
-            updateMinMasterNodes(nodes.lastEntry().getValue().node().settings(), 0);
+            if (nodes.size() > 0) {
+                updateMinMasterNodes(nodes.lastEntry().getValue().node().settings(), 0);
+            }
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), newSize);
             return;
         }

@@ -149,6 +149,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -527,10 +528,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
                         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
-                        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
-                            .persistentSettings().getAsMap().size(), equalTo(0));
-                        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
-                            .transientSettings().getAsMap().size(), equalTo(0));
+                        final Map<String, String> persistent = metaData.persistentSettings().getAsMap();
+                        assertThat("test leaves persistent cluster metadata behind: " + persistent, persistent.size(), equalTo(0));
+                        final Map<String, String> transientSettings =  new HashMap<>(metaData.transientSettings().getAsMap());
+                        // this is set by the test infra
+                        transientSettings.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
+                        assertThat("test leaves transient cluster metadata behind: " + transientSettings, transientSettings.size(), equalTo(0));
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();

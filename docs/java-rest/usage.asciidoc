@@ -154,8 +154,8 @@ void performRequestAsync(String method, String endpoint,
 void performRequestAsync(String method, String endpoint,
                          Map<String, String> params,
                          HttpEntity entity,
-                         ResponseListener responseListener,
                          HttpAsyncResponseConsumerFactory responseConsumerFactory,
+                         ResponseListener responseListener,
                          Header... headers);
 --------------------------------------------------
 

@@ -1295,7 +1295,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized void startAndPublishNodesAndClients(NodeAndClient... nodeAndClients) {
         if (autoManageMinMasterNodes && nodeAndClients.length > 0) {
-            int masters = (int) Stream.of(nodeAndClients).filter(NodeAndClient::isMasterNode).count();
+            int masters = (int) Stream.of(nodeAndClients).filter(NodeAndClient::isMasterNode)
+                .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
+                .count();
             updateMinMasterNodes(masters);
         }
         for (NodeAndClient nodeAndClient: nodeAndClients) {

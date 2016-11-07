@@ -32,6 +32,17 @@ setup:
               "password": "changeme",
               "roles" : [ "file_template_role" ]
             }
+  - do:
+      xpack.security.put_user:
+        username: "terms_template_user"
+        body:  >
+            {
+              "password": "changeme",
+              "roles" : [ "terms_template_role" ],
+              "metadata": {
+                "groups": [ "inline_template_user", "file_template_user" ]
+              }
+            }
 
   - do:
       xpack.security.put_role:
@@ -47,6 +58,24 @@ setup:
                       "inline" : {
                         "term" : { "username" : "{{_user.username}}" }
                       }
+                    }
+                  }
+                }
+              ]
+            }
+
+  - do:
+      xpack.security.put_role:
+        name: "terms_template_role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["all"],
+                  "query" : {
+                    "template" : {
+                      "inline" : "{\"terms\" : { \"username\" : {{#toJson}}_user.metadata.groups{{/toJson}} } }"
                     }
                   }
                 }
@@ -145,6 +174,10 @@ teardown:
         username: "file_template_user"
         ignore: 404
   - do:
+      xpack.security.delete_user:
+        username: "terms_template_user"
+        ignore: 404
+  - do:
       xpack.security.delete_role:
         name: "inline_template_role"
         ignore: 404
@@ -156,7 +189,10 @@ teardown:
       xpack.security.delete_role:
         name: "file_template_role"
         ignore: 404
-
+  - do:
+      xpack.security.delete_role:
+        name: "terms_template_role"
+        ignore: 404
 ---
 "Test inline template":
   - do:
@@ -189,3 +225,15 @@ teardown:
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
   - match: { hits.hits.0._source.username: file_template_user}
+
+---
+"Test terms template":
+  - do:
+      headers:
+        Authorization: "Basic dGVybXNfdGVtcGxhdGVfdXNlcjpjaGFuZ2VtZQ=="
+      search:
+        index: foobar
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._source.username: inline_template_user}
+  - match: { hits.hits.1._source.username: file_template_user}

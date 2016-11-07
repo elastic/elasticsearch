@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -29,6 +28,9 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.joda.time.DateTime;
+
+import java.time.Clock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -368,7 +370,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     private void testConditionSearch(WatcherSearchTemplateRequest request) throws Exception {
         // reset, so we don't miss event docs when we filter over the _timestamp field.
-        timeWarp().clock().setTime(SystemClock.INSTANCE.nowUTC());
+        timeWarp().clock().setTime(new DateTime(Clock.systemUTC().millis()));
 
         String watchName = "_name";
         assertAcked(prepareCreate("events").addMapping("event", "level", "type=text"));
@@ -380,7 +382,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                         .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GTE, 3L)))
                 .get();
 
-        logger.info("created watch [{}] at [{}]", watchName, SystemClock.INSTANCE.nowUTC());
+        logger.info("created watch [{}] at [{}]", watchName, new DateTime(Clock.systemUTC().millis()));
 
         client().prepareIndex("events", "event")
                 .setSource("level", "a")

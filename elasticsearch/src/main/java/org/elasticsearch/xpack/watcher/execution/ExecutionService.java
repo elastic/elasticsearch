@@ -20,7 +20,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.common.stats.Counters;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.condition.Condition;
@@ -33,8 +32,8 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchLockService;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,6 +43,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.joda.time.DateTimeZone.UTC;
 
 public class ExecutionService extends AbstractComponent {
 
@@ -174,7 +175,7 @@ public class ExecutionService extends AbstractComponent {
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = clock.now(DateTimeZone.UTC);
+        DateTime now = new DateTime(clock.millis(), UTC);
         for (TriggerEvent event : events) {
             Watch watch = watchStore.get(event.jobName());
             if (watch == null) {
@@ -220,7 +221,7 @@ public class ExecutionService extends AbstractComponent {
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = clock.now(DateTimeZone.UTC);
+        DateTime now = new DateTime(clock.millis(), UTC);
         for (TriggerEvent event : events) {
             Watch watch = watchStore.get(event.jobName());
             if (watch == null) {
@@ -427,7 +428,7 @@ public class ExecutionService extends AbstractComponent {
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                TriggeredExecutionContext ctx = new StartupExecutionContext(watch, clock.now(DateTimeZone.UTC),
+                TriggeredExecutionContext ctx = new StartupExecutionContext(watch, new DateTime(clock.millis(), UTC),
                         triggeredWatch.triggerEvent(), defaultThrottlePeriod);
                 executeAsync(ctx, triggeredWatch);
                 counter++;

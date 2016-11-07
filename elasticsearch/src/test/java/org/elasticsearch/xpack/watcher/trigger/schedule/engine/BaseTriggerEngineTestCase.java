@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
 import static org.hamcrest.Matchers.is;
+import static org.joda.time.DateTimeZone.UTC;
 
 public abstract class BaseTriggerEngineTestCase extends ESTestCase {
 
@@ -78,12 +79,12 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
         });
 
         engine.start(jobs);
-        advanceClockIfNeeded(clock.nowUTC().plusMillis(1100));
+        advanceClockIfNeeded(new DateTime(clock.millis(), UTC).plusMillis(1100));
         if (!firstLatch.await(3 * count, TimeUnit.SECONDS)) {
             fail("waiting too long for all watches to be triggered");
         }
 
-        advanceClockIfNeeded(clock.nowUTC().plusMillis(1100));
+        advanceClockIfNeeded(new DateTime(clock.millis(), UTC).plusMillis(1100));
         if (!secondLatch.await(3 * count, TimeUnit.SECONDS)) {
             fail("waiting too long for all watches to be triggered");
         }
@@ -104,7 +105,7 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
         });
 
         int randomMinute = randomIntBetween(0, 59);
-        DateTime testNowTime = clock.nowUTC().withMinuteOfHour(randomMinute).withSecondOfMinute(59);
+        DateTime testNowTime = new DateTime(clock.millis(), UTC).withMinuteOfHour(randomMinute).withSecondOfMinute(59);
         DateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
 
@@ -125,7 +126,7 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
         engine.register(events -> {
             for (TriggerEvent event : events) {
                 assertThat(event.jobName(), is(name));
-                logger.info("triggered job on [{}]", clock.nowUTC());
+                logger.info("triggered job on [{}]", new DateTime(clock.millis(), UTC));
                 latch.countDown();
             }
         });
@@ -133,7 +134,8 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
         int randomHour = randomIntBetween(0, 23);
         int randomMinute = randomIntBetween(0, 59);
 
-        DateTime testNowTime = clock.nowUTC().withHourOfDay(randomHour).withMinuteOfHour(randomMinute).withSecondOfMinute(59);
+        DateTime testNowTime = new DateTime(clock.millis(), UTC).withHourOfDay(randomHour)
+                .withMinuteOfHour(randomMinute).withSecondOfMinute(59);
         DateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
 
@@ -162,7 +164,7 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
         int randomMinute = randomIntBetween(0, 59);
         int randomDay = randomIntBetween(1, 7);
 
-        DateTime testNowTime = clock.nowUTC().withDayOfWeek(randomDay).withHourOfDay(randomHour)
+        DateTime testNowTime = new DateTime(clock.millis(), UTC).withDayOfWeek(randomDay).withHourOfDay(randomHour)
                 .withMinuteOfHour(randomMinute).withSecondOfMinute(59);
         DateTime scheduledTime = testNowTime.plusSeconds(2);
 

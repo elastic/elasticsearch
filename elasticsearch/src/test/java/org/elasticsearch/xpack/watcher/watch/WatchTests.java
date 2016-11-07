@@ -38,9 +38,7 @@ import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.notification.email.Profile;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.ClockMock;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
@@ -55,13 +53,13 @@ import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
-import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
-import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysConditionTests;
-import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
+import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
@@ -113,6 +111,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -193,7 +192,7 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             actionsStatuses.put(action.id(), new ActionStatus(now));
         }
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), unmodifiableMap(actionsStatuses));
+        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10000));
 
@@ -249,7 +248,7 @@ public class WatchTests extends ESTestCase {
     public void testParserDefaults() throws Exception {
         Schedule schedule = randomSchedule();
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, Clock.systemUTC());
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
@@ -263,7 +262,7 @@ public class WatchTests extends ESTestCase {
                 .field(ScheduleTrigger.TYPE, schedule(schedule).build())
                 .endObject();
         builder.endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, SystemClock.INSTANCE);
+        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
         Watch watch = watchParser.parse("failure", false, builder.bytes());
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
@@ -277,14 +276,14 @@ public class WatchTests extends ESTestCase {
     public void testParseWatch_verifyScriptLangDefault() throws Exception {
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, Clock.systemUTC());
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
         InputRegistry inputRegistry = registry(SearchInput.TYPE);
         TransformRegistry transformRegistry = transformRegistry();
         ActionRegistry actionRegistry = registry(Collections.emptyList(), conditionRegistry, transformRegistry);
-        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, SystemClock.INSTANCE);
+        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
 
         IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser1 = MatchAllQueryBuilder::fromXContent;
@@ -530,11 +529,11 @@ public class WatchTests extends ESTestCase {
                     break;
             }
         }
-        return new ActionRegistry(unmodifiableMap(parsers), conditionRegistry, transformRegistry, SystemClock.INSTANCE, licenseState);
+        return new ActionRegistry(unmodifiableMap(parsers), conditionRegistry, transformRegistry, Clock.systemUTC(), licenseState);
     }
 
     private ActionThrottler randomThrottler() {
-        return new ActionThrottler(SystemClock.INSTANCE, randomBoolean() ? null : timeValueSeconds(randomIntBetween(1, 10000)),
+        return new ActionThrottler(Clock.systemUTC(), randomBoolean() ? null : timeValueSeconds(randomIntBetween(1, 10000)),
                 licenseState);
     }
 

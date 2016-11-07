@@ -11,7 +11,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.support.clock.SystemClock;
+
+import java.time.Clock;
 
 import static org.hamcrest.Matchers.is;
 
@@ -28,7 +29,7 @@ public class ScheduleTriggerEventTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
 
-        ScheduleTriggerEvent scheduleTriggerEvent = ScheduleTriggerEvent.parse(parser, "_id", "_context", SystemClock.INSTANCE);
+        ScheduleTriggerEvent scheduleTriggerEvent = ScheduleTriggerEvent.parse(parser, "_id", "_context", Clock.systemUTC());
         assertThat(scheduleTriggerEvent.scheduledTime().isAfter(0), is(true));
         assertThat(scheduleTriggerEvent.triggeredTime().isAfter(0), is(true));
     }

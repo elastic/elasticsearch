@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -39,11 +38,12 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Clock;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.joda.time.DateTimeZone.UTC;
 
 /**
  * Performs the watch execution operation.
@@ -108,7 +108,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, knownWatch,
                     new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
 
-            DateTime executionTime = clock.now(DateTimeZone.UTC);
+            DateTime executionTime = new DateTime(clock.millis(), UTC);
             ctxBuilder.executionTime(executionTime);
             for (Map.Entry<String, ActionExecutionMode> entry : request.getActionModes().entrySet()) {
                 ctxBuilder.actionMode(entry.getKey(), entry.getValue());

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
@@ -13,6 +12,7 @@ import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;

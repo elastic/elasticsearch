@@ -12,7 +12,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.support.clock.SystemClock;
+
+import java.time.Clock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -56,11 +57,11 @@ public class AlwaysConditionTests extends ESTestCase {
                 return new ScriptCondition(new Script("_script"), scriptService);
             case CompareCondition.TYPE:
                 return new CompareCondition("_path", randomFrom(CompareCondition.Op.values()), randomFrom(5, "3"),
-                        SystemClock.INSTANCE);
+                        Clock.systemUTC());
             case ArrayCompareCondition.TYPE:
                 return new ArrayCompareCondition("_array_path", "_path",
                         randomFrom(ArrayCompareCondition.Op.values()), randomFrom(5, "3"), ArrayCompareCondition.Quantifier.SOME,
-                        SystemClock.INSTANCE);
+                        Clock.systemUTC());
             default:
                 return AlwaysCondition.INSTANCE;
         }

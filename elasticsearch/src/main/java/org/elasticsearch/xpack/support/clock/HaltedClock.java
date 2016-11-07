@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.xpack.support.clock;
 
-import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-public class HaltedClock implements Clock {
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+
+public class HaltedClock extends Clock {
 
     private final DateTime now;
 
@@ -18,27 +22,26 @@ public class HaltedClock implements Clock {
     }
 
     @Override
+    public ZoneId getZone() {
+        return ZoneOffset.UTC;
+    }
+
+    @Override
+    public Clock withZone(ZoneId zoneId) {
+        if (zoneId.equals(ZoneOffset.UTC)) {
+            return this;
+        }
+
+        throw new IllegalArgumentException("Halted clock time zone cannot be changed");
+    }
+
+    @Override
     public long millis() {
         return now.getMillis();
     }
 
     @Override
-    public long nanos() {
-        return millis() * 1000000;
-    }
-
-    @Override
-    public DateTime nowUTC() {
-        return now;
-    }
-
-    @Override
-    public DateTime now(DateTimeZone timeZone) {
-        return now.toDateTime(timeZone);
-    }
-
-    @Override
-    public TimeValue timeElapsedSince(DateTime time) {
-        return TimeValue.timeValueMillis(millis() - time.getMillis());
+    public Instant instant() {
+        return Instant.ofEpochMilli(now.getMillis());
     }
 }

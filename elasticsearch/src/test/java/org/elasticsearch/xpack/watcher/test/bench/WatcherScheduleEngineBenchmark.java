@@ -33,11 +33,11 @@ import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;

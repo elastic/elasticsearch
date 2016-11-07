@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
@@ -16,14 +15,16 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+
+import static org.joda.time.DateTimeZone.UTC;
 
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
@@ -76,9 +77,9 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
                 logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
-                        new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
-                events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, DateTimeZone.UTC),
-                        new DateTime(scheduledTime, DateTimeZone.UTC)));
+                        new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
+                events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, UTC),
+                        new DateTime(scheduledTime, UTC)));
                 if (events.size() >= 1000) {
                     notifyListeners(events);
                     events.clear();
@@ -140,7 +141,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         @Override
         public void run() {
             while (active) {
-                logger.trace("checking jobs [{}]", clock.nowUTC());
+                logger.trace("checking jobs [{}]", new DateTime(clock.millis(), UTC));
                 checkJobs();
                 try {
                     sleep(tickInterval.millis());

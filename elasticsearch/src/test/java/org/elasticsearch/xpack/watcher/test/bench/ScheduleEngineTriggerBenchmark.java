@@ -9,7 +9,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -79,7 +79,7 @@ public class ScheduleEngineTriggerBenchmark {
             final ScheduleTriggerEngine scheduler;
             switch (impl) {
                 case "schedule":
-                    scheduler = new SchedulerScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE) {
+                    scheduler = new SchedulerScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, Clock.systemUTC()) {
 
                         @Override
                         protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
@@ -90,7 +90,7 @@ public class ScheduleEngineTriggerBenchmark {
                     };
                     break;
                 case "ticker":
-                    scheduler = new TickerScheduleTriggerEngine(settings, scheduleRegistry, SystemClock.INSTANCE) {
+                    scheduler = new TickerScheduleTriggerEngine(settings, scheduleRegistry, Clock.systemUTC()) {
 
                         @Override
                         protected void notifyListeners(List<TriggerEvent> events) {

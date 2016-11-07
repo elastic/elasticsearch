@@ -16,12 +16,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
+import java.time.Clock;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
@@ -50,7 +49,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
                 .get();
 
         CompareCondition condition = new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5,
-                SystemClock.INSTANCE);
+                Clock.systemUTC());
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
@@ -78,7 +77,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
     public void testExecuteAccessHits() throws Exception {
         CompareCondition condition = new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1,
-                SystemClock.INSTANCE);
+                Clock.systemUTC());
         InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0));

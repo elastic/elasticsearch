@@ -5,20 +5,19 @@
  */
 package org.elasticsearch.xpack.watcher.support.xcontent;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.support.clock.Clock;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.common.secret.Secret;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+
+import java.io.IOException;
+import java.time.Clock;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A xcontent parser that is used by watcher. This is a special parser that is
@@ -62,7 +61,7 @@ public class WatcherXContentParser implements XContentParser {
         if (parser instanceof WatcherXContentParser) {
             return ((WatcherXContentParser) parser).clock;
         }
-        return SystemClock.INSTANCE;
+        return Clock.systemUTC();
     }
 
     private final Clock clock;

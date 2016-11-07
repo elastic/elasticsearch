@@ -9,14 +9,42 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 /**
  * A clock that can be modified for testing.
  */
-public class ClockMock implements Clock {
+public class ClockMock extends Clock {
 
-    private DateTime now = DateTime.now(DateTimeZone.UTC);
+    private final ZoneId zoneId;
+    private DateTime now;
+
+    public ClockMock() {
+        zoneId = ZoneOffset.UTC;
+        now = DateTime.now(DateTimeZone.UTC);
+    }
+
+    private ClockMock(ZoneId zoneId) {
+        this.zoneId = zoneId;
+        now = DateTime.now(DateTimeZone.forID(zoneId.getId()));
+    }
+
+    @Override
+    public ZoneId getZone() {
+        return ZoneOffset.UTC;
+    }
+
+    @Override
+    public Clock withZone(ZoneId zoneId) {
+        if (zoneId.equals(this.zoneId)) {
+            return this;
+        }
+
+        return new ClockMock(zoneId);
+    }
 
     @Override
     public long millis() {
@@ -24,23 +52,8 @@ public class ClockMock implements Clock {
     }
 
     @Override
-    public long nanos() {
-        return TimeUnit.MILLISECONDS.toNanos(now.getMillis());
-    }
-
-    @Override
-    public DateTime nowUTC() {
-        return now(DateTimeZone.UTC);
-    }
-
-    @Override
-    public DateTime now(DateTimeZone timeZone) {
-        return now.toDateTime(timeZone);
-    }
-
-    @Override
-    public TimeValue timeElapsedSince(DateTime time) {
-        return TimeValue.timeValueMillis(now.getMillis() - time.getMillis());
+    public Instant instant() {
+        return Instant.ofEpochMilli(now.getMillis());
     }
 
     public ClockMock setTime(DateTime now) {

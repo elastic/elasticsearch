@@ -9,15 +9,16 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.trigger.AbstractTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.joda.time.DateTimeZone.UTC;
 
 public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<ScheduleTrigger, ScheduleTriggerEvent> {
 
@@ -39,7 +40,7 @@ public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<Schedu
 
     @Override
     public ScheduleTriggerEvent simulateEvent(String jobId, @Nullable Map<String, Object> data, TriggerService service) {
-        DateTime now = clock.nowUTC();
+        DateTime now = new DateTime(clock.millis(), UTC);
         if (data == null) {
             return new ScheduleTriggerEvent(jobId, now, now);
         }

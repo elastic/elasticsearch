@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.watcher.condition;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,8 +48,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
 
 
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
-                        numberOfDocumentsWatchingFor, quantifier, SystemClock.INSTANCE
-        );
+                        numberOfDocumentsWatchingFor, quantifier, Clock.systemUTC());
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         Condition.Result result = condition.execute(ctx);

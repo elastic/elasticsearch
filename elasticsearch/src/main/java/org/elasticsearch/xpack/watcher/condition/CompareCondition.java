@@ -9,10 +9,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;

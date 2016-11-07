@@ -14,9 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -25,15 +23,16 @@ import org.elasticsearch.xpack.watcher.watch.WatchLockService;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
+import static org.joda.time.DateTimeZone.UTC;
 
 
 public class WatcherService extends AbstractComponent {
@@ -118,7 +117,7 @@ public class WatcherService extends AbstractComponent {
 
     public IndexResponse putWatch(String id, BytesReference watchSource, boolean active) throws IOException {
         ensureStarted();
-        DateTime now = clock.nowUTC();
+        DateTime now = new DateTime(clock.millis(), UTC);
         Watch watch = watchParser.parseWithSecrets(id, false, watchSource, now);
         watch.setState(active, now);
         WatchStore.WatchPut result = watchStore.put(watch);
@@ -173,7 +172,7 @@ public class WatcherService extends AbstractComponent {
             throw illegalArgument("watch [{}] does not exist", id);
         }
         // we need to create a safe copy of the status
-        if (watch.ack(clock.now(DateTimeZone.UTC), actionIds)) {
+        if (watch.ack(new DateTime(clock.millis(), UTC), actionIds)) {
             try {
                 watchStore.updateStatus(watch);
             } catch (IOException ioe) {
@@ -212,7 +211,7 @@ public class WatcherService extends AbstractComponent {
         if (watch == null) {
             throw illegalArgument("watch [{}] does not exist", id);
         }
-        if (watch.setState(active, clock.nowUTC())) {
+        if (watch.setState(active, new DateTime(clock.millis(), UTC))) {
             try {
                 watchStore.updateStatus(watch);
                 if (active) {

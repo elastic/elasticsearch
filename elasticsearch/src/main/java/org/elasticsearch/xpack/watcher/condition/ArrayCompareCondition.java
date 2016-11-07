@@ -9,10 +9,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,11 +28,6 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
     private final Op op;
     private final Object value;
     private final Quantifier quantifier;
-
-    public ArrayCompareCondition(String arrayPath, String path, Op op, Object value,
-                                 Quantifier quantifier) {
-        this(arrayPath, path, op, value, quantifier, null);
-    }
 
     ArrayCompareCondition(String arrayPath, String path, Op op, Object value,
                                  Quantifier quantifier,

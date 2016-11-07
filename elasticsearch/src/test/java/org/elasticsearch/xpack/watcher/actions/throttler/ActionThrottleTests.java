@@ -10,7 +10,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.notification.email.EmailTemplate;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
@@ -36,6 +35,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -361,7 +361,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id",
                 new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
         return ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent, throttlePeriod)
-                .executionTime(timeWarped() ? timeWarp().clock().nowUTC() : SystemClock.INSTANCE.nowUTC())
+                .executionTime(timeWarped() ? new DateTime(timeWarp().clock().millis()) : new DateTime(Clock.systemUTC().millis()))
                 .allActionsMode(ActionExecutionMode.SIMULATE)
                 .recordExecution(true)
                 .build();

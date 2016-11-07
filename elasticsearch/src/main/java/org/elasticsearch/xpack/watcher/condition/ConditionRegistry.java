@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.support.clock.Clock;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Map;
 
 public class ConditionRegistry {

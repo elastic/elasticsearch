@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
+import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -56,7 +57,7 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
 
-        final String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(timeWarp().clock().nowUTC());
+        final String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(timeWarp().clock().millis()));
         logger.info("checking index [{}]", indexName);
         assertBusy(() -> {
             flush();
@@ -67,7 +68,7 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
     }
 
     public void testDynamicIndexSearchInput() throws Exception {
-        final String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(timeWarp().clock().nowUTC());
+        final String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(timeWarp().clock().millis()));
         createIndex(indexName);
         index(indexName, "type", "1", "key", "value");
         flush();
@@ -93,7 +94,7 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
     }
 
     public void testDynamicIndexSearchTransform() throws Exception {
-        String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(timeWarp().clock().nowUTC());
+        String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(timeWarp().clock().millis()));
         createIndex(indexName);
         index(indexName, "type", "1", "key", "value");
         flush();

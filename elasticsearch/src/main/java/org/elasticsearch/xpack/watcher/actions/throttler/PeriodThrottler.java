@@ -9,8 +9,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.joda.time.PeriodType;
+
+import java.time.Clock;
 
 /**
  * This throttler throttles the action based on its last <b>successful</b> execution time. If the time passed since
@@ -51,7 +52,7 @@ public class PeriodThrottler implements Throttler {
         if (status.lastSuccessfulExecution() == null) {
             return Result.NO;
         }
-        TimeValue timeElapsed = clock.timeElapsedSince(status.lastSuccessfulExecution().timestamp());
+        TimeValue timeElapsed = TimeValue.timeValueMillis(clock.millis() - status.lastSuccessfulExecution().timestamp().getMillis());
         if (timeElapsed.getMillis() <= period.getMillis()) {
             return Result.throttle("throttling interval is set to [{}] but time elapsed since last execution is [{}]",
                     period.format(periodType), timeElapsed.format(periodType));

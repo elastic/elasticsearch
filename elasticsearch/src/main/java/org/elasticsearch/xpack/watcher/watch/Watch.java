@@ -20,14 +20,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.secret.Secret;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.HaltedClock;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +52,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
+import static org.joda.time.DateTimeZone.UTC;
 
 public class Watch implements TriggerEngine.Job, ToXContent {
 
@@ -232,11 +233,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         }
 
         public Watch parse(String name, boolean includeStatus, BytesReference source) throws IOException {
-            return parse(name, includeStatus, false, source, clock.nowUTC(), false);
+            return parse(name, includeStatus, false, source, new DateTime(clock.millis(), UTC), false);
         }
 
         public Watch parse(String name, boolean includeStatus, BytesReference source, boolean upgradeSource) throws IOException {
-            return parse(name, includeStatus, false, source, clock.nowUTC(), upgradeSource);
+            return parse(name, includeStatus, false, source, new DateTime(clock.millis(), UTC), upgradeSource);
         }
 
         public Watch parse(String name, boolean includeStatus, BytesReference source, DateTime now) throws IOException {
@@ -345,11 +346,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             } else {
                 // we need to create the initial statuses for the actions
                 Map<String, ActionStatus> actionsStatuses = new HashMap<>();
-                DateTime now = WatcherXContentParser.clock(parser).nowUTC();
+                DateTime now = new DateTime(WatcherXContentParser.clock(parser).millis(), UTC);
                 for (ActionWrapper action : actions) {
                     actionsStatuses.put(action.id(), new ActionStatus(now));
                 }
-                status = new WatchStatus(WatcherXContentParser.clock(parser).nowUTC(), unmodifiableMap(actionsStatuses));
+                status = new WatchStatus(now, unmodifiableMap(actionsStatuses));
             }
 
             return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions, metatdata, status);

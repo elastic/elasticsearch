@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.watcher.condition.Condition;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
+import java.time.Clock;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 

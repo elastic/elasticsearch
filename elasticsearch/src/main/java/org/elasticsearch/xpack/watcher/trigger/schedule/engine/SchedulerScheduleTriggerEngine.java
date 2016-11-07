@@ -8,19 +8,20 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import static org.joda.time.DateTimeZone.UTC;
 
 public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
@@ -45,7 +46,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
                     schedulerJobs.add(new SchedulerEngine.Job(job.id(), trigger.getSchedule()));
                 });
         schedulerEngine.start(schedulerJobs);
-        logger.debug("schedule engine started at [{}]", clock.nowUTC());
+        logger.debug("schedule engine started at [{}]", new DateTime(clock.millis(), UTC));
     }
 
     @Override
@@ -68,10 +69,10 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
-        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime, DateTimeZone.UTC),
-                new DateTime(scheduledTime, DateTimeZone.UTC));
-        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, DateTimeZone.UTC),
-                new DateTime(scheduledTime, DateTimeZone.UTC));
+        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime, UTC),
+                new DateTime(scheduledTime, UTC));
+        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, UTC),
+                new DateTime(scheduledTime, UTC));
         for (Listener listener : listeners) {
             listener.triggered(Collections.<TriggerEvent>singletonList(event));
         }

@@ -10,13 +10,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition.Op;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.support.clock.ClockMock;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -128,7 +128,7 @@ public class CompareConditionTests extends ESTestCase {
         int payloadValue = randomInt(10);
         boolean met = op.eval(payloadValue, value);
 
-        CompareCondition condition = new CompareCondition("ctx.payload.value", op, value, SystemClock.INSTANCE);
+        CompareCondition condition = new CompareCondition("ctx.payload.value", op, value, Clock.systemUTC());
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", payloadValue));
         assertThat(condition.execute(ctx).met(), is(met));
     }
@@ -139,7 +139,7 @@ public class CompareConditionTests extends ESTestCase {
         Op op = met ? randomFrom(CompareCondition.Op.GT, CompareCondition.Op.GTE, CompareCondition.Op.NOT_EQ) :
                 randomFrom(CompareCondition.Op.LT, CompareCondition.Op.LTE, CompareCondition.Op.EQ);
         String value = "<{now-1d}>";
-        DateTime payloadValue = clock.nowUTC();
+        DateTime payloadValue = new DateTime(clock.millis());
 
         CompareCondition condition = new CompareCondition("ctx.payload.value", op, value, clock);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", payloadValue));

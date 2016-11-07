@@ -9,7 +9,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.support.clock.Clock;
+
+import java.time.Clock;
 
 public class ActionThrottler implements Throttler {
 

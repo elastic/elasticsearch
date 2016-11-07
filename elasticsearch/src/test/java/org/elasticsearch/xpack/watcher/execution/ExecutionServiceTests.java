@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
@@ -41,6 +40,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -115,8 +115,9 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         when(watchStore.get("_id")).thenReturn(watch);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", clock.nowUTC(), clock.nowUTC());
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, clock.nowUTC(), event, timeValueSeconds(5));
+        DateTime now = new DateTime(clock.millis());
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -167,7 +168,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
 
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -207,8 +208,9 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         when(watchStore.get("_id")).thenReturn(watch);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", clock.nowUTC(), clock.nowUTC());
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, clock.nowUTC(), event, timeValueSeconds(5));
+        DateTime now = new DateTime(clock.millis());
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
 
         input = mock(ExecutableInput.class);
         Input.Result inputResult = mock(Input.Result.class);
@@ -245,7 +247,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -276,8 +278,9 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         when(watchStore.get("_id")).thenReturn(watch);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", clock.nowUTC(), clock.nowUTC());
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, clock.nowUTC(), event, timeValueSeconds(5));
+        DateTime now = new DateTime(clock.millis());
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
 
         Condition condition = mock(Condition.class);
         Condition.Result conditionResult = mock(Condition.Result.class);
@@ -310,7 +313,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -341,8 +344,9 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         when(watchStore.get("_id")).thenReturn(watch);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", clock.nowUTC(), clock.nowUTC());
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, clock.nowUTC(), event, timeValueSeconds(5));
+        DateTime now = new DateTime(clock.millis());
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -374,7 +378,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -405,8 +409,9 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         when(watchStore.get("_id")).thenReturn(watch);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", clock.nowUTC(), clock.nowUTC());
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, clock.nowUTC(), event, timeValueSeconds(5));
+        DateTime now = new DateTime(clock.millis());
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -453,7 +458,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
 
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -532,7 +537,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
+        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -579,7 +584,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
+        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -640,7 +645,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
+        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -695,7 +700,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.type()).thenReturn("_type");
         when(action.logger()).thenReturn(logger);
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
+        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -742,7 +747,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
 
-        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
+        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);

@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.support.clock.Clock;
 
 import java.io.IOException;
+import java.time.Clock;
 
 /**
  * Parses xcontent to a concrete condition of the same type.

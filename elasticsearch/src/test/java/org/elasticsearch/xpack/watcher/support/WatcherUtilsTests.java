@@ -17,13 +17,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
@@ -31,8 +32,6 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-
-import org.elasticsearch.script.ScriptType;
 import static org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput.DEFAULT_SEARCH_TYPE;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.watcher.support.WatcherUtils.flattenModel;
@@ -45,7 +44,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherUtilsTests extends ESTestCase {
     public void testFlattenModel() throws Exception {
-        DateTime now = SystemClock.INSTANCE.nowUTC();
+        DateTime now = new DateTime(Clock.systemUTC().millis());
         Map<String, Object> map = new HashMap<>();
         map.put("a", singletonMap("a1", new int[] { 0, 1, 2 }));
         map.put("b", new String[] { "b0", "b1", "b2" });

@@ -14,7 +14,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -43,6 +42,7 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -313,16 +313,16 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .addAction("log", loggingAction("foobar"));
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(SystemClock.INSTANCE.nowUTC(), SystemClock.INSTANCE.nowUTC());
+        DateTime now = new DateTime(Clock.systemUTC().millis());
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(now, now);
 
         Map<String, Object> executeWatchResult = watcherClient().prepareExecuteWatch()
                 .setId("_id")
                 .setTriggerEvent(triggerEvent)
                 .get().getRecordSource().getAsMap();
 
-
-        assertThat(ObjectPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTION_NOT_NEEDED.toString()));
-        assertThat(ObjectPath.<String>eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
+        assertThat(ObjectPath.eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTION_NOT_NEEDED.toString()));
+        assertThat(ObjectPath.eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
 
         watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -336,15 +336,15 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .setId("_id").setTriggerEvent(triggerEvent).setRecordExecution(true)
                 .get().getRecordSource().getAsMap();
 
-        assertThat(ObjectPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTED.toString()));
-        assertThat(ObjectPath.<String>eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
-        assertThat(ObjectPath.<String>eval("result.actions.0.id", executeWatchResult), equalTo("log"));
+        assertThat(ObjectPath.eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTED.toString()));
+        assertThat(ObjectPath.eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
+        assertThat(ObjectPath.eval("result.actions.0.id", executeWatchResult), equalTo("log"));
 
         executeWatchResult = watcherClient().prepareExecuteWatch()
                 .setId("_id").setTriggerEvent(triggerEvent)
                 .get().getRecordSource().getAsMap();
 
-        assertThat(ObjectPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.THROTTLED.toString()));
+        assertThat(ObjectPath.eval("state", executeWatchResult), equalTo(ExecutionState.THROTTLED.toString()));
     }
 
     public void testWatchExecutionDuration() throws Exception {

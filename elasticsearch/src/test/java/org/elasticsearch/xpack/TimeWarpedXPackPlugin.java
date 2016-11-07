@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.test.TimeWarpedWatcher;
 
 import java.io.IOException;
+import java.time.Clock;
 
 public class TimeWarpedXPackPlugin extends XPackPlugin {
     private final ClockMock clock = new ClockMock();

@@ -15,15 +15,14 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.throttler.AckThrottler;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,6 +33,7 @@ import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.readD
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.readOptionalDate;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.writeDate;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
+import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchStatus implements ToXContent, Streamable {
 
@@ -213,15 +213,15 @@ public class WatchStatus implements ToXContent, Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         version = in.readLong();
-        lastChecked = readOptionalDate(in, DateTimeZone.UTC);
-        lastMetCondition = readOptionalDate(in, DateTimeZone.UTC);
+        lastChecked = readOptionalDate(in, UTC);
+        lastMetCondition = readOptionalDate(in, UTC);
         int count = in.readInt();
         Map<String, ActionStatus> actions = new HashMap<>(count);
         for (int i = 0; i < count; i++) {
             actions.put(in.readString(), ActionStatus.readFrom(in));
         }
         this.actions = unmodifiableMap(actions);
-        state = new State(in.readBoolean(), readDate(in, DateTimeZone.UTC));
+        state = new State(in.readBoolean(), readDate(in, UTC));
     }
 
     public static WatchStatus read(StreamInput in) throws IOException {
@@ -273,14 +273,14 @@ public class WatchStatus implements ToXContent, Streamable {
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_CHECKED)) {
                 if (token.isValue()) {
-                    lastChecked = parseDate(currentFieldName, parser, DateTimeZone.UTC);
+                    lastChecked = parseDate(currentFieldName, parser, UTC);
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_MET_CONDITION)) {
                 if (token.isValue()) {
-                    lastMetCondition = parseDate(currentFieldName, parser, DateTimeZone.UTC);
+                    lastMetCondition = parseDate(currentFieldName, parser, UTC);
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
@@ -307,7 +307,7 @@ public class WatchStatus implements ToXContent, Streamable {
         // this is to support old watches that weren't upgraded yet to
         // contain the state
         if (state == null) {
-            state = new State(true, WatcherXContentParser.clock(parser).nowUTC());
+            state = new State(true, new DateTime(WatcherXContentParser.clock(parser).millis(), UTC));
         }
         actions = actions == null ? emptyMap() : unmodifiableMap(actions);
 
@@ -345,7 +345,7 @@ public class WatchStatus implements ToXContent, Streamable {
                 throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
             }
             boolean active = true;
-            DateTime timestamp = SystemClock.INSTANCE.nowUTC();
+            DateTime timestamp = new DateTime(Clock.systemUTC().millis(), UTC);
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -354,7 +354,7 @@ public class WatchStatus implements ToXContent, Streamable {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIVE)) {
                     active = parser.booleanValue();
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMESTAMP)) {
-                    timestamp = parseDate(currentFieldName, parser, DateTimeZone.UTC);
+                    timestamp = parseDate(currentFieldName, parser, UTC);
                 }
             }
             return new State(active, timestamp);

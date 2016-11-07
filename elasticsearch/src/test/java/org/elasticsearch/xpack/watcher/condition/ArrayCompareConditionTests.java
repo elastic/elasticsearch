@@ -10,14 +10,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.support.clock.ClockMock;
-import org.elasticsearch.xpack.support.clock.SystemClock;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.joda.time.DateTime;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -107,7 +108,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         logger.debug("met [{}]", met);
 
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier,
-                SystemClock.INSTANCE);
+                Clock.systemUTC());
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", values));
         assertThat(condition.execute(ctx).met(), is(met));
     }
@@ -137,7 +138,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         logger.debug("met [{}]", met);
 
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.value", "doc_count", op, value, quantifier,
-                SystemClock.INSTANCE);
+                Clock.systemUTC());
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", values));
         assertThat(condition.execute(ctx).met(), is(met));
     }
@@ -156,7 +157,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         List<Object> values = new ArrayList<>(numberOfValues);
         for (int i = 0; i < numberOfValues; i++) {
             clock.fastForwardSeconds(1);
-            values.add(clock.nowUTC());
+            values.add(new DateTime(clock.millis()));
         }
 
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier, clock);

@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -39,8 +38,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -71,10 +68,6 @@ import static org.elasticsearch.index.reindex.remote.RemoteResponseParsers.MAIN_
 import static org.elasticsearch.index.reindex.remote.RemoteResponseParsers.RESPONSE_PARSER;
 
 public class RemoteScrollableHitSource extends ScrollableHitSource {
-    /**
-     * The maximum size of the remote response to buffer. 200mb because bulks beyond 40mb tend to be slow anyway but 200mb is simply huge.
-     */
-    private static final ByteSizeValue BUFFER_LIMIT = new ByteSizeValue(200, ByteSizeUnit.MB);
     private final RestClient client;
     private final BytesReference query;
     private final SearchRequest searchRequest;
@@ -150,8 +143,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
             @Override
             protected void doRun() throws Exception {
-                HeapBufferedAsyncResponseConsumer consumer = new HeapBufferedAsyncResponseConsumer(BUFFER_LIMIT.bytesAsInt());
-                client.performRequestAsync(method, uri, params, entity, consumer, new ResponseListener() {
+                client.performRequestAsync(method, uri, params, entity, new ResponseListener() {
                     @Override
                     public void onSuccess(org.elasticsearch.client.Response response) {
                         // Restore the thread context to get the precious headers

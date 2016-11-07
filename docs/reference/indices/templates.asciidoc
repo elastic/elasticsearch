@@ -15,7 +15,7 @@ For example:
 --------------------------------------------------
 PUT _template/template_1
 {
-  "template": ["te*", "bar*"],
+  "index_patterns": ["te*", "bar*"],
   "settings": {
     "number_of_shards": 1
   },
@@ -53,7 +53,7 @@ It is also possible to include aliases in an index template as follows:
 --------------------------------------------------
 PUT _template/template_1
 {
-    "template" : "te*",
+    "index_patterns" : ["te*"],
     "settings" : {
         "number_of_shards" : 1
     },
@@ -147,7 +147,7 @@ orders overriding them. For example:
 --------------------------------------------------
 PUT /_template/template_1
 {
-    "template" : "*",
+    "index_patterns" : ["*"],
     "order" : 0,
     "settings" : {
         "number_of_shards" : 1
@@ -161,7 +161,7 @@ PUT /_template/template_1
 
 PUT /_template/template_2
 {
-    "template" : "te*",
+    "index_patterns" : ["te*"],
     "order" : 1,
     "settings" : {
         "number_of_shards" : 1
@@ -196,7 +196,7 @@ one.
 --------------------------------------------------
 PUT /_template/template_1
 {
-    "template" : "*",
+    "index_patterns" : ["*"],
     "order" : 0,
     "settings" : {
         "number_of_shards" : 1

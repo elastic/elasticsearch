@@ -183,8 +183,7 @@ the action itself (not in the extra payload line), to specify how many
 times an update should be retried in the case of a version conflict.
 
 The `update` action payload, supports the following options: `doc`
-(partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script) and `fields`. See update documentation for details on
+(partial document), `upsert`, `doc_as_upsert`, `script` and `fields`. See <<docs-update,update>> documentation for details on
 the options. Curl example with update actions:
 
 [source,js]

@@ -174,12 +174,6 @@ final class JVMCheck {
     static {
         Map<String, HotSpotCheck> bugs = new HashMap<>();
 
-        // 1.7.0: loop optimizer bug
-        bugs.put("21.0-b17",  new HotspotBug("https://bugs.openjdk.java.net/browse/JDK-7070134", "-XX:-UseLoopPredicate"));
-        // register allocation issues (technically only x86/amd64). This impacted update 40, 45, and 51
-        bugs.put("24.0-b56",  new HotspotBug("https://bugs.openjdk.java.net/browse/JDK-8024830", "-XX:-UseSuperWord"));
-        bugs.put("24.45-b08", new HotspotBug("https://bugs.openjdk.java.net/browse/JDK-8024830", "-XX:-UseSuperWord"));
-        bugs.put("24.51-b03", new HotspotBug("https://bugs.openjdk.java.net/browse/JDK-8024830", "-XX:-UseSuperWord"));
         G1GCCheck g1GcCheck = new G1GCCheck();
         bugs.put("25.0-b70", g1GcCheck);
         bugs.put("25.11-b03", g1GcCheck);

@@ -2507,10 +2507,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // take initial snapshot with a block, making sure we only get 1 in-progress snapshot returned
         // block a node so the create snapshot operation can remain in progress
         final String initialBlockedNode = blockNodeWithIndex(repositoryName, indexName);
-        client.admin().cluster().prepareCreateSnapshot(repositoryName, "snap-on-empty-repo")
-            .setWaitForCompletion(false)
-            .setIndices(indexName)
-            .get();
+        ListenableActionFuture<CreateSnapshotResponse> responseListener =
+            client.admin().cluster().prepareCreateSnapshot(repositoryName, "snap-on-empty-repo")
+                .setWaitForCompletion(false)
+                .setIndices(indexName)
+                .execute();
         waitForBlock(initialBlockedNode, repositoryName, TimeValue.timeValueSeconds(60)); // wait for block to kick in
         getSnapshotsResponse = client.admin().cluster()
                                    .prepareGetSnapshots("test-repo")
@@ -2519,14 +2520,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals(1, getSnapshotsResponse.getSnapshots().size());
         assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots().get(0).snapshotId().getName());
         unblockNode(repositoryName, initialBlockedNode); // unblock node
-        assertBusy(() -> {
-            SnapshotsStatusResponse statusResponse = client.admin().cluster()
-                                                         .prepareSnapshotStatus("test-repo")
-                                                         .setSnapshots("snap-on-empty-repo")
-                                                         .get();
-            assertEquals(1, statusResponse.getSnapshots().size());
-            assertTrue(statusResponse.getSnapshots().get(0).getState().completed());
-        });
+        responseListener.actionGet(TimeValue.timeValueMillis(10000L)); // timeout after 10 seconds
         client.admin().cluster().prepareDeleteSnapshot(repositoryName, "snap-on-empty-repo").get();
 
         final int numSnapshots = randomIntBetween(1, 3) + 1;

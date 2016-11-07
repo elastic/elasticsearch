@@ -29,6 +29,7 @@ import org.elasticsearch.monitor.Probes;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -120,10 +121,8 @@ public class OsProbe {
      *
      * On Windows, this method returns {@code null}.
      *
-     * On Linux, this method should return the 1, 5, and 15-minute load
-     * averages. If obtaining these values from {@code /proc/loadavg}
-     * fails, the method will fallback to obtaining the 1-minute load
-     * average.
+     * On Linux, this method returns the 1, 5, and 15-minute load
+     * averages.
      *
      * On macOS, this method should return the 1-minute load average.
      *
@@ -133,30 +132,31 @@ public class OsProbe {
         if (Constants.WINDOWS) {
             return null;
         } else if (Constants.LINUX) {
-            final String procLoadAvg = readProcLoadavg();
-            if (procLoadAvg != null) {
+            try {
+                final String procLoadAvg = readProcLoadavg();
                 assert procLoadAvg.matches("(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+");
                 final String[] fields = procLoadAvg.split("\\s+");
-                try {
-                    return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};
-                } catch (final NumberFormatException e) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(String.format(Locale.ROOT, "error parsing /proc/loadavg [%s]", procLoadAvg), e);
-                    }
+                return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};
+            } catch (final IOException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("error reading /proc/loadavg", e);
                 }
+                return null;
             }
-            // fallback
-        }
-
-        if (getSystemLoadAverage == null) {
-            return null;
-        }
-        try {
-            final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
-            return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
-        } catch (final Exception e) {
-            logger.debug("error obtaining system load average", e);
-            return null;
+        } else {
+            assert Constants.MAC_OS_X;
+            if (getSystemLoadAverage == null) {
+                return null;
+            }
+            try {
+                final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
+                return new double[]{oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1};
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("error reading one minute load average from operating system", e);
+                }
+                return null;
+            }
         }
     }
 
@@ -171,15 +171,8 @@ public class OsProbe {
      * @return the line from {@code /proc/loadavg} or {@code null}
      */
     @SuppressForbidden(reason = "access /proc/loadavg")
-    String readProcLoadavg() {
-        try {
-            final List<String> lines = Files.readAllLines(PathUtils.get("/proc/loadavg"));
-            assert lines != null && lines.size() == 1;
-            return lines.get(0);
-        } catch (final IOException e) {
-            logger.debug("error reading /proc/loadavg", e);
-            return null;
-        }
+    String readProcLoadavg() throws IOException {
+        return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
     public short getSystemCpuPercent() {

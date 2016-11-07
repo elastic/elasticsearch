@@ -41,23 +41,24 @@ import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
-import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.elasticsearch.http.netty3.Netty3HttpClient.returnHttpResponseBodies;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -95,14 +96,21 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
                                .build();
         httpServerTransport = new CustomNetty3HttpServerTransport(settings);
         httpServerTransport.start();
-        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress()
-            .boundAddresses());
+        TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-        List<String> requests = Arrays.asList("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast");
+        final int numberOfRequests = randomIntBetween(4, 16);
+        final List<String> requests = new ArrayList<>(numberOfRequests);
+        for (int i = 0; i < numberOfRequests; i++) {
+            if (rarely()) {
+                requests.add("/slow/" + i);
+            } else {
+                requests.add("/" + i);
+            }
+        }
         try (Netty3HttpClient nettyHttpClient = new Netty3HttpClient()) {
             Collection<HttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
             Collection<String> responseBodies = returnHttpResponseBodies(responses);
-            assertThat(responseBodies, contains("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast"));
+            assertThat(responseBodies, contains(requests.toArray()));
         }
     }
 
@@ -113,17 +121,37 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
                                 .build();
         httpServerTransport = new CustomNetty3HttpServerTransport(settings);
         httpServerTransport.start();
-        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress()
-            .boundAddresses());
+        TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-        List<String> requests = Arrays.asList("/slow?sleep=1000", "/firstfast", "/secondfast", "/thirdfast", "/slow?sleep=500");
+        final int numberOfRequests = randomIntBetween(4, 16);
+        final Set<Integer> slowIds = new HashSet<>();
+        final List<String> requests = new ArrayList<>(numberOfRequests);
+        for (int i = 0; i < numberOfRequests; i++) {
+            if (rarely()) {
+                requests.add("/slow/" + i);
+                slowIds.add(i);
+            } else {
+                requests.add("/" + i);
+            }
+        }
+
         try (Netty3HttpClient nettyHttpClient = new Netty3HttpClient()) {
             Collection<HttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
             List<String> responseBodies = new ArrayList<>(returnHttpResponseBodies(responses));
-            // we cannot be sure about the order of the fast requests, but the slow ones should have to be last
-            assertThat(responseBodies, hasSize(5));
-            assertThat(responseBodies.get(3), is("/slow?sleep=500"));
-            assertThat(responseBodies.get(4), is("/slow?sleep=1000"));
+            // we cannot be sure about the order of the responses, but the slow ones should come last
+            assertThat(responseBodies, hasSize(numberOfRequests));
+            for (int i = 0; i < numberOfRequests - slowIds.size(); i++) {
+                assertThat(responseBodies.get(i), matches("/\\d+"));
+            }
+
+            final Set<Integer> ids = new HashSet<>();
+            for (int i = 0; i < slowIds.size(); i++) {
+                final String response = responseBodies.get(numberOfRequests - slowIds.size() + i);
+                assertThat(response, matches("/slow/\\d+"));
+                assertTrue(ids.add(Integer.parseInt(response.split("/")[2])));
+            }
+
+            assertThat(ids, equalTo(slowIds));
         }
     }
 
@@ -216,17 +244,15 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
             httpResponse.headers().add(CONTENT_LENGTH, buffer.readableBytes());
             httpResponse.setContent(buffer);
 
-            QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
-
-            final int timeout = request.getUri().startsWith("/slow") && decoder.getParameters().containsKey("sleep")
-                ? Integer.valueOf(decoder.getParameters().get("sleep").get(0)) : 0;
-            if (timeout > 0) {
+            final boolean slow = request.getUri().matches("/slow/\\d+");
+            if (slow) {
                 try {
-                    Thread.sleep(timeout);
+                    Thread.sleep(scaledRandomIntBetween(500, 1000));
                 } catch (InterruptedException e1) {
-                    Thread.currentThread().interrupt();
                     throw new RuntimeException(e1);
                 }
+            } else {
+                assert request.getUri().matches("/\\d+");
             }
 
             if (oue != null) {

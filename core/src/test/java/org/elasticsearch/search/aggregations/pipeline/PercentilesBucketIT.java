@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -238,11 +239,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
         assertThat(percentilesBucketValue, notNullValue());
         assertThat(percentilesBucketValue.getName(), equalTo("percentiles_bucket"));
-        for (Percentile p : percentilesBucketValue) {
-            double expected = values[(int)((p.getPercent() / 100) * values.length)];
-            assertThat(percentilesBucketValue.percentile(p.getPercent()), equalTo(expected));
-            assertThat(p.getValue(), equalTo(expected));
-        }
+        assertPercentileBucket(values, percentilesBucketValue);
     }
 
     public void testMetricAsSubAgg() throws Exception {
@@ -569,10 +566,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
             PercentilesBucket percentilesBucketValue = termsBucket.getAggregations().get("percentile_histo_bucket");
             assertThat(percentilesBucketValue, notNullValue());
             assertThat(percentilesBucketValue.getName(), equalTo("percentile_histo_bucket"));
-            for (Double p : percent) {
-                double expected = innerValues[(int)((p / 100) * innerValues.length)];
-                assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-            }
+            assertPercentileBucket(innerValues, percentilesBucketValue);
             values[i] = percentilesBucketValue.percentile(99.9);
         }
 
@@ -587,10 +581,21 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         }
     }
 
-    private void assertPercentileBucket(double[] percents, double[] values, PercentilesBucket percentiles) {
-        for (Double p : percents) {
-            int index = (int) Math.round((p / 100.0) * (values.length - 1));
-            assertThat(percentiles.percentile(p), equalTo(values[index]));
+    private void assertPercentileBucket(double[] values, PercentilesBucket percentiles) {
+        for (Percentile percentile : percentiles) {
+            assertEquals(percentiles.percentile(percentile.getPercent()), percentile.getValue(), 0d);
+            int index = (int) Math.round((percentile.getPercent() / 100.0) * (values.length - 1));
+            assertThat(percentile.getValue(), equalTo(values[index]));
         }
+    }
+
+    private void assertPercentileBucket(double[] percents, double[] values, PercentilesBucket percentiles) {
+        Iterator<Percentile> it = percentiles.iterator();
+        for (int i = 0; i < percents.length; ++i) {
+            assertTrue(it.hasNext());
+            assertEquals(percents[i], it.next().getPercent(), 0d);
+        }
+        assertFalse(it.hasNext());
+        assertPercentileBucket(values, percentiles);
     }
 }

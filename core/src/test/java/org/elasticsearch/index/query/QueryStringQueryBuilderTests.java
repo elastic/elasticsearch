@@ -40,6 +40,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.search.internal.SearchContext;
@@ -735,5 +736,32 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 .toQuery(createShardContext());
         assertEquals(new TermRangeQuery(STRING_FIELD_NAME, new BytesRef("abc"), new BytesRef("bcd"), true, true), query);
     }
-    
+
+    public void testAllFieldsWithFields() throws IOException {
+        String json =
+                "{\n" +
+                "  \"query_string\" : {\n" +
+                "    \"query\" : \"this AND that OR thus\",\n" +
+                "    \"fields\" : [\"foo\"],\n" +
+                "    \"all_fields\" : true\n" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(),
+                containsString("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]"));
+
+        String json2 =
+                "{\n" +
+                "  \"query_string\" : {\n" +
+                "    \"query\" : \"this AND that OR thus\",\n" +
+                "    \"default_field\" : \"foo\",\n" +
+                "    \"all_fields\" : true\n" +
+                "  }\n" +
+                "}";
+
+        e = expectThrows(ParsingException.class, () -> parseQuery(json2));
+        assertThat(e.getMessage(),
+                containsString("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]"));
+    }
 }

@@ -379,6 +379,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     public void testUpdateAutoThrottleSettings() throws IllegalAccessException {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
+        mockAppender.start();
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
         Loggers.addAppender(rootLogger, mockAppender);
@@ -414,6 +415,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("false"));
         } finally {
             Loggers.removeAppender(rootLogger, mockAppender);
+            mockAppender.stop();
             Loggers.setLevel(rootLogger, savedLevel);
         }
     }
@@ -468,6 +470,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     // #6882: make sure we can change index.merge.scheduler.max_thread_count live
     public void testUpdateMergeMaxThreadCount() throws IllegalAccessException {
         MockAppender mockAppender = new MockAppender("testUpdateMergeMaxThreadCount");
+        mockAppender.start();
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
         Loggers.addAppender(rootLogger, mockAppender);
@@ -505,6 +508,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         } finally {
             Loggers.removeAppender(rootLogger, mockAppender);
+            mockAppender.stop();
             Loggers.setLevel(rootLogger, savedLevel);
         }
     }

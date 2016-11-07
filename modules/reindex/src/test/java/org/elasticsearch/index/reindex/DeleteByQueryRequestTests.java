@@ -21,11 +21,10 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.ESTestCase;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 
-public class DeleteByQueryRequestTests extends ESTestCase {
+public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCase<DeleteByQueryRequest> {
     public void testDeleteteByQueryRequestImplementsIndicesRequestReplaceable() {
         int numIndices = between(1, 100);
         String[] indices = new String[numIndices];
@@ -57,5 +56,20 @@ public class DeleteByQueryRequestTests extends ESTestCase {
         for (int i = 0; i < numNewIndices; i++) {;
             assertEquals(newIndices[i], request.getSearchRequest().indices()[i]);
         }
+    }
+
+    @Override
+    protected DeleteByQueryRequest newRequest() {
+        return new DeleteByQueryRequest(new SearchRequest(randomAsciiOfLength(5)));
+    }
+
+    @Override
+    protected void extraRandomizationForSlice(DeleteByQueryRequest original) {
+        // Nothing else to randomize
+    }
+
+    @Override
+    protected void extraForSliceAssertions(DeleteByQueryRequest original, DeleteByQueryRequest forSliced) {
+        // No extra assertions needed
     }
 }

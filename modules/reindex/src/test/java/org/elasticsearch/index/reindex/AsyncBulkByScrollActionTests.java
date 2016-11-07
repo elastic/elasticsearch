@@ -120,7 +120,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private PlainActionFuture<BulkIndexByScrollResponse> listener;
     private String scrollId;
     private TaskManager taskManager;
-    private BulkByScrollTask testTask;
+    private WorkingBulkByScrollTask testTask;
     private Map<String, String> expectedHeaders = new HashMap<>();
     private DiscoveryNode localNode;
     private TaskId taskId;
@@ -134,7 +134,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY);
-        testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
+        testTask = (WorkingBulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
 
         // Fill the context with something random so we can make sure we inherited it appropriately.
         expectedHeaders.clear();
@@ -685,7 +685,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
         public DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
-            super(searchRequest);
+            super(searchRequest, true);
+        }
+
+        @Override
+        DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

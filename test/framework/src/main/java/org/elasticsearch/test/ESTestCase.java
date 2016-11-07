@@ -29,8 +29,11 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.status.StatusConsoleListener;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -113,10 +116,12 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -146,7 +151,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static void resetPortCounter() {
         portGenerator.set(0);
     }
-
 
     static {
         System.setProperty("log4j.shutdownHookEnabled", "false");
@@ -240,6 +244,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         checkStaticState();
     }
 
+    private static final List<StatusData> statusData = new ArrayList<>();
+    static {
+        // ensure that the status logger is set to the warn level so we do not miss any warnings with our Log4j usage
+        StatusLogger.getLogger().setLevel(Level.WARN);
+        // Log4j will write out status messages indicating problems with the Log4j usage to the status logger; we hook into this logger and
+        // assert that no such messages were written out as these would indicate a problem with our logging configuration
+        StatusLogger.getLogger().registerListener(new StatusConsoleListener(Level.WARN) {
+
+            @Override
+            public void log(StatusData data) {
+                synchronized (statusData) {
+                    statusData.add(data);
+                }
+            }
+
+        });
+    }
+
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
@@ -247,6 +269,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         // field cache should NEVER get loaded.
         String[] entries = UninvertingReader.getUninvertedStats();
         assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
+
+        // ensure no one changed the status logger level on us
+        assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
+        synchronized (statusData) {
+            try {
+                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
+                // StatusData instances to Strings as otherwise their toString output is useless
+                assertThat(
+                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
+                    empty());
+            } finally {
+                // we clear the list so that status data from other tests do not interfere with tests within the same JVM
+                statusData.clear();
+            }
+        }
     }
 
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
@@ -943,4 +980,5 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.charFilter = charFilter;
         }
     }
+
 }

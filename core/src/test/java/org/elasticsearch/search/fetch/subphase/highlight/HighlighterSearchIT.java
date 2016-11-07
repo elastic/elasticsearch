@@ -2974,12 +2974,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .preTags("<x>")
                     .postTags("</x>")
                 ).setQuery(QueryBuilders.boolQuery().must(
-                    QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now").includeLower(true).includeUpper(true).boost(1.0f))
+                    QueryBuilders.rangeQuery("d").gte("now-12h").lte("now").includeLower(true).includeUpper(true).boost(1.0f))
                     .should(QueryBuilders.termQuery("field", "hello")))
                 .get();
 
             assertSearchResponse(r1);
-            assertThat(r1.getHits().getTotalHits(), equalTo(3L));
+            assertThat(r1.getHits().getTotalHits(), equalTo(1L));
             assertHighlight(r1, 0, "field", 0, 1,
                 equalTo("<x>hello</x> world"));
         }

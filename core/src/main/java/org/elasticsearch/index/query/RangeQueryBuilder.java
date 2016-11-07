@@ -260,6 +260,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         return this.timeZone == null ? null : this.timeZone.getID();
     }
 
+    DateTimeZone getDateTimeZone() { // for testing
+        return timeZone;
+    }
+
     /**
      * In case of format field, we can parse the from/to fields using this time format
      */
@@ -276,6 +280,13 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      */
     public String format() {
         return this.format == null ? null : this.format.format();
+    }
+
+    DateMathParser getForceDateParser() { // pkg private for testing
+        if (this.format  != null) {
+            return new DateMathParser(this.format);
+        }
+        return null;
     }
 
     @Override
@@ -440,19 +451,13 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper != null) {
             if (mapper instanceof LegacyDateFieldMapper.DateFieldType) {
-                DateMathParser forcedDateParser = null;
-                if (this.format  != null) {
-                    forcedDateParser = new DateMathParser(this.format);
-                }
+
                 query = ((LegacyDateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
-                        timeZone, forcedDateParser, context);
+                        timeZone, getForceDateParser(), context);
             } else if (mapper instanceof DateFieldMapper.DateFieldType) {
-                DateMathParser forcedDateParser = null;
-                if (this.format  != null) {
-                    forcedDateParser = new DateMathParser(this.format);
-                }
+
                 query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
-                        timeZone, forcedDateParser, context);
+                        timeZone, getForceDateParser(), context);
             } else  {
                 if (timeZone != null) {
                     throw new QueryShardException(context, "[range] time_zone can not be applied to non date field ["

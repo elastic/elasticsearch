@@ -415,3 +415,7 @@ try (InputStream stream = bytesRef.streamInput()) {
 
 For any custom implementation of the `BlobContainer` interface, these three methods must be removed.
 
+==== NodeBuilder removed
+
+NodeBuilder has been removed. While using Node directly within an application is not officially supported, it can still be constructed with the `Node(Settings)` constructor.
+

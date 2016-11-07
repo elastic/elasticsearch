@@ -28,19 +28,41 @@ task cpptest(type: Exec) {
 }
 
 subprojects {
+    apply plugin: 'eclipse'
+    apply plugin: 'idea'
     apply plugin: 'maven'
     apply plugin: 'java'
+    
+    buildscript {
+        repositories {
+            if (System.getProperty("repos.mavenlocal") != null) {
+                // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is useful for building against
+                // elasticsearch snapshots
+                mavenLocal()
+            }
+            mavenCentral()
+            maven {
+                name 'sonatype-snapshots'
+                url "https://oss.sonatype.org/content/repositories/snapshots/"
+            }
+            jcenter()
+        }
+    }
 
-    compileJava.options.encoding = 'UTF-8'
-    compileTestJava.options.encoding = 'UTF-8'
-
-    group = 'com.prelert'
-    sourceCompatibility = 1.8
-    targetCompatibility = 1.8
+    group = 'org.elasticsearch.prelert'
 
     repositories {
-        mavenLocal()
-        maven { url "http://repo.maven.apache.org/maven2" }
+        if (System.getProperty("repos.mavenlocal") != null) {
+            // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is useful for building against
+            // elasticsearch snapshots
+            mavenLocal()
+        }
+        mavenCentral()
+        maven {
+            name 'sonatype-snapshots'
+            url "https://oss.sonatype.org/content/repositories/snapshots/"
+        }
+        jcenter()
     }
 
     configurations.all {
@@ -48,8 +70,6 @@ subprojects {
 
     dependencies {
         testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
-        // Includes: junit, hamcrest and mockito
-        testCompile group: 'org.elasticsearch.test', name: 'framework', version: '5.0.0'
     }
 }
 

@@ -301,4 +301,78 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         String query = "{ \"query\": {} }";
         assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
     }
+
+    public void testParseIndicesBoost() throws IOException {
+        {
+            String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                assertEquals(2, searchSourceBuilder.indexBoosts().size());
+                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
+                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
+            }
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        { \"foo\" : 1.0 },\n" +
+                "        { \"bar\" : 2.0 },\n" +
+                "        { \"baz\" : 3.0 }\n" +
+                "    ]}";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                assertEquals(3, searchSourceBuilder.indexBoosts().size());
+                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
+                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
+                assertEquals(new SearchSourceBuilder.IndexBoost("baz", 3.0f), searchSourceBuilder.indexBoosts().get(2));
+            }
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        { \"foo\" : 1.0, \"bar\": 2.0}\n" + // invalid format
+                "    ]}";
+
+            assertIndicesBoostParseErrorMessage(restContent, "Expected [END_OBJECT] in [indices_boost] but found [FIELD_NAME]");
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        {}\n" + // invalid format
+                "    ]}";
+
+            assertIndicesBoostParseErrorMessage(restContent, "Expected [FIELD_NAME] in [indices_boost] but found [END_OBJECT]");
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        { \"foo\" : \"bar\"}\n" + // invalid format
+                "    ]}";
+
+            assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [VALUE_STRING]");
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        { \"foo\" : {\"bar\": 1}}\n" + // invalid format
+                "    ]}";
+
+            assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [START_OBJECT]");
+        }
+    }
+
+    private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
+        try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(createParseContext(parser),
+                searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
+            assertEquals(expectedErrorMessage, e.getMessage());
+        }
+    }
 }

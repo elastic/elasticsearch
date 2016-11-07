@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.IOUtils;
@@ -679,13 +678,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         QueryShardContext queryShardContext = context.getQueryShardContext();
         context.from(source.from());
         context.size(source.size());
-        ObjectFloatHashMap<String> indexBoostMap = source.indexBoost();
-        if (indexBoostMap != null) {
-            Float indexBoost = indexBoostMap.get(context.shardTarget().index());
-            if (indexBoost != null) {
-                context.queryBoost(indexBoost);
-            }
-        }
         Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
             InnerHitBuilder.extractInnerHits(source.query(), innerHitBuilders);

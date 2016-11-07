@@ -16,6 +16,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State;
 import org.junit.After;
 
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.DAILY;
@@ -62,13 +63,14 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
 
         // default mapping
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(indexName).get();
+        assertThat(response.mappings().get(indexName).get(IndexAuditTrail.DOC_TYPE), nullValue());
 
         // start the audit trail which should update the mappings since it is the master
         auditor.start(true);
+        assertTrue(awaitBusy(() -> auditor.state() == State.STARTED));
 
         // get the updated mappings
         GetMappingsResponse updated = client().admin().indices().prepareGetMappings(indexName).get();
-        assertThat(response.mappings().get(indexName).get(IndexAuditTrail.DOC_TYPE), nullValue());
         assertThat(updated.mappings().get(indexName).get(IndexAuditTrail.DOC_TYPE), notNullValue());
     }
 

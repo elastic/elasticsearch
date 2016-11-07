@@ -271,9 +271,6 @@ final class Bootstrap {
                 closeSystOut();
             }
 
-            // fail if using broken version
-            JVMCheck.check();
-
             // fail if somebody replaced the lucene jars
             checkLucene();
 

@@ -586,7 +586,7 @@ final class BootstrapCheck {
 
         // visible for testing
         String jvmVersion() {
-            assert "Oracle Corporation".equals(jvmVersion());
+            assert "Oracle Corporation".equals(jvmVendor());
             return Constants.JVM_VERSION;
         }
 

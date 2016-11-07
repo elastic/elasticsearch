@@ -622,7 +622,7 @@ public abstract class TransportReplicationAction<
         @Override
         protected void doRun() {
             setPhase(task, "routing");
-            final ClusterState state = observer.observedState();
+            final ClusterState state = observer.observedState().getClusterState();
             if (handleBlockExceptions(state)) {
                 return;
             }

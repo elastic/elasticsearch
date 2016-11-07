@@ -43,6 +43,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateStatus;
+import org.elasticsearch.cluster.service.ClusterServiceState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -1201,9 +1203,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // Don't restart the master node until we know the index deletion has taken effect on master and the master eligible node.
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {
-                final ClusterState masterState = internalCluster().clusterService(masterNode).state();
-                assertTrue("index not deleted on " + masterNode, masterState.metaData().hasIndex(idxName) == false &&
-                                                                 masterState.status() == ClusterState.ClusterStateStatus.APPLIED);
+                final ClusterServiceState masterState = internalCluster().clusterService(masterNode).clusterServiceState();
+                assertTrue("index not deleted on " + masterNode, masterState.getClusterState().metaData().hasIndex(idxName) == false &&
+                                                                 masterState.getClusterStateStatus() == ClusterStateStatus.APPLIED);
             }
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);

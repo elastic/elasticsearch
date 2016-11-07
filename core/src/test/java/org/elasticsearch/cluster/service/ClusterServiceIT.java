@@ -535,7 +535,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         // there should not be any master as the minimum number of required eligible masters is not met
         awaitBusy(() -> clusterService1.state().nodes().getMasterNode() == null &&
-                clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED);
+                clusterService1.clusterServiceState().getClusterStateStatus() == ClusterStateStatus.APPLIED);
         assertThat(testService1.master(), is(false));
 
         // bring the node back up

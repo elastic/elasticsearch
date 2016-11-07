@@ -17,26 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.cluster.service.ClusterStateStatus;
-
-public enum MasterNodeChangePredicate implements ClusterStateObserver.ChangePredicate {
-    INSTANCE;
-
-    @Override
-    public boolean apply(
-        ClusterState previousState,
-        ClusterStateStatus previousStatus,
-        ClusterState newState,
-        ClusterStateStatus newStatus) {
-        // checking if the masterNodeId changed is insufficient as the
-        // same master node might get re-elected after a disruption
-        return newState.nodes().getMasterNodeId() != null && newState != previousState;
-    }
-
-    @Override
-    public boolean apply(ClusterChangedEvent changedEvent) {
-        return changedEvent.nodesDelta().masterNodeChanged();
-    }
+public enum ClusterStateStatus {
+    UNKNOWN,
+    BEING_APPLIED,
+    APPLIED;
 }

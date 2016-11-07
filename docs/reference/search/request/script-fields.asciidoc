@@ -50,7 +50,10 @@ GET /_search
         },
         "script_fields" : {
             "test1" : {
-                "script" : "_source.obj1.obj2"
+                "script" : {
+                  "lang" : "groovy",
+                  "inline" : "_source.obj1.obj2"
+                }
             }
         }
     }
@@ -69,3 +72,10 @@ non-analyzed or single term based fields.
 
 The `_source` on the other hand causes the source to be loaded, parsed,
 and then only the relevant part of the json is returned.
+
+[NOTE]
+==================================
+The `_source` syntax is not supported by painless currently. The main reason
+for this is to ensure that features of the painless scripting language stay
+fast and do not cause high I/O on a node.
+==================================

@@ -184,6 +184,3 @@ discovery.zen.minimum_master_nodes: 2
 IMPORTANT: If `discovery.zen.minimum_master_nodes` is not set when
 Elasticsearch is running in <<dev-vs-prod,production mode>>, an exception will
 be thrown which will prevent the node from starting.
-
-[float]
-[[node.max_local_storage_nodes]]

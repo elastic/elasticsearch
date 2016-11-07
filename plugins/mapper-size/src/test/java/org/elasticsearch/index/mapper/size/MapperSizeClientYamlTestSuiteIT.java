@@ -36,7 +36,7 @@ public class MapperSizeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
-        return createParameters(0, 1);
+        return createParameters();
     }
 }
 

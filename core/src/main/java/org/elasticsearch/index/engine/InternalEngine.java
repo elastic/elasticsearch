@@ -84,6 +84,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 public class InternalEngine extends Engine {
 
@@ -169,7 +170,7 @@ public class InternalEngine extends Engine {
                                 seqNoStats.getLocalCheckpoint(),
                                 seqNoStats.getGlobalCheckpoint());
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer);
+                translog = openTranslog(engineConfig, writer, seqNoService::getGlobalCheckpoint);
                 assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -257,9 +258,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer) throws IOException {
+    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
-        assert seqNoService != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         Translog.TranslogGeneration generation = null;
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
@@ -272,7 +272,7 @@ public class InternalEngine extends Engine {
                 throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig, generation, seqNoService::getGlobalCheckpoint);
+        final Translog translog = new Translog(translogConfig, generation, globalCheckpointSupplier);
         if (generation == null || generation.translogUUID == null) {
             assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
                 + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;

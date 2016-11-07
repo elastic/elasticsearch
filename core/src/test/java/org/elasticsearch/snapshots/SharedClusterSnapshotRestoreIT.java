@@ -2387,6 +2387,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         List<SnapshotInfo> snapshotInfos = client.admin().cluster()
                 .prepareGetSnapshots("test-repo")
                 .setIgnoreUnavailable(true).get().getSnapshots();
+
         assertThat(snapshotInfos.size(), equalTo(1));
         assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo("test-snap-1"));

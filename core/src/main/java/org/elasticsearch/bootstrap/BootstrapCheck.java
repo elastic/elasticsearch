@@ -559,7 +559,7 @@ final class BootstrapCheck {
 
         @Override
         public boolean check() {
-            if ("Oracle Corporation".equals(jvmVendor()) && isG1GCEnabled()) {
+            if ("Oracle Corporation".equals(jvmVendor()) && Constants.JRE_IS_MINIMUM_JAVA9 == false && isG1GCEnabled()) {
                 final String jvmVersion = jvmVersion();
                 final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)-b\\d+");
                 final Matcher matcher = pattern.matcher(jvmVersion);

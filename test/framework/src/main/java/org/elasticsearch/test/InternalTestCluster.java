@@ -226,6 +226,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ExecutorService executor;
 
+    private final boolean autoManageMinMasterNodes;
+
     private final Collection<Class<? extends Plugin>> mockPlugins;
 
     /**
@@ -239,9 +241,10 @@ public final class InternalTestCluster extends TestCluster {
 
     public InternalTestCluster(long clusterSeed, Path baseDir,
                                boolean randomlyAddDedicatedMasters,
-                               int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
+                               boolean autoManageMinMasterNodes, int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
                                boolean enableHttpPipelining, String nodePrefix, Collection<Class<? extends Plugin>> mockPlugins, Function<Client, Client> clientWrapper) {
         super(clusterSeed);
+        this.autoManageMinMasterNodes = autoManageMinMasterNodes;
         this.clientWrapper = clientWrapper;
         this.baseDir = baseDir;
         this.clusterName = clusterName;
@@ -579,16 +582,21 @@ public final class InternalTestCluster extends TestCluster {
             assert reuseExisting == true || nodes.containsKey(name) == false :
                 "node name [" + name + "] already exists but not allowed to use it";
         }
-        int minMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes );
-        Settings finalSettings = Settings.builder()
+        Settings.Builder finalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
-            .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s") // don't wait too long not to slow down tests
             .put(settings)
             .put("node.name", name)
-            .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed)
-            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
-            .build();
-        MockNode node = new MockNode(finalSettings, plugins);
+            .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
+
+        if (autoManageMinMasterNodes) {
+            assert finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
+                "min master nodes may not be set when auto managed";
+            finalSettings
+                // don't wait too long not to slow down tests
+                .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
+                .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
+        }
+        MockNode node = new MockNode(finalSettings.build(), plugins);
         return new NodeAndClient(name, node, nodeId);
     }
 
@@ -782,6 +790,10 @@ public final class InternalTestCluster extends TestCluster {
             return nodeAndClientId;
         }
 
+        public boolean isMasterNode() {
+            return Node.NODE_MASTER_SETTING.get(node.settings());
+        }
+
         Client client(Random random) {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
@@ -953,8 +965,8 @@ public final class InternalTestCluster extends TestCluster {
             if (wipeData) {
                 wipePendingDataDirectories();
             }
-            if (nodes.size() > 0) {
-                updateMinMasterNodes(nodes.lastEntry().getValue().node().settings(), 0);
+            if (nodes.size() > 0 && autoManageMinMasterNodes) {
+                updateMinMasterNodes(0);
             }
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), newSize);
             return;
@@ -962,16 +974,15 @@ public final class InternalTestCluster extends TestCluster {
         logger.debug("Cluster is NOT consistent - restarting shared nodes - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), newSize);
 
         // trash all nodes with id >= sharedNodesSeeds.length - they are non shared
-
-
+        final List<NodeAndClient> toClose = new ArrayList<>();
         for (Iterator<NodeAndClient> iterator = nodes.values().iterator(); iterator.hasNext();) {
             NodeAndClient nodeAndClient = iterator.next();
             if (nodeAndClient.nodeAndClientId() >= sharedNodesSeeds.length) {
                 logger.debug("Close Node [{}] not shared", nodeAndClient.name);
-                nodeAndClient.close();
-                iterator.remove();
+                toClose.add(nodeAndClient);
             }
         }
+        stopNodesAndClient(toClose.toArray(new NodeAndClient[toClose.size()]));
 
         // clean up what the nodes left that is unused
         if (wipeData) {
@@ -1010,15 +1021,12 @@ public final class InternalTestCluster extends TestCluster {
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes);
             toStartAndPublish.add(nodeAndClient);
         }
-        toStartAndPublish.forEach(nodeAndClient -> {
-            nodeAndClient.startNode();
-            publishNode(nodeAndClient);
-        });
+
+        startAndPublishNodesAndClients(toStartAndPublish.toArray(new NodeAndClient[toStartAndPublish.size()]));
 
         nextNodeId.set(newSize);
         assert size() == newSize;
         if (newSize > 0) {
-            updateMinMasterNodes(nodes.lastEntry().getValue().node().settings(), 0);
             ClusterHealthResponse response = client().admin().cluster().prepareHealth()
                 .setWaitForNodes(Integer.toString(newSize)).get();
             if (response.isTimedOut()) {
@@ -1243,9 +1251,7 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new DataNodePredicate());
         if (nodeAndClient != null) {
             logger.info("Closing random node [{}] ", nodeAndClient.name);
-            removeDisruptionSchemeFromNode(nodeAndClient);
-            nodes.remove(nodeAndClient.name);
-            nodeAndClient.close();
+            stopNodesAndClient(nodeAndClient);
             return true;
         }
         return false;
@@ -1260,9 +1266,7 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
         if (nodeAndClient != null) {
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
-            removeDisruptionSchemeFromNode(nodeAndClient);
-            nodes.remove(nodeAndClient.name);
-            nodeAndClient.close();
+            stopNodesAndClient(nodeAndClient);
         }
     }
 
@@ -1275,9 +1279,7 @@ public final class InternalTestCluster extends TestCluster {
         String masterNodeName = getMasterName();
         assert nodes.containsKey(masterNodeName);
         logger.info("Closing master node [{}] ", masterNodeName);
-        removeDisruptionSchemeFromNode(nodes.get(masterNodeName));
-        NodeAndClient remove = nodes.remove(masterNodeName);
-        remove.close();
+        stopNodesAndClient(nodes.get(masterNodeName));
     }
 
     /**
@@ -1287,8 +1289,30 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
+            stopNodesAndClient(nodeAndClient);
+        }
+    }
+
+    private synchronized void startAndPublishNodesAndClients(NodeAndClient... nodeAndClients) {
+        if (autoManageMinMasterNodes && nodeAndClients.length > 0) {
+            int masters = (int) Stream.of(nodeAndClients).filter(NodeAndClient::isMasterNode).count();
+            updateMinMasterNodes(masters);
+        }
+        for (NodeAndClient nodeAndClient: nodeAndClients) {
+            nodeAndClient.startNode();
+            publishNode(nodeAndClient);
+        }
+    }
+
+    private synchronized void stopNodesAndClient(NodeAndClient... nodeAndClients) throws IOException {
+        if (autoManageMinMasterNodes && nodeAndClients.length > 0) {
+            int masters = (int) Stream.of(nodeAndClients).filter(NodeAndClient::isMasterNode).count();
+            updateMinMasterNodes(-masters);
+        }
+        for (NodeAndClient nodeAndClient: nodeAndClients) {
             removeDisruptionSchemeFromNode(nodeAndClient);
-            nodes.remove(nodeAndClient.name);
+            NodeAndClient previous = nodes.remove(nodeAndClient.name);
+            assert previous == nodeAndClient;
             nodeAndClient.close();
         }
     }
@@ -1543,20 +1567,17 @@ public final class InternalTestCluster extends TestCluster {
      * Starts a node with the given settings and returns it's name.
      */
     public synchronized String startNode(Settings settings) {
-        final int defaultMinMasterNodes = updateMinMasterNodes(settings, 1);
+        final int defaultMinMasterNodes = getNewMinMasterNodes(Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0);
         NodeAndClient buildNode = buildNode(settings, defaultMinMasterNodes);
-        buildNode.startNode();
-        publishNode(buildNode);
+        startAndPublishNodesAndClients(buildNode);
         return buildNode.name;
     }
 
-    private int updateMinMasterNodes(Settings settings, int nodesBeingStarted) {
-        int currentMasters = (int)nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
-        int mastersAfterState = Node.NODE_MASTER_SETTING.get(settings) ? currentMasters + nodesBeingStarted : currentMasters;
-        final int defaultMinMasterNodes = mastersAfterState / 2 + 1;
-        if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings)) {
-            // not automatically updating, user is in control
-        } else if (currentMasters == 0) {
+    private void updateMinMasterNodes(int masterNodesDelta) {
+        assert autoManageMinMasterNodes;
+        final int currentMasters = getMasterNodesCount();
+        final int minMasterNodes = getNewMinMasterNodes(masterNodesDelta);
+        if (currentMasters == 0) {
             // there is no one to update
         } else if (currentMasters == 1) {
             // we cant really update min master node as it will cause the master to reject it (there is only one)
@@ -1564,11 +1585,20 @@ public final class InternalTestCluster extends TestCluster {
             client().admin().cluster().prepareHealth().get();
         } else {
             // auto management
+            logger.debug("updating min_master_nodes to [{}]", minMasterNodes);
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes)
+                Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
             ));
         }
-        return defaultMinMasterNodes;
+    }
+
+    private int getNewMinMasterNodes(int masterNodesDelta) {
+        int mastersAfterState = getMasterNodesCount() + masterNodesDelta;
+        return mastersAfterState / 2 + 1;
+    }
+
+    private int getMasterNodesCount() {
+        return (int)nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
     }
 
     public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes) {
@@ -1628,8 +1658,15 @@ public final class InternalTestCluster extends TestCluster {
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
     public synchronized Async<String> startNodeAsync(final Settings settings) {
-        int numberOfMasterNodes = updateMinMasterNodes(settings, 1);
-        return startNodeAsync(settings, numberOfMasterNodes);
+        final int defaultMinMasterNodes;
+        if (autoManageMinMasterNodes) {
+            int mastersDelta = Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0;
+            defaultMinMasterNodes = getNewMinMasterNodes(mastersDelta);
+            updateMinMasterNodes(mastersDelta);
+        } else {
+            defaultMinMasterNodes = -1;
+        }
+        return startNodeAsync(settings, defaultMinMasterNodes);
     }
 
     private synchronized Async<String> startNodeAsync(final Settings settings, int defaultMinMasterNodes) {
@@ -1654,7 +1691,14 @@ public final class InternalTestCluster extends TestCluster {
      * Starts multiple nodes in an async manner with the given settings and returns future with its name.
      */
     public synchronized Async<List<String>> startNodesAsync(final int numNodes, final Settings settings)  {
-        int defaultMinMasterNodes = updateMinMasterNodes(settings, numNodes);
+        final int defaultMinMasterNodes;
+        if (autoManageMinMasterNodes) {
+           int mastersDelta = Node.NODE_MASTER_SETTING.get(settings) ? numNodes : 0;
+            defaultMinMasterNodes = getNewMinMasterNodes(mastersDelta);
+            updateMinMasterNodes(mastersDelta);
+        } else {
+            defaultMinMasterNodes = -1;
+        }
         final List<Async<String>> asyncs = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             asyncs.add(startNodeAsync(settings, defaultMinMasterNodes));

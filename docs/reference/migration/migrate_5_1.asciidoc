@@ -20,3 +20,15 @@ Previously if a queue size backing a thread pool was unbounded, the cat thread p
 the queue_size column. This has been changed to now output -1 so that the output is always present and always numeric.
 Note that if you're running in a mixed version cluster with 5.0.x and 5.1.y nodes, you will see different responses
 from the cat thread pool API depending on the version of the node that your request hits.
+
+[[breaking_51_plugin_api]]
+[float]
+=== Plugin API changes
+
+==== UnicastHostsProvider now pull based
+
+Plugging in a `UnicastHostsProvider` for zen discovery is now pull based. Implement a `DiscoveryPlugin` and override the `getZenHostsProviders` method. Selecting a hosts provider is also now done with a separate setting, `discovery.zen.hosts_provider`.
+
+==== ZenPing and MasterElectService pluggability removed
+
+These classes are no longer pluggable. Either implement your own discovery, or extend from ZenDiscovery and customize as necessary.

@@ -33,6 +33,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -80,8 +81,8 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     static Script parseScript(Map<String, Object> config, ParseFieldMatcher parseFieldMatcher) {
         String script = null;
         ScriptType type = null;
-        String lang = null;
-        Map<String, Object> params = null;
+        String lang = DEFAULT_SCRIPT_LANG;
+        Map<String, Object> params = Collections.emptyMap();
         for (Iterator<Map.Entry<String, Object>> itr = config.entrySet().iterator(); itr.hasNext();) {
             Map.Entry<String, Object> entry = itr.next();
             String parameterName = entry.getKey();
@@ -127,14 +128,6 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
                     .getPreferredName(), ScriptType.STORED.getParseField().getPreferredName());
         }
         assert type != null : "if script is not null, type should definitely not be null";
-
-        if (lang == null) {
-            lang = DEFAULT_SCRIPT_LANG;
-        }
-
-        if (params == null) {
-            params = new HashMap<>();
-        }
 
         return new Script(type, lang, script, params);
     }

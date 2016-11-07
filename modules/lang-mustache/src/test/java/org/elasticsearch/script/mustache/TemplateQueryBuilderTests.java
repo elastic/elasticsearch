@@ -129,9 +129,9 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         String queryAsString = testQueryAsString.replace("inline", "bogusField");
         try {
             parseQuery(queryAsString);
-            fail("ScriptParseException expected.");
-        } catch (ParsingException e) {
-            assertTrue(e.getMessage().contains("unexpected field [bogusField], expected [inline, stored, file, lang, params]"));
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("[Script] unknown field [bogusField], parser not found"));
         }
     }
 

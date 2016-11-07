@@ -22,11 +22,13 @@ package org.elasticsearch.script;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -40,6 +42,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Script represents used-defined input that can be used to
@@ -87,6 +91,88 @@ public final class Script implements ToXContent, Writeable {
      * Standard {@link ParseField} for params on the inner level.
      */
     public static final ParseField PARAMS_PARSE_FIELD = new ParseField("params");
+
+    /**
+     * Constructs and validates a {@link Script} being parsed as XContent.
+     */
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<Script, ParseFieldMatcherSupplier> PARSER =
+        new ConstructingObjectParser<>("Script", values -> {
+            ParsedCode inline = (ParsedCode)values[0];
+            ParsedCode stored = (ParsedCode)values[1];
+            ParsedCode file = (ParsedCode)values[2];
+
+            if (inline == null && stored == null && file == null) {
+                throw new IllegalArgumentException(
+                    "must specify either code for an [" + ScriptType.INLINE.getParseField().getPreferredName() + "] script " +
+                    "or an id for a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script " +
+                    "or [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
+            }
+
+            if (inline != null && stored != null || inline != null && file != null || stored != null && file != null) {
+                throw new IllegalArgumentException("must only use one of [" +
+                    ScriptType.INLINE.getParseField().getPreferredName() + " + , " +
+                    ScriptType.STORED.getParseField().getPreferredName() + " + , " +
+                    ScriptType.FILE.getParseField().getPreferredName() + "]" +
+                    " when specifying a script");
+            }
+
+            ScriptType type;
+            String idOrCode;
+            String contentType;
+
+            if (inline != null) {
+                type = ScriptType.INLINE;
+                idOrCode = inline.idOrCode;
+                contentType = inline.contentType;
+            } else if (stored != null) {
+                type = ScriptType.STORED;
+                idOrCode = stored.idOrCode;
+                contentType = stored.contentType;
+            } else {
+                type = ScriptType.FILE;
+                idOrCode = file.idOrCode;
+                contentType = file.contentType;
+            }
+
+            if (idOrCode == null) {
+                throw new IllegalArgumentException("must specify an id or code for a script");
+            }
+
+            String lang = (String)values[3];
+
+            Map<String, String> options = (Map<String, String>)values[4];
+
+            if (options == null) {
+                options = new HashMap<>();
+            }
+
+            if (options.size() > 1 || options.size() == 1 && options.get(CONTENT_TYPE_OPTION) == null) {
+                throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
+            }
+
+            if (contentType != null) {
+                options.put(CONTENT_TYPE_OPTION, contentType);
+            }
+
+            Map<String, Object> params = (Map<String, Object>)values[5];
+
+            if (params == null) {
+                params = new HashMap<>();
+            }
+
+            return new Script(type, lang, idOrCode, options, params);
+        });
+
+    static {
+        // Defines the fields necessary to parse a Script as XContent using a ConstructingObjectParser.
+        PARSER.declareField(optionalConstructorArg(), Script::parseCode, ScriptType.INLINE.getParseField(), ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(optionalConstructorArg(), Script::parseCode, ScriptType.STORED.getParseField(), ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(optionalConstructorArg(), Script::parseCode, ScriptType.FILE.getParseField(), ValueType.OBJECT_OR_STRING);
+        PARSER.declareString(optionalConstructorArg(), LANG_PARSE_FIELD);
+        PARSER.declareField(optionalConstructorArg(), Script::parseOptions, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), Script::parseParams, PARAMS_PARSE_FIELD, ValueType.OBJECT);
+    }
 
     /**
      * Convenience method to call {@link Script#parse(XContentParser, ParseFieldMatcher, String)}
@@ -180,131 +266,55 @@ public final class Script implements ToXContent, Writeable {
 
         if (token == Token.VALUE_STRING) {
             return new Script(ScriptType.INLINE, lang, parser.text(), Collections.emptyMap());
-        } else if (token != Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [{, <code>]");
         }
 
-        ScriptType type = null;
-        String idOrCode = null;
-        Map<String, String> options = new HashMap<>();
-        Map<String, Object> params = null;
+        return PARSER.apply(parser, () -> matcher, Collections.singletonMap(LANG_PARSE_FIELD.getPreferredName(), lang));
+    }
 
-        String name = null;
+    /**
+     * Helper object used after parsing {@link Script#idOrCode} to also hold {@link XContentType} as a {@link String} if necessary.
+     */
+    private static class ParsedCode {
+        private final String idOrCode;
+        private final String contentType;
 
-        while ((token = parser.nextToken()) != Token.END_OBJECT) {
-            if (token == Token.FIELD_NAME) {
-                name = parser.currentName();
-            } else if (matcher.match(name, ScriptType.INLINE.getParseField())) {
-                if (type != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected script type [" + ScriptType.INLINE.getParseField().getPreferredName() + "], " +
-                        "when type has already been specified [" + type.getName() + "]");
-                }
+        private ParsedCode(String idOrCode, String contentType) {
+            this.idOrCode = idOrCode;
+            this.contentType = contentType;
+        }
+    }
 
-                type = ScriptType.INLINE;
+    /**
+     * Parses either a simple {@link String} for {@link Script#idOrCode} or converts a JSON object into a {@link String}
+     * also saving off the appropriate {@link XContentType} to be used for compilation if necessary.
+     */
+    private static ParsedCode parseCode(XContentParser parser, ParseFieldMatcherSupplier supplier) throws IOException {
+        String idOrCode;
+        String contentType = null;
 
-                options = new HashMap<>();
-
-                if (parser.currentToken() == Token.START_OBJECT) {
-                    options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
-                    XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                    idOrCode = builder.copyCurrentStructure(parser).bytes().utf8ToString();
-                } else {
-                    idOrCode = parser.text();
-                }
-            } else if (matcher.match(name, ScriptType.STORED.getParseField())) {
-                if (type != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected script type [" + ScriptType.STORED.getParseField().getPreferredName() + "], " +
-                            "when type has already been specified [" + type.getName() + "]");
-                }
-
-                type = ScriptType.STORED;
-
-                if (token == Token.VALUE_STRING) {
-                    idOrCode = parser.text();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<id>]");
-                }
-            } else if (matcher.match(name, ScriptType.FILE.getParseField())) {
-                if (type != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected script type [" + ScriptType.FILE.getParseField().getPreferredName() + "], " +
-                            "when type has already been specified [" + type.getName() + "]");
-                }
-
-                type = ScriptType.FILE;
-
-                if (token == Token.VALUE_STRING) {
-                    idOrCode = parser.text();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<id>]");
-                }
-            } else if (matcher.match(name, LANG_PARSE_FIELD)) {
-                if (token == Token.VALUE_STRING) {
-                    lang = parser.text();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<lang>]");
-                }
-            } else if (matcher.match(name, OPTIONS_PARSE_FIELD)) {
-                if (token == Token.START_OBJECT) {
-                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                        if (token == Token.FIELD_NAME) {
-                            String optionName = parser.currentName();
-                            token = parser.nextToken();
-
-                            if (token == Token.VALUE_STRING) {
-                                options.put(optionName, parser.text());
-                            } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<option value>]");
-                            }
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<option name>]");
-                        }
-                    }
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<options>]");
-                }
-            } else if (matcher.match(name, PARAMS_PARSE_FIELD)) {
-                if (token == Token.START_OBJECT) {
-                    params = parser.map();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected value [" + (token.isValue() ? parser.text() : token) + "], expected [<params>]");
-                }
-            } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "unexpected field [" + (name == null ? parser.currentToken() : name) + "], " + "expected [" +
-                        ScriptType.INLINE.getParseField().getPreferredName() + ", " +
-                        ScriptType.STORED.getParseField().getPreferredName() + ", " +
-                        ScriptType.FILE.getParseField().getPreferredName() + ", " +
-                        LANG_PARSE_FIELD.getPreferredName() + ", " +
-                        PARAMS_PARSE_FIELD.getPreferredName() +
-                        "]");
-            }
+        if (parser.currentToken() == Token.START_OBJECT) {
+            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+            idOrCode = builder.copyCurrentStructure(parser).bytes().utf8ToString();
+            contentType = parser.contentType().mediaType();
+        } else {
+            idOrCode = parser.text();
         }
 
-        if (type == null) {
-            throw new IllegalArgumentException("missing required parameter for parsing script, expected valid script type [" +
-                ScriptType.INLINE.getName() + "] or [" + ScriptType.STORED.getName() + "] or [" + ScriptType.FILE.getName() + "]");
-        }
+        return new ParsedCode(idOrCode, contentType);
+    }
 
-        if (idOrCode == null) {
-            throw new IllegalArgumentException("missing required parameter for parsing script, expected [<id>] or [<code>]");
-        }
+    /**
+     * Parses compiler options.
+     */
+    private static Map<String, String> parseOptions(XContentParser parser, ParseFieldMatcherSupplier supplier) throws IOException {
+        return parser.mapStrings();
+    }
 
-        if (params == null) {
-            params = new HashMap<>();
-        }
-
-        return new Script(type, lang, idOrCode, options, params);
+    /**
+     * Parses user-defined params.
+     */
+    private static Map<String, Object> parseParams(XContentParser parser, ParseFieldMatcherSupplier supplier) throws IOException {
+        return parser.map();
     }
 
     private ScriptType type;
@@ -348,6 +358,11 @@ public final class Script implements ToXContent, Writeable {
         this.lang = Objects.requireNonNull(lang);
         this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
         this.params = Collections.unmodifiableMap(Objects.requireNonNull(params));
+
+        if (type != ScriptType.INLINE && !options.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Compiler options [" + options + "] cannot be specified at runtime for [" + type + "] scripts.");
+        }
     }
 
     /**

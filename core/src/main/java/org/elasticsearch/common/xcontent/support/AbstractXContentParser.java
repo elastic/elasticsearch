@@ -216,6 +216,16 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
+    public Map<String, String> mapStrings() throws IOException {
+        return readMapStrings(this);
+    }
+
+    @Override
+    public Map<String, String> mapStringsOrdered() throws IOException {
+        return readOrderedMapStrings(this);
+    }
+
+    @Override
     public List<Object> list() throws IOException {
         return readList(this);
     }
@@ -229,9 +239,17 @@ public abstract class AbstractXContentParser implements XContentParser {
         Map<String, Object> newMap();
     }
 
+    interface MapStringsFactory {
+        Map<String, String> newMap();
+    }
+
     static final MapFactory SIMPLE_MAP_FACTORY = HashMap::new;
 
     static final MapFactory ORDERED_MAP_FACTORY = LinkedHashMap::new;
+
+    static final MapStringsFactory SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
+
+    static final MapStringsFactory ORDERED_MAP_STRINGS_FACTORY = LinkedHashMap::new;
 
     static Map<String, Object> readMap(XContentParser parser) throws IOException {
         return readMap(parser, SIMPLE_MAP_FACTORY);
@@ -239,6 +257,14 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static Map<String, Object> readOrderedMap(XContentParser parser) throws IOException {
         return readMap(parser, ORDERED_MAP_FACTORY);
+    }
+
+    static Map<String, String> readMapStrings(XContentParser parser) throws IOException {
+        return readMapStrings(parser, SIMPLE_MAP_STRINGS_FACTORY);
+    }
+
+    static Map<String, String> readOrderedMapStrings(XContentParser parser) throws IOException {
+        return readMapStrings(parser, ORDERED_MAP_STRINGS_FACTORY);
     }
 
     static List<Object> readList(XContentParser parser) throws IOException {
@@ -264,6 +290,26 @@ public abstract class AbstractXContentParser implements XContentParser {
             // And then the value...
             token = parser.nextToken();
             Object value = readValue(parser, mapFactory, token);
+            map.put(fieldName, value);
+        }
+        return map;
+    }
+
+    static Map<String, String> readMapStrings(XContentParser parser, MapStringsFactory mapStringsFactory) throws IOException {
+        Map<String, String> map = mapStringsFactory.newMap();
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
+        }
+        if (token == XContentParser.Token.START_OBJECT) {
+            token = parser.nextToken();
+        }
+        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
+            // Must point to field name
+            String fieldName = parser.currentName();
+            // And then the value...
+            parser.nextToken();
+            String value = parser.text();
             map.put(fieldName, value);
         }
         return map;

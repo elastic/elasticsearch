@@ -15,10 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
@@ -27,10 +23,7 @@ import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.secret.Secret;
 import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
-import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.email.Attachment;
 import org.elasticsearch.xpack.notification.email.Authentication;
 import org.elasticsearch.xpack.notification.email.DataAttachment;
@@ -45,6 +38,13 @@ import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
 import org.elasticsearch.xpack.notification.email.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.xpack.notification.email.attachment.HttpRequestAttachment;
+import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.execution.Wid;
+import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -94,11 +94,6 @@ public class EmailActionTests extends ESTestCase {
     public void testExecute() throws Exception {
         final String account = "account1";
         EmailService service = new AbstractWatcherIntegrationTestCase.NoopEmailService() {
-            @Override
-            public EmailService.EmailSent send(Email email, Authentication auth, Profile profile) {
-                return new EmailService.EmailSent(account, email);
-            }
-
             @Override
             public EmailService.EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
                 return new EmailService.EmailSent(account, email);

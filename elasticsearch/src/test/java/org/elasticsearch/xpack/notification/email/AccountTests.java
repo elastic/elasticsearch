@@ -9,8 +9,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.common.secret.Secret;
+import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.junit.After;
 import org.junit.Before;
 

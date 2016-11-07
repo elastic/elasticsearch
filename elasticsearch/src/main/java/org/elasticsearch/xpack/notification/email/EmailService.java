@@ -37,10 +37,6 @@ public class EmailService extends NotificationService<Account> {
     }
 
 
-    public EmailSent send(Email email, Authentication auth, Profile profile) throws MessagingException {
-        return send(email, auth, profile, (String) null);
-    }
-
     public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) throws MessagingException {
         Account account = getAccount(accountName);
         if (account == null) {
@@ -50,7 +46,7 @@ public class EmailService extends NotificationService<Account> {
         return send(email, auth, profile, account);
     }
 
-    EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
+    private EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
         assert account != null;
         try {
             email = account.send(email, auth, profile);

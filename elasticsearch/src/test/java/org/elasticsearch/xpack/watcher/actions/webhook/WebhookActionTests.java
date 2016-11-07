@@ -274,10 +274,6 @@ public class WebhookActionTests extends ESTestCase {
                 mock(WatcherClientProxy.class),
                 ExecuteScenario.Success.client(),
                 new AbstractWatcherIntegrationTestCase.NoopEmailService() {
-                    @Override
-                    public EmailSent send(Email email, Authentication auth, Profile profile) {
-                        return new EmailSent(account, email);
-                    }
 
                     @Override
                     public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {

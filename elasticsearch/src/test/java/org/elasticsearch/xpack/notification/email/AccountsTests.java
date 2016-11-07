@@ -9,7 +9,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.notification.NotificationService;
 
 import java.util.Collections;
 
@@ -85,17 +84,12 @@ public class AccountsTests extends ESTestCase {
     }
 
     public void testMultipleAccountsUnknownDefault() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("xpack.notification.email.default_account", "unknown");
+        Settings.Builder builder = Settings.builder().put("xpack.notification.email.default_account", "unknown");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
-        try {
-            new EmailService(builder.build(), null,
-                    new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
-            fail("Expected SettingsException");
-        } catch (SettingsException e) {
-            assertThat(e.getMessage(), is("could not find default account [unknown]"));
-        }
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING));
+        SettingsException e = expectThrows(SettingsException.class, () -> new EmailService(builder.build(), null, clusterSettings));
+        assertThat(e.getMessage(), is("could not find default account [unknown]"));
     }
 
     public void testNoAccount() throws Exception {
@@ -106,15 +100,10 @@ public class AccountsTests extends ESTestCase {
     }
 
     public void testNoAccountWithDefaultAccount() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("xpack.notification.email.default_account", "unknown");
-        try {
-            new EmailService(builder.build(), null,
-                    new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
-            fail("Expected SettingsException");
-        } catch (SettingsException e) {
-            assertThat(e.getMessage(), is("could not find default account [unknown]"));
-        }
+        Settings settings = Settings.builder().put("xpack.notification.email.default_account", "unknown").build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING));
+        SettingsException e = expectThrows(SettingsException.class, () -> new EmailService(settings, null, clusterSettings));
+        assertThat(e.getMessage(), is("could not find default account [unknown]"));
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

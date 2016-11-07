@@ -23,7 +23,7 @@ public class ManualPublicSmtpServersTester {
     public static class Gmail {
 
         public static void main(String[] args) throws Exception {
-            test(Profile.GMAIL, Settings.builder()
+            test("gmail", Profile.GMAIL, Settings.builder()
                     .put("xpack.notification.email.account.gmail.smtp.auth", true)
                     .put("xpack.notification.email.account.gmail.smtp.starttls.enable", true)
                     .put("xpack.notification.email.account.gmail.smtp.host", "smtp.gmail.com")
@@ -38,7 +38,7 @@ public class ManualPublicSmtpServersTester {
     public static class OutlookDotCom {
 
         public static void main(String[] args) throws Exception {
-            test(Profile.STANDARD, Settings.builder()
+            test("outlook", Profile.STANDARD, Settings.builder()
                     .put("xpack.notification.email.account.outlook.smtp.auth", true)
                     .put("xpack.notification.email.account.outlook.smtp.starttls.enable", true)
                     .put("xpack.notification.email.account.outlook.smtp.host", "smtp-mail.outlook.com")
@@ -54,7 +54,7 @@ public class ManualPublicSmtpServersTester {
     public static class YahooMail {
 
         public static void main(String[] args) throws Exception {
-            test(Profile.STANDARD, Settings.builder()
+            test("yahoo", Profile.STANDARD, Settings.builder()
                             .put("xpack.notification.email.account.yahoo.smtp.starttls.enable", true)
                             .put("xpack.notification.email.account.yahoo.smtp.auth", true)
                             .put("xpack.notification.email.account.yahoo.smtp.host", "smtp.mail.yahoo.com")
@@ -72,7 +72,7 @@ public class ManualPublicSmtpServersTester {
     public static class SES {
 
         public static void main(String[] args) throws Exception {
-            test(Profile.STANDARD, Settings.builder()
+            test("ses", Profile.STANDARD, Settings.builder()
                             .put("xpack.notification.email.account.ses.smtp.auth", true)
                             .put("xpack.notification.email.account.ses.smtp.starttls.enable", true)
                             .put("xpack.notification.email.account.ses.smtp.starttls.required", true)
@@ -87,7 +87,7 @@ public class ManualPublicSmtpServersTester {
         }
     }
 
-    static void test(Profile profile, Settings.Builder settingsBuilder) throws Exception {
+    static void test(String accountName, Profile profile, Settings.Builder settingsBuilder) throws Exception {
         String path = "/org/elasticsearch/xpack/watcher/actions/email/service/logo.png";
         if (EmailServiceTests.class.getResourceAsStream(path) == null) {
             throw new ElasticsearchException("Could not find logo at path {}", path);
@@ -110,7 +110,7 @@ public class ManualPublicSmtpServersTester {
                         () -> EmailServiceTests.class.getResourceAsStream(path)))
                 .build();
 
-        EmailService.EmailSent sent = service.send(email, null, profile);
+        EmailService.EmailSent sent = service.send(email, null, profile, accountName);
 
         terminal.println(String.format(Locale.ROOT, "email sent via account [%s]", sent.account()));
     }

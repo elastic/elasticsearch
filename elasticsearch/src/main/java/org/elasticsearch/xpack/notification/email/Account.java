@@ -89,11 +89,13 @@ public class Account {
 
         Transport transport = session.getTransport(SMTP_PROTOCOL);
 
-        String user = auth != null ? auth.user() : null;
+        String user = auth != null ? auth.user() : config.smtp.user;
         if (user == null) {
-            user = config.smtp.user;
-            if (user == null) {
-                user = InternetAddress.getLocalAddress(session).getAddress();
+            InternetAddress localAddress = InternetAddress.getLocalAddress(session);
+            // null check needed, because if the local host does not resolve, this may be null
+            // this can happen in wrongly setup linux distributions
+            if (localAddress != null) {
+                user = localAddress.getAddress();
             }
         }
 

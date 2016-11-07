@@ -663,11 +663,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         @Override
-        public EmailService.EmailSent send(Email email, Authentication auth, Profile profile) {
-            return new EmailSent(auth.user(), email);
-        }
-
-        @Override
         public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
             return new EmailSent(accountName, email);
         }

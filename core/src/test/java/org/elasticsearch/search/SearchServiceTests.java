@@ -185,7 +185,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     QuerySearchResultProvider querySearchResultProvider = service.executeQueryPhase(
                         new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f),
                         new SearchTask(123L, "", "", "", null));
                     IntArrayList intCursors = new IntArrayList(1);
                     intCursors.add(0);
@@ -220,7 +220,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new SearchSourceBuilder(),
                 new String[0],
                 false,
-                new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f),
             null);
         // the search context should inherit the default timeout
         assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -234,7 +235,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
                 new String[0],
                 false,
-                new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f),
             null);
         // the search context should inherit the query timeout
         assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));

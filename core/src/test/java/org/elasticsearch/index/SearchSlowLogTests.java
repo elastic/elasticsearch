@@ -88,6 +88,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
+                public float indexBoost() {
+                    return 1.0f;
+                }
+
+                @Override
                 public long nowInMillis() {
                     return 0;
                 }

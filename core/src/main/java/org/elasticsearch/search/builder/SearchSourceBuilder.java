@@ -19,16 +19,16 @@
 
 package org.elasticsearch.search.builder;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -63,10 +63,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-
-import static org.elasticsearch.common.collect.Tuple.tuple;
 
 /**
  * A search source builder allowing to easily build search source. Simple
@@ -76,6 +72,8 @@ import static org.elasticsearch.common.collect.Tuple.tuple;
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(SearchSourceBuilder.class));
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -167,7 +165,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private List<RescoreBuilder> rescoreBuilders;
 
-    private ObjectFloatHashMap<String> indexBoost = null;
+    private List<IndexBoost> indexBoosts = new ArrayList<>();
 
     private List<String> stats;
 
@@ -193,13 +191,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         from = in.readVInt();
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        int indexBoostSize = in.readVInt();
-        if (indexBoostSize > 0) {
-            indexBoost = new ObjectFloatHashMap<>(indexBoostSize);
-            for (int i = 0; i < indexBoostSize; i++) {
-                indexBoost.put(in.readString(), in.readFloat());
-            }
-        }
+        indexBoosts = in.readList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -240,11 +232,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
         out.writeOptionalWriteable(highlightBuilder);
-        int indexBoostSize = indexBoost == null ? 0 : indexBoost.size();
-        out.writeVInt(indexBoostSize);
-        if (indexBoostSize > 0) {
-            writeIndexBoost(out);
-        }
+        out.writeList(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
         out.writeOptionalNamedWriteable(queryBuilder);
@@ -281,17 +269,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
-    }
-
-    private void writeIndexBoost(StreamOutput out) throws IOException {
-        List<Tuple<String, Float>> ibs = StreamSupport
-            .stream(indexBoost.spliterator(), false)
-            .map(i -> tuple(i.key, i.value)).sorted((o1, o2) -> o1.v1().compareTo(o2.v1()))
-            .collect(Collectors.toList());
-        for (Tuple<String, Float> ib : ibs) {
-            out.writeString(ib.v1());
-            out.writeFloat(ib.v2());
-        }
     }
 
     /**
@@ -816,28 +793,26 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
-     * Sets the boost a specific index will receive when the query is executed
+     * Sets the boost a specific index or alias will receive when the query is executed
      * against it.
      *
      * @param index
-     *            The index to apply the boost against
+     *            The index or alias to apply the boost against
      * @param indexBoost
      *            The boost to apply to the index
      */
     public SearchSourceBuilder indexBoost(String index, float indexBoost) {
-        if (this.indexBoost == null) {
-            this.indexBoost = new ObjectFloatHashMap<>();
-        }
-        this.indexBoost.put(index, indexBoost);
+        Objects.requireNonNull(index, "index must not be null");
+        this.indexBoosts.add(new IndexBoost(index, indexBoost));
         return this;
     }
 
     /**
-     * Gets the boost a specific indices will receive when the query is
+     * Gets the boost a specific indices or aliases will receive when the query is
      * executed against them.
      */
-    public ObjectFloatHashMap<String> indexBoost() {
-        return indexBoost;
+    public List<IndexBoost> indexBoosts() {
+        return indexBoosts;
     }
 
     /**
@@ -916,7 +891,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         rewrittenBuilder.storedFieldsContext = storedFieldsContext;
         rewrittenBuilder.from = from;
         rewrittenBuilder.highlightBuilder = highlightBuilder;
-        rewrittenBuilder.indexBoost = indexBoost;
+        rewrittenBuilder.indexBoosts = indexBoosts;
         rewrittenBuilder.minScore = minScore;
         rewrittenBuilder.postQueryBuilder = postQueryBuilder;
         rewrittenBuilder.profile = profile;
@@ -1002,15 +977,16 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         scriptFields.add(new ScriptField(context));
                     }
                 } else if (context.getParseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
-                    indexBoost = new ObjectFloatHashMap<>();
+                    DEPRECATION_LOGGER.deprecated(
+                        "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            indexBoost.put(currentFieldName, parser.floatValue());
+                            indexBoosts.add(new IndexBoost(currentFieldName, parser.floatValue()));
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token +
-                                    " in [" + currentFieldName + "].", parser.getTokenLocation());
+                                " in [" + currentFieldName + "].", parser.getTokenLocation());
                         }
                     }
                 } else if (context.getParseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)
@@ -1059,8 +1035,12 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                             docValueFields.add(parser.text());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING +
-                                    "] in [" + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
+                                "] in [" + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
+                    }
+                } else if (context.getParseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        indexBoosts.add(new IndexBoost(context));
                     }
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sorts = new ArrayList<>(SortBuilder.fromXContent(context));
@@ -1191,18 +1171,13 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(SLICE.getPreferredName(), sliceBuilder);
         }
 
-        if (indexBoost != null) {
-            builder.startObject(INDICES_BOOST_FIELD.getPreferredName());
-            assert !indexBoost.containsKey(null);
-            final Object[] keys = indexBoost.keys;
-            final float[] values = indexBoost.values;
-            for (int i = 0; i < keys.length; i++) {
-                if (keys[i] != null) {
-                    builder.field((String) keys[i], values[i]);
-                }
-            }
+        builder.startArray(INDICES_BOOST_FIELD.getPreferredName());
+        for (IndexBoost ib : indexBoosts) {
+            builder.startObject();
+            builder.field(ib.index, ib.boost);
             builder.endObject();
         }
+        builder.endArray();
 
         if (aggregations != null) {
             builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations);
@@ -1237,6 +1212,91 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
     }
 
+    public static class IndexBoost implements Writeable, ToXContent {
+        private final String index;
+        private final float boost;
+
+        IndexBoost(String index, float boost) {
+            this.index = index;
+            this.boost = boost;
+        }
+
+        IndexBoost(StreamInput in) throws IOException {
+            index = in.readString();
+            boost = in.readFloat();
+        }
+
+        IndexBoost(QueryParseContext context) throws IOException {
+            XContentParser parser = context.parser();
+            XContentParser.Token token = parser.currentToken();
+
+            if (token == XContentParser.Token.START_OBJECT) {
+                token = parser.nextToken();
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    index = parser.currentName();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.FIELD_NAME +
+                        "] in [" + INDICES_BOOST_FIELD + "] but found [" + token + "]", parser.getTokenLocation());
+                }
+                token = parser.nextToken();
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    boost = parser.floatValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_NUMBER +
+                        "] in [" + INDICES_BOOST_FIELD + "] but found [" + token + "]", parser.getTokenLocation());
+                }
+                token = parser.nextToken();
+                if (token != XContentParser.Token.END_OBJECT) {
+                    throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.END_OBJECT +
+                        "] in [" + INDICES_BOOST_FIELD + "] but found [" + token + "]", parser.getTokenLocation());
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT +
+                    "] in [" + parser.currentName() + "] but found [" + token + "]", parser.getTokenLocation());
+            }
+        }
+
+        public String getIndex() {
+            return index;
+        }
+
+        public float getBoost() {
+            return boost;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(index);
+            out.writeFloat(boost);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(index, boost);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(index, boost);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            IndexBoost other = (IndexBoost) obj;
+            return Objects.equals(index, other.index)
+                && Objects.equals(boost, other.boost);
+        }
+
+    }
     public static class ScriptField implements Writeable, ToXContent {
 
         private final boolean ignoreFailure;
@@ -1352,8 +1412,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
-                indexBoost, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size, sorts, searchAfterBuilder,
-                sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version, profile, extBuilders);
+                indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
+                sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
+                profile, extBuilders);
     }
 
     @Override
@@ -1372,7 +1433,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(storedFieldsContext, other.storedFieldsContext)
                 && Objects.equals(from, other.from)
                 && Objects.equals(highlightBuilder, other.highlightBuilder)
-                && Objects.equals(indexBoost, other.indexBoost)
+                && Objects.equals(indexBoosts, other.indexBoosts)
                 && Objects.equals(minScore, other.minScore)
                 && Objects.equals(postQueryBuilder, other.postQueryBuilder)
                 && Objects.equals(queryBuilder, other.queryBuilder)

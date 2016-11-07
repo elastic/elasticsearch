@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,6 +85,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
+    private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState) {
+        if (searchRequest.source() == null) {
+            return Collections.emptyMap();
+        }
+
+        SearchSourceBuilder source = searchRequest.source();
+        if (source.indexBoosts() == null) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Float> concreteIndexBoosts = new HashMap<>();
+        for (SearchSourceBuilder.IndexBoost ib : source.indexBoosts()) {
+            Index[] concreteIndices =
+                indexNameExpressionResolver.concreteIndices(clusterState, searchRequest.indicesOptions(), ib.getIndex());
+
+            for (Index concreteIndex : concreteIndices) {
+                concreteIndexBoosts.putIfAbsent(concreteIndex.getUUID(), ib.getBoost());
+            }
+        }
+
+        return Collections.unmodifiableMap(concreteIndexBoosts);
+    }
+
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // pure paranoia if time goes backwards we are at least positive
@@ -107,6 +131,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.preference());
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
+        Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
+
         // optimize search type for cases where there is only one shard group to search on
         if (shardIterators.size() == 1) {
             // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
@@ -125,7 +151,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         searchAsyncAction((SearchTask)task, searchRequest, shardIterators, startTimeInMillis, clusterState,
-            Collections.unmodifiableMap(aliasFilter), listener).start();
+            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
     }
 
     @Override
@@ -135,6 +161,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest, GroupShardsIterator shardIterators,
                                                         long startTime, ClusterState state,  Map<String, AliasFilter> aliasFilter,
+                                                        Map<String, Float> concreteIndexBoosts,
                                                         ActionListener<SearchResponse> listener) {
         final Function<String, DiscoveryNode> nodesLookup = state.nodes()::get;
         final long clusterStateVersion = state.version();
@@ -143,22 +170,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;
             case DFS_QUERY_AND_FETCH:
                 searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;
             case QUERY_AND_FETCH:
                 searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;
             default:
@@ -177,5 +204,4 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 + "] to a greater value if you really want to query that many shards at the same time.");
         }
     }
-
 }

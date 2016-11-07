@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,6 +43,7 @@ import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -528,6 +530,60 @@ public class BootstrapCheckTests extends ESTestCase {
             NodeValidationException.class,
             () -> BootstrapCheck.check(randomBoolean(), Collections.singletonList(check), methodName));
         consumer.accept(e);
+    }
+
+    public void testG1GCCheck() throws NodeValidationException {
+        final AtomicBoolean isG1GCEnabled = new AtomicBoolean(true);
+        final AtomicReference<String> jvmVersion =
+            new AtomicReference<>(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(0, 39), randomIntBetween(1, 128)));
+        final BootstrapCheck.G1GCCheck oracleCheck = new BootstrapCheck.G1GCCheck() {
+
+            @Override
+            String jvmVendor() {
+                return "Oracle Corporation";
+            }
+
+            @Override
+            boolean isG1GCEnabled() {
+                return isG1GCEnabled.get();
+            }
+
+            @Override
+            String jvmVersion() {
+                return jvmVersion.get();
+            }
+
+        };
+
+        final NodeValidationException e =
+            expectThrows(
+                NodeValidationException.class,
+                () -> BootstrapCheck.check(true, Collections.singletonList(oracleCheck), "testG1GCCheck"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "JVM version [" + jvmVersion.get() + "] can cause data corruption when used with G1GC; upgrade to at least Java 8u40"));
+
+        // if G1GC is disabled, nothing should happen
+        isG1GCEnabled.set(false);
+        BootstrapCheck.check(true, Collections.singletonList(oracleCheck), "testG1GCCheck");
+
+        // if on or after update 40, nothing should happen independent of whether or not G1GC is enabled
+        isG1GCEnabled.set(randomBoolean());
+        jvmVersion.set(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(40, 112), randomIntBetween(1, 128)));
+        BootstrapCheck.check(true, Collections.singletonList(oracleCheck), "testG1GCCheck");
+
+        final BootstrapCheck.G1GCCheck nonOracleCheck = new BootstrapCheck.G1GCCheck() {
+
+            @Override
+            String jvmVendor() {
+                return randomAsciiOfLength(8);
+            }
+
+        };
+
+        // if not on an Oracle JVM, nothing should happen
+        BootstrapCheck.check(true, Collections.singletonList(nonOracleCheck), "testG1GCCheck");
     }
 
     public void testAlwaysEnforcedChecks() {

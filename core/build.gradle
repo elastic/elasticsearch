@@ -257,8 +257,10 @@ thirdPartyAudit.excludes = [
   'org.noggit.JSONParser', 
 ]
 
-// dependency license are currently checked in distribution
-dependencyLicenses.enabled = false
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
 
 if (isEclipse == false || project.path == ":core-tests") {
   task integTest(type: RandomizedTestingTask,

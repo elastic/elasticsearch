@@ -76,8 +76,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.NoneDiscovery;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -153,15 +155,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -397,10 +405,10 @@ public class Node implements Closeable {
                     b.bind(HttpServer.class).toProvider(Providers.of(null));
                 };
             }
-            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, transportService, networkService,
+
+            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
+                networkService, clusterService, hostsProvider -> newZenPing(settings, threadPool, transportService, hostsProvider),
                 pluginsService.filterPlugins(DiscoveryPlugin.class));
-            final ZenPing zenPing = newZenPing(settings, threadPool, transportService, discoveryModule.getHostsProvider());
-            modules.add(discoveryModule);
             pluginsService.processModules(modules);
             modules.add(b -> {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
@@ -432,7 +440,7 @@ public class Node implements Closeable {
                     b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
                     b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
                         indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
-                    b.bind(ZenPing.class).toInstance(zenPing);
+                    b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {
                         RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);

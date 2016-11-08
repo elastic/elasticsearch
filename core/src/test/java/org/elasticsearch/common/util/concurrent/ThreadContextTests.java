@@ -353,7 +353,7 @@ public class ThreadContextTests extends ESTestCase {
         }
     }
 
-    public void testPreservesThreadsOriginalContext() throws IOException {
+    public void testPreservesThreadsOriginalContextOnRunException() throws IOException {
         try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
             Runnable withContext;
 
@@ -437,7 +437,7 @@ public class ThreadContextTests extends ESTestCase {
         }
     }
 
-    public void testPreservesThreadsOriginalContextThrowingAbstractRunnable() throws IOException {
+    public void testPreservesThreadsOriginalContextOnFailureException() throws IOException {
         try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
             Runnable withContext;
 
@@ -475,6 +475,12 @@ public class ThreadContextTests extends ESTestCase {
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("foo"));
             assertTrue(threadContext.isDefaultContext());
+        }
+    }
+
+    public void testPreservesThreadsOriginalContextOnAfterException() throws IOException {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            Runnable withContext;
 
             // a runnable that throws from onAfter
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
@@ -507,7 +513,7 @@ public class ThreadContextTests extends ESTestCase {
             assertTrue(threadContext.isDefaultContext());
 
             // But we do inside of it
-            e = expectThrows(RuntimeException.class, withContext::run);
+            RuntimeException e = expectThrows(RuntimeException.class, withContext::run);
             assertEquals("from onAfter", e.getMessage());
             assertNull(e.getCause());
 

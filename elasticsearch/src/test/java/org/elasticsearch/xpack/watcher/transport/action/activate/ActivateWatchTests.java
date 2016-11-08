@@ -43,6 +43,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/4002")
     public void testDeactivateAndActivate() throws Exception {
         WatcherClient watcherClient = watcherClient();
 

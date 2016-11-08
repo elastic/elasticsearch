@@ -21,6 +21,10 @@ package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.cluster.ClusterState;
 
+/**
+ * A simple immutable container class that comprises a cluster state and cluster state status. Used by {@link ClusterService}
+ * to provide a snapshot view on which cluster state is currently being applied / already applied.
+ */
 public class ClusterServiceState {
     private final ClusterState clusterState;
     private final ClusterStateStatus clusterStateStatus;
@@ -36,5 +40,10 @@ public class ClusterServiceState {
 
     public ClusterStateStatus getClusterStateStatus() {
         return clusterStateStatus;
+    }
+
+    @Override
+    public String toString() {
+        return "version [" + clusterState.version() + "], status [" + clusterStateStatus + "]";
     }
 }

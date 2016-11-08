@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.ClusterStateStatus;
+import org.elasticsearch.cluster.service.ClusterServiceState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -427,8 +427,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             }, new ClusterStateObserver.ValidationPredicate() {
 
                 @Override
-                protected boolean validate(ClusterState newState, ClusterStateStatus status) {
-                    return newState.getVersion() >= clusterStateVersion;
+                protected boolean validate(ClusterServiceState newState) {
+                    return newState.getClusterState().getVersion() >= clusterStateVersion;
                 }
             });
             try {

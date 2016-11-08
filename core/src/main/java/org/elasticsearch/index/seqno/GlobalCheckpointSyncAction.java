@@ -87,6 +87,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
         try {
             indexShard.getTranslog().sync();
         } catch (final IOException e) {
+            // nocommit: no need to wrap this exception after integrating master into feature/seq_no
             throw new UncheckedIOException("failed to sync translog after updating global checkpoint for shard " + indexShard.shardId(), e);
         }
     }

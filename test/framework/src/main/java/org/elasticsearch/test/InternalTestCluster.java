@@ -1377,6 +1377,9 @@ public final class InternalTestCluster extends TestCluster {
         if (nodeAndClient != null) {
             logger.info("Restarting random node [{}] ", nodeAndClient.name);
             nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
+            if (callback.validateClusterForming()) {
+                validateClusterFormed();
+            }
         }
     }
 
@@ -1389,6 +1392,9 @@ public final class InternalTestCluster extends TestCluster {
         if (nodeAndClient != null) {
             logger.info("Restarting node [{}] ", nodeAndClient.name);
             nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
+            if (callback.validateClusterForming()) {
+                validateClusterFormed();
+            }
         }
     }
 

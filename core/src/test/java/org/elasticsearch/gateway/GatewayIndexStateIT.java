@@ -325,7 +325,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      */
     public void testIndexDeletionWhenNodeRejoins() throws Exception {
         final String indexName = "test-index-del-on-node-rejoin-idx";
-        final int numNodes = 2;
+        final int numNodes = 3;
 
         final List<String> nodes;
         if (randomBoolean()) {

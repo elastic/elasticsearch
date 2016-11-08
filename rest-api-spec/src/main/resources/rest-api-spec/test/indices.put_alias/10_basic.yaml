@@ -30,6 +30,9 @@
 
 ---
 "Can't create alias with invalid characters":
+  - skip:
+      version: " - 5.0.99"
+      reason:  alias name validation was introduced in 5.1.0
 
   - do:
       indices.create:

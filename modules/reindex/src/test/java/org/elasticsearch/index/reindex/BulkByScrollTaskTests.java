@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,8 +33,6 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 public class BulkByScrollTaskTests extends ESTestCase {
     public void testStatusHatesNegatives() {
@@ -153,10 +150,5 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(mergedRequestsPerSecond, merged.getRequestsPerSecond(), 0.0001f);
         assertEquals(mergedThrottledUntil, merged.getThrottledUntil());
         assertEquals(reasonCancelled, merged.getReasonCancelled());
-    }
-
-    public void testUnknownVersions() {
-        assertThat("5.1.0 has been defined, remove the temporary constant", VersionUtils.allVersions(),
-                not(hasItem(BulkByScrollTask.V_5_1_0_UNRELEASED)));
     }
 }

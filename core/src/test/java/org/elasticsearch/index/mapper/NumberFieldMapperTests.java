@@ -217,45 +217,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(0, fields.length);
     }
 
-    @Override
-    public void doTestIncludeInAll(String type) throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", type).endObject().endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", 123)
-                .endObject()
-                .bytes());
-
-        IndexableField[] fields = doc.rootDoc().getFields("_all");
-        assertEquals(1, fields.length);
-        assertEquals("123", fields[0].stringValue());
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", type)
-                .field("include_in_all", false).endObject().endObject()
-                .endObject().endObject().string();
-
-        mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", 123)
-                .endObject()
-                .bytes());
-
-        fields = doc.rootDoc().getFields("_all");
-        assertEquals(0, fields.length);
-    }
-
     public void testRejectNorms() throws IOException {
         // not supported as of 5.0
         for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {

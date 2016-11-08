@@ -115,9 +115,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.enablePositionIncrements(randomBoolean());
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.lenient(randomBoolean());
-        }
-        if (randomBoolean()) {
             queryStringQueryBuilder.escape(randomBoolean());
         }
         if (randomBoolean()) {

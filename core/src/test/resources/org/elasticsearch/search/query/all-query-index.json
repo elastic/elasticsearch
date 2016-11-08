@@ -23,9 +23,6 @@
   },
   "mappings": {
     "doc": {
-      "_all": {
-        "enabled": false
-      },
       "properties": {
         "f1": {"type": "text"},
         "f2": {"type": "keyword"},

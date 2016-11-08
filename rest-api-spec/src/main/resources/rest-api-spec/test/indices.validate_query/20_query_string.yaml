@@ -6,8 +6,6 @@
           body:
             mappings:
               test:
-                _all:
-                  enabled: false
                 properties:
                   field:
                     type: text

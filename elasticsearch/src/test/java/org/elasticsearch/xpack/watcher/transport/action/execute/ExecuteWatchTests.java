@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.execute;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
@@ -37,36 +36,11 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
-    public void testExecuteInvalidWatchId() throws Exception {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        try {
-            watcherClient().prepareExecuteWatch("id with whitespaces")
-                    .setTriggerEvent(new ScheduleTriggerEvent(now, now))
-                    .get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
-        }
-    }
-
-    public void testExecuteInvalidActionId() throws Exception {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        try {
-            watcherClient().prepareExecuteWatch("_id")
-                    .setTriggerEvent(new ScheduleTriggerEvent(now, now))
-                    .setActionMode("id with whitespaces", randomFrom(ActionExecutionMode.values()))
-                    .get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("Action id cannot have white spaces"));
-        }
-    }
 
     public void testExecuteAllDefaults() throws Exception {
         WatcherClient watcherClient = watcherClient();

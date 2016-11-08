@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.transport.action.delete;
 
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
@@ -33,7 +32,6 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -65,15 +63,6 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getId(), is("_name"));
         assertThat(response.getVersion(), is(1L));
         assertThat(response.isFound(), is(false));
-    }
-
-    public void testDeleteInvalidWatchId() throws Exception {
-        try {
-            watcherClient().deleteWatch(new DeleteWatchRequest("id with whitespaces")).actionGet();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
-        }
     }
 
     // This is a special case, since locking is removed

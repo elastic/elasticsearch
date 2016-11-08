@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -368,4 +370,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         ParseField METADATA = new ParseField("metadata");
         ParseField STATUS = new ParseField("_status");
     }
+
+    private static final Pattern NO_WS_PATTERN = Pattern.compile("\\S+");
+
+    public static boolean isValidId(String id) {
+        return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();
+    }
+
 }

@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.xpack.watcher.support.validation.Validation;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 
@@ -45,12 +45,11 @@ public class GetWatchRequest extends MasterNodeReadRequest<GetWatchRequest> {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+            validationException = ValidateActions.addValidationError("watch id is missing", validationException);
+        } else if (Watch.isValidId(id) == false) {
+            validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
-        Validation.Error error = Validation.watchId(id);
-        if (error != null) {
-            validationException = ValidateActions.addValidationError(error.message(), validationException);
-        }
+
         return validationException;
     }
 

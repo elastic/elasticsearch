@@ -12,9 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.watcher.support.validation.Validation;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * A ack watch request to ack a watch by name (id)
@@ -62,15 +63,18 @@ public class AckWatchRequest extends MasterNodeRequest<AckWatchRequest> {
         ActionRequestValidationException validationException = null;
         if (watchId == null){
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
+        } else if (Watch.isValidId(watchId) == false) {
+            validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
-        Validation.Error error = Validation.watchId(watchId);
-        if (error != null) {
-            validationException = ValidateActions.addValidationError(error.message(), validationException);
-        }
-        for (String actionId : actionIds) {
-            error = Validation.actionId(actionId);
-            if (error != null) {
-                validationException = ValidateActions.addValidationError(error.message(), validationException);
+        if (actionIds != null) {
+            for (String actionId : actionIds) {
+                if (actionId == null) {
+                    validationException = ValidateActions.addValidationError(
+                            String.format(Locale.ROOT, "action id may not be null"), validationException);
+                } else if (Watch.isValidId(actionId) == false) {
+                    validationException = ValidateActions.addValidationError(
+                            String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId), validationException);
+                }
             }
         }
         return validationException;

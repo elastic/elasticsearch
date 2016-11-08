@@ -11,7 +11,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.watcher.support.validation.Validation;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 
@@ -55,10 +55,8 @@ public class ActivateWatchRequest extends MasterNodeRequest<ActivateWatchRequest
         ActionRequestValidationException validationException = null;
         if (watchId == null){
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
-        }
-        Validation.Error error = Validation.watchId(watchId);
-        if (error != null) {
-            validationException = ValidateActions.addValidationError(error.message(), validationException);
+        } else if (Watch.isValidId(watchId) == false) {
+            validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
         return validationException;
     }

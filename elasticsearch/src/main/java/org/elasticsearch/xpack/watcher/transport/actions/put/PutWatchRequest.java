@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.support.validation.Validation;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 
@@ -97,11 +97,9 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (id == null) {
-            validationException = ValidateActions.addValidationError("watch name is missing", validationException);
-        }
-        Validation.Error error = Validation.watchId(id);
-        if (error != null) {
-            validationException = ValidateActions.addValidationError(error.message(), validationException);
+            validationException = ValidateActions.addValidationError("watch id is missing", validationException);
+        } else if (Watch.isValidId(id) == false) {
+            validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
         if (source == null) {
             validationException = ValidateActions.addValidationError("watch source is missing", validationException);

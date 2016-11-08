@@ -66,7 +66,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
     }
 
     @Override
-    protected PrimaryResult shardOperationOnPrimary(PrimaryRequest request) {
+    protected PrimaryResult shardOperationOnPrimary(PrimaryRequest request) throws Exception {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         long checkpoint = indexShard.getGlobalCheckpoint();

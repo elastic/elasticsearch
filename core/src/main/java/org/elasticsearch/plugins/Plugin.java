@@ -36,6 +36,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -208,7 +209,7 @@ public abstract class Plugin {
     public final void onModule(ActionModule module) {}
 
     /**
-     * Old-style action extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
+     * Old-style search extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
      * from 2.x.
      *
      * @deprecated implement {@link SearchPlugin} instead
@@ -217,7 +218,7 @@ public abstract class Plugin {
     public final void onModule(SearchModule module) {}
 
     /**
-     * Old-style action extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
+     * Old-style network extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
      * from 2.x.
      *
      * @deprecated implement {@link NetworkPlugin} instead
@@ -243,4 +244,12 @@ public abstract class Plugin {
     @Deprecated
     public final void onModule(ClusterModule module) {}
 
+    /**
+     * Old-style discovery extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
+     * from 2.x.
+     *
+     * @deprecated implement {@link DiscoveryPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(DiscoveryModule module) {}
 }

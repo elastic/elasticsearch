@@ -182,6 +182,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -906,9 +907,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 client().admin().cluster().preparePendingClusterTasks().get());
             fail("timed out waiting for " + color + " state");
         }
-        if (clusterHealthStatus == ClusterHealthStatus.GREEN) {
-            assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        }
+        assertThat("Expected at least " + clusterHealthStatus + " but got " + actionGet.getStatus(),
+            actionGet.getStatus().value(), lessThanOrEqualTo(clusterHealthStatus.value()));
         logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
         return actionGet.getStatus();
     }

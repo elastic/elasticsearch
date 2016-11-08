@@ -600,7 +600,7 @@ public class Node implements Closeable {
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
-            if (observer.observedState().nodes().getMasterNodeId() == null) {
+            if (observer.observedState().getClusterState().nodes().getMasterNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {

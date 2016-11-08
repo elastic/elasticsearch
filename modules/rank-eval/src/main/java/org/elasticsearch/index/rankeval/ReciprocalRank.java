@@ -45,8 +45,6 @@ import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsW
 public class ReciprocalRank implements RankedListQualityMetric {
 
     public static final String NAME = "reciprocal_rank";
-    public static final int DEFAULT_MAX_ACCEPTABLE_RANK = Integer.MAX_VALUE;
-    private int maxAcceptableRank = DEFAULT_MAX_ACCEPTABLE_RANK;
 
     /** ratings equal or above this value will be considered relevant. */
     private int relevantRatingThreshhold = 1;
@@ -58,39 +56,13 @@ public class ReciprocalRank implements RankedListQualityMetric {
         // use defaults
     }
 
-    /**
-     * @param maxAcceptableRank
-     *            maximal acceptable rank. Must be positive.
-     */
-    public ReciprocalRank(int maxAcceptableRank) {
-        if (maxAcceptableRank <= 0) {
-            throw new IllegalArgumentException("maximal acceptable rank needs to be positive but was [" + maxAcceptableRank + "]");
-        }
-        this.maxAcceptableRank = maxAcceptableRank;
-    }
-
     public ReciprocalRank(StreamInput in) throws IOException {
-        this.maxAcceptableRank = in.readInt();
+        this.relevantRatingThreshhold = in.readInt();
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    /**
-     * @param maxAcceptableRank
-     *            maximal acceptable rank. Must be positive.
-     */
-    public void setMaxAcceptableRank(int maxAcceptableRank) {
-        if (maxAcceptableRank <= 0) {
-            throw new IllegalArgumentException("maximal acceptable rank needs to be positive but was [" + maxAcceptableRank + "]");
-        }
-        this.maxAcceptableRank = maxAcceptableRank;
-    }
-
-    public int getMaxAcceptableRank() {
-        return this.maxAcceptableRank;
     }
 
     /**
@@ -117,7 +89,7 @@ public class ReciprocalRank implements RankedListQualityMetric {
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         int firstRelevant = -1;
         int rank = 1;
-        for (RatedSearchHit hit : ratedHits.subList(0, Math.min(maxAcceptableRank, ratedHits.size()))) {
+        for (RatedSearchHit hit : ratedHits) {
             Optional<Integer> rating = hit.getRating();
             if (rating.isPresent()) {
                 if (rating.get() >= this.relevantRatingThreshhold) {
@@ -137,16 +109,14 @@ public class ReciprocalRank implements RankedListQualityMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxAcceptableRank);
+        out.writeVInt(relevantRatingThreshhold);
     }
 
-    private static final ParseField MAX_RANK_FIELD = new ParseField("max_acceptable_rank");
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
     private static final ObjectParser<ReciprocalRank, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(
             "reciprocal_rank", () -> new ReciprocalRank());
 
     static {
-        PARSER.declareInt(ReciprocalRank::setMaxAcceptableRank, MAX_RANK_FIELD);
         PARSER.declareInt(ReciprocalRank::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
     }
 
@@ -158,7 +128,7 @@ public class ReciprocalRank implements RankedListQualityMetric {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(NAME);
-        builder.field(MAX_RANK_FIELD.getPreferredName(), this.maxAcceptableRank);
+        builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshhold);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -173,12 +143,12 @@ public class ReciprocalRank implements RankedListQualityMetric {
             return false;
         }
         ReciprocalRank other = (ReciprocalRank) obj;
-        return Objects.equals(maxAcceptableRank, other.maxAcceptableRank);
+        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(maxAcceptableRank);
+        return Objects.hash(relevantRatingThreshhold);
     }
 
     public static class Breakdown implements MetricDetails {

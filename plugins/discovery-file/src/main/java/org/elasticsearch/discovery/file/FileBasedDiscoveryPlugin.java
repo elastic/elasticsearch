@@ -62,8 +62,7 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
         // For 5.0, the hosts provider was "zen", but this was before the discovery.zen.hosts_provider
         // setting existed. This check looks for the legacy zen, and sets the file hosts provider if not set
         String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
-        // look at hosts provider setting to avoid fallback as default
-        String hostsProvider = settings.get(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey());
+        String hostsProvider = DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
         if (hostsProvider == null && discoveryType.equals("zen")) {
             deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
                 " setting to set hosts provider is deprecated. " +

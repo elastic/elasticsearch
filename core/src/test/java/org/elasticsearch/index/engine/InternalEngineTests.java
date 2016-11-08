@@ -286,7 +286,7 @@ public class InternalEngineTests extends ESTestCase {
 
     protected Translog createTranslog(Path translogPath) throws IOException {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
-        return new Translog(translogConfig, null);
+        return new Translog(translogConfig, null, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
     }
 
     protected SnapshotDeletionPolicy createSnapshotDeletionPolicy() {
@@ -599,10 +599,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(
                 Long.parseLong(stats1.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-            assertThat(stats1.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
-            assertThat(
-                Long.parseLong(stats1.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
-                equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+
             assertThat(stats1.getUserData(), hasKey(InternalEngine.MAX_SEQ_NO));
             assertThat(
                 Long.parseLong(stats1.getUserData().get(InternalEngine.MAX_SEQ_NO)),
@@ -628,10 +625,6 @@ public class InternalEngineTests extends ESTestCase {
                 not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
             assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
             assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
-            assertThat(stats2.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
-            assertThat(
-                Long.parseLong(stats2.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
-                equalTo(globalCheckpoint.get()));
             assertThat(stats2.getUserData(), hasKey(InternalEngine.MAX_SEQ_NO));
             assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.MAX_SEQ_NO)), equalTo(maxSeqNo.get()));
         } finally {
@@ -1702,13 +1695,13 @@ public class InternalEngineTests extends ESTestCase {
                 if (rarely()) {
                     localCheckpoint = primarySeqNo;
                     maxSeqNo = primarySeqNo;
-                    globalCheckpoint = replicaLocalCheckpoint;
                     initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
                     initialEngine.flush(true, true);
                 }
             }
 
             initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
+            globalCheckpoint = initialEngine.seqNoService().getGlobalCheckpoint();
 
             assertEquals(primarySeqNo, initialEngine.seqNoService().getMaxSeqNo());
             assertThat(initialEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primarySeqNo));
@@ -1718,8 +1711,9 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(
                 Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
                 equalTo(localCheckpoint));
+            initialEngine.getTranslog().sync(); // to guarantee the global checkpoint is written to the translog checkpoint
             assertThat(
-                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                initialEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
                 equalTo(globalCheckpoint));
             assertThat(
                 Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.MAX_SEQ_NO)),
@@ -1739,7 +1733,7 @@ public class InternalEngineTests extends ESTestCase {
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
                 equalTo(primarySeqNo));
             assertThat(
-                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                recoveringEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
                 equalTo(globalCheckpoint));
             assertThat(
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.MAX_SEQ_NO)),
@@ -2344,8 +2338,10 @@ public class InternalEngineTests extends ESTestCase {
         Translog.TranslogGeneration generation = engine.getTranslog().getGeneration();
         engine.close();
 
-        Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE)
-            , null);
+        Translog translog = new Translog(
+            new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
+            null,
+            () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
         translog.add(new Translog.Index("test", "SomeBogusId", "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();

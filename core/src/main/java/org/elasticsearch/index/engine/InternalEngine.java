@@ -46,6 +46,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -83,6 +84,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 public class InternalEngine extends Engine {
 
@@ -116,7 +118,6 @@ public class InternalEngine extends Engine {
 
     private final SequenceNumbersService seqNoService;
     static final String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
-    static final String GLOBAL_CHECKPOINT_KEY = "global_checkpoint";
     static final String MAX_SEQ_NO = "max_seq_no";
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
@@ -153,7 +154,7 @@ public class InternalEngine extends Engine {
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             try {
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
-                final SeqNoStats seqNoStats = loadSeqNoStatsFromCommit(writer);
+                final SeqNoStats seqNoStats = loadSeqNoStats(engineConfig, writer);
                 if (logger.isTraceEnabled()) {
                     logger.trace(
                             "recovering max sequence number: [{}], local checkpoint: [{}], global checkpoint: [{}]",
@@ -169,7 +170,7 @@ public class InternalEngine extends Engine {
                                 seqNoStats.getLocalCheckpoint(),
                                 seqNoStats.getGlobalCheckpoint());
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer);
+                translog = openTranslog(engineConfig, writer, seqNoService::getGlobalCheckpoint);
                 assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -257,7 +258,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer) throws IOException {
+    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, LongSupplier globalCheckpointSupplier) throws IOException {
+        assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         Translog.TranslogGeneration generation = null;
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
@@ -266,11 +268,11 @@ public class InternalEngine extends Engine {
             if (generation == null) {
                 throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
             }
-            if (generation != null && generation.translogUUID == null) {
+            if (generation.translogUUID == null) {
                 throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig, generation);
+        final Translog translog = new Translog(translogConfig, generation, globalCheckpointSupplier);
         if (generation == null || generation.translogUUID == null) {
             assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
                 + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
@@ -322,19 +324,35 @@ public class InternalEngine extends Engine {
         return null;
     }
 
-    private SeqNoStats loadSeqNoStatsFromCommit(IndexWriter writer) throws IOException {
+    /**
+     * Reads the sequence number stats from the Lucene commit point (maximum sequence number and local checkpoint) and the Translog
+     * checkpoint (global checkpoint).
+     *
+     * @param engineConfig the engine configuration (for the open mode and the translog path)
+     * @param writer       the index writer (for the Lucene commit point)
+     * @return the sequence number stats
+     * @throws IOException if an I/O exception occurred reading the Lucene commit point or the translog checkpoint
+     */
+    private static SeqNoStats loadSeqNoStats(final EngineConfig engineConfig, final IndexWriter writer) throws IOException {
         long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
-        long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
             final String key = entry.getKey();
             if (key.equals(LOCAL_CHECKPOINT_KEY)) {
+                assert localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED;
                 localCheckpoint = Long.parseLong(entry.getValue());
-            } else if (key.equals(GLOBAL_CHECKPOINT_KEY)) {
-                globalCheckpoint = Long.parseLong(entry.getValue());
             } else if (key.equals(MAX_SEQ_NO)) {
+                assert maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : localCheckpoint;
                 maxSeqNo = Long.parseLong(entry.getValue());
             }
+        }
+
+        // nocommit: reading this should be part of recovery from the translog
+        final long globalCheckpoint;
+        if (engineConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
+        } else {
+            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
 
         return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
@@ -1312,25 +1330,21 @@ public class InternalEngine extends Engine {
             final String translogFileGen = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
             final String localCheckpoint = Long.toString(seqNoService().getLocalCheckpoint());
-            final String globalCheckpoint = Long.toString(seqNoService().getGlobalCheckpoint());
 
             writer.setLiveCommitData(() -> {
-                /**
-                 * The user data captured above (e.g. local/global checkpoints) contains data that must be evaluated
-                 * *before* Lucene flushes segments, including the local and global checkpoints amongst other values.
-                 * The maximum sequence number is different - we never want the maximum sequence number to be
-                 * less than the last sequence number to go into a Lucene commit, otherwise we run the risk
-                 * of re-using a sequence number for two different documents when restoring from this commit
-                 * point and subsequently writing new documents to the index.  Since we only know which Lucene
-                 * documents made it into the final commit after the {@link IndexWriter#commit()} call flushes
-                 * all documents, we defer computation of the max_seq_no to the time of invocation of the commit
-                 * data iterator (which occurs after all documents have been flushed to Lucene).
+                /*
+                 * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
+                 * segments, including the local checkpoint amongst other values. The maximum sequence number is different - we never want
+                 * the maximum sequence number to be less than the last sequence number to go into a Lucene commit, otherwise we run the
+                 * risk of re-using a sequence number for two different documents when restoring from this commit point and subsequently
+                 * writing new documents to the index.  Since we only know which Lucene documents made it into the final commit after the
+                 * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the max_seq_no to the time of invocation
+                 * of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
                 final Map<String, String> commitData = new HashMap<>(6);
                 commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGen);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
                 commitData.put(LOCAL_CHECKPOINT_KEY, localCheckpoint);
-                commitData.put(GLOBAL_CHECKPOINT_KEY, globalCheckpoint);
                 if (syncId != null) {
                     commitData.put(Engine.SYNC_COMMIT_ID, syncId);
                 }

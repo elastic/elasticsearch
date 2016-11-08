@@ -60,6 +60,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -124,25 +125,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private volatile long lastCommittedTranslogFileGeneration = NOT_SET_GENERATION;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final TranslogConfig config;
+    private final LongSupplier globalCheckpointSupplier;
     private final String translogUUID;
 
     /**
-     * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogConfig} has
-     * a non-null {@link org.elasticsearch.index.translog.Translog.TranslogGeneration}. If the generation is null this method
-     * us destructive and will delete all files in the translog path given.
+     * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
+     * {@code null}. If the generation is {@code null} this method is destructive and will delete all files in the translog path given. If
+     * the generation is not {@code null}, this method tries to open the given translog generation. The generation is treated as the last
+     * generation referenced from already committed data. This means all operations that have not yet been committed should be in the
+     * translog file referenced by this generation. The translog creation will fail if this generation can't be opened.
      *
-     * @param config the configuration of this translog
-     * @param translogGeneration the translog generation to open. If this is <code>null</code> a new translog is created. If non-null
-     * the translog tries to open the given translog generation. The generation is treated as the last generation referenced
-     * form already committed data. This means all operations that have not yet been committed should be in the translog
-     * file referenced by this generation. The translog creation will fail if this generation can't be opened.
-     *
-     * @see TranslogConfig#getTranslogPath()
-     *
+     * @param config                   the configuration of this translog
+     * @param translogGeneration       the translog generation to open
+     * @param globalCheckpointSupplier a supplier for the global checkpoint
      */
-    public Translog(TranslogConfig config, TranslogGeneration translogGeneration) throws IOException {
+    public Translog(
+        final TranslogConfig config,
+        final TranslogGeneration translogGeneration,
+        final LongSupplier globalCheckpointSupplier) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
+        this.globalCheckpointSupplier = globalCheckpointSupplier;
         if (translogGeneration == null || translogGeneration.translogUUID == null) { // legacy case
             translogUUID = UUIDs.randomBase64UUID();
         } else {
@@ -157,7 +160,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         try {
             if (translogGeneration != null) {
-                final Checkpoint checkpoint = readCheckpoint();
+                final Checkpoint checkpoint = readCheckpoint(location);
                 final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
                 final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
                 // this is special handling for error condition when we create a new writer but we fail to bake
@@ -195,7 +198,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 logger.debug("wipe translog location - creating new translog");
                 Files.createDirectories(location);
                 final long generation = 1;
-                Checkpoint checkpoint = new Checkpoint(0, 0, generation);
+                Checkpoint checkpoint = new Checkpoint(0, 0, generation, globalCheckpointSupplier.getAsLong());
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 IOUtils.fsync(checkpointFile, false);
@@ -372,11 +375,25 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
 
+    /**
+     * Creates a new translog for the specified generation.
+     *
+     * @param fileGeneration the translog generation
+     * @return a writer for the new translog
+     * @throws IOException if creating the translog failed
+     */
     TranslogWriter createWriter(long fileGeneration) throws IOException {
-        TranslogWriter newFile;
+        final TranslogWriter newFile;
         try {
-            newFile = TranslogWriter.create(shardId, translogUUID, fileGeneration, location.resolve(getFilename(fileGeneration)), getChannelFactory(), config.getBufferSize());
-        } catch (IOException e) {
+            newFile = TranslogWriter.create(
+                shardId,
+                translogUUID,
+                fileGeneration,
+                location.resolve(getFilename(fileGeneration)),
+                getChannelFactory(),
+                config.getBufferSize(),
+                globalCheckpointSupplier);
+        } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
         return newFile;
@@ -441,6 +458,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * The last synced checkpoint for this translog.
+     *
+     * @return the last synced checkpoint
+     */
+    public long getLastSyncedGlobalCheckpoint() {
+        try (final ReleasableLock ignored = readLock.acquire()) {
+            return current.getLastSyncedCheckpoint().globalCheckpoint;
+        }
+    }
 
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
@@ -531,7 +558,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Ensures that all locations in the given stream have been synced / written to the underlying storage.
-     * This method allows for internal optimization to minimize the amout of fsync operations if multiple
+     * This method allows for internal optimization to minimize the amount of fsync operations if multiple
      * locations must be synced.
      *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
@@ -1356,8 +1383,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /** Reads and returns the current checkpoint */
-    final Checkpoint readCheckpoint() throws IOException {
+    static final Checkpoint readCheckpoint(final Path location) throws IOException {
         return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
+    }
+
+    /**
+     * Reads the sequence numbers global checkpoint from the translog checkpoint.
+     *
+     * @param location the location of the translog
+     * @return the global checkpoint
+     * @throws IOException if an I/O exception occurred reading the checkpoint
+     */
+    public static final long readGlobalCheckpoint(final Path location) throws IOException {
+        return readCheckpoint(location).globalCheckpoint;
     }
 
     /**

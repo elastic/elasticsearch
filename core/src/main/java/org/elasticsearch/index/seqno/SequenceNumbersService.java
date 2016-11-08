@@ -40,26 +40,16 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     final GlobalCheckpointService globalCheckpointService;
 
     /**
-     * Initialize the sequence number service. The {@code maxSeqNo}
-     * should be set to the last sequence number assigned by this
-     * shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED},
-     * {@code localCheckpoint} should be set to the last known local
-     * checkpoint for this shard, or
-     * {@link SequenceNumbersService#NO_OPS_PERFORMED}, and
-     * {@code globalCheckpoint} should be set to the last known global
-     * checkpoint for this shard, or
-     * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
+     * Initialize the sequence number service. The {@code maxSeqNo} should be set to the last sequence number assigned by this shard, or
+     * {@link SequenceNumbersService#NO_OPS_PERFORMED}, {@code localCheckpoint} should be set to the last known local checkpoint for this
+     * shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}, and {@code globalCheckpoint} should be set to the last known global
+     * checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
      *
-     * @param shardId          the shard this service is providing tracking
-     *                         local checkpoints for
-     * @param indexSettings    the index settings
-     * @param maxSeqNo         the last sequence number assigned by this
-     *                         shard, or
-     *                         {@link SequenceNumbersService#NO_OPS_PERFORMED}
-     * @param localCheckpoint  the last known local checkpoint for this shard,
-     *                         or {@link SequenceNumbersService#NO_OPS_PERFORMED}
-     * @param globalCheckpoint the last known global checkpoint for this shard,
-     *                         or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+     * @param shardId                  the shard this service is providing tracking local checkpoints for
+     * @param indexSettings            the index settings
+     * @param maxSeqNo                 the last sequence number assigned by this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param localCheckpoint          the last known local checkpoint for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param globalCheckpoint         the last known global checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
      */
     public SequenceNumbersService(
         final ShardId shardId,
@@ -100,8 +90,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Gets sequence number related stats
      */
     public SeqNoStats stats() {
-        return new SeqNoStats(localCheckpointService.getMaxSeqNo(), localCheckpointService.getCheckpoint(),
-            globalCheckpointService.getCheckpoint());
+        return new SeqNoStats(getMaxSeqNo(), getLocalCheckpoint(), getGlobalCheckpoint());
     }
 
     /**
@@ -131,6 +120,16 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
+     *
+     * @return true if the checkpoint has been updated or if it can not be updated since one of the local checkpoints
+     * of one of the active allocations is not known.
+     */
+    public boolean updateGlobalCheckpointOnPrimary() {
+        return globalCheckpointService.updateCheckpointOnPrimary();
+    }
+
+    /**
      * updates the global checkpoint on a replica shard (after it has been updated by the primary).
      */
     public void updateGlobalCheckpointOnReplica(long checkpoint) {
@@ -148,13 +147,4 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         globalCheckpointService.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
     }
 
-    /**
-     * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
-     *
-     * @return true if the checkpoint has been updated or if it can not be updated since one of the local checkpoints
-     * of one of the active allocations is not known.
-     */
-    public boolean updateGlobalCheckpointOnPrimary() {
-        return globalCheckpointService.updateCheckpointOnPrimary();
-    }
 }

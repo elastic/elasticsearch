@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -88,4 +89,5 @@ public class SeqNoStats implements ToXContent, Writeable {
             ", globalCheckpoint=" + globalCheckpoint +
             '}';
     }
+
 }

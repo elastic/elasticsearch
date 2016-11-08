@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
+import static org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.DEFAULT_BUFFER_LIMIT;
+
 /**
  * Factory used to create instances of {@link HttpAsyncResponseConsumer}. Each request retry needs its own instance of the
  * consumer object. Users can implement this interface and pass their own instance to the specialized
@@ -29,32 +31,35 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
  */
 interface HttpAsyncResponseConsumerFactory {
 
-    HttpAsyncResponseConsumerFactory DEFAULT = new Default();
+    /**
+     * Creates the default type of {@link HttpAsyncResponseConsumer}, based on heap buffering with a buffer limit of 100MB.
+     */
+    HttpAsyncResponseConsumerFactory DEFAULT = new HeapBufferedResponseConsumerFactory(DEFAULT_BUFFER_LIMIT);
 
     /**
-     * Creates the default type of {@link HttpAsyncResponseConsumer}, based on heap buffering.
+     * Creates the {@link HttpAsyncResponseConsumer}, called once per request attempt.
      */
     HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer();
 
     /**
      * Default factory used to create instances of {@link HttpAsyncResponseConsumer}.
-     * Creates one instance of {@link HeapBufferedAsyncResponseConsumer} for each retry with a buffer limit of 100MB.
+     * Creates one instance of {@link HeapBufferedAsyncResponseConsumer} for each request attempt, with a configurable
+     * buffer limit which defaults to 100MB.
      */
-    class Default implements HttpAsyncResponseConsumerFactory {
+    class HeapBufferedResponseConsumerFactory implements HttpAsyncResponseConsumerFactory {
 
         //default buffer limit is 100MB
         static final int DEFAULT_BUFFER_LIMIT = 100 * 1024 * 1024;
 
-        private Default() {
+        private final int bufferLimit;
 
+        public HeapBufferedResponseConsumerFactory(int bufferLimitBytes) {
+            this.bufferLimit = bufferLimitBytes;
         }
 
-        /**
-         * Creates the default type of {@link HttpAsyncResponseConsumer}, based on heap buffering.
-         */
         @Override
         public HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer() {
-            return new HeapBufferedAsyncResponseConsumer(DEFAULT_BUFFER_LIMIT);
+            return new HeapBufferedAsyncResponseConsumer(bufferLimit);
         }
     }
 }

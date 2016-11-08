@@ -319,6 +319,9 @@ public class ThreadContextTests extends ESTestCase {
 
             // But we do inside of it
             withContext.run();
+
+            // but not after
+            assertNull(threadContext.getHeader("foo"));
         }
     }
 
@@ -347,6 +350,177 @@ public class ThreadContextTests extends ESTestCase {
 
             // In fact the second wrapping didn't even change it
             assertThat(withContext, sameInstance(originalWithContext));
+        }
+    }
+
+    public void testPreservesThreadsOriginalContextOnRunException() throws IOException {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            Runnable withContext;
+
+            // create a abstract runnable, add headers and transient objects and verify in the methods
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("foo", "bar_transient");
+                withContext = threadContext.preserveContext(new AbstractRunnable() {
+
+                    @Override
+                    public void onAfter() {
+                        assertEquals("bar", threadContext.getHeader("foo"));
+                        assertEquals("bar_transient", threadContext.getTransient("foo"));
+                        assertNotNull(threadContext.getTransient("failure"));
+                        assertEquals("exception from doRun", ((RuntimeException)threadContext.getTransient("failure")).getMessage());
+                        assertFalse(threadContext.isDefaultContext());
+                        threadContext.putTransient("after", "after");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertEquals("exception from doRun", e.getMessage());
+                        assertEquals("bar", threadContext.getHeader("foo"));
+                        assertEquals("bar_transient", threadContext.getTransient("foo"));
+                        assertFalse(threadContext.isDefaultContext());
+                        threadContext.putTransient("failure", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        assertEquals("bar", threadContext.getHeader("foo"));
+                        assertEquals("bar_transient", threadContext.getTransient("foo"));
+                        assertFalse(threadContext.isDefaultContext());
+                        throw new RuntimeException("exception from doRun");
+                    }
+                });
+            }
+
+            // We don't see the header outside of the runnable
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertNull(threadContext.getTransient("failure"));
+            assertNull(threadContext.getTransient("after"));
+            assertTrue(threadContext.isDefaultContext());
+
+            // But we do inside of it
+            withContext.run();
+
+            // verify not seen after
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertNull(threadContext.getTransient("failure"));
+            assertNull(threadContext.getTransient("after"));
+            assertTrue(threadContext.isDefaultContext());
+
+            // repeat with regular runnable
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("foo", "bar_transient");
+                withContext = threadContext.preserveContext(() -> {
+                    assertEquals("bar", threadContext.getHeader("foo"));
+                    assertEquals("bar_transient", threadContext.getTransient("foo"));
+                    assertFalse(threadContext.isDefaultContext());
+                    threadContext.putTransient("run", true);
+                    throw new RuntimeException("exception from run");
+                });
+            }
+
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertNull(threadContext.getTransient("run"));
+            assertTrue(threadContext.isDefaultContext());
+
+            final Runnable runnable = withContext;
+            RuntimeException e = expectThrows(RuntimeException.class, runnable::run);
+            assertEquals("exception from run", e.getMessage());
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertNull(threadContext.getTransient("run"));
+            assertTrue(threadContext.isDefaultContext());
+        }
+    }
+
+    public void testPreservesThreadsOriginalContextOnFailureException() throws IOException {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            Runnable withContext;
+
+            // a runnable that throws from onFailure
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("foo", "bar_transient");
+                withContext = threadContext.preserveContext(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new RuntimeException("from onFailure", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        assertEquals("bar", threadContext.getHeader("foo"));
+                        assertEquals("bar_transient", threadContext.getTransient("foo"));
+                        assertFalse(threadContext.isDefaultContext());
+                        throw new RuntimeException("from doRun");
+                    }
+                });
+            }
+
+            // We don't see the header outside of the runnable
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertTrue(threadContext.isDefaultContext());
+
+            // But we do inside of it
+            RuntimeException e = expectThrows(RuntimeException.class, withContext::run);
+            assertEquals("from onFailure", e.getMessage());
+            assertEquals("from doRun", e.getCause().getMessage());
+
+            // but not after
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertTrue(threadContext.isDefaultContext());
+        }
+    }
+
+    public void testPreservesThreadsOriginalContextOnAfterException() throws IOException {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            Runnable withContext;
+
+            // a runnable that throws from onAfter
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("foo", "bar_transient");
+                withContext = threadContext.preserveContext(new AbstractRunnable() {
+
+                    @Override
+                    public void onAfter() {
+                        throw new RuntimeException("from onAfter");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new RuntimeException("from onFailure", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        assertEquals("bar", threadContext.getHeader("foo"));
+                        assertEquals("bar_transient", threadContext.getTransient("foo"));
+                        assertFalse(threadContext.isDefaultContext());
+                    }
+                });
+            }
+
+            // We don't see the header outside of the runnable
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertTrue(threadContext.isDefaultContext());
+
+            // But we do inside of it
+            RuntimeException e = expectThrows(RuntimeException.class, withContext::run);
+            assertEquals("from onAfter", e.getMessage());
+            assertNull(e.getCause());
+
+            // but not after
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertTrue(threadContext.isDefaultContext());
         }
     }
 

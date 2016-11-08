@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
@@ -39,16 +40,13 @@ public class ReciprocalRankTests extends ESTestCase {
 
     public void testMaxAcceptableRank() {
         ReciprocalRank reciprocalRank = new ReciprocalRank();
-        assertEquals(ReciprocalRank.DEFAULT_MAX_ACCEPTABLE_RANK, reciprocalRank.getMaxAcceptableRank());
 
-        int maxRank = randomIntBetween(1, 100);
-        reciprocalRank.setMaxAcceptableRank(maxRank);
-        assertEquals(maxRank, reciprocalRank.getMaxAcceptableRank());
+        int searchHits = randomIntBetween(1, 50);
 
-        SearchHit[] hits = createSearchHits(0, 9, "test", "type");
+        SearchHit[] hits = createSearchHits(0, searchHits, "test", "type");
         List<RatedDocument> ratedDocs = new ArrayList<>();
-        int relevantAt = 5;
-        for (int i = 0; i < 10; i++) {
+        int relevantAt = randomIntBetween(0, searchHits);
+        for (int i = 0; i <= searchHits; i++) {
             if (i == relevantAt) {
                 ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i), Rating.RELEVANT.ordinal()));
             } else {
@@ -58,19 +56,13 @@ public class ReciprocalRankTests extends ESTestCase {
 
         int rankAtFirstRelevant = relevantAt + 1;
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        if (rankAtFirstRelevant <= maxRank) {
-            assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
-            assertEquals(rankAtFirstRelevant, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(rankAtFirstRelevant, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
 
-            // check that if we lower maxRank by one, we don't find any result and get 0.0 quality level
-            reciprocalRank = new ReciprocalRank(rankAtFirstRelevant - 1);
-            evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-            assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
-
-        } else {
-            assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
-            assertEquals(-1, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
-        }
+        // check that if we have fewer search hits than relevant doc position, we don't find any result and get 0.0 quality level
+        reciprocalRank = new ReciprocalRank();
+        evaluation = reciprocalRank.evaluate("id", Arrays.copyOfRange(hits, 0, relevantAt), ratedDocs);
+        assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
 
     public void testEvaluationOneRelevantInResults() {
@@ -131,9 +123,8 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     public void testXContentRoundtrip() throws IOException {
-        int position = randomIntBetween(0, 1000);
-
-        ReciprocalRank testItem = new ReciprocalRank(position);
+        ReciprocalRank testItem = new ReciprocalRank();
+        testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
         XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();

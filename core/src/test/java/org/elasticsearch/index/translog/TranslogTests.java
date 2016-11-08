@@ -139,14 +139,8 @@ public class TranslogTests extends ESTestCase {
     }
 
     private Translog create(Path path) throws IOException {
-        globalCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
-        final LongSupplier globalCheckpointSupplier = () -> {
-          if (randomBoolean()) {
-              globalCheckpoint.set(globalCheckpoint.get() + randomIntBetween(1, 16));
-          }
-          return globalCheckpoint.longValue();
-        };
-        return new Translog(getTranslogConfig(path), null, globalCheckpointSupplier);
+        globalCheckpoint = new AtomicLong(SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        return new Translog(getTranslogConfig(path), null, () -> globalCheckpoint.get());
     }
 
     private TranslogConfig getTranslogConfig(Path path) {
@@ -858,6 +852,9 @@ public class TranslogTests extends ESTestCase {
         long lastSyncedGlobalCheckpoint = globalCheckpoint.get();
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+            if (randomBoolean()) {
+                globalCheckpoint.set(globalCheckpoint.get() + randomIntBetween(1, 16));
+            }
             if (frequently()) {
                 translog.sync();
                 lastSynced = op;
@@ -1138,7 +1135,7 @@ public class TranslogTests extends ESTestCase {
         Checkpoint read = Checkpoint.read(ckp);
         Checkpoint corrupted = new Checkpoint(0, 0, 0, SequenceNumbersService.UNASSIGNED_SEQ_NO);
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), corrupted, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-        try (Translog translog = new Translog(config, translogGeneration, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
+        try (Translog ignored = new Translog(config, translogGeneration, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
             fail("corrupted");
         } catch (IllegalStateException ex) {
             assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=3178, numOps=55, translogFileGeneration=2, globalCheckpoint=-2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration=0, globalCheckpoint=-2}");

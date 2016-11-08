@@ -10,8 +10,6 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
@@ -22,9 +20,6 @@ import java.io.IOException;
 public class GetWatchRequest extends MasterNodeReadRequest<GetWatchRequest> {
 
     private String id;
-    private long version = Versions.MATCH_ANY;
-    private VersionType versionType = VersionType.INTERNAL;
-
 
     public GetWatchRequest() {
     }
@@ -61,41 +56,15 @@ public class GetWatchRequest extends MasterNodeReadRequest<GetWatchRequest> {
         return id;
     }
 
-    /**
-     * Sets the version, which will cause the delete operation to only be performed if a matching
-     * version exists and no changes happened on the doc since then.
-     */
-    public GetWatchRequest setVersion(long version) {
-        this.version = version;
-        return this;
-    }
-
-    public long getVersion() {
-        return this.version;
-    }
-
-    public GetWatchRequest setVersionType(VersionType versionType) {
-        this.versionType = versionType;
-        return this;
-    }
-
-    public VersionType getVersionType() {
-        return this.versionType;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        version = in.readLong();
-        versionType = VersionType.fromValue(in.readByte());
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(version);
-        out.writeByte(versionType.getValue());
         out.writeString(id);
     }
 

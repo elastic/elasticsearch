@@ -49,18 +49,6 @@ public class DeleteWatchRequest extends MasterNodeRequest<DeleteWatchRequest> {
         this.id = id;
     }
 
-    /**
-     * Sets the version, which will cause the delete operation to only be performed if a matching
-     * version exists and no changes happened on the doc since then.
-     */
-    public long getVersion() {
-        return version;
-    }
-
-    public void setVersion(long version) {
-        this.version = version;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;

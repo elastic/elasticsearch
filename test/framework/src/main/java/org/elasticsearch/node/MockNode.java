@@ -19,6 +19,9 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -118,6 +121,16 @@ public class MockNode extends Node {
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
         if (false == getPluginsService().filterPlugins(RecoverySettingsChunkSizePlugin.class).isEmpty()) {
             clusterSettings.addSettingsUpdateConsumer(RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING, recoverySettings::setChunkSize);
+        }
+    }
+
+    @Override
+    protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
+                                                       ThreadPool threadPool, NodeClient client) {
+        if (getPluginsService().filterPlugins(MockZenPing.TestPlugin.class).isEmpty()) {
+            return super.newClusterInfoService(settings, clusterService, threadPool, client);
+        } else {
+            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
         }
     }
 }

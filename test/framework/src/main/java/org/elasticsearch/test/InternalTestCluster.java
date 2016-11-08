@@ -549,14 +549,11 @@ public final class InternalTestCluster extends TestCluster {
         while (values.hasNext() && numNodesAndClients++ < size - n) {
             NodeAndClient next = values.next();
             nodesToRemove.add(next);
-            removeDisruptionSchemeFromNode(next);
-            next.close();
         }
-        for (NodeAndClient toRemove : nodesToRemove) {
-            nodes.remove(toRemove.name);
-        }
+
+        stopNodesAndClients(nodesToRemove);
         if (!nodesToRemove.isEmpty() && size() > 0) {
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodes.size())).get());
+            validateClusterFormed();
         }
     }
 

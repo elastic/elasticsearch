@@ -117,7 +117,7 @@ Response performRequest(String method, String endpoint,
 Response performRequest(String method, String endpoint,
                         Map<String, String> params,
                         HttpEntity entity,
-                        HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                        HttpAsyncResponseConsumerFactory responseConsumerFactory,
                         Header... headers)
     throws IOException;
 
@@ -141,7 +141,7 @@ void performRequestAsync(String method, String endpoint,
                          Map<String, String> params,
                          HttpEntity entity,
                          ResponseListener responseListener,
-                         HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                         HttpAsyncResponseConsumerFactory responseConsumerFactory,
                          Header... headers);
 --------------------------------------------------
 
@@ -155,11 +155,12 @@ call (e.g. `/_cluster/health`)
 `params`:: the optional parameters to be sent as querystring parameters
 `entity`:: the optional request body enclosed in an
 `org.apache.http.HttpEntity` object
-`responseConsumer`:: the optional
+`responseConsumerFactory`:: the optional factory that is used to create an
 http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
- callback. Controls how the response body gets streamed from a non-blocking
-HTTP connection on the client side. When not provided, the default
-implementation is used which buffers the whole response body in heap memory
+ callback instance per request attempt. Controls how the response body gets
+ streamed from a non-blocking HTTP connection on the client side. When not
+ provided, the default implementation is used which buffers the whole response
+ body in heap memory, up to 100 MB
 `responseListener`:: the listener to be notified upon asynchronous
 request success or failure
 `headers`:: optional request headers

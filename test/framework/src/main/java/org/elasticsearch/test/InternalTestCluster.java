@@ -1035,7 +1035,7 @@ public final class InternalTestCluster extends TestCluster {
             toStartAndPublish.add(nodeAndClient);
         }
 
-        startAndPublishNodesAndClients(toStartAndPublish.toArray(new NodeAndClient[toStartAndPublish.size()]));
+        startAndPublishNodesAndClients(toStartAndPublish);
 
         nextNodeId.set(newSize);
         assert size() == newSize;
@@ -1310,16 +1310,25 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private synchronized void startAndPublishNodesAndClients(NodeAndClient... nodeAndClients) {
-        if (autoManageMinMasterNodes && nodeAndClients.length > 0) {
-            int masters = (int) Stream.of(nodeAndClients).filter(NodeAndClient::isMasterNode)
+    private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
+        if (nodeAndClients.size() > 0) {
+            final int newMasters = (int) nodeAndClients.stream().filter(NodeAndClient::isMasterNode)
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
-            updateMinMasterNodes(masters);
-        }
-        for (NodeAndClient nodeAndClient: nodeAndClients) {
-            nodeAndClient.startNode();
-            publishNode(nodeAndClient);
+            final int currentMasters = getMasterNodesCount();
+            if (autoManageMinMasterNodes && currentMasters > 1) {
+                // special case for 1 node master - we can't update the min master nodes before we update a second one
+                updateMinMasterNodes(newMasters);
+            }
+            for (NodeAndClient nodeAndClient : nodeAndClients) {
+                nodeAndClient.startNode();
+                publishNode(nodeAndClient);
+            }
+            if (autoManageMinMasterNodes && currentMasters == 1) {
+                // update once master have joined
+                validateClusterFormed();
+                updateMinMasterNodes(newMasters);
+            }
         }
     }
 
@@ -1581,7 +1590,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized String startNode(Settings settings) {
         final int defaultMinMasterNodes = getNewMinMasterNodes(Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0);
         NodeAndClient buildNode = buildNode(settings, defaultMinMasterNodes);
-        startAndPublishNodesAndClients(buildNode);
+        startAndPublishNodesAndClients(Collections.singletonList(buildNode));
         return buildNode.name;
     }
 
@@ -1591,7 +1600,7 @@ public final class InternalTestCluster extends TestCluster {
         final int minMasterNodes = getNewMinMasterNodes(masterNodesDelta);
         if (currentMasters == 0) {
             // there is no one to update
-        } else if (currentMasters == 1) {
+        } else if (currentMasters == 1 && minMasterNodes > 1) {
             // we cant really update min master node as it will cause the master to reject it (there is only one)
             // so instead ensure there is a master
             client().admin().cluster().prepareHealth().get();

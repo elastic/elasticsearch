@@ -34,7 +34,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStat
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -58,6 +57,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -77,7 +77,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -101,7 +100,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAliasesExist;
@@ -2505,8 +2503,28 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
         refresh();
 
+        // make sure we return only the in-progress snapshot when taking the first snapshot on a clean repository
+        // take initial snapshot with a block, making sure we only get 1 in-progress snapshot returned
+        // block a node so the create snapshot operation can remain in progress
+        final String initialBlockedNode = blockNodeWithIndex(repositoryName, indexName);
+        ListenableActionFuture<CreateSnapshotResponse> responseListener =
+            client.admin().cluster().prepareCreateSnapshot(repositoryName, "snap-on-empty-repo")
+                .setWaitForCompletion(false)
+                .setIndices(indexName)
+                .execute();
+        waitForBlock(initialBlockedNode, repositoryName, TimeValue.timeValueSeconds(60)); // wait for block to kick in
+        getSnapshotsResponse = client.admin().cluster()
+                                   .prepareGetSnapshots("test-repo")
+                                   .setSnapshots(randomFrom("_all", "_current", "snap-on-*", "*-on-empty-repo", "snap-on-empty-repo"))
+                                   .get();
+        assertEquals(1, getSnapshotsResponse.getSnapshots().size());
+        assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots().get(0).snapshotId().getName());
+        unblockNode(repositoryName, initialBlockedNode); // unblock node
+        responseListener.actionGet(TimeValue.timeValueMillis(10000L)); // timeout after 10 seconds
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, "snap-on-empty-repo").get();
+
         final int numSnapshots = randomIntBetween(1, 3) + 1;
-        logger.info("--> take {} snapshot(s)", numSnapshots);
+        logger.info("--> take {} snapshot(s)", numSnapshots - 1);
         final String[] snapshotNames = new String[numSnapshots];
         for (int i = 0; i < numSnapshots - 1; i++) {
             final String snapshotName = randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
@@ -2538,9 +2556,19 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> get all snapshots with a current in-progress");
         // with ignore unavailable set to true, should not throw an exception
+        final List<String> snapshotsToGet = new ArrayList<>();
+        if (randomBoolean()) {
+            // use _current plus the individual names of the finished snapshots
+            snapshotsToGet.add("_current");
+            for (int i = 0; i < numSnapshots - 1; i++) {
+                snapshotsToGet.add(snapshotNames[i]);
+            }
+        } else {
+            snapshotsToGet.add("_all");
+        }
         getSnapshotsResponse = client.admin().cluster()
                                              .prepareGetSnapshots(repositoryName)
-                                             .addSnapshots("_all")
+                                             .setSnapshots(snapshotsToGet.toArray(Strings.EMPTY_ARRAY))
                                              .get();
         List<String> sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);

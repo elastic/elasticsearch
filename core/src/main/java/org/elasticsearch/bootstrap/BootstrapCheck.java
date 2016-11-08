@@ -44,6 +44,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * We enforce limits once any network host is configured. In this case we assume the node is running in production
@@ -172,6 +174,7 @@ final class BootstrapCheck {
         checks.add(new UseSerialGCCheck());
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
+        checks.add(new G1GCCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -545,6 +548,58 @@ final class BootstrapCheck {
                     " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
                 onOutOfMemoryError(),
                 BootstrapSettings.SECCOMP_SETTING.getKey());
+        }
+
+    }
+
+    /**
+     * Bootstrap check for versions of HotSpot that are known to have issues that can lead to index corruption when G1GC is enabled.
+     */
+    static class G1GCCheck implements BootstrapCheck.Check {
+
+        @Override
+        public boolean check() {
+            if ("Oracle Corporation".equals(jvmVendor()) && isJava8() && isG1GCEnabled()) {
+                final String jvmVersion = jvmVersion();
+                final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)-b\\d+");
+                final Matcher matcher = pattern.matcher(jvmVersion);
+                final boolean matches = matcher.matches();
+                assert matches : jvmVersion;
+                final int major = Integer.parseInt(matcher.group(1));
+                final int update = Integer.parseInt(matcher.group(2));
+                return major == 25 && update < 40;
+            } else {
+                return false;
+            }
+        }
+
+        // visible for testing
+        String jvmVendor() {
+            return Constants.JVM_VENDOR;
+        }
+
+        // visible for testing
+        boolean isG1GCEnabled() {
+            assert "Oracle Corporation".equals(jvmVendor());
+            return JvmInfo.jvmInfo().useG1GC().equals("true");
+        }
+
+        // visible for testing
+        String jvmVersion() {
+            assert "Oracle Corporation".equals(jvmVendor());
+            return Constants.JVM_VERSION;
+        }
+
+        // visible for tests
+        boolean isJava8() {
+            return Constants.JVM_SPEC_VERSION.equals("1.8");
+        }
+
+        @Override
+        public String errorMessage() {
+           return String.format(
+               Locale.ROOT,
+               "JVM version [%s] can cause data corruption when used with G1GC; upgrade to at least Java 8u40", jvmVersion());
         }
 
     }

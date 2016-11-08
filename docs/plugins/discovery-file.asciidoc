@@ -39,11 +39,15 @@ The node must be stopped before removing the plugin.
 
 The file-based discovery plugin provides the ability to specify the 
 unicast hosts list through a simple `unicast_hosts.txt` file that can
-be dynamically updated at any time.  The discovery type for this plugin
-is still the default `zen` plugin, so no changes are required to the 
-`elasticsearch.yml` config file.  This plugin simply provides a facility
-to supply the unicast hosts list for zen discovery through an external
-file that can be updated at any time by a side process.  
+be dynamically updated at any time. To enable, add the following in `elasticsearch.yml`:
+
+[source,yaml]
+----
+discovery.zen.hosts_provider: file
+----
+
+This plugin simply provides a facility to supply the unicast hosts list for
+zen discovery through an external file that can be updated at any time by a side process.  
 
 For example, this gives a convenient mechanism for an Elasticsearch instance 
 that is  run in docker containers to be dynamically supplied a list of IP 

@@ -71,7 +71,7 @@ public class DiscoveryModule {
         if (hostsProviderName.isPresent()) {
             Supplier<UnicastHostsProvider> hostsProviderSupplier = hostProviders.get(hostsProviderName.get());
             if (hostsProviderSupplier == null) {
-                throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName + "]");
+                throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName.get() + "]");
             }
             hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
         } else {

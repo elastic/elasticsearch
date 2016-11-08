@@ -45,13 +45,21 @@ import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsW
  */
 public class Precision implements RankedListQualityMetric {
 
-    /** ratings equal or above this value will be considered relevant. */
-    private int relevantRatingThreshhold = 1;
-
     public static final String NAME = "precision";
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
+    private static final ParseField IGNORE_UNLABELED_FIELD = new ParseField("ignore_unlabeled");
     private static final ObjectParser<Precision, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Precision::new);
+
+    /**
+     * This setting controls how unlabeled documents in the search hits are
+     * treated. Set to 'true', unlabeled documents are ignored and neither count
+     * as true or false positives. Set to 'false', they are treated as false positives.
+     */
+    private boolean ignoreUnlabeled = false;
+
+    /** ratings equal or above this value will be considered relevant. */
+    private int relevantRatingThreshhold = 1;
 
     public Precision() {
         // needed for supplier in parser
@@ -59,15 +67,18 @@ public class Precision implements RankedListQualityMetric {
 
     static {
         PARSER.declareInt(Precision::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
+        PARSER.declareBoolean(Precision::setIgnoreUnlabeled, IGNORE_UNLABELED_FIELD);
     }
 
     public Precision(StreamInput in) throws IOException {
         relevantRatingThreshhold = in.readOptionalVInt();
+        ignoreUnlabeled = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(relevantRatingThreshhold);
+        out.writeOptionalBoolean(ignoreUnlabeled);
     }
 
     @Override
@@ -90,6 +101,20 @@ public class Precision implements RankedListQualityMetric {
         return relevantRatingThreshhold ;
     }
 
+    /**
+     * Sets the 'ìgnore_unlabeled' parameter
+     * */
+    public void setIgnoreUnlabeled(boolean ignoreUnlabeled) {
+        this.ignoreUnlabeled = ignoreUnlabeled;
+    }
+
+    /**
+     * Gets the 'ìgnore_unlabeled' parameter
+     * */
+    public boolean getIgnoreUnlabeled() {
+        return ignoreUnlabeled;
+    }
+
     public static Precision fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
         return PARSER.apply(parser, matcher);
     }
@@ -110,6 +135,8 @@ public class Precision implements RankedListQualityMetric {
                 } else {
                     falsePositives++;
                 }
+            } else if (ignoreUnlabeled == false) {
+                falsePositives++;
             }
         }
         double precision = 0.0;
@@ -122,35 +149,12 @@ public class Precision implements RankedListQualityMetric {
         return evalQueryQuality;
     }
 
-    // TODO add abstraction that also works for other metrics
-    public enum Rating {
-        IRRELEVANT, RELEVANT;
-    }
-
-    /**
-     * Needed to get the enum accross serialisation boundaries.
-     * */
-    public static class RatingMapping {
-        public static Integer mapFrom(Rating rating) {
-            if (Rating.RELEVANT.equals(rating)) {
-                return 1;
-            }
-            return 0;
-        }
-
-        public static Rating mapTo(Integer rating) {
-            if (rating == 1) {
-                return Rating.RELEVANT;
-            }
-            return Rating.IRRELEVANT;
-        }
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(NAME);
         builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshhold);
+        builder.field(IGNORE_UNLABELED_FIELD.getPreferredName(), this.ignoreUnlabeled);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -165,12 +169,13 @@ public class Precision implements RankedListQualityMetric {
             return false;
         }
         Precision other = (Precision) obj;
-        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold);
+        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold) &&
+                Objects.equals(ignoreUnlabeled, other.ignoreUnlabeled);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(relevantRatingThreshhold);
+        return Objects.hash(relevantRatingThreshhold, ignoreUnlabeled);
     }
 
     public static class Breakdown implements MetricDetails {

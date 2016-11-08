@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.rankeval.Precision.Rating;
+import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;

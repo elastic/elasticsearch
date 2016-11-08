@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -101,7 +102,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
                     request.param("metric")));
         } else {
             indicesStatsRequest.clear();
-            final Set<String> invalidMetrics = new HashSet<>();
+            // use a sorted set so the unrecognized parameters appear in a reliable sorted order
+            final Set<String> invalidMetrics = new TreeSet<>();
             for (final String metric : metrics) {
                 final Consumer<IndicesStatsRequest> consumer = METRICS.get(metric);
                 if (consumer != null) {

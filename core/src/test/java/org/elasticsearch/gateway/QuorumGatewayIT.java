@@ -37,7 +37,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-@ClusterScope(numDataNodes =0, scope= Scope.TEST)
+@ClusterScope(numDataNodes = 0, scope = Scope.TEST, autoMinMasterNodes = false)
 public class QuorumGatewayIT extends ESIntegTestCase {
     @Override
     protected int numberOfReplicas() {

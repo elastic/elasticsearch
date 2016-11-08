@@ -64,10 +64,9 @@ import java.util.Set;
 /**
  * Represents the current state of the cluster.
  * <p>
- * The cluster state object is immutable with an
- * exception of the {@link RoutingNodes} structure, which is built on demand from the {@link RoutingTable},
- * and cluster state {@link #status}, which is updated during cluster state publishing and applying
- * processing.  The cluster state can be updated only on the master node. All updates are performed by on a
+ * The cluster state object is immutable with an exception of the {@link RoutingNodes} structure, which is
+ * built on demand from the {@link RoutingTable}.
+ * The cluster state can be updated only on the master node. All updates are performed by on a
  * single thread and controlled by the {@link ClusterService}. After every update the
  * {@link Discovery#publish} method publishes new version of the cluster state to all other nodes in the
  * cluster.  The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
@@ -88,23 +87,6 @@ import java.util.Set;
 public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     public static final ClusterState PROTO = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
-
-    public static enum ClusterStateStatus {
-        UNKNOWN((byte) 0),
-        RECEIVED((byte) 1),
-        BEING_APPLIED((byte) 2),
-        APPLIED((byte) 3);
-
-        private final byte id;
-
-        ClusterStateStatus(byte id) {
-            this.id = id;
-        }
-
-        public byte id() {
-            return this.id;
-        }
-    }
 
     public interface Custom extends Diffable<Custom>, ToXContent {
 
@@ -166,8 +148,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     // built on demand
     private volatile RoutingNodes routingNodes;
 
-    private volatile ClusterStateStatus status;
-
     public ClusterState(long version, String stateUUID, ClusterState state) {
         this(state.clusterName, version, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(), state.customs(), false);
     }
@@ -181,17 +161,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         this.nodes = nodes;
         this.blocks = blocks;
         this.customs = customs;
-        this.status = ClusterStateStatus.UNKNOWN;
         this.wasReadFromDiff = wasReadFromDiff;
-    }
-
-    public ClusterStateStatus status() {
-        return status;
-    }
-
-    public ClusterState status(ClusterStateStatus newStatus) {
-        this.status = newStatus;
-        return this;
     }
 
     public long version() {

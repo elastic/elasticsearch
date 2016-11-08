@@ -23,11 +23,11 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterStateStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.transport.MockTransportClient;
@@ -50,7 +50,6 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
                 tc.addTransportAddress(n.getNode().getAddress());
                 ClusterStateResponse response = tc.admin().cluster().prepareState().execute().actionGet();
 
-                assertThat(response.getState().status(), equalTo(ClusterState.ClusterStateStatus.UNKNOWN));
                 assertNotNull(response.getClusterName());
                 assertTrue(response.getState().getMetaData().hasIndex("test"));
             }

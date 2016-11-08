@@ -45,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
- * Works against a real http server, one single host.
+ * Works against real http servers, multiple hosts. Also tests failover by randomly shutting down hosts.
  */
 //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
 @IgnoreJRERequirement

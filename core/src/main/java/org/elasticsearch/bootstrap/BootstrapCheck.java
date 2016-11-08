@@ -565,41 +565,24 @@ final class BootstrapCheck {
             }
         }
 
-        /**
-         * Returns the JVM vendor as the G1GC check only applies to Oracle/OpenJDK JVMs that have "Oracle Corporation" as the vendor.
-         *
-         * @return the JVM vendor
-         */
+        // visible for testing
         String jvmVendor() {
             return Constants.JVM_VENDOR;
         }
 
-        /**
-         * Whether or not G1GC is enabled. This method should only be invoked when the JVM vendor is "Oracle Corporation".
-         *
-         * @return whether or not G1GC is enabled
-         */
+        // visible for testing
         boolean isG1GCEnabled() {
             assert "Oracle Corporation".equals(jvmVendor());
             return JvmInfo.jvmInfo().useG1GC().equals("true");
         }
 
-        /**
-         * The JVM version from the system property "java.vm.version". This method should only be invoked when the JVM vendor is
-         * "Oracle Corporation".
-         *
-         * @return the JVM version
-         */
+        // visible for testing
         String jvmVersion() {
             assert "Oracle Corporation".equals(jvmVendor());
             return Constants.JVM_VERSION;
         }
 
-        /**
-         * Whether or not the Java version is Java 8. This method should only be invoked when the JVM vendor is "Oracle Corporation".
-         *
-         * @return whether or not the Java version is Java 8.
-         */
+        // visible for testing
         boolean isJava8() {
             assert "Oracle Corporation".equals(jvmVendor());
             return JavaVersion.current().equals(JavaVersion.parse("1.8"));

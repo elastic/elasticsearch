@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -48,8 +49,8 @@ public class DiscoveryModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", "zen", Function.identity(), Property.NodeScope);
-    public static final Setting<String> DISCOVERY_HOSTS_PROVIDER_SETTING =
-        new Setting<>("discovery.zen.hosts_provider", (String)null, Function.identity(), Property.NodeScope);
+    public static final Setting<Optional<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
+        new Setting<>("discovery.zen.hosts_provider", (String)null, Optional::ofNullable, Property.NodeScope);
 
     private final Discovery discovery;
 
@@ -66,15 +67,15 @@ public class DiscoveryModule {
                 }
             });
         }
-        String hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
-        if (hostsProviderName == null) {
-            hostsProvider = Collections::emptyList;
-        } else {
-            Supplier<UnicastHostsProvider> hostsProviderSupplier = hostProviders.get(hostsProviderName);
+        Optional<String> hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+        if (hostsProviderName.isPresent()) {
+            Supplier<UnicastHostsProvider> hostsProviderSupplier = hostProviders.get(hostsProviderName.get());
             if (hostsProviderSupplier == null) {
                 throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName + "]");
             }
             hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
+        } else {
+            hostsProvider = Collections::emptyList;
         }
 
         final ZenPing zenPing = createZenPing.apply(hostsProvider);

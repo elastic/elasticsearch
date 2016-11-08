@@ -86,10 +86,15 @@ public class DiscoveryModuleTests extends ESTestCase {
         return new DiscoveryModule(settings, null, transportService, null, clusterService, createZenPing, plugins);
     }
 
-    public void testRegisterDefaults() {
-        Settings settings = Settings.EMPTY;
-        DiscoveryModule module = newModule(settings, hostsProvider -> null, Collections.emptyList());
+    public void testDefaults() {
+        DiscoveryModule module = newModule(Settings.EMPTY, hostsProvider -> null, Collections.emptyList());
         assertTrue(module.getDiscovery() instanceof ZenDiscovery);
+    }
+
+    public void testLazyConstructionDiscovery() {
+        DummyDiscoveryPlugin plugin = () -> Collections.singletonMap("custom",
+            () -> { throw new AssertionError("created discovery type which was not selected"); });
+        newModule(Settings.EMPTY, hostsProvider -> null, Collections.singletonList(plugin));
     }
 
     public void testRegisterDiscovery() {
@@ -137,5 +142,11 @@ public class DiscoveryModuleTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(Settings.EMPTY, hostsProvider -> null, Arrays.asList(plugin1, plugin2)));
         assertEquals("Cannot register zen hosts provider [dup] twice", e.getMessage());
+    }
+
+    public void testLazyConstructionHostsProvider() {
+        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom",
+            () -> { throw new AssertionError("created hosts provider which was not selected"); });
+        newModule(Settings.EMPTY, hostsProvider -> null, Collections.singletonList(plugin));
     }
 }

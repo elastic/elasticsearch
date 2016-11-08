@@ -163,12 +163,13 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         // For 5.0, discovery.type was used prior to the new discovery.zen.hosts_provider
         // setting existed. This check looks for the legacy setting, and sets hosts provider if set
         String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
-        String hostsProvider = DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
-        if (hostsProvider == null && discoveryType.equals(EC2)) {
+        if (discoveryType.equals(EC2)) {
             deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
                 " setting to set hosts provider is deprecated. " +
                 "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + EC2 + "\" instead");
-            builder.put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), EC2).build();
+            if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
+                builder.put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), EC2).build();
+            }
         }
 
         // Adds a node attribute for the ec2 availability zone

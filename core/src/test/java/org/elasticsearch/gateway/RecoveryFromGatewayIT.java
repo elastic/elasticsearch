@@ -44,6 +44,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -501,27 +502,28 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+        final Path pathNode1 = createTempDir();
+        final String node_1 = internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode1).build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+        final Path pathNode2 = createTempDir();
+        final String node_2 = internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode2).build());
 
         ensureGreen();
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
-
-        internalCluster().fullRestart(new RestartCallback() {
-
-            @Override
-            public boolean doRestart(String nodeName) {
-                return !node_1.equals(nodeName);
-            }
-        });
-
+        if (randomBoolean()) {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
+        } else {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
+        }
+        // start the second node again
+        internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode2).build());
         ensureYellow();
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
-
         assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 1);
     }

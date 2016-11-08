@@ -134,6 +134,7 @@ import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
@@ -861,21 +862,33 @@ public final class InternalTestCluster extends TestCluster {
             node.close();
         }
 
-        void restart(RestartCallback callback, boolean clearDataIfNeeded) throws Exception {
-            assert callback != null;
-            resetClient();
+        void restart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes) throws Exception {
             if (!node.isClosed()) {
                 closeNode();
             }
-            Settings newSettings = callback.onNodeStopped(name);
-            if (newSettings == null) {
-                newSettings = Settings.EMPTY;
+            recreateNodeOnRestart(callback, clearDataIfNeeded, minMasterNodes);
+            startNode();
+        }
+
+        void recreateNodeOnRestart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes) throws Exception {
+            assert callback != null;
+            resetClient();
+            Settings callbackSettings = callback.onNodeStopped(name);
+            Settings.Builder newSettings = Settings.builder();
+            if (callbackSettings != null) {
+                newSettings.put(callbackSettings);
             }
+            if (minMasterNodes >= 0) {
+                assert DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
+                newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes).build();
+            }
+
+            // validation is (optionally) done in fullRestart/rollingRestart
+            newSettings.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s");
             if (clearDataIfNeeded) {
                 clearDataIfNeeded(callback);
             }
-            createNewNode(newSettings);
-            startNode();
+            createNewNode(newSettings.build());
         }
 
         private void clearDataIfNeeded(RestartCallback callback) throws IOException {
@@ -982,7 +995,7 @@ public final class InternalTestCluster extends TestCluster {
                 toClose.add(nodeAndClient);
             }
         }
-        stopNodesAndClient(toClose.toArray(new NodeAndClient[toClose.size()]));
+        stopNodesAndClients(toClose);
 
         // clean up what the nodes left that is unused
         if (wipeData) {
@@ -1027,14 +1040,18 @@ public final class InternalTestCluster extends TestCluster {
         nextNodeId.set(newSize);
         assert size() == newSize;
         if (newSize > 0) {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth()
-                .setWaitForNodes(Integer.toString(newSize)).get();
-            if (response.isTimedOut()) {
-                logger.warn("failed to wait for a cluster of size [{}], got [{}]", newSize, response);
-                throw new IllegalStateException("cluster failed to reach the expected size of [" + newSize + "]");
-            }
+            validateClusterFormed();
         }
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), newSize);
+    }
+
+    private void validateClusterFormed() {
+        final int size = nodes.size();
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size)).get();
+        if (response.isTimedOut()) {
+            logger.warn("failed to wait for a cluster of size [{}], got [{}]", size, response);
+            throw new IllegalStateException("cluster failed to reach the expected size of [" + size + "]");
+        }
     }
 
     @Override
@@ -1306,9 +1323,13 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private synchronized void stopNodesAndClient(NodeAndClient... nodeAndClients) throws IOException {
-        if (autoManageMinMasterNodes && nodeAndClients.length > 0) {
-            int masters = (int) Stream.of(nodeAndClients).filter(NodeAndClient::isMasterNode).count();
+    private synchronized void stopNodesAndClient(NodeAndClient nodeAndClient) throws IOException {
+        stopNodesAndClients(Collections.singleton(nodeAndClient));
+    }
+
+    private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
+        if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
+            int masters = (int)nodeAndClients.stream().filter(NodeAndClient::isMasterNode).count();
             updateMinMasterNodes(-masters);
         }
         for (NodeAndClient nodeAndClient: nodeAndClients) {
@@ -1355,7 +1376,7 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(predicate);
         if (nodeAndClient != null) {
             logger.info("Restarting random node [{}] ", nodeAndClient.name);
-            nodeAndClient.restart(callback, true);
+            nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
         }
     }
 
@@ -1367,91 +1388,9 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = nodes.get(nodeName);
         if (nodeAndClient != null) {
             logger.info("Restarting node [{}] ", nodeAndClient.name);
-            nodeAndClient.restart(callback, true);
+            nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
         }
     }
-
-    private synchronized void restartAllNodes(boolean rollingRestart, RestartCallback callback) throws Exception {
-        ensureOpen();
-        List<NodeAndClient> toRemove = new ArrayList<>();
-        try {
-            for (NodeAndClient nodeAndClient : nodes.values()) {
-                if (!callback.doRestart(nodeAndClient.name)) {
-                    logger.info("Closing node [{}] during restart", nodeAndClient.name);
-                    toRemove.add(nodeAndClient);
-                    if (activeDisruptionScheme != null) {
-                        activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
-                    }
-                    nodeAndClient.close();
-                }
-            }
-        } finally {
-            for (NodeAndClient nodeAndClient : toRemove) {
-                nodes.remove(nodeAndClient.name);
-            }
-        }
-        logger.info("Restarting remaining nodes rollingRestart [{}]", rollingRestart);
-        if (rollingRestart) {
-            int numNodesRestarted = 0;
-            for (NodeAndClient nodeAndClient : nodes.values()) {
-                callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
-                logger.info("Restarting node [{}] ", nodeAndClient.name);
-                if (activeDisruptionScheme != null) {
-                    activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
-                }
-                nodeAndClient.restart(callback, true);
-                if (activeDisruptionScheme != null) {
-                    activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
-                }
-            }
-        } else {
-            int numNodesRestarted = 0;
-            Set[] nodesRoleOrder = new Set[nextNodeId.get()];
-            Map<Set<Role>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
-            for (NodeAndClient nodeAndClient : nodes.values()) {
-                callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
-                logger.info("Stopping node [{}] ", nodeAndClient.name);
-                if (activeDisruptionScheme != null) {
-                    activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
-                }
-                nodeAndClient.closeNode();
-                // delete data folders now, before we start other nodes that may claim it
-                nodeAndClient.clearDataIfNeeded(callback);
-
-                DiscoveryNode discoveryNode = getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode();
-                nodesRoleOrder[nodeAndClient.nodeAndClientId()] = discoveryNode.getRoles();
-                nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
-            }
-
-            assert nodesByRoles.values().stream().collect(Collectors.summingInt(List::size)) == nodes.size();
-
-            // randomize start up order, but making sure that:
-            // 1) A data folder that was assigned to a data node will stay so
-            // 2) Data nodes will get the same node lock ordinal range, so custom index paths (where the ordinal is used)
-            //    will still belong to data nodes
-            for (List<NodeAndClient> sameRoleNodes : nodesByRoles.values()) {
-                Collections.shuffle(sameRoleNodes, random);
-            }
-
-            for (Set roles : nodesRoleOrder) {
-                if (roles == null) {
-                    // if some nodes were stopped, we want have a role for them
-                    continue;
-                }
-                NodeAndClient nodeAndClient = nodesByRoles.get(roles).remove(0);
-                logger.info("Starting node [{}] ", nodeAndClient.name);
-                if (activeDisruptionScheme != null) {
-                    activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
-                }
-                // we already cleared data folders, before starting nodes up
-                nodeAndClient.restart(callback, false);
-                if (activeDisruptionScheme != null) {
-                    activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
-                }
-            }
-        }
-    }
-
 
     public static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
         @Override
@@ -1477,15 +1416,80 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
      */
-    public void rollingRestart(RestartCallback function) throws Exception {
-        restartAllNodes(true, function);
+    public synchronized void rollingRestart(RestartCallback callback) throws Exception {
+        int numNodesRestarted = 0;
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
+            logger.info("Restarting node [{}] ", nodeAndClient.name);
+            if (activeDisruptionScheme != null) {
+                activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
+            }
+            nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
+            if (activeDisruptionScheme != null) {
+                activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
+            }
+            if (callback.validateClusterForming()) {
+                validateClusterFormed();
+            }
+        }
     }
 
     /**
      * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.
      */
-    public void fullRestart(RestartCallback function) throws Exception {
-        restartAllNodes(false, function);
+    public synchronized void fullRestart(RestartCallback callback) throws Exception {
+        int numNodesRestarted = 0;
+        Map<Set<Role>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
+            logger.info("Stopping node [{}] ", nodeAndClient.name);
+            if (activeDisruptionScheme != null) {
+                activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
+            }
+            nodeAndClient.closeNode();
+            // delete data folders now, before we start other nodes that may claim it
+            nodeAndClient.clearDataIfNeeded(callback);
+            DiscoveryNode discoveryNode = getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode();
+            nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
+        }
+
+        assert nodesByRoles.values().stream().collect(Collectors.summingInt(List::size)) == nodes.size();
+
+        // randomize start up order, but making sure that:
+        // 1) A data folder that was assigned to a data node will stay so
+        // 2) Data nodes will get the same node lock ordinal range, so custom index paths (where the ordinal is used)
+        //    will still belong to data nodes
+        for (List<NodeAndClient> sameRoleNodes : nodesByRoles.values()) {
+            Collections.shuffle(sameRoleNodes, random);
+        }
+        List<NodeAndClient> startUpOrder = new ArrayList<>();
+        do {
+            Set roles = randomFrom(random, nodesByRoles.keySet());
+            final List<NodeAndClient> nodesByRole = nodesByRoles.get(roles);
+            startUpOrder.add(nodesByRole.remove(0));
+            if (nodesByRole.isEmpty()) {
+                nodesByRoles.remove(roles);
+            }
+        } while (nodesByRoles.isEmpty() == false);
+
+        // do two rounds to minimize pinging (mock zen pings pings with no delay and can create a lot of logs)
+        for (NodeAndClient nodeAndClient : startUpOrder) {
+            logger.info("resetting node [{}] ", nodeAndClient.name);
+            // we already cleared data folders, before starting nodes up
+            nodeAndClient.recreateNodeOnRestart(callback, false, getNewMinMasterNodes(0));
+        }
+
+        for (NodeAndClient nodeAndClient : startUpOrder) {
+            logger.info("starting node [{}] ", nodeAndClient.name);
+            nodeAndClient.startNode();
+            if (activeDisruptionScheme != null) {
+                activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
+            }
+        }
+
+        if (callback.validateClusterForming()) {
+            validateClusterFormed();
+        }
     }
 
 
@@ -1957,14 +1961,8 @@ public final class InternalTestCluster extends TestCluster {
             return false;
         }
 
-
-        /**
-         * If this returns <code>false</code> the node with the given node name will not be restarted. It will be
-         * closed and removed from the cluster. Returns <code>true</code> by default.
-         */
-        public boolean doRestart(String nodeName) {
-            return true;
-        }
+        /** returns true if the restart should also validate the cluster has reformed */
+        public boolean validateClusterForming() { return true; }
     }
 
     public Settings getDefaultSettings() {

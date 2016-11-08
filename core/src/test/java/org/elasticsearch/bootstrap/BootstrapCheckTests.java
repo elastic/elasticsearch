@@ -534,6 +534,7 @@ public class BootstrapCheckTests extends ESTestCase {
 
     public void testG1GCCheck() throws NodeValidationException {
         final AtomicBoolean isG1GCEnabled = new AtomicBoolean(true);
+        final AtomicBoolean isJava8 = new AtomicBoolean(true);
         final AtomicReference<String> jvmVersion =
             new AtomicReference<>(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(0, 39), randomIntBetween(1, 128)));
         final BootstrapCheck.G1GCCheck oracleCheck = new BootstrapCheck.G1GCCheck() {
@@ -551,6 +552,11 @@ public class BootstrapCheckTests extends ESTestCase {
             @Override
             String jvmVersion() {
                 return jvmVersion.get();
+            }
+
+            @Override
+            boolean isJava8() {
+                return isJava8.get();
             }
 
         };
@@ -584,6 +590,15 @@ public class BootstrapCheckTests extends ESTestCase {
 
         // if not on an Oracle JVM, nothing should happen
         BootstrapCheck.check(true, Collections.singletonList(nonOracleCheck), "testG1GCCheck");
+
+        final BootstrapCheck.G1GCCheck nonJava8Check = new BootstrapCheck.G1GCCheck() {
+            @Override
+            boolean isJava8() {
+                return false;
+            }
+        };
+        // if not java 8, nothing should happen
+        BootstrapCheck.check(true, Collections.singletonList(nonJava8Check), "testG1GCCheck");
     }
 
     public void testAlwaysEnforcedChecks() {

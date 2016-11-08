@@ -559,7 +559,7 @@ final class BootstrapCheck {
 
         @Override
         public boolean check() {
-            if ("Oracle Corporation".equals(jvmVendor()) && Constants.JRE_IS_MINIMUM_JAVA9 == false && isG1GCEnabled()) {
+            if ("Oracle Corporation".equals(jvmVendor()) && isJava8() && isG1GCEnabled()) {
                 final String jvmVersion = jvmVersion();
                 final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)-b\\d+");
                 final Matcher matcher = pattern.matcher(jvmVersion);
@@ -588,6 +588,11 @@ final class BootstrapCheck {
         String jvmVersion() {
             assert "Oracle Corporation".equals(jvmVendor());
             return Constants.JVM_VERSION;
+        }
+
+        // visible for tests
+        boolean isJava8() {
+            return Constants.JVM_SPEC_VERSION.equals("1.8");
         }
 
         @Override

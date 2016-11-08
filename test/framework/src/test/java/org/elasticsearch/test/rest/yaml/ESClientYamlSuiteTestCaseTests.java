@@ -18,44 +18,43 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.FileUtils;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 
+import org.elasticsearch.test.ESTestCase;
+
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class FileUtilsTests extends ESTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20240")
-    public void testLoadSingleYamlSuite() throws Exception {
-        Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "/rest-api-spec/test/suite1/10_basic");
-        assertSingleFile(yamlSuites, "suite1", "10_basic.yaml");
+public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
 
-        //the path prefix is optional
-        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "suite1/10_basic.yaml");
+    public void testLoadAllYamlSuites() throws Exception {
+        Map<String,Set<Path>> yamlSuites = ESClientYamlSuiteTestCase.loadYamlSuites("");
+        assertEquals(2, yamlSuites.size());
+    }
+
+    public void testLoadSingleYamlSuite() throws Exception {
+        Map<String,Set<Path>> yamlSuites = ESClientYamlSuiteTestCase.loadYamlSuites("suite1/10_basic");
         assertSingleFile(yamlSuites, "suite1", "10_basic.yaml");
 
         //extension .yaml is optional
-        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "suite1/10_basic");
+        yamlSuites = ESClientYamlSuiteTestCase.loadYamlSuites("suite1/10_basic");
         assertSingleFile(yamlSuites, "suite1", "10_basic.yaml");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20240")
     public void testLoadMultipleYamlSuites() throws Exception {
         //single directory
-        Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "suite1");
+        Map<String,Set<Path>> yamlSuites = ESClientYamlSuiteTestCase.loadYamlSuites("suite1");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(1));
         assertThat(yamlSuites.containsKey("suite1"), equalTo(true));
         assertThat(yamlSuites.get("suite1").size(), greaterThan(1));
 
         //multiple directories
-        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "suite1", "suite2");
+        yamlSuites = ESClientYamlSuiteTestCase.loadYamlSuites("suite1", "suite2");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(2));
         assertThat(yamlSuites.containsKey("suite1"), equalTo(true));
@@ -64,7 +63,7 @@ public class FileUtilsTests extends ESTestCase {
         assertEquals(2, yamlSuites.get("suite2").size());
 
         //multiple paths, which can be both directories or yaml test suites (with optional file extension)
-        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "suite2/10_basic", "suite1");
+        yamlSuites = ESClientYamlSuiteTestCase.loadYamlSuites("suite2/10_basic", "suite1");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(2));
         assertThat(yamlSuites.containsKey("suite2"), equalTo(true));
@@ -77,21 +76,6 @@ public class FileUtilsTests extends ESTestCase {
         Path dir = createTempDir();
         Path file = dir.resolve("test_loading.yaml");
         Files.createFile(file);
-
-        //load from directory outside of the classpath
-        yamlSuites = FileUtils.findYamlSuites(dir.getFileSystem(), "/rest-api-spec/test", dir.toAbsolutePath().toString());
-        assertThat(yamlSuites, notNullValue());
-        assertThat(yamlSuites.size(), equalTo(1));
-        assertThat(yamlSuites.containsKey(dir.getFileName().toString()), equalTo(true));
-        assertSingleFile(yamlSuites.get(dir.getFileName().toString()), dir.getFileName().toString(), file.getFileName().toString());
-
-        //load from external file (optional extension)
-        yamlSuites = FileUtils.findYamlSuites(dir.getFileSystem(), "/rest-api-spec/test",
-                dir.resolve("test_loading").toAbsolutePath().toString());
-        assertThat(yamlSuites, notNullValue());
-        assertThat(yamlSuites.size(), equalTo(1));
-        assertThat(yamlSuites.containsKey(dir.getFileName().toString()), equalTo(true));
-        assertSingleFile(yamlSuites.get(dir.getFileName().toString()), dir.getFileName().toString(), file.getFileName().toString());
     }
 
     private static void assertSingleFile(Map<String, Set<Path>> yamlSuites, String dirName, String fileName) {

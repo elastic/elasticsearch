@@ -35,7 +35,7 @@ public class RepositoryGcsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
 }

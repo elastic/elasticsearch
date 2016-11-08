@@ -24,7 +24,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.rankeval.Precision.Rating;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -32,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
@@ -106,6 +106,29 @@ public class PrecisionTests extends ESTestCase {
         assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
+    public void testIgnoreUnlabeled() {
+        List<RatedDocument> rated = new ArrayList<>();
+        rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
+        // add an unlabeled search hit
+        SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test", "testtype"), 3);
+        searchHits[2] = new InternalSearchHit(2, "2", new Text("testtype"), Collections.emptyMap());
+        ((InternalSearchHit)searchHits[2]).shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
+
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id", searchHits, rated);
+        assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+
+        // also try with setting `ignore_unlabeled`
+        Precision prec = new Precision();
+        prec.setIgnoreUnlabeled(true);
+        evaluated = prec.evaluate("id", searchHits, rated);
+        assertEquals((double) 2 / 2, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+    }
+
     public void testNoRatedDocs() throws Exception {
         InternalSearchHit[] hits = new InternalSearchHit[5];
         for (int i = 0; i < 5; i++) {
@@ -113,6 +136,14 @@ public class PrecisionTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
         }
         EvalQueryQuality evaluated = (new Precision()).evaluate("id", hits, Collections.emptyList());
+        assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(0, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(5, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+
+        // also try with setting `ignore_unlabeled`
+        Precision prec = new Precision();
+        prec.setIgnoreUnlabeled(true);
+        evaluated = prec.evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
         assertEquals(0, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(0, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
@@ -141,6 +172,7 @@ public class PrecisionTests extends ESTestCase {
         if (randomBoolean()) {
             precision.setRelevantRatingThreshhold(randomIntBetween(0, 10));
         }
+        precision.setIgnoreUnlabeled(randomBoolean());
         return precision;
     }
 
@@ -162,5 +194,9 @@ public class PrecisionTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0));
         }
         return hits;
+    }
+
+    public enum Rating {
+        IRRELEVANT, RELEVANT;
     }
 }

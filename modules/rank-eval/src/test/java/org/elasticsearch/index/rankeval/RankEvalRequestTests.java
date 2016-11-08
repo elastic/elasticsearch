@@ -22,13 +22,12 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.rankeval.Precision.Rating;
+import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -70,7 +69,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         refresh();
     }
 
-    public void testPrecisionAtRequest() throws IOException {
+    public void testPrecisionAtRequest() {
         List<String> indices = Arrays.asList(new String[] { "test" });
         List<String> types = Arrays.asList(new String[] { "testtype" });
 
@@ -84,7 +83,9 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         berlinRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
         specifications.add(berlinRequest);
 
-        RankEvalSpec task = new RankEvalSpec(specifications, new Precision());
+        Precision metric = new Precision();
+        metric.setIgnoreUnlabeled(true);
+        RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);

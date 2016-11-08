@@ -82,6 +82,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         String type();
 
+        @Override
+        default String getWriteableName(){
+            return type();
+        }
+
         Custom fromMap(Map<String, Object> map) throws IOException;
 
         Custom fromXContent(XContentParser parser) throws IOException;
@@ -594,12 +599,20 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                     @Override
                     public Custom read(StreamInput in, String key) throws IOException {
-                        return registry.getIndexMetadataPrototype(key).readFrom(in);
+                        // Can't use named writeables here to read custom cluster customs, because
+                        // the key already represents the name of the custom metadata. If we would use
+                        // the readNamedWriteable(...) here than we would read the name of the custom
+                        // metadata twice and that would be a break the wire protocol.
+                        return registry.getIndexMetadataPrototypeSafe(key).readFrom(in);
                     }
 
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return registry.getIndexMetadataPrototype(key).readDiffFrom(in, registry);
+                        // Can't use named writeables here to read custom cluster customs, because
+                        // the key already represents the name of the custom metadata. If we would use
+                        // the readNamedWriteable(...) here than we would read the name of the custom
+                        // metadata twice and that would be a break the wire protocol.
+                        return registry.getIndexMetadataPrototypeSafe(key).readDiffFrom(in, registry);
                     }
                 });
             inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),

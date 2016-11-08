@@ -77,8 +77,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Integer version;
 
-    private transient CustomPrototypeRegistry registry = CustomPrototypeRegistry.EMPTY;
-
     public PutIndexTemplateRequest() {
     }
 
@@ -284,7 +282,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     @SuppressWarnings("unchecked")
-    public PutIndexTemplateRequest source(Map templateSource) {
+    public PutIndexTemplateRequest source(Map templateSource, CustomPrototypeRegistry registry) {
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
@@ -314,8 +312,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 }
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
-            } else {
-                IndexMetaData.Custom proto = registry.getIndexMetadataPrototype(name);
+            } else if (registry != null) {
+                IndexMetaData.Custom proto = registry.getIndexMetadataPrototypeSafe(name);
                 if (proto != null) {
                     try {
                         customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
@@ -333,7 +331,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(String templateSource) {
         try (XContentParser parser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
-            return source(parser.mapOrdered());
+            return source(parser.mapOrdered(), null);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
         }
@@ -351,7 +349,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
         try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
-            return source(parser.mapOrdered());
+            return source(parser.mapOrdered(), null);
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }
@@ -361,8 +359,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source) {
+        return source(source, null);
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(BytesReference source, CustomPrototypeRegistry registry) {
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            return source(parser.mapOrdered());
+            return source(parser.mapOrdered(), registry);
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }
@@ -444,10 +449,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.strictExpand();
-    }
-
-    public void setRegistry(CustomPrototypeRegistry registry) {
-        this.registry = registry;
     }
 
     @Override

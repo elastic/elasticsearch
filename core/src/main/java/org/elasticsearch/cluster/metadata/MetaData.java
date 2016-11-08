@@ -639,11 +639,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                 @Override
                 public Custom read(StreamInput in, String key) throws IOException {
+                    // Can't use named writeables here to read custom cluster customs, because
+                    // the key already represents the name of the custom metadata. If we would use
+                    // the readNamedWriteable(...) here than we would read the name of the custom
+                    // metadata twice and that would be a break the wire protocol.
                     return registry.getMetadataPrototypeSafe(key).readFrom(in);
                 }
 
                 @Override
                 public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
+                    // Can't use named writeables here to read custom cluster customs, because
+                    // the key already represents the name of the custom metadata. If we would use
+                    // the readNamedWriteable(...) here than we would read the name of the custom
+                    // metadata twice and that would be a break the wire protocol.
                     return registry.getMetadataPrototypeSafe(key).readDiffFrom(in, registry);
                 }
             });

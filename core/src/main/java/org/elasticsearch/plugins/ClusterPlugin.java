@@ -62,14 +62,26 @@ public interface ClusterPlugin {
         return Collections.emptyMap();
     }
 
+    /**
+     * @return Custom cluster state parts used to store temporal information in the cluster state that doesn't need to
+     *         be persisted
+     */
     default Collection<ClusterState.Custom> getCustomClusterState() {
         return Collections.emptyList();
     }
 
+    /**
+     * @return Custom cluster state metadata parts used to store global configuration in the cluster state that can be
+     *         persisted and snapshotted into a reposity.
+     */
     default Collection<MetaData.Custom> getCustomMetadata() {
         return Collections.emptyList();
     }
 
+    /**
+     * @return Custom cluster state metadata parts used to store index configuration in the cluster state that is
+     *         persisted and can be snapshotted in a repository.
+     */
     default Collection<IndexMetaData.Custom> getCustomIndexMetadata() {
         return Collections.emptyList();
     }

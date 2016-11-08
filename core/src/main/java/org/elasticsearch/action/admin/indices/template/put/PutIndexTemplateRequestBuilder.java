@@ -208,7 +208,7 @@ public class PutIndexTemplateRequestBuilder
      * The template source definition.
      */
     public PutIndexTemplateRequestBuilder setSource(Map templateSource) {
-        request.source(templateSource);
+        request.source(templateSource, null);
         return this;
     }
 

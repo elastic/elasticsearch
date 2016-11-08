@@ -81,8 +81,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    private transient CustomPrototypeRegistry registry = CustomPrototypeRegistry.EMPTY;
-
     public CreateIndexRequest() {
     }
 
@@ -362,10 +360,17 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(BytesReference source) {
+        return source(source, null);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(BytesReference source, CustomPrototypeRegistry registry) {
         XContentType xContentType = XContentFactory.xContentType(source);
         if (xContentType != null) {
             try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
-                source(parser.map());
+                source(parser.map(), registry);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse source for create index", e);
             }
@@ -378,8 +383,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the settings and mappings as a single source.
      */
-    @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source) {
+        return source(source, null);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    @SuppressWarnings("unchecked")
+    public CreateIndexRequest source(Map<String, ?> source, CustomPrototypeRegistry registry) {
         boolean found = false;
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
@@ -395,8 +407,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else if (name.equals("aliases")) {
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
-            } else {
-                IndexMetaData.Custom proto = registry.getIndexMetadataPrototype(name);
+            } else if (registry != null) {
+                IndexMetaData.Custom proto = registry.getIndexMetadataPrototypeSafe(name);
                 if (proto != null) {
                     found = true;
                     try {
@@ -475,10 +487,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest waitForActiveShards(final int waitForActiveShards) {
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-    public void setRegistry(CustomPrototypeRegistry registry) {
-        this.registry = registry;
     }
 
     @Override

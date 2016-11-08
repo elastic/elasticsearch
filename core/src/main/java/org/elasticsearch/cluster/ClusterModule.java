@@ -166,6 +166,10 @@ public class ClusterModule extends AbstractModule {
             "ShardsAllocator factory for [" + allocatorName + "] returned null");
     }
 
+    /**
+     * Creates a {@link CustomPrototypeRegistry} instance that registers built-in cluster state parts and custom
+     * cluster state parts provided by plugins
+     */
     public static CustomPrototypeRegistry createCustomPrototypeRegistry(Collection<ClusterPlugin> clusterPlugins) {
         Map<String, ClusterState.Custom> customClusterStatePrototypes = new HashMap<>();
         customClusterStatePrototypes.put(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
@@ -181,22 +185,22 @@ public class ClusterModule extends AbstractModule {
 
         for (ClusterPlugin clusterPlugin : clusterPlugins) {
             for (ClusterState.Custom custom : clusterPlugin.getCustomClusterState()) {
-                if (customClusterStatePrototypes.containsKey(custom.type())) {
-                    throw new IllegalStateException();
+                ClusterState.Custom previous = customClusterStatePrototypes.putIfAbsent(custom.type(), custom);
+                if (previous != null) {
+                    throw new IllegalStateException("Custom cluster state [" + custom.type() + "] already declared");
                 }
-                customClusterStatePrototypes.put(custom.type(), custom);
             }
             for (MetaData.Custom custom : clusterPlugin.getCustomMetadata()) {
-                if (customMetadataPrototypes.containsKey(custom.type())) {
-                    throw new IllegalStateException();
+                MetaData.Custom previous = customMetadataPrototypes.putIfAbsent(custom.type(), custom);
+                if (previous != null) {
+                    throw new IllegalStateException("Custom metadata [" + custom.type() + "] already declared");
                 }
-                customMetadataPrototypes.put(custom.type(), custom);
             }
             for (IndexMetaData.Custom custom : clusterPlugin.getCustomIndexMetadata()) {
-                if (customIndexMetadataPrototypes.containsKey(custom.type())) {
-                    throw new IllegalStateException();
+                IndexMetaData.Custom previous = customIndexMetadataPrototypes.putIfAbsent(custom.type(), custom);
+                if (previous != null) {
+                    throw new IllegalStateException("Custom index metadata [" + custom.type() + "] already declared");
                 }
-                customIndexMetadataPrototypes.put(custom.type(), custom);
             }
         }
         return new CustomPrototypeRegistry(customClusterStatePrototypes, customMetadataPrototypes, customIndexMetadataPrototypes);

@@ -75,8 +75,8 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class ClusterStateDiffIT extends ESIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
-        CustomPrototypeRegistry cRegistry = ClusterModule.createCustomPrototypeRegistry(Collections.emptyList());
-        NamedWriteableRegistry nRegistry = new NamedWriteableRegistry(cRegistry.getNamedWriteables());
+        CustomPrototypeRegistry pRegistry = ClusterModule.createCustomPrototypeRegistry(Collections.emptyList());
+        NamedWriteableRegistry nRegistry = new NamedWriteableRegistry(pRegistry.getNamedWriteables());
         DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(),
@@ -130,7 +130,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 byte[] diffBytes = BytesReference.toBytes(os.bytes());
                 Diff<ClusterState> diff;
                 try (StreamInput input = StreamInput.wrap(diffBytes)) {
-                    diff = previousClusterStateFromDiffs.readDiffFrom(input, cRegistry);
+                    diff = previousClusterStateFromDiffs.readDiffFrom(input, pRegistry);
                     clusterStateFromDiffs = diff.apply(previousClusterStateFromDiffs);
                 }
             }

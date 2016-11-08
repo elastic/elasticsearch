@@ -96,7 +96,8 @@ public class PublishClusterStateAction extends AbstractComponent {
             Supplier<ClusterState> clusterStateSupplier,
             NewPendingClusterStateListener listener,
             DiscoverySettings discoverySettings,
-            ClusterName clusterName, CustomPrototypeRegistry registry) {
+            ClusterName clusterName,
+            CustomPrototypeRegistry registry) {
         super(settings);
         this.transportService = transportService;
         this.clusterStateSupplier = clusterStateSupplier;
@@ -387,7 +388,6 @@ public class PublishClusterStateAction extends AbstractComponent {
         in = new NamedWriteableAwareStreamInput(in, new NamedWriteableRegistry(registry.getNamedWriteables()));
         synchronized (lastSeenClusterStateMutex) {
             final ClusterState incomingState;
-            // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
                 incomingState = ClusterState.Builder.readFrom(in, clusterStateSupplier.get().nodes().getLocalNode());
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());

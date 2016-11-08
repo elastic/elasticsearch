@@ -150,6 +150,18 @@ public class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Returns whether to preserve the cluster state during this test on completion of this test.
+     * Things like mappings, index templates, repositories, pipelines and stored scripts will remain to exist
+     * after the test has been executed.
+     *
+     * This is useful if the data directory and indices need to be preserved between test runs
+     * (for example, when testing rolling upgrades).
+     */
+    protected boolean preserveClusterStateUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws IOException {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -163,10 +175,11 @@ public class ESRestTestCase extends ESTestCase {
             }
         }
 
-        // wipe index templates
-        adminClient().performRequest("DELETE", "_template/*");
-
-        wipeSnapshots();
+        if (preserveClusterStateUponCompletion() == false) {
+            // wipe index templates
+            adminClient().performRequest("DELETE", "_template/*");
+            wipeSnapshots();
+        }
     }
 
     /**

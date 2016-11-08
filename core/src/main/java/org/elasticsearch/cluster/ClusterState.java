@@ -760,12 +760,20 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                     @Override
                     public Custom read(StreamInput in, String key) throws IOException {
-                        return registry.getClusterStatePrototype(key).readFrom(in);
+                        // Can't use named writeables here to read custom cluster customs, because
+                        // the key already represents the name of the custom metadata. If we would use
+                        // the readNamedWriteable(...) here than we would read the name of the custom
+                        // metadata twice and that would be a break the wire protocol.
+                        return registry.getClusterStatePrototypeSafe(key).readFrom(in);
                     }
 
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return registry.getClusterStatePrototype(key).readDiffFrom(in, registry);
+                        // Can't use named writeables here to read custom cluster customs, because
+                        // the key already represents the name of the custom metadata. If we would use
+                        // the readNamedWriteable(...) here than we would read the name of the custom
+                        // metadata twice and that would be a break the wire protocol.
+                        return registry.getClusterStatePrototypeSafe(key).readDiffFrom(in, registry);
                     }
                 });
         }

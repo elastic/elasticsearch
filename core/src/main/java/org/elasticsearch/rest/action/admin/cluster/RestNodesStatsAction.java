@@ -33,7 +33,13 @@ import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -48,9 +54,38 @@ public class RestNodesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_nodes/stats/{metric}", this);
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
 
-        controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this);
+        controller.registerHandler(GET, "/_nodes/stats/{metric}/{index_metric}", this);
 
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}", this);
+    }
+
+    static final Map<String, Consumer<NodesStatsRequest>> METRICS;
+
+    static {
+        final Map<String, Consumer<NodesStatsRequest>> metrics = new HashMap<>();
+        metrics.put("os", r -> r.os(true));
+        metrics.put("jvm", r -> r.jvm(true));
+        metrics.put("thread_pool", r -> r.threadPool(true));
+        metrics.put("fs", r -> r.fs(true));
+        metrics.put("transport", r -> r.transport(true));
+        metrics.put("http", r -> r.http(true));
+        metrics.put("indices", r -> r.indices(true));
+        metrics.put("process", r -> r.process(true));
+        metrics.put("breaker", r -> r.breaker(true));
+        metrics.put("script", r -> r.script(true));
+        metrics.put("discovery", r -> r.discovery(true));
+        metrics.put("ingest", r -> r.ingest(true));
+        METRICS = Collections.unmodifiableMap(metrics);
+    }
+
+    static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
+
+    static {
+        final Map<String, Consumer<CommonStatsFlags>> flags = new HashMap<>();
+        for (final Flag flag : CommonStatsFlags.Flag.values()) {
+            flags.put(flag.getRestName(), f -> f.set(flag, true));
+        }
+        FLAGS = Collections.unmodifiableMap(flags);
     }
 
     @Override
@@ -62,35 +97,72 @@ public class RestNodesStatsAction extends BaseRestHandler {
         nodesStatsRequest.timeout(request.param("timeout"));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
+            if (request.hasParam("index_metric")) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains index metrics [%s] but all stats requested",
+                        request.path(),
+                        request.param("index_metric")));
+            }
             nodesStatsRequest.all();
             nodesStatsRequest.indices(CommonStatsFlags.ALL);
+        } else if (metrics.contains("_all")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT,
+                    "request [%s] contains _all and individual metrics [%s]",
+                    request.path(),
+                    request.param("metric")));
         } else {
             nodesStatsRequest.clear();
-            nodesStatsRequest.os(metrics.contains("os"));
-            nodesStatsRequest.jvm(metrics.contains("jvm"));
-            nodesStatsRequest.threadPool(metrics.contains("thread_pool"));
-            nodesStatsRequest.fs(metrics.contains("fs"));
-            nodesStatsRequest.transport(metrics.contains("transport"));
-            nodesStatsRequest.http(metrics.contains("http"));
-            nodesStatsRequest.indices(metrics.contains("indices"));
-            nodesStatsRequest.process(metrics.contains("process"));
-            nodesStatsRequest.breaker(metrics.contains("breaker"));
-            nodesStatsRequest.script(metrics.contains("script"));
-            nodesStatsRequest.discovery(metrics.contains("discovery"));
-            nodesStatsRequest.ingest(metrics.contains("ingest"));
+
+            // use a sorted set so the unrecognized parameters appear in a reliable sorted order
+            final Set<String> invalidMetrics = new TreeSet<>();
+            for (final String metric : metrics) {
+                final Consumer<NodesStatsRequest> handler = METRICS.get(metric);
+                if (handler != null) {
+                    handler.accept(nodesStatsRequest);
+                } else {
+                    invalidMetrics.add(metric);
+                }
+            }
+
+            if (!invalidMetrics.isEmpty()) {
+                throw new IllegalArgumentException(unrecognized(request, invalidMetrics, METRICS.keySet(), "metric"));
+            }
 
             // check for index specific metrics
             if (metrics.contains("indices")) {
-                Set<String> indexMetrics = Strings.splitStringByCommaToSet(request.param("indexMetric", "_all"));
+                Set<String> indexMetrics = Strings.splitStringByCommaToSet(request.param("index_metric", "_all"));
                 if (indexMetrics.size() == 1 && indexMetrics.contains("_all")) {
                     nodesStatsRequest.indices(CommonStatsFlags.ALL);
                 } else {
                     CommonStatsFlags flags = new CommonStatsFlags();
-                    for (Flag flag : CommonStatsFlags.Flag.values()) {
-                        flags.set(flag, indexMetrics.contains(flag.getRestName()));
+                    flags.clear();
+                    // use a sorted set so the unrecognized parameters appear in a reliable sorted order
+                    final Set<String> invalidIndexMetrics = new TreeSet<>();
+                    for (final String indexMetric : indexMetrics) {
+                        final Consumer<CommonStatsFlags> handler = FLAGS.get(indexMetric);
+                        if (handler != null) {
+                            handler.accept(flags);
+                        } else {
+                            invalidIndexMetrics.add(indexMetric);
+                        }
                     }
+
+                    if (!invalidIndexMetrics.isEmpty()) {
+                        throw new IllegalArgumentException(unrecognized(request, invalidIndexMetrics, FLAGS.keySet(), "index metric"));
+                    }
+
                     nodesStatsRequest.indices(flags);
                 }
+            } else if (request.hasParam("index_metric")) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains index metrics [%s] but indices stats not requested",
+                        request.path(),
+                        request.param("index_metric")));
             }
         }
 

@@ -176,7 +176,6 @@ public class SearchCancellationIT extends ESIntegTestCase {
         ensureSearchWasCancelled(searchResponse);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21126")
     public void testCancellationOfScrollSearches() throws Exception {
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
@@ -198,7 +197,6 @@ public class SearchCancellationIT extends ESIntegTestCase {
     }
 
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21126")
     public void testCancellationOfScrollSearchesOnFollowupRequests() throws Exception {
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();

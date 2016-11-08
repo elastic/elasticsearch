@@ -439,16 +439,15 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
                 any(FutureCallback.class))).then(new Answer<Future<HttpResponse>>() {
-                    @Override
-                    public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
-                        HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
-                        FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[2];
-
-                        assertEquals(new ByteSizeValue(200, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
-                        callback.failed(tooLong);
-                        return null;
-                    }
-                });
+            @Override
+            public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
+                HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
+                FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[2];
+                assertEquals(new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
+                callback.failed(tooLong);
+                return null;
+            }
+        });
         RemoteScrollableHitSource source = sourceWithMockedClient(true, httpClient);
 
         AtomicBoolean called = new AtomicBoolean();

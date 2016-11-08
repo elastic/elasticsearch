@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
@@ -40,13 +39,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
@@ -431,39 +427,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertEquals(cause, wrapped.getCause());
         assertEquals("Couldn't extract status [" + notAnHttpStatus + "]. Failed to extract body.", wrapped.getMessage());
         assertEquals(badEntityException, wrapped.getSuppressed()[0]);
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testTooLargeResponse() throws Exception {
-        ContentTooLongException tooLong = new ContentTooLongException("too long!");
-        CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
-        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(FutureCallback.class))).then(new Answer<Future<HttpResponse>>() {
-                    @Override
-                    public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
-                        HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
-                        FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[2];
-
-                        assertEquals(new ByteSizeValue(200, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
-                        callback.failed(tooLong);
-                        return null;
-                    }
-                });
-        RemoteScrollableHitSource source = sourceWithMockedClient(true, httpClient);
-
-        AtomicBoolean called = new AtomicBoolean();
-        Consumer<Response> checkResponse = r -> called.set(true);
-        Throwable e = expectThrows(RuntimeException.class,
-                () -> source.doStartNextScroll(FAKE_SCROLL_ID, timeValueMillis(0), checkResponse));
-        // Unwrap the some artifacts from the test
-        while (e.getMessage().equals("failed")) {
-            e = e.getCause();
-        }
-        // This next exception is what the user sees
-        assertEquals("Remote responded with a chunk that was too large. Use a smaller batch size.", e.getMessage());
-        // And that exception is reported as being caused by the underlying exception returned by the client
-        assertSame(tooLong, e.getCause());
-        assertFalse(called.get());
     }
 
     private RemoteScrollableHitSource sourceWithMockedRemoteCall(String... paths) throws Exception {

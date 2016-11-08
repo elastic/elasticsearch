@@ -27,7 +27,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,12 +38,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Script represents used-defined input that can be used to
@@ -93,85 +92,135 @@ public final class Script implements ToXContent, Writeable {
     public static final ParseField PARAMS_PARSE_FIELD = new ParseField("params");
 
     /**
-     * Constructs and validates a {@link Script} being parsed as XContent.
+     * Helper class used by {@link ObjectParser} to store mutable {@link Script} variables and then
+     * construct an immutable {@link Script} object based on parsed XContent.
      */
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Script, ParseFieldMatcherSupplier> PARSER =
-        new ConstructingObjectParser<>("Script", values -> {
-            ParsedCode inline = (ParsedCode)values[0];
-            ParsedCode stored = (ParsedCode)values[1];
-            ParsedCode file = (ParsedCode)values[2];
+    private static final class Builder {
+        private ScriptType type;
+        private String lang;
+        private String idOrCode;
+        private Map<String, String> options;
+        private Map<String, Object> params;
 
-            if (inline == null && stored == null && file == null) {
+        private Builder() {
+            // This cannot default to an empty map because options are potentially added at multiple points.
+            this.options = new HashMap<>();
+            this.params = Collections.emptyMap();
+        }
+
+        /**
+         * Since inline scripts can accept code rather than just an id, they must also be able
+         * to handle template parsing, hence the need for custom parsing code.  Templates can
+         * consist of either an {@link String} or a JSON object.  If a JSON object is discovered
+         * then the content type option must also be saved as a compiler option.
+         */
+        private void setInline(XContentParser parser) {
+            try {
+                if (type != null) {
+                    throwOnlyOneOfType();
+                }
+
+                type = ScriptType.INLINE;
+
+                if (parser.currentToken() == Token.START_OBJECT) {
+                    XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                    idOrCode = builder.copyCurrentStructure(parser).bytes().utf8ToString();
+                    options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
+                } else {
+                    idOrCode = parser.text();
+                }
+            } catch (IOException exception) {
+                throw new UncheckedIOException(exception);
+            }
+        }
+
+        /**
+         * Set both the id and the type of the stored script.
+         */
+        private void setStored(String idOrCode) {
+            if (type != null) {
+                throwOnlyOneOfType();
+            }
+
+            type = ScriptType.STORED;
+            this.idOrCode = idOrCode;
+        }
+
+        /**
+         * Set both the id and the type of the file script.
+         */
+        private void setFile(String idOrCode) {
+            if (type != null) {
+                throwOnlyOneOfType();
+            }
+
+            type = ScriptType.FILE;
+            this.idOrCode = idOrCode;
+        }
+
+        /**
+         * Helper method to throw an exception if more than one type of {@link Script} is specified.
+         */
+        private void throwOnlyOneOfType() {
+            throw new IllegalArgumentException("must only use one of [" +
+                ScriptType.INLINE.getParseField().getPreferredName() + " + , " +
+                ScriptType.STORED.getParseField().getPreferredName() + " + , " +
+                ScriptType.FILE.getParseField().getPreferredName() + "]" +
+                " when specifying a script");
+        }
+
+        private void setLang(String lang) {
+            this.lang = lang;
+        }
+
+        /**
+         * Options may have already been added if an inline template was specified.
+         * Appends the user-defined compiler options with the internal compiler options.
+         */
+        private void setOptions(Map<String, String> options) {
+            this.options.putAll(options);
+        }
+
+        private void setParams(Map<String, Object> params) {
+            this.params = params;
+        }
+
+        /**
+         * Validates the parameters and creates an {@link Script}.
+         * @param lang The default lang is not a compile-time constant and must be provided
+         *             at run-time this way in case a legacy default language is used from
+         *             previously stored queries.
+         */
+        private Script build(String lang) {
+            if (type == null) {
                 throw new IllegalArgumentException(
                     "must specify either code for an [" + ScriptType.INLINE.getParseField().getPreferredName() + "] script " +
-                    "or an id for a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script " +
-                    "or [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
-            }
-
-            if (inline != null && stored != null || inline != null && file != null || stored != null && file != null) {
-                throw new IllegalArgumentException("must only use one of [" +
-                    ScriptType.INLINE.getParseField().getPreferredName() + " + , " +
-                    ScriptType.STORED.getParseField().getPreferredName() + " + , " +
-                    ScriptType.FILE.getParseField().getPreferredName() + "]" +
-                    " when specifying a script");
-            }
-
-            ScriptType type;
-            String idOrCode;
-            String contentType;
-
-            if (inline != null) {
-                type = ScriptType.INLINE;
-                idOrCode = inline.idOrCode;
-                contentType = inline.contentType;
-            } else if (stored != null) {
-                type = ScriptType.STORED;
-                idOrCode = stored.idOrCode;
-                contentType = stored.contentType;
-            } else {
-                type = ScriptType.FILE;
-                idOrCode = file.idOrCode;
-                contentType = file.contentType;
+                        "or an id for a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script " +
+                        "or [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
             }
 
             if (idOrCode == null) {
                 throw new IllegalArgumentException("must specify an id or code for a script");
             }
 
-            String lang = (String)values[3];
-
-            Map<String, String> options = (Map<String, String>)values[4];
-
-            if (options == null) {
-                options = new HashMap<>();
-            }
-
             if (options.size() > 1 || options.size() == 1 && options.get(CONTENT_TYPE_OPTION) == null) {
                 throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
             }
 
-            if (contentType != null) {
-                options.put(CONTENT_TYPE_OPTION, contentType);
-            }
+            return new Script(type, this.lang == null ? lang : this.lang, idOrCode, options, params);
+        }
+    }
 
-            Map<String, Object> params = (Map<String, Object>)values[5];
-
-            if (params == null) {
-                params = new HashMap<>();
-            }
-
-            return new Script(type, lang, idOrCode, options, params);
-        });
+    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("script", Builder::new);
 
     static {
         // Defines the fields necessary to parse a Script as XContent using a ConstructingObjectParser.
-        PARSER.declareField(optionalConstructorArg(), Script::parseCode, ScriptType.INLINE.getParseField(), ValueType.OBJECT_OR_STRING);
-        PARSER.declareField(optionalConstructorArg(), Script::parseCode, ScriptType.STORED.getParseField(), ValueType.OBJECT_OR_STRING);
-        PARSER.declareField(optionalConstructorArg(), Script::parseCode, ScriptType.FILE.getParseField(), ValueType.OBJECT_OR_STRING);
-        PARSER.declareString(optionalConstructorArg(), LANG_PARSE_FIELD);
-        PARSER.declareField(optionalConstructorArg(), Script::parseOptions, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
-        PARSER.declareField(optionalConstructorArg(), Script::parseParams, PARAMS_PARSE_FIELD, ValueType.OBJECT);
+        PARSER.declareField(Builder::setInline, parser -> parser, ScriptType.INLINE.getParseField(), ValueType.OBJECT_OR_STRING);
+        PARSER.declareString(Builder::setStored, ScriptType.STORED.getParseField());
+        PARSER.declareString(Builder::setFile, ScriptType.FILE.getParseField());
+        PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
+        PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
+        PARSER.declareField(Builder::setParams, XContentParser::map, PARAMS_PARSE_FIELD, ValueType.OBJECT);
     }
 
     /**
@@ -268,60 +317,14 @@ public final class Script implements ToXContent, Writeable {
             return new Script(ScriptType.INLINE, lang, parser.text(), Collections.emptyMap());
         }
 
-        return PARSER.apply(parser, () -> matcher, Collections.singletonMap(LANG_PARSE_FIELD.getPreferredName(), lang));
+        return PARSER.apply(parser, () -> matcher).build(lang);
     }
 
-    /**
-     * Helper object used after parsing {@link Script#idOrCode} to also hold {@link XContentType} as a {@link String} if necessary.
-     */
-    private static class ParsedCode {
-        private final String idOrCode;
-        private final String contentType;
-
-        private ParsedCode(String idOrCode, String contentType) {
-            this.idOrCode = idOrCode;
-            this.contentType = contentType;
-        }
-    }
-
-    /**
-     * Parses either a simple {@link String} for {@link Script#idOrCode} or converts a JSON object into a {@link String}
-     * also saving off the appropriate {@link XContentType} to be used for compilation if necessary.
-     */
-    private static ParsedCode parseCode(XContentParser parser, ParseFieldMatcherSupplier supplier) throws IOException {
-        String idOrCode;
-        String contentType = null;
-
-        if (parser.currentToken() == Token.START_OBJECT) {
-            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-            idOrCode = builder.copyCurrentStructure(parser).bytes().utf8ToString();
-            contentType = parser.contentType().mediaType();
-        } else {
-            idOrCode = parser.text();
-        }
-
-        return new ParsedCode(idOrCode, contentType);
-    }
-
-    /**
-     * Parses compiler options.
-     */
-    private static Map<String, String> parseOptions(XContentParser parser, ParseFieldMatcherSupplier supplier) throws IOException {
-        return parser.mapStrings();
-    }
-
-    /**
-     * Parses user-defined params.
-     */
-    private static Map<String, Object> parseParams(XContentParser parser, ParseFieldMatcherSupplier supplier) throws IOException {
-        return parser.map();
-    }
-
-    private ScriptType type;
-    private String lang;
-    private String idOrCode;
-    private Map<String, String> options;
-    private Map<String, Object> params;
+    private final ScriptType type;
+    private final String lang;
+    private final String idOrCode;
+    private final Map<String, String> options;
+    private final Map<String, Object> params;
 
     /**
      * Constructor for simple script using the default language and default type.
@@ -368,7 +371,6 @@ public final class Script implements ToXContent, Writeable {
     /**
      * Creates a {@link Script} read from an input stream.
      */
-    @SuppressWarnings("unchecked")
     public Script(StreamInput in) throws IOException {
         // Version 6.0 requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the read in contents to be in
@@ -377,7 +379,9 @@ public final class Script implements ToXContent, Writeable {
             this.type = ScriptType.readFrom(in);
             this.lang = in.readString();
             this.idOrCode = in.readString();
-            this.options = (Map)in.readMap();
+            @SuppressWarnings("unchecked")
+            Map<String, String> options = (Map<String, String>)(Map)in.readMap();
+            this.options = options;
             this.params = in.readMap();
             // Prior to version 6.0 the script members are read in certain cases as optional and given
             // default values when necessary.  Also the only option supported is for XContentType.
@@ -496,7 +500,6 @@ public final class Script implements ToXContent, Writeable {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         // Version 6.0 requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
@@ -505,7 +508,9 @@ public final class Script implements ToXContent, Writeable {
             type.writeTo(out);
             out.writeString(lang);
             out.writeString(idOrCode);
-            out.writeMap((Map)options);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> options = (Map<String, Object>)(Map)this.options;
+            out.writeMap(options);
             out.writeMap(params);
         // Prior to version 6.0 the Script members were possibly written as optional or null, though this is no longer
         // necessary since Script members cannot be null anymore, and there is no case where a null value wasn't equivalent

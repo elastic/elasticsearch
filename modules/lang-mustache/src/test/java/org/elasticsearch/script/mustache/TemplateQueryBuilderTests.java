@@ -22,7 +22,6 @@ package org.elasticsearch.script.mustache;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -48,6 +47,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQueryBuilder> {
 
@@ -131,7 +132,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
             parseQuery(queryAsString);
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("[Script] unknown field [bogusField], parser not found"));
+            assertThat(e.getMessage(), containsString("[script] unknown field [bogusField], parser not found"));
         }
     }
 

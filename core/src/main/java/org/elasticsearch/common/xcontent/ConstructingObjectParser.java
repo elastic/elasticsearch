@@ -26,10 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -142,19 +139,8 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
      */
     @Override
     public Value apply(XContentParser parser, Context context) {
-        return apply(parser, context, Collections.emptyMap());
-    }
-
-    /**
-     * Call this to do the actual parsing. This implements {@link BiFunction} for conveniently integrating with ObjectParser.
-     * @param defaults Map of {@link ParseField#getPreferredName()} to a default value.  Will only be applied if an optional
-     *                 constructor argument is not specified during parsing.  Allows default values to be applied dynamically.
-     */
-    public Value apply(XContentParser parser, Context context, Map<String, Object> defaults) {
-        Objects.requireNonNull(defaults);
-
         try {
-            return objectParser.parse(parser, new Target(parser), context).finish(defaults);
+            return objectParser.parse(parser, new Target(parser), context).finish();
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
         }
@@ -313,7 +299,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
         /**
          * Finish parsing the object.
          */
-        private Value finish(Map<String, Object> defaults) {
+        private Value finish() {
             if (targetObject != null) {
                 return targetObject;
             }
@@ -326,10 +312,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
             for (int i = 0; i < constructorArgs.length; i++) {
                 if (constructorArgs[i] != null) continue;
                 ConstructorArgInfo arg = constructorArgInfos.get(i);
-                if (false == arg.required) {
-                    constructorArgs[i] = defaults.get(arg.field.getPreferredName());
-                    continue;
-                }
+                if (false == arg.required) continue;
                 if (message == null) {
                     message = new StringBuilder("Required [").append(arg.field);
                 } else {

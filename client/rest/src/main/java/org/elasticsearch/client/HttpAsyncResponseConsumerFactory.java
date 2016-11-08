@@ -25,10 +25,13 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 /**
  * Default factory used to create instances of {@link HttpAsyncResponseConsumer}. Each request retry needs its own instance of the
  * consumer object, which can also be customized by users. By default an instance of {@link HeapBufferedAsyncResponseConsumer} is created
- * for each retry. Otherwise users can extend this class and pass their own instance to the specialized performRequest methods that accept
- * an {@link HttpAsyncResponseConsumerFactory} instance as argument.
+ * for each retry with a buffer limit of 100MB. Otherwise users can extend this class and pass their own instance to the specialized
+ * performRequest methods that accept an {@link HttpAsyncResponseConsumerFactory} instance as argument.
  */
 public class HttpAsyncResponseConsumerFactory {
+
+    //default buffer limit is 100MB
+    static final int DEFAULT_BUFFER_LIMIT = 100 * 1024 * 1024;
 
     static HttpAsyncResponseConsumerFactory INSTANCE = new HttpAsyncResponseConsumerFactory();
 
@@ -40,6 +43,6 @@ public class HttpAsyncResponseConsumerFactory {
      * Creates the default type of {@link HttpAsyncResponseConsumer}, based on heap buffering.
      */
     public HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer() {
-        return new HeapBufferedAsyncResponseConsumer();
+        return new HeapBufferedAsyncResponseConsumer(DEFAULT_BUFFER_LIMIT);
     }
 }

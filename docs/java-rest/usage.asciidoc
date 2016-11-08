@@ -160,7 +160,7 @@ http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http
  callback instance per request attempt. Controls how the response body gets
  streamed from a non-blocking HTTP connection on the client side. When not
  provided, the default implementation is used which buffers the whole response
- body in heap memory
+ body in heap memory, up to 100 MB
 `responseListener`:: the listener to be notified upon asynchronous
 request success or failure
 `headers`:: optional request headers

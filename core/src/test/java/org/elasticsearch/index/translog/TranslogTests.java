@@ -86,6 +86,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -98,6 +99,7 @@ public class TranslogTests extends ESTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected Translog translog;
+    private AtomicLong globalCheckpoint;
     protected Path translogDir;
 
     @Override
@@ -137,7 +139,14 @@ public class TranslogTests extends ESTestCase {
     }
 
     private Translog create(Path path) throws IOException {
-        return new Translog(getTranslogConfig(path), null, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        globalCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
+        final LongSupplier globalCheckpointSupplier = () -> {
+          if (randomBoolean()) {
+              globalCheckpoint.set(globalCheckpoint.get() + randomIntBetween(1, 16));
+          }
+          return globalCheckpoint.longValue();
+        };
+        return new Translog(getTranslogConfig(path), null, globalCheckpointSupplier);
     }
 
     private TranslogConfig getTranslogConfig(Path path) {
@@ -846,11 +855,13 @@ public class TranslogTests extends ESTestCase {
         List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
         int lastSynced = -1;
+        long lastSyncedGlobalCheckpoint = globalCheckpoint.get();
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
             if (frequently()) {
                 translog.sync();
                 lastSynced = op;
+                lastSyncedGlobalCheckpoint = globalCheckpoint.get();
             }
         }
         assertEquals(translogOperations, translog.totalOperations());
@@ -874,6 +885,7 @@ public class TranslogTests extends ESTestCase {
             assertNull(next);
         }
         assertEquals(translogOperations + 1, translog.totalOperations());
+        assertThat(checkpoint.globalCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
         translog.close();
     }
 

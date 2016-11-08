@@ -75,7 +75,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testTranslogSyncAfterGlobalCheckpointSync() throws IOException {
+    public void testTranslogSyncAfterGlobalCheckpointSync() throws Exception {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");

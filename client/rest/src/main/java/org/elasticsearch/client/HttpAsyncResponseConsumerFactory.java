@@ -23,26 +23,38 @@ import org.apache.http.HttpResponse;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 /**
- * Default factory used to create instances of {@link HttpAsyncResponseConsumer}. Each request retry needs its own instance of the
- * consumer object, which can also be customized by users. By default an instance of {@link HeapBufferedAsyncResponseConsumer} is created
- * for each retry with a buffer limit of 100MB. Otherwise users can extend this class and pass their own instance to the specialized
+ * Factory used to create instances of {@link HttpAsyncResponseConsumer}. Each request retry needs its own instance of the
+ * consumer object. Users can implement this interface and pass their own instance to the specialized
  * performRequest methods that accept an {@link HttpAsyncResponseConsumerFactory} instance as argument.
  */
-public class HttpAsyncResponseConsumerFactory {
+interface HttpAsyncResponseConsumerFactory {
 
-    //default buffer limit is 100MB
-    static final int DEFAULT_BUFFER_LIMIT = 100 * 1024 * 1024;
-
-    static HttpAsyncResponseConsumerFactory INSTANCE = new HttpAsyncResponseConsumerFactory();
-
-    protected HttpAsyncResponseConsumerFactory() {
-
-    }
+    HttpAsyncResponseConsumerFactory DEFAULT = new Default();
 
     /**
      * Creates the default type of {@link HttpAsyncResponseConsumer}, based on heap buffering.
      */
-    public HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer() {
-        return new HeapBufferedAsyncResponseConsumer(DEFAULT_BUFFER_LIMIT);
+    HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer();
+
+    /**
+     * Default factory used to create instances of {@link HttpAsyncResponseConsumer}.
+     * Creates one instance of {@link HeapBufferedAsyncResponseConsumer} for each retry with a buffer limit of 100MB.
+     */
+    class Default implements HttpAsyncResponseConsumerFactory {
+
+        //default buffer limit is 100MB
+        static final int DEFAULT_BUFFER_LIMIT = 100 * 1024 * 1024;
+
+        private Default() {
+
+        }
+
+        /**
+         * Creates the default type of {@link HttpAsyncResponseConsumer}, based on heap buffering.
+         */
+        @Override
+        public HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer() {
+            return new HeapBufferedAsyncResponseConsumer(DEFAULT_BUFFER_LIMIT);
+        }
     }
 }

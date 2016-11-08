@@ -181,7 +181,7 @@ public class RestClient implements Closeable {
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.INSTANCE, headers);
+        return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, headers);
     }
 
     /**
@@ -258,7 +258,7 @@ public class RestClient implements Closeable {
      */
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.INSTANCE, responseListener, headers);
+        performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, responseListener, headers);
     }
 
     /**

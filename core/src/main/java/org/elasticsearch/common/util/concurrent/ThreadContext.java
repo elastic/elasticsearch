@@ -494,7 +494,9 @@ public final class ThreadContext implements Closeable, Writeable {
             try {
                 in.onAfter();
             } finally {
-                threadsOriginalContext.restore();
+                if (threadsOriginalContext != null) {
+                    threadsOriginalContext.restore();
+                }
             }
         }
 

@@ -134,7 +134,6 @@ import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
@@ -1454,6 +1453,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void fullRestart(RestartCallback callback) throws Exception {
         int numNodesRestarted = 0;
         Map<Set<Role>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
+        Set[] rolesOrderedByOriginalStartupOrder =  new Set[nextNodeId.get()];
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
             logger.info("Stopping node [{}] ", nodeAndClient.name);
@@ -1464,6 +1464,7 @@ public final class InternalTestCluster extends TestCluster {
             // delete data folders now, before we start other nodes that may claim it
             nodeAndClient.clearDataIfNeeded(callback);
             DiscoveryNode discoveryNode = getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode();
+            rolesOrderedByOriginalStartupOrder[nodeAndClient.nodeAndClientId] = discoveryNode.getRoles();
             nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
         }
 
@@ -1477,14 +1478,15 @@ public final class InternalTestCluster extends TestCluster {
             Collections.shuffle(sameRoleNodes, random);
         }
         List<NodeAndClient> startUpOrder = new ArrayList<>();
-        do {
-            Set roles = randomFrom(random, nodesByRoles.keySet());
+        for (Set roles : rolesOrderedByOriginalStartupOrder) {
+            if (roles == null) {
+                // if some nodes were stopped, we want have a role for that ordinal
+                continue;
+            }
             final List<NodeAndClient> nodesByRole = nodesByRoles.get(roles);
             startUpOrder.add(nodesByRole.remove(0));
-            if (nodesByRole.isEmpty()) {
-                nodesByRoles.remove(roles);
-            }
-        } while (nodesByRoles.isEmpty() == false);
+        }
+        assert nodesByRoles.values().stream().collect(Collectors.summingInt(List::size)) == 0;
 
         // do two rounds to minimize pinging (mock zen pings pings with no delay and can create a lot of logs)
         for (NodeAndClient nodeAndClient : startUpOrder) {

@@ -81,10 +81,10 @@ public class InternalTestClusterTests extends ESTestCase {
 
         Path baseDir = createTempDir();
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
+            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
+            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
         // TODO: this is not ideal - we should have a way to make sure ports are initialized in the same way
         assertClusters(cluster0, cluster1, false);
@@ -157,10 +157,10 @@ public class InternalTestClusterTests extends ESTestCase {
         Path baseDir = createTempDir();
         final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class);
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
+            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, mockPlugins, Function.identity());
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
+            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, mockPlugins, Function.identity());
 
         assertClusters(cluster0, cluster1, false);
@@ -217,7 +217,7 @@ public class InternalTestClusterTests extends ESTestCase {
         String nodePrefix = "test";
         Path baseDir = createTempDir();
         InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
+            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class),
             Function.identity());
         try {
@@ -280,7 +280,7 @@ public class InternalTestClusterTests extends ESTestCase {
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
-        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, true, autoManageMinMasterNodes, 0, 0, "test",
+        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, true, randomBoolean(), 0, 0, "test",
             new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal) {

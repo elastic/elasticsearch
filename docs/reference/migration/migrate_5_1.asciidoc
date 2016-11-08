@@ -1,6 +1,26 @@
 [[breaking-changes-5.1]]
 == Breaking changes in 5.1
 
+[[breaking_51_index_api_changes]]
+[float]
+=== Indices API changes
+
+==== Alias names are validated against (most of) the rules for index names
+
+Alias names are now validated against almost the same set of rules that validate
+index names. The only difference is that aliases are allowed to have uppercase
+characters. That means that aliases may not:
+
+* Start with `_`, `-`, or `+`
+* Contain `#`, `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` `, `,`
+* Be longer than 100 UTF-8 encoded bytes
+* Be exactly `.` or `..`
+
+Aliases created in versions before 5.1.0 are still supported but no new aliases
+can be added that violate those rules. Since modifying an alias in elasticsearch
+is removing it and recreating it atomically using the `_aliases` API, modifying
+aliases with invalid names is also no longer supported.
+
 [[breaking_51_java_api_changes]]
 [float]
 === Java API changes

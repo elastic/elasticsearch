@@ -1336,7 +1336,9 @@ public final class InternalTestCluster extends TestCluster {
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
         if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
             int masters = (int)nodeAndClients.stream().filter(NodeAndClient::isMasterNode).count();
-            updateMinMasterNodes(-masters);
+            if (masters > 0) {
+                updateMinMasterNodes(-masters);
+            }
         }
         for (NodeAndClient nodeAndClient: nodeAndClients) {
             removeDisruptionSchemeFromNode(nodeAndClient);

@@ -1227,7 +1227,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
-        assert randomNodeAndClient != null;
+        if (randomNodeAndClient == null) {
+            assert randomNodeAndClient != null;
+        }
         return getInstanceFromNode(clazz, randomNodeAndClient.node);
     }
 

@@ -12,8 +12,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -44,6 +44,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -60,7 +62,7 @@ public class ScriptTransformTests extends ESTestCase {
         tp.shutdownNow();
     }
 
-    public void testExecute_MapValue() throws Exception {
+    public void testExecuteMapValue() throws Exception {
         ScriptService service = mock(ScriptService.class);
         ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
@@ -168,35 +170,24 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testScriptConditionParserBadScript() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), createScriptService(tp));
-        ScriptType scriptType = randomFrom(ScriptType.values());
-        String script;
-        switch (scriptType) {
-            case STORED:
-            case FILE:
-                script = "nonExisting_script";
-                break;
-            case INLINE:
-            default:
-                script = "foo = = 1";
-        }
+        ScriptService scriptService = mock(ScriptService.class);
+        String errorMessage = "expected error message";
+        ScriptException scriptException = new ScriptException(errorMessage, new RuntimeException("foo"),
+                Collections.emptyList(), "whatever", "whatever");
+        when(scriptService.compile(anyObject(), eq(Watcher.SCRIPT_CONTEXT), anyObject())).thenThrow(scriptException);
+
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), scriptService);
 
         XContentBuilder builder = jsonBuilder().startObject()
-                .field(scriptTypeField(scriptType), script)
-                .field("lang", "groovy")
+                .field(scriptTypeField(randomFrom(ScriptType.values())), "whatever")
                 .startObject("params").field("key", "value").endObject()
                 .endObject();
 
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptTransform scriptTransform = transformFactory.parseTransform("_watch", parser, false);
-        try {
-            transformFactory.createExecutable(scriptTransform);
-            fail("expected a transform validation exception trying to create an executable with a bad or missing script");
-        } catch (GeneralScriptException e) {
-            // I don't think this is what this test intended to check!
-            assertThat(e.getMessage(), containsString("script_lang not supported [groovy]"));
-        }
+        Exception e = expectThrows(ScriptException.class, () -> transformFactory.createExecutable(scriptTransform));
+        assertThat(e.getMessage(), containsString(errorMessage));
     }
 
     public void testScriptConditionParserBadLang() throws Exception {
@@ -213,12 +204,8 @@ public class ScriptTransformTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptTransform scriptCondition = transformFactory.parseTransform("_watch", parser, false);
-        try {
-            transformFactory.createExecutable(scriptCondition);
-            fail("expected a transform validation exception trying to create an executable with an invalid language");
-        } catch (GeneralScriptException e) {
-            assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> transformFactory.createExecutable(scriptCondition));
+        assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
     }
 
     static String scriptTypeField(ScriptType type) {

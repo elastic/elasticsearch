@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -24,8 +23,8 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -192,7 +191,7 @@ public class ScriptConditionTests extends ESTestCase {
         ScriptCondition condition = new ScriptCondition(new Script("return new Object()"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        Exception exception = expectThrows(GeneralScriptException.class, () -> condition.execute(ctx));
+        Exception exception = expectThrows(IllegalStateException.class, () -> condition.execute(ctx));
         assertThat(exception.getMessage(),
                 containsString("condition [script] must return a boolean value (true|false) but instead returned [_name]"));
     }

@@ -86,5 +86,26 @@ public class RestHttpResponseHeadersIT extends HttpSmokeTestCase {
             assertThat(responseAllowHeaderStringArray, containsInAnyOrder("GET"));
         }
     }
+    
+    /**
+     * Test if a POST request to /{index}/_settings matches the update settings
+     * handler for /{index}/_settings, and returns a 405 error (see
+     * <a href="https://github.com/elastic/elasticsearch/issues/17853">Issue
+     * 17853</a> for more information).
+     */
+    public void testIndexSettingsPostRequest() throws Exception {
+        try {
+            createIndex("testindex");
+            getRestClient().performRequest("POST", "/testindex/_settings");
+            fail("Request should have failed with 405 error");
+        } catch (ResponseException e) {
+            Response response = e.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), is(405));
+            assertThat(response.getHeader("Allow"), notNullValue());
+            List<String> responseAllowHeaderStringArray =
+                    Arrays.asList(response.getHeader("Allow").split(","));
+            assertThat(responseAllowHeaderStringArray, containsInAnyOrder("PUT"));
+        }
+    }
 
 }

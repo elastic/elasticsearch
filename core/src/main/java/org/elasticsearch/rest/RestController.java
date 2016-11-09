@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.path.PathTrie.TrieMatchingMode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -182,7 +183,7 @@ public class RestController extends AbstractLifecycleComponent {
      * @return true iff the circuit breaker limit must be enforced for processing this request.
      */
     public boolean canTripCircuitBreaker(RestRequest request) {
-        RestHandler handler = getHandler(request, false);
+        RestHandler handler = getHandler(request);
         return (handler != null) ? handler.canTripCircuitBreaker() : true;
     }
 
@@ -239,85 +240,77 @@ public class RestController extends AbstractLifecycleComponent {
     }
 
     void executeHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        // Request execution flags
-        boolean explicitMatchHandled = false;
-        boolean wildcardMatchHandled = false;
+        // Request execution flag
+        boolean requestHandled = false;
 
         /*
-         * First try handlers mapped to explicit paths.
+         * First try handlers mapped to explicit paths only.
          */
-        explicitMatchHandled = executeExplicitHandler(request, channel, client);
-
-        if (explicitMatchHandled == false) {
+        requestHandled = executeHandler(request, channel, client, TrieMatchingMode.EXPLICIT_NODES_ONLY);
+        
+        if (requestHandled == false) {
             /*
-             * Fallback to handlers mapped to both explicit and wildcard paths.
+             * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a leaf node only.
              */
-            wildcardMatchHandled = executeWildcardHandler(request, channel, client);
+            requestHandled = executeHandler(request, channel, client, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
+        }
+        
+        if (requestHandled == false) {
+            /*
+             * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a root node only.
+             */
+            requestHandled = executeHandler(request, channel, client, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
+        }
+        
+        if (requestHandled == false) {
+            /*
+             * Fallback to handlers mapped to explicit paths, with a wildcard allowed as any node.
+             */
+            requestHandled = executeHandler(request, channel, client, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
         }
 
         /*
          * If request has not been handled, fallback to a bad request error.
          */
-        if (explicitMatchHandled == false && wildcardMatchHandled == false) {
+        if (requestHandled == false) {
             handleBadRequest(request, channel);
         }
     }
     
-    private boolean executeExplicitHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        /*
-         * Get the matching explicit handler (ie. ignore wildcard path matches)
-         * for this request, if one exists.
-         */
-        final RestHandler explicitHandler = getHandler(request, true);
-        if (explicitHandler != null) {
-            /*
-             * Handle valid REST request (the request matches an explicit
-             * handler).
-             */
-            explicitHandler.handleRequest(request, channel, client);
-            return true;
-        }
-
-        return handleInvalidRequest(request, channel, true);
-    }
-    
-    private boolean executeWildcardHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    private boolean executeHandler(RestRequest request, RestChannel channel, NodeClient client, PathTrie.TrieMatchingMode trieMatchingMode) throws Exception {
         /*
          * Get the matching handler for this request, including both explicit
          * and wildcard path matches, if one exists.
          */
-        final RestHandler handler = getHandler(request, false);
+        final RestHandler handler = getHandler(request, trieMatchingMode);
         if (handler != null) {
             /*
              * Handle valid REST request (the request matches a handler).
              */
             handler.handleRequest(request, channel, client);
             return true;
+        } else {
+            /*
+             * Get the map of matching handlers for a request, for the full set of HTTP methods.
+             */
+            final HashSet<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request, trieMatchingMode);
+            if (validMethodSet.size() > 0 
+                    && !validMethodSet.contains(request.method())
+                    && request.method() != RestRequest.Method.OPTIONS) {
+                /*
+                 * If an alternative handler for an explicit path is registered to a
+                 * different HTTP method than the one supplied - return a 405 Method
+                 * Not Allowed error.
+                 */
+                handleUnsupportedHttpMethod(request, channel, validMethodSet);
+                return true;
+            } else if (!validMethodSet.contains(request.method()) 
+                    && request.method() == RestRequest.Method.OPTIONS) {
+                handleOptionsRequest(request, channel, validMethodSet);
+                return true;
+            }
         }
 
-        return handleInvalidRequest(request, channel, false);
-    }
-    
-    private boolean handleInvalidRequest(RestRequest request, RestChannel channel, boolean ignoreWildcards) {
-        /*
-         * Get the map of matching handlers for a request, for the full set of HTTP methods.
-         */
-        final HashSet<RestRequest.Method> methodSet = getValidHandlerMethodSet(request, ignoreWildcards);
-        if (methodSet.size() > 0 
-                && !methodSet.contains(request.method())
-                && request.method() != RestRequest.Method.OPTIONS) {
-            /*
-             * If an alternative handler for an explicit path is registered to a
-             * different HTTP method than the one supplied - return a 405 Method
-             * Not Allowed error.
-             */
-            handleUnsupportedHttpMethod(request, channel, methodSet);
-            return true;
-        } else if (!methodSet.contains(request.method()) 
-                && request.method() == RestRequest.Method.OPTIONS) {
-            handleOptionsRequest(request, channel, methodSet);
-            return true;
-        }
         return false;
     }
     
@@ -364,12 +357,22 @@ public class RestController extends AbstractLifecycleComponent {
         channel.sendResponse(new BytesRestResponse(BAD_REQUEST,
                 "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
     }
-
-    private RestHandler getHandler(RestRequest request, boolean ignoreWildcards) {
+    
+    private RestHandler getHandler(RestRequest request) {
         String path = getPath(request);
         PathTrie<RestHandler> handlers = getHandlersForMethod(request.method());
         if (handlers != null) {
-            return handlers.retrieve(path, request.params(), ignoreWildcards);
+            return handlers.retrieve(path, request.params());
+        } else {
+            return null;
+        }
+    }
+
+    private RestHandler getHandler(RestRequest request, PathTrie.TrieMatchingMode trieMatchingMode) {
+        String path = getPath(request);
+        PathTrie<RestHandler> handlers = getHandlersForMethod(request.method());
+        if (handlers != null) {
+            return handlers.retrieve(path, request.params(), trieMatchingMode);
         } else {
             return null;
         }
@@ -396,25 +399,25 @@ public class RestController extends AbstractLifecycleComponent {
     /**
      * Get the valid set of HTTP methods for a REST request.
      */
-    private HashSet<RestRequest.Method> getValidHandlerMethodSet(RestRequest request, boolean ignoreWildcards) {
+    private HashSet<RestRequest.Method> getValidHandlerMethodSet(RestRequest request, PathTrie.TrieMatchingMode trieMatchingMode) {
         String path = getPath(request);
         HashSet<RestRequest.Method> validMethodSet = new HashSet<RestRequest.Method>();
-        if (getHandlers.retrieve(path, request.params(), ignoreWildcards) != null) {
+        if (getHandlers.retrieve(path, request.params(), trieMatchingMode) != null) {
             validMethodSet.add(RestRequest.Method.GET);
         }
-        if (postHandlers.retrieve(path, request.params(), ignoreWildcards) != null) {
+        if (postHandlers.retrieve(path, request.params(), trieMatchingMode) != null) {
             validMethodSet.add(RestRequest.Method.POST);
         }
-        if (putHandlers.retrieve(path, request.params(), ignoreWildcards) != null) {
+        if (putHandlers.retrieve(path, request.params(), trieMatchingMode) != null) {
             validMethodSet.add(RestRequest.Method.PUT);
         }
-        if (deleteHandlers.retrieve(path, request.params(), ignoreWildcards) != null) {
+        if (deleteHandlers.retrieve(path, request.params(), trieMatchingMode) != null) {
             validMethodSet.add(RestRequest.Method.DELETE);
         }
-        if (headHandlers.retrieve(path, request.params(), ignoreWildcards) != null) {
+        if (headHandlers.retrieve(path, request.params(), trieMatchingMode) != null) {
             validMethodSet.add(RestRequest.Method.HEAD);
         }
-        if (optionsHandlers.retrieve(path, request.params(), ignoreWildcards) != null) {
+        if (optionsHandlers.retrieve(path, request.params(), trieMatchingMode) != null) {
             validMethodSet.add(RestRequest.Method.OPTIONS);
         }
         return validMethodSet;

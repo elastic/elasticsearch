@@ -265,7 +265,7 @@ final class BootstrapCheck {
         public final String errorMessage() {
             return String.format(
                 Locale.ROOT,
-                "max file descriptors [%d] for elasticsearch process likely too low, increase to at least [%d]",
+                "max file descriptors [%d] for elasticsearch process is too low, increase to at least [%d]",
                 getMaxFileDescriptorCount(),
                 limit
             );
@@ -316,7 +316,7 @@ final class BootstrapCheck {
         public String errorMessage() {
             return String.format(
                 Locale.ROOT,
-                "max number of threads [%d] for user [%s] likely too low, increase to at least [%d]",
+                "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
                 getMaxNumberOfThreads(),
                 BootstrapInfo.getSystemProperties().get("user.name"),
                 maxNumberOfThreadsThreshold);
@@ -340,7 +340,7 @@ final class BootstrapCheck {
         public String errorMessage() {
             return String.format(
                 Locale.ROOT,
-                "max size virtual memory [%d] for user [%s] likely too low, increase to [unlimited]",
+                "max size virtual memory [%d] for user [%s] is too low, increase to [unlimited]",
                 getMaxSizeVirtualMemory(),
                 BootstrapInfo.getSystemProperties().get("user.name"));
         }
@@ -370,7 +370,7 @@ final class BootstrapCheck {
         public String errorMessage() {
             return String.format(
                     Locale.ROOT,
-                    "max virtual memory areas vm.max_map_count [%d] likely too low, increase to at least [%d]",
+                    "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
                     getMaxMapCount(),
                     limit);
         }

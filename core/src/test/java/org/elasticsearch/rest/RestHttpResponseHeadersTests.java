@@ -57,6 +57,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * before picking out a candidate sublist.
          */
         List<RestRequest.Method> validHttpMethodArray = new ArrayList<RestRequest.Method>(Arrays.asList(RestRequest.Method.values()));
+        validHttpMethodArray.remove(RestRequest.Method.OPTIONS);
         Collections.shuffle(validHttpMethodArray, random());
 
         /*

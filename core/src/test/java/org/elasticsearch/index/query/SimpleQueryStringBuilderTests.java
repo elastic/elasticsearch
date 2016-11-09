@@ -31,6 +31,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -42,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -252,7 +255,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
             assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
         } else if (queryBuilder.fields().size() == 0) {
-            assertTermQuery(query, MetaData.ALL, queryBuilder.value());
+            MapperService ms = context.mapperService();
+            if (ms.allEnabled()) {
+                assertTermQuery(query, MetaData.ALL, queryBuilder.value());
+            } else {
+                assertThat(query.getClass(), equalTo(MatchNoDocsQuery.class));
+            }
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our "
                     + SimpleQueryStringBuilderTests.class.getSimpleName());
@@ -397,5 +405,20 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .toQuery(createShardContext());
         expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "abc"), 1);
         assertEquals(expected, query);
+    }
+
+    public void testAllFieldsWithFields() throws IOException {
+        String json =
+                "{\n" +
+                "  \"simple_query_string\" : {\n" +
+                "    \"query\" : \"this that thus\",\n" +
+                "    \"fields\" : [\"foo\"],\n" +
+                "    \"all_fields\" : true\n" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(),
+                containsString("cannot use [all_fields] parameter in conjunction with [fields]"));
     }
 }

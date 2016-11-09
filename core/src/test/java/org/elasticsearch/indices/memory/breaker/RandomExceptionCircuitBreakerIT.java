@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.memory.breaker;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -40,14 +39,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.basic.SearchWithRandomExceptionsIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -212,19 +209,14 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
         public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
             Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
-        public static class TestPlugin extends MockEngineFactoryPlugin {
+        public static class TestPlugin extends Plugin {
             @Override
             public List<Setting<?>> getSettings() {
-                List<Setting<?>> settings = new ArrayList<>();
-                settings.addAll(super.getSettings());
-                settings.add(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
-                settings.add(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
-                return settings;
+                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
 
-            @Override
-            protected Class<? extends FilterDirectoryReader> getReaderWrapperClass() {
-                return RandomExceptionDirectoryReaderWrapper.class;
+            public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
+                module.setReaderClass(RandomExceptionDirectoryReaderWrapper.class);
             }
         }
 

@@ -53,14 +53,17 @@ public class RethrottleTests extends ReindexTestCase {
         testCase(deleteByQuery().source("test"), DeleteByQueryAction.NAME);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21446")
     public void testReindexWithWorkers() throws Exception {
         testCase(reindex().source("test").destination("dest").setSlices(between(2, 10)), ReindexAction.NAME);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21446")
     public void testUpdateByQueryWithWorkers() throws Exception {
         testCase(updateByQuery().source("test").setSlices(between(2, 10)), UpdateByQueryAction.NAME);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21446")
     public void testDeleteByQueryWithWorkers() throws Exception {
         testCase(deleteByQuery().source("test").setSlices(between(2, 10)), DeleteByQueryAction.NAME);
     }

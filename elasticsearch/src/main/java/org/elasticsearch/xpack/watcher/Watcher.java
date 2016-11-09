@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
-import org.elasticsearch.xpack.watcher.client.WatcherClientModule;
+import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -69,9 +69,19 @@ import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
-import org.elasticsearch.xpack.watcher.history.HistoryModule;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.watcher.input.InputModule;
+import org.elasticsearch.xpack.watcher.input.InputFactory;
+import org.elasticsearch.xpack.watcher.input.InputRegistry;
+import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
+import org.elasticsearch.xpack.watcher.input.chain.ChainInputFactory;
+import org.elasticsearch.xpack.watcher.input.http.HttpInput;
+import org.elasticsearch.xpack.watcher.input.http.HttpInputFactory;
+import org.elasticsearch.xpack.watcher.input.none.NoneInput;
+import org.elasticsearch.xpack.watcher.input.none.NoneInputFactory;
+import org.elasticsearch.xpack.watcher.input.search.SearchInput;
+import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
+import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
+import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
@@ -158,7 +168,8 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
 
     public Collection<Object> createComponents(Clock clock, ScriptService scriptService, InternalClient internalClient,
                                                SearchRequestParsers searchRequestParsers, XPackLicenseState licenseState,
-                                               HttpClient httpClient, Collection<Object> components) {
+                                               HttpClient httpClient, HttpRequestTemplate.Parser httpTemplateParser,
+                                               Collection<Object> components) {
         final Map<String, ConditionFactory> parsers = new HashMap<>();
         parsers.put(AlwaysCondition.TYPE, (c, id, p, upgrade) -> AlwaysCondition.parse(id, p));
         parsers.put(NeverCondition.TYPE, (c, id, p, upgrade) -> NeverCondition.parse(id, p));
@@ -190,7 +201,20 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine,
                 getService(PagerDutyService.class, components)));
         final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, clock, licenseState);
-        return Collections.singleton(registry);
+
+        final Map<String, InputFactory>  inputFactories = new HashMap<>();
+        inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, internalClient, searchRequestParsers, scriptService));
+        inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
+        inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
+        inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
+        final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
+        inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
+
+        final WatcherClient watcherClient = new WatcherClient(internalClient);
+
+        final HistoryStore historyStore = new HistoryStore(settings, internalClient);
+
+        return Arrays.asList(registry, watcherClient, inputRegistry, historyStore);
     }
 
     private <T> T getService(Class<T> serviceClass, Collection<Object> services) {
@@ -208,11 +232,8 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         modules.add(new WatcherModule(enabled, transportClient));
         if (enabled && transportClient == false) {
             modules.add(new WatchModule());
-            modules.add(new WatcherClientModule());
             modules.add(new TriggerModule(settings));
             modules.add(new ScheduleModule());
-            modules.add(new InputModule());
-            modules.add(new HistoryModule());
             modules.add(new ExecutionModule());
         }
         return modules;

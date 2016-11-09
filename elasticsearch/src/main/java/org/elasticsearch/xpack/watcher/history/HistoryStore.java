@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,7 +42,6 @@ public class HistoryStore extends AbstractComponent {
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    @Inject
     public HistoryStore(Settings settings, InternalClient client) {
         this(settings, new WatcherClientProxy(settings, client));
     }

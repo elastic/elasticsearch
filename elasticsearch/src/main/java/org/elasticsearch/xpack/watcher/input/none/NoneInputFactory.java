@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.input.none;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,7 +14,6 @@ import java.io.IOException;
 
 public class NoneInputFactory extends InputFactory<NoneInput, NoneInput.Result, ExecutableNoneInput> {
 
-    @Inject
     public NoneInputFactory(Settings settings) {
         super(Loggers.getLogger(ExecutableNoneInput.class, settings));
     }

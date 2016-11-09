@@ -46,7 +46,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (databaseReaders != null) {
-            throw new IllegalStateException("getProcessors called twice for geoip plugin!!");
+            throw new IllegalStateException("called onModule twice for geoip plugin!!");
         }
         Path geoIpConfigDirectory = parameters.env.configFile().resolve("ingest-geoip");
         try {

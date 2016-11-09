@@ -60,6 +60,9 @@ public class JvmExamplePlugin extends Plugin {
         return Settings.EMPTY;
     }
 
+    public void onModule(RepositoriesModule repositoriesModule) {
+    }
+
     /**
      * Module declaring some example configuration and a _cat action that uses
      * it.

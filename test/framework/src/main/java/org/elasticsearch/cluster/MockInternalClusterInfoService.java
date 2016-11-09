@@ -18,26 +18,29 @@
  */
 package org.elasticsearch.cluster;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -48,8 +51,11 @@ import static java.util.Collections.emptySet;
  */
 public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
-    /** This is a marker plugin used to trigger MockNode to use this mock info service. */
-    public static class TestPlugin extends Plugin {}
+    public static class TestPlugin extends Plugin {
+        public void onModule(ClusterModule module) {
+            module.clusterInfoServiceImpl = MockInternalClusterInfoService.class;
+        }
+    }
 
     private final ClusterName clusterName;
     private volatile NodeStats[] stats = new NodeStats[3];
@@ -69,8 +75,12 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             null, null, null);
     }
 
-    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
-        super(settings, clusterService, threadPool, client);
+    @Inject
+    public MockInternalClusterInfoService(Settings settings, ClusterSettings clusterSettings,
+                                          TransportNodesStatsAction transportNodesStatsAction,
+                                          TransportIndicesStatsAction transportIndicesStatsAction,
+                                          ClusterService clusterService, ThreadPool threadPool) {
+        super(settings, clusterSettings, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         stats[0] = makeStats("node_t1", new DiskUsage("node_t1", "n1", "/dev/null", 100, 100));
         stats[1] = makeStats("node_t2", new DiskUsage("node_t2", "n2", "/dev/null", 100, 100));

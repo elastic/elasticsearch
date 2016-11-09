@@ -86,6 +86,9 @@ public class ClusterModule extends AbstractModule {
     final Collection<AllocationDecider> allocationDeciders;
     final ShardsAllocator shardsAllocator;
 
+    // pkg private so tests can mock
+    Class<? extends ClusterInfoService> clusterInfoServiceImpl = InternalClusterInfoService.class;
+
     public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins) {
         this.settings = settings;
         this.allocationDeciders = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -156,6 +159,7 @@ public class ClusterModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(ClusterInfoService.class).to(clusterInfoServiceImpl).asEagerSingleton();
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).asEagerSingleton();
         bind(ClusterService.class).toInstance(clusterService);

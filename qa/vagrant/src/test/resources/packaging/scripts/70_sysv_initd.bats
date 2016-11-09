@@ -134,6 +134,25 @@ setup() {
     [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
 }
 
+@test "[INIT.D] start Elasticsearch with custom JVM options" {
+    local es_java_opts=$ES_JAVA_OPTS
+    local es_jvm_options=$ES_JVM_OPTIONS
+    local temp=`mktemp -d`
+    touch "$temp/jvm.options"
+    chown -R elasticsearch:elasticsearch "$temp"
+    echo "-Xms512m" >> "$temp/jvm.options"
+    echo "-Xmx512m" >> "$temp/jvm.options"
+    cp /etc/sysconfig/elasticsearch "$temp/elasticsearch"
+    echo "ES_JVM_OPTIONS=\"$temp/jvm.options\"" >> /etc/sysconfig/elasticsearch
+    echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> /etc/sysconfig/elasticsearch
+    service elasticsearch start
+    wait_for_elasticsearch_status
+    curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
+    curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
+    service elasticsearch stop
+    cp "$temp/elasticsearch" /etc/sysconfig/elasticsearch
+}
+
 # Simulates the behavior of a system restart:
 # the PID directory is deleted by the operating system
 # but it should not block ES from starting

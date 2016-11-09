@@ -1384,11 +1384,7 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(predicate);
         if (nodeAndClient != null) {
-            logger.info("Restarting random node [{}] ", nodeAndClient.name);
-            nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
-            if (callback.validateClusterForming()) {
-                validateClusterFormed();
-            }
+            restartNode(nodeAndClient, callback);
         }
     }
 
@@ -1399,11 +1395,7 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         NodeAndClient nodeAndClient = nodes.get(nodeName);
         if (nodeAndClient != null) {
-            logger.info("Restarting node [{}] ", nodeAndClient.name);
-            nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
-            if (callback.validateClusterForming()) {
-                validateClusterFormed();
-            }
+            restartNode(nodeAndClient, callback);
         }
     }
 
@@ -1435,17 +1427,27 @@ public final class InternalTestCluster extends TestCluster {
         int numNodesRestarted = 0;
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
-            logger.info("Restarting node [{}] ", nodeAndClient.name);
-            if (activeDisruptionScheme != null) {
-                activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
-            }
-            nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
-            if (activeDisruptionScheme != null) {
-                activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
-            }
-            if (callback.validateClusterForming()) {
-                validateClusterFormed();
-            }
+            restartNode(nodeAndClient, callback);
+        }
+    }
+
+    private void restartNode(NodeAndClient nodeAndClient, RestartCallback callback) throws Exception {
+        logger.info("Restarting node [{}] ", nodeAndClient.name);
+        if (activeDisruptionScheme != null) {
+            activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
+        }
+        // special case to allow stopping one node in a two node cluster and keep it functional
+        final boolean updateMinMaster = nodeAndClient.isMasterNode() && getMasterNodesCount() == 2 && autoManageMinMasterNodes;
+        if (updateMinMaster) {
+            updateMinMasterNodes(-1);
+        }
+        nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
+        if (activeDisruptionScheme != null) {
+            activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
+        }
+        if (callback.validateClusterForming() || updateMinMaster) {
+            validateClusterFormed();
+            updateMinMasterNodes(0);
         }
     }
 

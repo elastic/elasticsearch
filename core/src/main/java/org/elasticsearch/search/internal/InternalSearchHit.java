@@ -200,6 +200,9 @@ public class InternalSearchHit implements SearchHit {
      */
     @Override
     public BytesReference sourceRef() {
+        if (this.source == null)
+            return null;
+        
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;

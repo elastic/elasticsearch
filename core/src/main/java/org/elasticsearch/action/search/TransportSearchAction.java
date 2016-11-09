@@ -69,7 +69,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                  ClusterService clusterService, ActionFilters actionFilters, IndexNameExpressionResolver
                                              indexNameExpressionResolver) {
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
-        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService, clusterService);;
+        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService);
         this.searchTransportService = new SearchTransportService(settings, transportService);
         SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;

@@ -123,24 +123,29 @@ GET _rank_eval/template
 
 === Precision
 
-Works well as an easy to explain evaluation metric. Caveat: All
-result positions are treated equally. So a ranking of ten results that contains
-one relevant result in position 10 is equally good as a ranking of ten results
-that contains one relevant result in position 1.
+Works well as an easy to explain evaluation metric. Caveat: All result positions
+are treated equally. So a ranking of ten results that contains one relevant
+result in position 10 is equally good as a ranking of ten results that contains
+one relevant result in position 1.
 
 [source,js]
 --------------------------------
 {
     "metric": {
       "precision": {
-        "relevant_rating_threshold": 2              <1>
+        "relevant_rating_threshold": 1,              <1>
+        "ignore_unlabeled": "false"                  <2>
       }
    }
 }
 --------------------------------
 
 <1> For graded relevance ratings only ratings above this threshold are
-considered as relevant results for the given query.
+considered as relevant results for the given query. By default this is set to 1.
+
+<2> All documents retrieved by the rated request that have no ratings
+assigned are treated unrelevant by default. Set to true in order to drop them
+from the precision computation entirely.
 
 
 === Reciprocal rank
@@ -159,6 +164,7 @@ first relevant document retrieved.
 
 
 === Normalized discounted cumulative gain
+
 In contrast to the two metrics above this
 takes both, the grade of the result found as well as the position of the
 document returned into account.

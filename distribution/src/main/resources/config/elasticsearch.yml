@@ -8,7 +8,7 @@
 # the most important settings you may want to configure for a production cluster.
 #
 # Please see the documentation for further information on configuration options:
-# <http://www.elastic.co/guide/en/elasticsearch/reference/current/setup-configuration.html>
+# <https://www.elastic.co/guide/en/elasticsearch/reference/5.0/settings.html>
 #
 # ---------------------------------- Cluster -----------------------------------
 #
@@ -59,7 +59,7 @@
 #http.port: 9200
 #
 # For more information, see the documentation at:
-# <http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-network.html>
+# <https://www.elastic.co/guide/en/elasticsearch/reference/5.0/modules-network.html>
 #
 # --------------------------------- Discovery ----------------------------------
 #
@@ -73,7 +73,7 @@
 #discovery.zen.minimum_master_nodes: 3
 #
 # For more information, see the documentation at:
-# <http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery.html>
+# <https://www.elastic.co/guide/en/elasticsearch/reference/5.0/modules-discovery-zen.html>
 #
 # ---------------------------------- Gateway -----------------------------------
 #
@@ -82,7 +82,7 @@
 #gateway.recover_after_nodes: 3
 #
 # For more information, see the documentation at:
-# <http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-gateway.html>
+# <https://www.elastic.co/guide/en/elasticsearch/reference/5.0/modules-gateway.html>
 #
 # ---------------------------------- Various -----------------------------------
 #

@@ -34,6 +34,10 @@ import java.util.concurrent.TimeUnit;
 
 public class NoOpClient extends AbstractClient {
 
+    public NoOpClient(ThreadPool threadPool) {
+        super(Settings.EMPTY, threadPool);
+    }
+
     public NoOpClient(String testName) {
         super(Settings.EMPTY, new TestThreadPool(testName));
     }

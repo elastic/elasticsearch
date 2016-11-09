@@ -53,6 +53,7 @@ public class DiscoveryModule {
         new Setting<>("discovery.zen.hosts_provider", (String)null, Optional::ofNullable, Property.NodeScope);
 
     private final Discovery discovery;
+    private final ZenPing zenPing;
 
     public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService, NetworkService networkService,
                            ClusterService clusterService, Function<UnicastHostsProvider, ZenPing> createZenPing,
@@ -78,7 +79,7 @@ public class DiscoveryModule {
             hostsProvider = Collections::emptyList;
         }
 
-        final ZenPing zenPing = createZenPing.apply(hostsProvider);
+        zenPing = createZenPing.apply(hostsProvider);
 
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
         discoveryTypes.put("zen",
@@ -101,5 +102,10 @@ public class DiscoveryModule {
 
     public Discovery getDiscovery() {
         return discovery;
+    }
+
+    // TODO: remove this, it should be completely local to discovery, but service disruption tests want to mess with it
+    public ZenPing getZenPing() {
+        return zenPing;
     }
 }

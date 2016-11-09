@@ -138,7 +138,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private volatile NodeJoinController nodeJoinController;
     private volatile NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
 
-    @Inject
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         ClusterService clusterService, ClusterSettings clusterSettings, ZenPing zenPing) {
         super(settings);

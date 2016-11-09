@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.NotXContentException;;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -174,7 +176,12 @@ public class BinaryFieldMapper extends FieldMapper {
             }
             try {
                 if (tryUncompressing) { // backcompat behavior
-                    return CompressorFactory.uncompressIfNeeded(bytes);
+                    try {
+                        return CompressorFactory.uncompressIfNeeded(bytes);
+                    } catch (NotXContentException e) {
+                        // OK: we are an arbitrary binary field, not xcontent
+                        return bytes;
+                    }
                 } else {
                     return bytes;
                 }

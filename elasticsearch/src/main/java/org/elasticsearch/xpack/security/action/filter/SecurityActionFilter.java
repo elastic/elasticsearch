@@ -112,18 +112,20 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
         // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
         // and then a cleanup action is executed (like for search without a scroll)
-        final boolean restoreOriginalContext = securityContext.getAuthentication() != null;
+        final ThreadContext.StoredContext originalContext = threadContext.newStoredContext();
         final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
         // we should always restore the original here because we forcefully changed to the system user
-        final ThreadContext.StoredContext toRestore = restoreOriginalContext || useSystemUser ? threadContext.newStoredContext() : () -> {};
-        final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(toRestore, ActionListener.wrap(r -> {
+        final ThreadContext.StoredContext toRestore = useSystemUser ? originalContext : () -> {};
+        final ActionListener<ActionResponse> signingListener =
+                new ContextPreservingActionListener<>(threadContext, toRestore, ActionListener.wrap(r -> {
                     try {
                         listener.onResponse(sign(r));
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 }, listener::onFailure));
-        ActionListener<Void> authenticatedListener = new ActionListener<Void>() {
+        ActionListener<Void> authenticatedListener = new ContextPreservingActionListener<>(threadContext, toRestore,
+                new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 chain.proceed(task, action, request, signingListener);
@@ -132,7 +134,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             public void onFailure(Exception e) {
                 signingListener.onFailure(e);
             }
-        };
+        });
         try {
             if (useSystemUser) {
                 securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {

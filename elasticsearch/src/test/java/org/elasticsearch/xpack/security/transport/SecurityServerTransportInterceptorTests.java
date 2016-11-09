@@ -185,7 +185,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         try (ThreadContext.StoredContext storedContext = threadContext.stashContext()) {
             threadContext.putTransient("foo", "different_bar");
             threadContext.putHeader("key", "value2");
-            TransportResponseHandler<Empty> handler = new ContextRestoreResponseHandler<>(storedContext,
+            TransportResponseHandler<Empty> handler = new ContextRestoreResponseHandler<>(threadContext, storedContext,
                     new TransportResponseHandler<Empty>() {
 
                 @Override
@@ -213,6 +213,55 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
             handler.handleResponse(null);
             handler.handleException(null);
+        }
+    }
+
+    public void testContextRestoreResponseHandlerRestoreOriginalContext() throws Exception {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            threadContext.putTransient("foo", "bar");
+            threadContext.putHeader("key", "value");
+            TransportResponseHandler<Empty> handler;
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.putTransient("foo", "different_bar");
+                threadContext.putHeader("key", "value2");
+                handler = new ContextRestoreResponseHandler<>(threadContext,
+                        threadContext.newStoredContext(),
+                        new TransportResponseHandler<Empty>() {
+
+                            @Override
+                            public Empty newInstance() {
+                                return Empty.INSTANCE;
+                            }
+
+                            @Override
+                            public void handleResponse(Empty response) {
+                                assertEquals("different_bar", threadContext.getTransient("foo"));
+                                assertEquals("value2", threadContext.getHeader("key"));
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                assertEquals("different_bar", threadContext.getTransient("foo"));
+                                assertEquals("value2", threadContext.getHeader("key"));
+                            }
+
+                            @Override
+                            public String executor() {
+                                return null;
+                            }
+                        });
+            }
+
+            assertEquals("bar", threadContext.getTransient("foo"));
+            assertEquals("value", threadContext.getHeader("key"));
+            handler.handleResponse(null);
+
+            assertEquals("bar", threadContext.getTransient("foo"));
+            assertEquals("value", threadContext.getHeader("key"));
+            handler.handleException(null);
+
+            assertEquals("bar", threadContext.getTransient("foo"));
+            assertEquals("value", threadContext.getHeader("key"));
         }
     }
 }

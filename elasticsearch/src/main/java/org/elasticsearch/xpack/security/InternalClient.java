@@ -74,10 +74,10 @@ public class InternalClient extends FilterClient {
         final ThreadContext threadContext = threadPool().getThreadContext();
         final ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
         // we need to preserve the context here otherwise we execute the response with the XPack user which we can cause problems
-        // since we expect the callback to run wiht the authenticated user calling the doExecute method
+        // since we expect the callback to run with the authenticated user calling the doExecute method
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             processContext(threadContext);
-            super.doExecute(action, request, new ContextPreservingActionListener<>(storedContext, listener));
+            super.doExecute(action, request, new ContextPreservingActionListener<>(threadContext, storedContext, listener));
         }
     }
 

@@ -85,7 +85,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     // which means that the user is copied over to system actions so we need to change the user
                     if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(node, action, request, options,
-                                new ContextRestoreResponseHandler<>(original, handler), sender));
+                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext(), original, handler), sender));
                     } else {
                         sendWithUser(node, action, request, options, handler, sender);
                     }
@@ -260,11 +260,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
      */
     static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
         private final TransportResponseHandler<T> delegate;
-        private final ThreadContext.StoredContext threadContext;
+        private final ThreadContext.StoredContext context;
+        private final ThreadContext threadContext;
 
         // pkg private for testing
-        ContextRestoreResponseHandler(ThreadContext.StoredContext threadContext, TransportResponseHandler<T> delegate) {
+        ContextRestoreResponseHandler(ThreadContext threadContext, ThreadContext.StoredContext context,
+                                      TransportResponseHandler<T> delegate) {
             this.delegate = delegate;
+            this.context = context;
             this.threadContext = threadContext;
         }
 
@@ -275,14 +278,18 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public void handleResponse(T response) {
-            threadContext.restore();
-            delegate.handleResponse(response);
+            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+                context.restore();
+                delegate.handleResponse(response);
+            }
         }
 
         @Override
         public void handleException(TransportException exp) {
-            threadContext.restore();
-            delegate.handleException(exp);
+            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+                context.restore();
+                delegate.handleException(exp);
+            }
         }
 
         @Override

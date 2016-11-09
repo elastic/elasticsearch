@@ -219,8 +219,15 @@ task checkVirtualBoxVersion(type: Exec) {
   standardOutput = new ByteArrayOutputStream()
   doLast {
     String version = standardOutput.toString().trim()
-    if ((version ==~ /5\.[1-9]\..+/) == false) {
-      throw new InvalidUserDataException("Illegal version of virtualbox [${version}]. Need [5.1+]")
+    try {
+      String[] versions = version.split('\\.')
+      int major = Integer.parseInt(versions[0])
+      int minor = Integer.parseInt(versions[1])
+      if ((major < 5) || (major == 5 && minor < 1)) {
+        throw new InvalidUserDataException("Illegal version of virtualbox [${version}]. Need [5.1+]")
+      }
+    } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+      throw new InvalidUserDataException("Unable to parse version of virtualbox [${version}]. Required [5.1+]", e)
     }
   }
 }

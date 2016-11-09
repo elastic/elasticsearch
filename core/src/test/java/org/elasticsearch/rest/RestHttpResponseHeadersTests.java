@@ -64,8 +64,8 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * the array, so we are guaranteed at least one invalid method to test.
          */
         validHttpMethodArray = validHttpMethodArray.subList(0, randomIntBetween(1, validHttpMethodArray.size() - 1));
-        assertTrue(validHttpMethodArray.size() > 0);
-        assertTrue(validHttpMethodArray.size() < RestRequest.Method.values().length);
+        assert(validHttpMethodArray.size() > 0);
+        assert(validHttpMethodArray.size() < RestRequest.Method.values().length);
 
         /*
          * Generate an inverse list of one or more candidate invalid HTTP

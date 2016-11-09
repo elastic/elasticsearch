@@ -46,10 +46,8 @@ import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -58,14 +56,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Set<Class<? extends Plugin>> mocks = new HashSet<>(super.getMockPlugins());
-        mocks.remove(MockEngineFactoryPlugin.class);
-        return mocks;
+        return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {

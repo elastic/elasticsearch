@@ -163,15 +163,19 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         case SHARED_FILE_SYSTEM:
                             deletionSkipCache.add(shardId);
                             break;
+                        case NO_NODE_LOCK:
+                        case STILL_ALLOCATED:
+                            // nothing to do
+                            break;
                         default:
-                            // do nothing;
+                            assert false : "unknown shard deletion check result: " + shardDeletionCheckResult;
                     }
                 }
             }
         }
     }
 
-    boolean shardCanBeDeleted(String localNodeId, IndexShardRoutingTable indexShardRoutingTable) {
+    static boolean shardCanBeDeleted(String localNodeId, IndexShardRoutingTable indexShardRoutingTable) {
         // a shard can be deleted if all its copies are active, and its not allocated on this node
         if (indexShardRoutingTable.size() == 0) {
             // should not really happen, there should always be at least 1 (primary) shard in a

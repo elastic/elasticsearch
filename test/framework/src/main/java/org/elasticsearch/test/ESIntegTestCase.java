@@ -577,7 +577,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Collections.emptySet();
     }
 
-    protected void beforeIndexDeletion() throws IOException {
+    protected void beforeIndexDeletion() throws Exception {
         cluster().beforeIndexDeletion();
     }
 

@@ -10,7 +10,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,7 +52,6 @@ public class TriggeredWatch implements ToXContent {
 
         private final TriggerService triggerService;
 
-        @Inject
         public Parser(Settings settings, TriggerService triggerService) {
             super(settings);
             this.triggerService = triggerService;

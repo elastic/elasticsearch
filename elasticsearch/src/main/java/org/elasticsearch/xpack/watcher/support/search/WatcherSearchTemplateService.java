@@ -9,7 +9,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,7 +36,6 @@ public class WatcherSearchTemplateService extends AbstractComponent {
     private final ParseFieldMatcher parseFieldMatcher;
     private final SearchRequestParsers searchRequestParsers;
 
-    @Inject
     public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, SearchRequestParsers searchRequestParsers) {
         super(settings);
         this.scriptService = scriptService;

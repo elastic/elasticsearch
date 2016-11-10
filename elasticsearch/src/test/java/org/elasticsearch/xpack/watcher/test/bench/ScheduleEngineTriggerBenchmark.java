@@ -28,7 +28,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 
 @SuppressForbidden(reason = "benchmark")
@@ -61,7 +61,7 @@ public class ScheduleEngineTriggerBenchmark {
         for (int i = 0; i < numWatches; i++) {
             jobs.add(new SimpleJob("job_" + i, interval(interval + "s")));
         }
-        ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptyMap());
+        ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptySet());
         List<String> impls = new ArrayList<>(Arrays.asList(new String[]{"schedule", "ticker"}));
         Randomness.shuffle(impls);
 

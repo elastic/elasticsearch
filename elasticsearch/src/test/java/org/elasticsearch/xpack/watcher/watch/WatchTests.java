@@ -117,8 +117,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -371,28 +373,28 @@ public class WatchTests extends ESTestCase {
     }
 
     private static ScheduleRegistry registry(Schedule schedule) {
-        Map<String, Schedule.Parser> parsers = new HashMap<>();
+        Set<Schedule.Parser> parsers = new HashSet<>();
         switch (schedule.type()) {
             case CronSchedule.TYPE:
-                parsers.put(CronSchedule.TYPE, new CronSchedule.Parser());
+                parsers.add(new CronSchedule.Parser());
                 return new ScheduleRegistry(parsers);
             case HourlySchedule.TYPE:
-                parsers.put(HourlySchedule.TYPE, new HourlySchedule.Parser());
+                parsers.add(new HourlySchedule.Parser());
                 return new ScheduleRegistry(parsers);
             case DailySchedule.TYPE:
-                parsers.put(DailySchedule.TYPE, new DailySchedule.Parser());
+                parsers.add(new DailySchedule.Parser());
                 return new ScheduleRegistry(parsers);
             case WeeklySchedule.TYPE:
-                parsers.put(WeeklySchedule.TYPE, new WeeklySchedule.Parser());
+                parsers.add(new WeeklySchedule.Parser());
                 return new ScheduleRegistry(parsers);
             case MonthlySchedule.TYPE:
-                parsers.put(MonthlySchedule.TYPE, new MonthlySchedule.Parser());
+                parsers.add(new MonthlySchedule.Parser());
                 return new ScheduleRegistry(parsers);
             case YearlySchedule.TYPE:
-                parsers.put(YearlySchedule.TYPE, new YearlySchedule.Parser());
+                parsers.add(new YearlySchedule.Parser());
                 return new ScheduleRegistry(parsers);
             case IntervalSchedule.TYPE:
-                parsers.put(IntervalSchedule.TYPE, new IntervalSchedule.Parser());
+                parsers.add(new IntervalSchedule.Parser());
                 return new ScheduleRegistry(parsers);
             default:
                 throw new IllegalArgumentException("unknown schedule [" + schedule + "]");

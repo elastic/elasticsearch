@@ -10,9 +10,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -30,6 +32,7 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
@@ -65,10 +69,12 @@ import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
-import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
+import org.elasticsearch.xpack.watcher.execution.AsyncTriggerListener;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutor;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
@@ -93,6 +99,8 @@ import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
@@ -115,9 +123,22 @@ import org.elasticsearch.xpack.watcher.transport.actions.service.TransportWatche
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsAction;
-import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
-import org.elasticsearch.xpack.watcher.watch.WatchModule;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.DailySchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.HourlySchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.MonthlySchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.xpack.watcher.trigger.schedule.WeeklySchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
+import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchLockService;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -128,12 +149,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 public class Watcher implements ActionPlugin, ScriptPlugin {
 
@@ -142,7 +166,20 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
-        Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
+            Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
+    public static final Setting<String> TRIGGER_SCHEDULE_ENGINE_SETTING =
+            new Setting<>("xpack.watcher.trigger.schedule.engine", "ticker", s -> {
+                switch (s) {
+                    case "ticker":
+                    case "scheduler":
+                        return s;
+                    default:
+                        throw new IllegalArgumentException("Can't parse [xpack.watcher.trigger.schedule.engine] must be one of [ticker, " +
+                                "scheduler], was [" + s + "]");
+                }
+
+            }, Setting.Property.NodeScope);
+
 
     private static final ScriptContext.Plugin SCRIPT_PLUGIN = new ScriptContext.Plugin("xpack", "watch");
     public static final ScriptContext SCRIPT_CONTEXT = SCRIPT_PLUGIN::getKey;
@@ -156,18 +193,25 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     protected final Settings settings;
     protected final boolean transportClient;
     protected final boolean enabled;
+    private final boolean transportClientMode;
 
     public Watcher(Settings settings) {
         this.settings = settings;
         transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
+        this.transportClientMode = XPackPlugin.transportClientMode(settings);
         validAutoCreateIndex(settings);
     }
 
     public Collection<Object> createComponents(Clock clock, ScriptService scriptService, InternalClient internalClient,
                                                SearchRequestParsers searchRequestParsers, XPackLicenseState licenseState,
                                                HttpClient httpClient, HttpRequestTemplate.Parser httpTemplateParser,
+                                               ThreadPool threadPool, ClusterService clusterService, CryptoService cryptoService,
                                                Collection<Object> components) {
+        if (enabled == false) {
+            return Collections.emptyList();
+        }
+
         final Map<String, ConditionFactory> parsers = new HashMap<>();
         parsers.put(AlwaysCondition.TYPE, (c, id, p, upgrade) -> AlwaysCondition.parse(id, p));
         parsers.put(NeverCondition.TYPE, (c, id, p, upgrade) -> NeverCondition.parse(id, p));
@@ -200,7 +244,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
                 getService(PagerDutyService.class, components)));
         final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, clock, licenseState);
 
-        final Map<String, InputFactory>  inputFactories = new HashMap<>();
+        final Map<String, InputFactory> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, internalClient, searchRequestParsers, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
@@ -208,11 +252,79 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
 
+        // TODO replace internal client where needed, so we can remove ctors
+        final WatcherClientProxy watcherClientProxy = new WatcherClientProxy(settings, internalClient);
+
         final WatcherClient watcherClient = new WatcherClient(internalClient);
 
-        final HistoryStore historyStore = new HistoryStore(settings, internalClient);
+        final HistoryStore historyStore = new HistoryStore(settings, watcherClientProxy);
 
-        return Arrays.asList(registry, watcherClient, inputRegistry, historyStore);
+        final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
+        scheduleParsers.add(new CronSchedule.Parser());
+        scheduleParsers.add(new DailySchedule.Parser());
+        scheduleParsers.add(new HourlySchedule.Parser());
+        scheduleParsers.add(new IntervalSchedule.Parser());
+        scheduleParsers.add(new MonthlySchedule.Parser());
+        scheduleParsers.add(new WeeklySchedule.Parser());
+        scheduleParsers.add(new YearlySchedule.Parser());
+        final ScheduleRegistry scheduleRegistry = new ScheduleRegistry(scheduleParsers);
+
+        TriggerEngine manualTriggerEngine = new ManualTriggerEngine();
+        TriggerEngine configuredTriggerEngine = getTriggerEngine(clock, scheduleRegistry);
+
+        final Set<TriggerEngine> triggerEngines = new HashSet<>();
+        triggerEngines.add(manualTriggerEngine);
+        triggerEngines.add(configuredTriggerEngine);
+        final TriggerService triggerService = new TriggerService(settings, triggerEngines);
+
+        final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
+        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, watcherClientProxy, triggeredWatchParser);
+
+        final WatcherSearchTemplateService watcherSearchTemplateService =
+                new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers);
+        final WatchLockService watchLockService = new WatchLockService(settings);
+        final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
+        final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
+        final WatchStore watchStore = new WatchStore(settings, watcherClientProxy, watchParser);
+
+        final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
+                watchStore, watchLockService, clock, threadPool);
+
+        final TriggerEngine.Listener triggerEngineListener = getTriggerEngineListener(executionService);
+        triggerService.register(triggerEngineListener);
+
+        final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings,
+                clusterService.getClusterSettings(), clusterService, threadPool, internalClient);
+
+        final WatcherService watcherService = new WatcherService(settings, clock, triggerService, watchStore,
+                watchParser, executionService, watchLockService, watcherIndexTemplateRegistry);
+
+        final WatcherLifeCycleService watcherLifeCycleService =
+                new WatcherLifeCycleService(settings, threadPool, clusterService, watcherService);
+
+        return Arrays.asList(registry, watcherClient, inputRegistry, historyStore, triggerService, triggeredWatchParser,
+                watcherLifeCycleService, executionService, watchStore, triggerEngineListener, watcherService, watchParser,
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService);
+    }
+
+    protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
+        String engine = TRIGGER_SCHEDULE_ENGINE_SETTING.get(settings);
+        switch (engine) {
+            case "scheduler":
+                return new SchedulerScheduleTriggerEngine(settings, scheduleRegistry, clock);
+            case "ticker":
+                return new TickerScheduleTriggerEngine(settings, scheduleRegistry, clock);
+            default: // should never happen, as the setting is already parsing for scheduler/ticker
+                throw illegalState("schedule engine must be either set to [scheduler] or [ticker], but was []", engine);
+        }
+    }
+
+    protected WatchExecutor getWatchExecutor(ThreadPool threadPool) {
+        return new InternalWatchExecutor(threadPool);
+    }
+
+    protected TriggerEngine.Listener getTriggerEngineListener(ExecutionService executionService) {
+        return new AsyncTriggerListener(settings, executionService);
     }
 
     private <T> T getService(Class<T> serviceClass, Collection<Object> services) {
@@ -227,13 +339,13 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
 
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
-        modules.add(new WatcherModule(enabled, transportClient));
-        if (enabled && transportClient == false) {
-            modules.add(new WatchModule());
-            modules.add(new TriggerModule(settings));
-            modules.add(new ScheduleModule());
-            modules.add(new ExecutionModule());
-        }
+        modules.add(b -> {
+            XPackPlugin.bindFeatureSet(b, WatcherFeatureSet.class);
+            if (transportClientMode || enabled == false) {
+                b.bind(WatcherService.class).toProvider(Providers.of(null));
+            }
+        });
+
         return modules;
     }
 
@@ -241,12 +353,12 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         return Settings.EMPTY;
     }
 
-
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>();
         for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
             settings.add(templateConfig.getSetting());
         }
+        settings.add(TRIGGER_SCHEDULE_ENGINE_SETTING);
         settings.add(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
         settings.add(MAX_STOP_TIMEOUT_SETTING);
         settings.add(ExecutionService.DEFAULT_THROTTLE_PERIOD_SETTING);
@@ -259,7 +371,6 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.actions.index.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.index.rest.direct_access", Setting.Property.NodeScope));
-        settings.add(Setting.simpleString("xpack.watcher.trigger.schedule.engine", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.trigger.manual;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -20,10 +19,6 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument
 public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualTriggerEvent> {
 
     static final String TYPE = "manual";
-
-    @Inject
-    public ManualTriggerEngine() {
-    }
 
     @Override
     public String type() {

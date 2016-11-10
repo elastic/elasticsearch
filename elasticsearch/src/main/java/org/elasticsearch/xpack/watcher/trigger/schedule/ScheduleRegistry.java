@@ -6,19 +6,18 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 public class ScheduleRegistry {
-    private final Map<String, Schedule.Parser> parsers;
+    private final Map<String, Schedule.Parser> parsers = new HashMap<>();
 
-    @Inject
-    public ScheduleRegistry(Map<String, Schedule.Parser> parsers) {
-        this.parsers = parsers;
+    public ScheduleRegistry(Set<Schedule.Parser> parsers) {
+        parsers.stream().forEach(parser -> this.parsers.put(parser.type(), parser));
     }
 
     public Set<String> types() {

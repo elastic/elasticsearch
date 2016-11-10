@@ -5,20 +5,18 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
+import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.SyncTriggerListener;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutor;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
-import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
-import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.time.Clock;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.stream.Stream;
@@ -32,68 +30,40 @@ public class TimeWarpedWatcher extends Watcher {
     }
 
     @Override
-    public Collection<Module> nodeModules() {
-        if (!enabled) {
-            return super.nodeModules();
-        }
-        List<Module> modules = new ArrayList<>(super.nodeModules());
-        for (int i = 0; i < modules.size(); ++i) {
-            Module module = modules.get(i);
-            if (module instanceof TriggerModule) {
-                // replacing scheduler module so we'll
-                // have control on when it fires a job
-                modules.set(i, new MockTriggerModule(settings));
-            } else if (module instanceof ExecutionModule) {
-                // replacing the execution module so all the watches will be
-                // executed on the same thread as the trigger engine
-                modules.set(i, new MockExecutionModule());
-            }
-        }
-        return modules;
+    protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
+        return new ScheduleTriggerEngineMock(settings, scheduleRegistry, clock);
     }
 
+    @Override
+    protected WatchExecutor getWatchExecutor(ThreadPool threadPool) {
+        return new SameThreadExecutor();
+    }
 
-    public static class MockTriggerModule extends TriggerModule {
+    @Override
+    protected TriggerEngine.Listener getTriggerEngineListener(ExecutionService executionService) {
+        return new SyncTriggerListener(settings, executionService);
+    }
 
-        public MockTriggerModule(Settings settings) {
-            super(settings);
+    public static class SameThreadExecutor implements WatchExecutor {
+
+        @Override
+        public Stream<Runnable> tasks() {
+            return Stream.empty();
         }
 
         @Override
-        protected void registerStandardEngines() {
-            registerEngine(ScheduleTriggerEngineMock.class);
-            registerEngine(ManualTriggerEngine.class);
+        public BlockingQueue<Runnable> queue() {
+            return new ArrayBlockingQueue<>(1);
+        }
+
+        @Override
+        public long largestPoolSize() {
+            return 1;
+        }
+
+        @Override
+        public void execute(Runnable runnable) {
+            runnable.run();
         }
     }
-
-    public static class MockExecutionModule extends ExecutionModule {
-
-        public MockExecutionModule() {
-            super(SameThreadExecutor.class, SyncTriggerListener.class);
-        }
-
-        public static class SameThreadExecutor implements WatchExecutor {
-
-            @Override
-            public Stream<Runnable> tasks() {
-                return Stream.empty();
-            }
-
-            @Override
-            public BlockingQueue<Runnable> queue() {
-                return new ArrayBlockingQueue<>(1);
-            }
-
-            @Override
-            public long largestPoolSize() {
-                return 1;
-            }
-
-            @Override
-            public void execute(Runnable runnable) {
-                runnable.run();
-            }
-        }
-    }
-
 }

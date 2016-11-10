@@ -11,7 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
@@ -68,7 +67,6 @@ public class ExecutionService extends AbstractComponent {
     private volatile CurrentExecutions currentExecutions;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    @Inject
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
                             WatchStore watchStore, WatchLockService watchLockService, Clock clock, ThreadPool threadPool) {
         super(settings);

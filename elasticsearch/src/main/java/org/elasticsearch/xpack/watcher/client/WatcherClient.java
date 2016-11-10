@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequestBuilder;
@@ -48,7 +47,6 @@ public class WatcherClient {
 
     private final Client client;
 
-    @Inject
     public WatcherClient(Client client) {
         this.client = client;
     }

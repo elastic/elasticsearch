@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
@@ -32,7 +31,6 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     private volatile Map<String, ActiveSchedule> schedules;
     private Ticker ticker;
 
-    @Inject
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings, scheduleRegistry, clock);
         this.tickInterval = settings.getAsTime("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500));

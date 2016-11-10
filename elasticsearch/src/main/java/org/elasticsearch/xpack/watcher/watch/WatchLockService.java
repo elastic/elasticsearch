@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.watch;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -20,22 +19,17 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 public class WatchLockService extends AbstractComponent {
 
+    public static final String DEFAULT_MAX_STOP_TIMEOUT_SETTING = "xpack.watcher.stop.timeout";
+
     private final KeyedLock<String> watchLocks = new KeyedLock<>(true);
     private final AtomicBoolean running = new AtomicBoolean(false);
     private static final TimeValue DEFAULT_MAX_STOP_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private static final String DEFAULT_MAX_STOP_TIMEOUT_SETTING = "xpack.watcher.stop.timeout";
 
     private final TimeValue maxStopTimeout;
 
-    @Inject
     public WatchLockService(Settings settings){
         super(settings);
         maxStopTimeout = settings.getAsTime(DEFAULT_MAX_STOP_TIMEOUT_SETTING, DEFAULT_MAX_STOP_TIMEOUT);
-    }
-
-    WatchLockService(TimeValue maxStopTimeout){
-        super(Settings.EMPTY);
-        this.maxStopTimeout = maxStopTimeout;
     }
 
     public Releasable acquire(String name) {

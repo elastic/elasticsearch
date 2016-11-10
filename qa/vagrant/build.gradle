@@ -208,9 +208,26 @@ task checkVagrantVersion(type: Exec) {
   standardOutput = new ByteArrayOutputStream()
   doLast {
     String version = standardOutput.toString().trim()
-    if ((version ==~ /Vagrant 1\.[789]\..+/) == false) {
-      throw new InvalidUserDataException(
-        "Illegal version of vagrant [${version}]. Need [Vagrant 1.7+]")
+    if ((version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) == false) {
+      throw new InvalidUserDataException("Illegal version of vagrant [${version}]. Need [Vagrant 1.8.6+]")
+    }
+  }
+}
+
+task checkVirtualBoxVersion(type: Exec) {
+  commandLine 'vboxmanage', '--version'
+  standardOutput = new ByteArrayOutputStream()
+  doLast {
+    String version = standardOutput.toString().trim()
+    try {
+      String[] versions = version.split('\\.')
+      int major = Integer.parseInt(versions[0])
+      int minor = Integer.parseInt(versions[1])
+      if ((major < 5) || (major == 5 && minor < 1)) {
+        throw new InvalidUserDataException("Illegal version of virtualbox [${version}]. Need [5.1+]")
+      }
+    } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+      throw new InvalidUserDataException("Unable to parse version of virtualbox [${version}]. Required [5.1+]", e)
     }
   }
 }
@@ -247,7 +264,7 @@ for (String box : availableBoxes) {
   Task update = tasks.create("vagrant${boxTask}#update", VagrantCommandTask) {
     boxName box
     args 'box', 'update', box
-    dependsOn checkVagrantVersion
+    dependsOn checkVagrantVersion, checkVirtualBoxVersion
   }
 
   Task up = tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {

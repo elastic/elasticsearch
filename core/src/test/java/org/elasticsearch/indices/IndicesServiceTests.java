@@ -102,7 +102,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             ShardDeletionCheckResult.STILL_ALLOCATED);
         test.removeShard(0, "boom");
         assertEquals("shard is removed", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
-            ShardDeletionCheckResult.CAN_DELETE);
+            ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE);
         ShardId notAllocated = new ShardId(test.index(), 100);
         assertEquals("shard that was never on this node should NOT be deletable",
             indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()), ShardDeletionCheckResult.NO_FOLDER_FOUND);

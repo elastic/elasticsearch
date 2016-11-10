@@ -249,7 +249,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public boolean hasSource() {
-        return source == null;
+        return source != null;
     }
 
     @Override

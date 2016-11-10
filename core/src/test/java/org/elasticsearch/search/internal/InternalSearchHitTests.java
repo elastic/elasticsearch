@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.text.Text;
@@ -26,7 +27,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
@@ -86,5 +86,12 @@ public class InternalSearchHitTests extends ESTestCase {
         assertThat(searchHit.getSource(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());
         assertThat(searchHit.getSourceAsString(), nullValue());
+    }
+
+    public void testHasSource() {
+        InternalSearchHit searchHit = new InternalSearchHit(randomInt());
+        assertFalse(searchHit.hasSource());
+        searchHit.sourceRef(new BytesArray("{}"));
+        assertTrue(searchHit.hasSource());
     }
 }

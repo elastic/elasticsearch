@@ -151,8 +151,8 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         YES {
             @Override
             TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
-                return builder.script(new org.elasticsearch.script.Script("doc['" + field + "'].values", ScriptType.INLINE,
-                 CustomScriptPlugin.NAME, null));
+                return builder.script(new org.elasticsearch.script.Script(ScriptType.INLINE,
+                    CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
             }
         };
         abstract TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field);

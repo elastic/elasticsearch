@@ -229,7 +229,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     @Deprecated
     public String scriptString() {
-        return this.script == null ? null : this.script.getScript();
+        return this.script == null ? null : this.script.getIdOrCode();
     }
 
     /**
@@ -332,13 +332,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private void updateOrCreateScript(String scriptContent, ScriptType type, String lang, Map<String, Object> params) {
         Script script = script();
         if (script == null) {
-            script = new Script(scriptContent == null ? "" : scriptContent, type == null ? ScriptType.INLINE : type, lang, params);
+            script = new Script(type == null ? ScriptType.INLINE : type, lang, scriptContent == null ? "" : scriptContent, params);
         } else {
-            String newScriptContent = scriptContent == null ? script.getScript() : scriptContent;
+            String newScriptContent = scriptContent == null ? script.getIdOrCode() : scriptContent;
             ScriptType newScriptType = type == null ? script.getType() : type;
             String newScriptLang = lang == null ? script.getLang() : lang;
             Map<String, Object> newScriptParams = params == null ? script.getParams() : params;
-            script = new Script(newScriptContent, newScriptType, newScriptLang, newScriptParams);
+            script = new Script(newScriptType, newScriptLang, newScriptContent, newScriptParams);
         }
         script(script);
     }
@@ -352,7 +352,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     @Deprecated
     public UpdateRequest script(String script, ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
-        this.script = new Script(script, scriptType, null, scriptParams);
+        this.script = new Script(scriptType, Script.DEFAULT_SCRIPT_LANG, script, scriptParams);
         return this;
     }
 
@@ -375,7 +375,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Deprecated
     public UpdateRequest script(String script, @Nullable String scriptLang, ScriptType scriptType,
             @Nullable Map<String, Object> scriptParams) {
-        this.script = new Script(script, scriptType, scriptLang, scriptParams);
+        this.script = new Script(scriptType, scriptLang, script, scriptParams);
         return this;
     }
 

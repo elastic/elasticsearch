@@ -127,8 +127,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     }
 
     public BytesReference getTemplateBytes(Script template) {
-        ExecutableScript executable = scriptService.executable(template,
-            ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        ExecutableScript executable = scriptService.executable(template, ScriptContext.Standard.SEARCH);
         return (BytesReference) executable.run();
     }
 

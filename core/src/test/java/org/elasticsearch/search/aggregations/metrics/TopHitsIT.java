@@ -586,7 +586,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             .explain(true)
                                             .storedField("text")
                                             .fieldDataField("field1")
-                                            .scriptField("script", new Script("5", ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
+                                            .scriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                             .fetchSource("text", null)
                                             .version(true)
                                 )
@@ -868,7 +868,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         nested("to-comments", "comments").subAggregation(
                                 topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)
                                                 .fieldDataField("comments.user")
-                                        .scriptField("script", new Script("5", ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).fetchSource("comments.message", null)
+                                        .scriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap())).fetchSource("comments.message", null)
                                         .version(true).sort("comments.date", SortOrder.ASC))).get();
         assertHitCount(searchResponse, 2);
         Nested nested = searchResponse.getAggregations().get("to-comments");
@@ -1017,7 +1017,8 @@ public class TopHitsIT extends ESIntegTestCase {
 
         // Test that a request using a script field does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(topHits("foo").scriptField("bar", new Script("5", ScriptType.INLINE, CustomScriptPlugin.NAME, null))).get();
+                .addAggregation(topHits("foo").scriptField("bar",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -1028,7 +1029,8 @@ public class TopHitsIT extends ESIntegTestCase {
         // Test that a request using a script sort does not get cached
         r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").sort(
-                        SortBuilders.scriptSort(new Script("5", ScriptType.INLINE, CustomScriptPlugin.NAME, null), ScriptSortType.STRING)))
+                        SortBuilders.scriptSort(
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()), ScriptSortType.STRING)))
                 .get();
         assertSearchResponse(r);
 

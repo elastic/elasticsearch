@@ -147,7 +147,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         logger.info("Executing search");
         ListenableActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
-            scriptQuery(new Script(NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, ScriptType.INLINE, "native", null)))
+            scriptQuery(new Script(
+                ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -165,7 +166,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         logger.info("Executing search");
         ListenableActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .addScriptField("test_field",
-                new Script(NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, ScriptType.INLINE, "native", null)
+                new Script(ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())
             ).execute();
 
         awaitForBlock(plugins);
@@ -186,7 +187,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
             .setQuery(
-                scriptQuery(new Script(NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, ScriptType.INLINE, "native", null)))
+                scriptQuery(new Script(
+                    ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -211,7 +213,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .setScroll(keepAlive)
             .setSize(2)
             .setQuery(
-                scriptQuery(new Script(NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, ScriptType.INLINE, "native", null)))
+                scriptQuery(new Script(
+                    ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())))
             .get();
 
         assertNotNull(searchResponse.getScrollId());

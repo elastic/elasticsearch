@@ -44,6 +44,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -88,39 +91,14 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     public static final ClusterState PROTO = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    public interface Custom extends Diffable<Custom>, ToXContent {
+    public interface Custom extends Diffable<Custom>, ToXContent, NamedWriteable {
 
         String type();
-    }
 
-    private static final Map<String, Custom> customPrototypes = new HashMap<>();
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
-    }
-
-    static {
-        // register non plugin custom parts
-        registerPrototype(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
-        registerPrototype(RestoreInProgress.TYPE, RestoreInProgress.PROTO);
-    }
-
-    @Nullable
-    public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
-    }
-
-    public static <T extends Custom> T lookupPrototypeSafe(String type) {
-        @SuppressWarnings("unchecked")
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new IllegalArgumentException("No custom state prototype registered for type [" + type + "], node likely missing plugins");
+        @Override
+        default String getWriteableName() {
+            return type();
         }
-        return proto;
     }
 
     public static final String UNKNOWN_UUID = "_na_";
@@ -671,8 +649,9 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
          * @param data      input bytes
          * @param localNode used to set the local node in the cluster state.
          */
-        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
-            return readFrom(StreamInput.wrap(data), localNode);
+        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, NamedWriteableRegistry registry) throws IOException {
+            StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(data), registry);
+            return readFrom(input, localNode);
 
         }
 
@@ -691,8 +670,8 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     @Override
-    public Diff<ClusterState> readDiffFrom(StreamInput in) throws IOException {
-        return new ClusterStateDiff(in, this);
+    public Diff<ClusterState> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
+        return new ClusterStateDiff(in, this, registry);
     }
 
     public ClusterState readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
@@ -706,9 +685,8 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+            Custom customClusterState = in.readNamedWriteable(Custom.class);
+            builder.putCustom(customClusterState.type(), customClusterState);
         }
         return builder.build();
     }
@@ -766,25 +744,33 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
-        public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
+        public ClusterStateDiff(StreamInput in, ClusterState proto, CustomPrototypeRegistry registry) throws IOException {
             clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();
             toVersion = in.readLong();
-            routingTable = proto.routingTable.readDiffFrom(in);
-            nodes = proto.nodes.readDiffFrom(in);
-            metaData = proto.metaData.readDiffFrom(in);
-            blocks = proto.blocks.readDiffFrom(in);
+            routingTable = proto.routingTable.readDiffFrom(in, registry);
+            nodes = proto.nodes.readDiffFrom(in, registry);
+            metaData = proto.metaData.readDiffFrom(in, registry);
+            blocks = proto.blocks.readDiffFrom(in, registry);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
                 new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                     @Override
                     public Custom read(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readFrom(in);
+                        // Can't use named writeables here to read custom cluster customs, because
+                        // the key already represents the name of the custom metadata. If we would use
+                        // the readNamedWriteable(...) here than we would read the name of the custom
+                        // metadata twice and that would be a break the wire protocol.
+                        return registry.getClusterStatePrototypeSafe(key).readFrom(in);
                     }
 
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readDiffFrom(in);
+                        // Can't use named writeables here to read custom cluster customs, because
+                        // the key already represents the name of the custom metadata. If we would use
+                        // the readNamedWriteable(...) here than we would read the name of the custom
+                        // metadata twice and that would be a break the wire protocol.
+                        return registry.getClusterStatePrototypeSafe(key).readDiffFrom(in, registry);
                     }
                 });
         }

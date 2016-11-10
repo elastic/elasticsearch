@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.repository.azure;
 
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -45,9 +46,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, CustomPrototypeRegistry registry) {
         return Collections.singletonMap(AzureRepository.TYPE,
-            (metadata) -> new AzureRepository(metadata, env, createStorageService(env.settings())));
+            (metadata) -> new AzureRepository(metadata, env, createStorageService(env.settings()), registry));
     }
 
     @Override

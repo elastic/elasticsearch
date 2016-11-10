@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -350,7 +351,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     @Override
-    public Diff<RoutingTable> readDiffFrom(StreamInput in) throws IOException {
+    public Diff<RoutingTable> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
         return new RoutingTableDiff(in);
     }
 

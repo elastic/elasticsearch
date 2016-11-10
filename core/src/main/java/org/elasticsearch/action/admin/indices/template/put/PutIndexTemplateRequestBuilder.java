@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -208,7 +209,7 @@ public class PutIndexTemplateRequestBuilder
      * The template source definition.
      */
     public PutIndexTemplateRequestBuilder setSource(Map templateSource) {
-        request.source(templateSource);
+        request.source(templateSource, CustomPrototypeRegistry.EMPTY);
         return this;
     }
 

@@ -22,7 +22,10 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
@@ -30,6 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -58,7 +62,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.Collection;
@@ -86,6 +92,8 @@ public class ClusterModule extends AbstractModule {
     final Collection<AllocationDecider> allocationDeciders;
     final ShardsAllocator shardsAllocator;
 
+    private final CustomPrototypeRegistry registry;
+
     // pkg private so tests can mock
     Class<? extends ClusterInfoService> clusterInfoServiceImpl = InternalClusterInfoService.class;
 
@@ -95,6 +103,7 @@ public class ClusterModule extends AbstractModule {
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
+        registry = createCustomPrototypeRegistry(clusterPlugins);
     }
 
     public IndexNameExpressionResolver getIndexNameExpressionResolver() {
@@ -157,6 +166,46 @@ public class ClusterModule extends AbstractModule {
             "ShardsAllocator factory for [" + allocatorName + "] returned null");
     }
 
+    /**
+     * Creates a {@link CustomPrototypeRegistry} instance that registers built-in cluster state parts and custom
+     * cluster state parts provided by plugins
+     */
+    public static CustomPrototypeRegistry createCustomPrototypeRegistry(Collection<ClusterPlugin> clusterPlugins) {
+        Map<String, ClusterState.Custom> customClusterStatePrototypes = new HashMap<>();
+        customClusterStatePrototypes.put(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
+        customClusterStatePrototypes.put(RestoreInProgress.TYPE, RestoreInProgress.PROTO);
+
+        Map<String, MetaData.Custom> customMetadataPrototypes = new HashMap<>();
+        customMetadataPrototypes.put(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
+        customMetadataPrototypes.put(IngestMetadata.TYPE, IngestMetadata.PROTO);
+        customMetadataPrototypes.put(ScriptMetaData.TYPE, ScriptMetaData.PROTO);
+        customMetadataPrototypes.put(IndexGraveyard.TYPE, IndexGraveyard.PROTO);
+
+        Map<String, IndexMetaData.Custom> customIndexMetadataPrototypes = new HashMap<>();
+
+        for (ClusterPlugin clusterPlugin : clusterPlugins) {
+            for (ClusterState.Custom custom : clusterPlugin.getCustomClusterState()) {
+                ClusterState.Custom previous = customClusterStatePrototypes.putIfAbsent(custom.type(), custom);
+                if (previous != null) {
+                    throw new IllegalStateException("Custom cluster state [" + custom.type() + "] already declared");
+                }
+            }
+            for (MetaData.Custom custom : clusterPlugin.getCustomMetadata()) {
+                MetaData.Custom previous = customMetadataPrototypes.putIfAbsent(custom.type(), custom);
+                if (previous != null) {
+                    throw new IllegalStateException("Custom metadata [" + custom.type() + "] already declared");
+                }
+            }
+            for (IndexMetaData.Custom custom : clusterPlugin.getCustomIndexMetadata()) {
+                IndexMetaData.Custom previous = customIndexMetadataPrototypes.putIfAbsent(custom.type(), custom);
+                if (previous != null) {
+                    throw new IllegalStateException("Custom index metadata [" + custom.type() + "] already declared");
+                }
+            }
+        }
+        return new CustomPrototypeRegistry(customClusterStatePrototypes, customMetadataPrototypes, customIndexMetadataPrototypes);
+    }
+
     @Override
     protected void configure() {
         bind(ClusterInfoService.class).to(clusterInfoServiceImpl).asEagerSingleton();
@@ -180,5 +229,10 @@ public class ClusterModule extends AbstractModule {
         bind(TaskResultsService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(new AllocationDeciders(settings, allocationDeciders));
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
+        bind(CustomPrototypeRegistry.class).toInstance(registry);
+    }
+
+    public CustomPrototypeRegistry getRegistry() {
+        return registry;
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -504,10 +505,12 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     /**
      * Parses shard snapshot metadata
      *
-     * @param parser parser
+     * @param parser parser             The parsing containing the content to create a shard snapshot metadata
+     * @param registry registry         The registry used lookup how to parse custom metadata parts if exist.
      * @return shard snapshot metadata
      */
-    public BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher,
+                                                    CustomPrototypeRegistry registry) throws IOException {
 
         String snapshot = null;
         long indexVersion = -1;

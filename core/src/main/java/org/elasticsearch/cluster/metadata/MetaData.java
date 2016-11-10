@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -57,9 +59,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
-import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -120,47 +120,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    public interface Custom extends Diffable<Custom>, ToXContent {
+    public interface Custom extends Diffable<Custom>, ToXContent, NamedWriteable {
 
         String type();
+
+        @Override
+        default String getWriteableName() {
+            return type();
+        }
 
         Custom fromXContent(XContentParser parser) throws IOException;
 
         EnumSet<XContentContext> context();
     }
-
-    public static Map<String, Custom> customPrototypes = new HashMap<>();
-
-    static {
-        // register non plugin custom metadata
-        registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
-        registerPrototype(IngestMetadata.TYPE, IngestMetadata.PROTO);
-        registerPrototype(ScriptMetaData.TYPE, ScriptMetaData.PROTO);
-        registerPrototype(IndexGraveyard.TYPE, IndexGraveyard.PROTO);
-    }
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
-    }
-
-    @Nullable
-    public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
-    }
-
-    public static <T extends Custom> T lookupPrototypeSafe(String type) {
-        //noinspection unchecked
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "], node likely missing plugins");
-        }
-        return proto;
-    }
-
 
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
         Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
@@ -598,14 +570,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
-            if (customPrototypes.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
                 if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData2.customs) {
-            if (customPrototypes.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
@@ -619,13 +591,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     }
 
     @Override
-    public Diff<MetaData> readDiffFrom(StreamInput in) throws IOException {
-        return new MetaDataDiff(in);
+    public Diff<MetaData> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
+        return new MetaDataDiff(in, registry);
     }
 
     @Override
-    public MetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return Builder.fromXContent(parser);
+    public MetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, CustomPrototypeRegistry registry) throws IOException {
+        return Builder.fromXContent(parser, registry);
     }
 
     @Override
@@ -656,7 +628,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
-        public MetaDataDiff(StreamInput in) throws IOException {
+        public MetaDataDiff(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
             clusterUUID = in.readString();
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);
@@ -667,12 +639,20 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                 @Override
                 public Custom read(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readFrom(in);
+                    // Can't use named writeables here to read custom cluster customs, because
+                    // the key already represents the name of the custom metadata. If we would use
+                    // the readNamedWriteable(...) here than we would read the name of the custom
+                    // metadata twice and that would be a break the wire protocol.
+                    return registry.getMetadataPrototypeSafe(key).readFrom(in);
                 }
 
                 @Override
                 public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readDiffFrom(in);
+                    // Can't use named writeables here to read custom cluster customs, because
+                    // the key already represents the name of the custom metadata. If we would use
+                    // the readNamedWriteable(...) here than we would read the name of the custom
+                    // metadata twice and that would be a break the wire protocol.
+                    return registry.getMetadataPrototypeSafe(key).readDiffFrom(in, registry);
                 }
             });
         }
@@ -719,9 +699,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+            Custom customIndexMetaData = in.readNamedWriteable(MetaData.Custom.class);
+            builder.putCustom(customIndexMetaData.type(), customIndexMetaData);
         }
         return builder.build();
     }
@@ -742,8 +721,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
         out.writeVInt(customs.size());
         for (ObjectObjectCursor<String, Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+            out.writeNamedWriteable(cursor.value);
         }
     }
 
@@ -1129,8 +1107,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             }
 
             for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
-                Custom proto = lookupPrototypeSafe(cursor.key);
-                if (proto.context().contains(context)) {
+                if (cursor.value.context().contains(context)) {
                     builder.startObject(cursor.key);
                     cursor.value.toXContent(builder, params);
                     builder.endObject();
@@ -1139,7 +1116,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             builder.endObject();
         }
 
-        public static MetaData fromXContent(XContentParser parser) throws IOException {
+        public static MetaData fromXContent(XContentParser parser, CustomPrototypeRegistry registry) throws IOException {
             Builder builder = new Builder();
 
             // we might get here after the meta-data element, or on a fresh parser
@@ -1174,15 +1151,15 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         builder.persistentSettings(Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build());
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetaData.Builder.fromXContent(parser), false);
+                            builder.put(IndexMetaData.Builder.fromXContent(parser, registry), false);
                         }
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName()));
+                            builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName(), registry));
                         }
                     } else {
                         // check if its a custom index metadata
-                        Custom proto = lookupPrototype(currentFieldName);
+                        Custom proto = registry.getMetadataPrototype(currentFieldName);
                         if (proto == null) {
                             //TODO warn
                             parser.skipChildren();
@@ -1222,7 +1199,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     /**
      * State format for {@link MetaData} to write to and load from disk
      */
-    public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(XContentType.SMILE, GLOBAL_STATE_FILE_PREFIX) {
+    public static class Format extends MetaDataStateFormat<MetaData> {
+
+        private final CustomPrototypeRegistry registry;
+
+        public Format(CustomPrototypeRegistry registry) {
+            super(XContentType.SMILE, GLOBAL_STATE_FILE_PREFIX);
+            this.registry = registry;
+        }
 
         @Override
         public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
@@ -1231,7 +1215,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
         @Override
         public MetaData fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
+            return Builder.fromXContent(parser, registry);
         }
     };
 }

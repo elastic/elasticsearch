@@ -59,7 +59,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -76,6 +78,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
@@ -113,7 +116,9 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
@@ -1059,10 +1064,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null) {
+            List<ClusterPlugin> plugins;
+            if (isInternalCluster()) {
+                PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
+                plugins = pluginsService.filterPlugins(ClusterPlugin.class);
+            } else {
+                plugins = Collections.emptyList();
+            }
+            CustomPrototypeRegistry cRegistry = ClusterModule.createCustomPrototypeRegistry(plugins);
+            NamedWriteableRegistry nRegistry = new NamedWriteableRegistry(cRegistry.getNamedWriteables());
+
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
-            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
+            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, nRegistry);
             Map<String, Object> masterStateMap = convertToMap(masterClusterState);
             int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
             String masterId = masterClusterState.nodes().getMasterNodeId();
@@ -1070,7 +1085,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                 // remove local node reference
-                localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
+                localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, nRegistry);
                 final Map<String, Object> localStateMap = convertToMap(localClusterState);
                 final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and

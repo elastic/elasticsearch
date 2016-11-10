@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.repository.gcs;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -40,12 +39,10 @@ import com.google.api.services.storage.model.Bucket;
 import com.google.api.services.storage.model.Objects;
 import com.google.api.services.storage.model.StorageObject;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageService;
@@ -120,8 +117,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, CustomPrototypeRegistry registry) {
         return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
-            (metadata) -> new GoogleCloudStorageRepository(metadata, env, createStorageService(env)));
+            (metadata) -> new GoogleCloudStorageRepository(metadata, env, createStorageService(env), registry));
     }
 }

@@ -20,9 +20,12 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,11 +36,15 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class MetaDataTests extends ESTestCase {
+
+    private static final CustomPrototypeRegistry REGISTRY = new CustomPrototypeRegistry(Collections.emptyMap(),
+            Collections.singletonMap(IndexGraveyard.PROTO.type(), IndexGraveyard.PROTO), Collections.emptyMap());
 
     public void testIndexAndAliasWithSameName() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
@@ -131,7 +138,7 @@ public class MetaDataTests extends ESTestCase {
             .endObject().bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(metadata);
         try {
-            MetaData.Builder.fromXContent(parser);
+            MetaData.Builder.fromXContent(parser, CustomPrototypeRegistry.EMPTY);
             fail();
         } catch (IllegalArgumentException e) {
             assertEquals("Unexpected field [random]", e.getMessage());
@@ -147,7 +154,7 @@ public class MetaDataTests extends ESTestCase {
             .endObject().bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(metadata);
         try {
-            IndexMetaData.Builder.fromXContent(parser);
+            IndexMetaData.Builder.fromXContent(parser, CustomPrototypeRegistry.EMPTY);
             fail();
         } catch (IllegalArgumentException e) {
             assertEquals("Unexpected field [random]", e.getMessage());
@@ -174,7 +181,7 @@ public class MetaDataTests extends ESTestCase {
         originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
-        final MetaData fromXContentMeta = MetaData.PROTO.fromXContent(parser, null);
+        final MetaData fromXContentMeta = MetaData.PROTO.fromXContent(parser, null, REGISTRY);
         assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
     }
 
@@ -183,7 +190,8 @@ public class MetaDataTests extends ESTestCase {
         final MetaData originalMeta = MetaData.builder().indexGraveyard(graveyard).build();
         final BytesStreamOutput out = new BytesStreamOutput();
         originalMeta.writeTo(out);
-        final MetaData fromStreamMeta = MetaData.PROTO.readFrom(out.bytes().streamInput());
+        final MetaData fromStreamMeta = MetaData.PROTO.readFrom(new NamedWriteableAwareStreamInput(out.bytes().streamInput(),
+                new NamedWriteableRegistry(REGISTRY.getNamedWriteables())));
         assertThat(fromStreamMeta.indexGraveyard(), equalTo(fromStreamMeta.indexGraveyard()));
     }
 }

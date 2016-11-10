@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,9 +36,12 @@ import java.io.IOException;
 
 public class RestCreateIndexAction extends BaseRestHandler {
 
+    private final CustomPrototypeRegistry registry;
+
     @Inject
-    public RestCreateIndexAction(Settings settings, RestController controller) {
+    public RestCreateIndexAction(Settings settings, RestController controller, CustomPrototypeRegistry registry) {
         super(settings);
+        this.registry = registry;
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
     }
 
@@ -46,7 +50,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
-            createIndexRequest.source(request.content());
+            createIndexRequest.source(request.content(), registry);
         }
         createIndexRequest.updateAllTypes(request.paramAsBoolean("update_all_types", false));
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));

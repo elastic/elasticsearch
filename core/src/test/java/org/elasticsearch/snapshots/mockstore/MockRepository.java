@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -62,8 +63,8 @@ public class MockRepository extends FsRepository {
 
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env) {
-            return Collections.singletonMap("mock", (metadata) -> new MockRepository(metadata, env));
+        public Map<String, Repository.Factory> getRepositories(Environment env, CustomPrototypeRegistry registry) {
+            return Collections.singletonMap("mock", (metadata) -> new MockRepository(metadata, env, registry));
         }
 
         @Override
@@ -100,8 +101,9 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blocked = false;
 
-    public MockRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
-        super(overrideSettings(metadata, environment), environment);
+    public MockRepository(RepositoryMetaData metadata, Environment environment,
+                          CustomPrototypeRegistry customPrototypeRegistry) throws IOException {
+        super(overrideSettings(metadata, environment), environment, customPrototypeRegistry);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);

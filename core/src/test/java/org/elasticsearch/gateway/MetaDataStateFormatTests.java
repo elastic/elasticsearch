@@ -30,6 +30,8 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -81,7 +83,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
             @Override
             public MetaData fromXContent(XContentParser parser) throws IOException {
-                return MetaData.Builder.fromXContent(parser);
+                return MetaData.Builder.fromXContent(parser, CustomPrototypeRegistry.EMPTY);
             }
         };
         Path tmp = createTempDir();
@@ -309,6 +311,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     private static MetaDataStateFormat<MetaData> metaDataFormat(XContentType format) {
         return new MetaDataStateFormat<MetaData>(format, MetaData.GLOBAL_STATE_FILE_PREFIX) {
+
+            private final CustomPrototypeRegistry registry = ClusterModule.createCustomPrototypeRegistry(Collections.emptyList());
+
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
                 MetaData.Builder.toXContent(state, builder, ToXContent.EMPTY_PARAMS);
@@ -316,7 +321,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
             @Override
             public MetaData fromXContent(XContentParser parser) throws IOException {
-                return MetaData.Builder.fromXContent(parser);
+                return MetaData.Builder.fromXContent(parser, registry);
             }
         };
     }

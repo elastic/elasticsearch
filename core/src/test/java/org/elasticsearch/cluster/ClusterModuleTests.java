@@ -19,6 +19,10 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -40,22 +44,35 @@ import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAl
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.script.ScriptMetaData;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterService clusterService = new ClusterService(Settings.EMPTY,
@@ -196,5 +213,225 @@ public class ClusterModuleTests extends ModuleTestCase {
             AllocationDecider decider = iter.next();
             assertSame(decider.getClass(), expectedDeciders.get(idx++));
         }
+    }
+
+    public void testCustomClusterCustoms() {
+        ClusterPlugin plugin = new ClusterPlugin() {
+            @Override
+            public Collection<ClusterState.Custom> getCustomClusterState() {
+                return Collections.singleton(createCustomClusterState("custom_type"));
+            }
+
+            @Override
+            public Collection<MetaData.Custom> getCustomMetadata() {
+                return Collections.singleton(createCustomMetadata("custom_type"));
+            }
+
+            @Override
+            public Collection<IndexMetaData.Custom> getCustomIndexMetadata() {
+                return Collections.singleton(createCustomIndexMetadata("custom_type"));
+            }
+        };
+
+        CustomPrototypeRegistry registry = ClusterModule.createCustomPrototypeRegistry(Collections.singleton(plugin));
+        assertThat(registry.getClusterStatePrototype(SnapshotsInProgress.TYPE), not(nullValue()));
+        assertThat(registry.getClusterStatePrototype(RestoreInProgress.TYPE), not(nullValue()));
+        assertThat(registry.getClusterStatePrototype("custom_type"), not(nullValue()));
+        assertThat(registry.getClusterStatePrototype("does_not_exist"), nullValue());
+        expectThrows(IllegalArgumentException.class, () -> registry.getClusterStatePrototypeSafe("does_not_exist"));
+
+        assertThat(registry.getMetadataPrototype(RepositoriesMetaData.TYPE), not(nullValue()));
+        assertThat(registry.getMetadataPrototype(IngestMetadata.TYPE), not(nullValue()));
+        assertThat(registry.getMetadataPrototype(ScriptMetaData.TYPE), not(nullValue()));
+        assertThat(registry.getMetadataPrototype(IndexGraveyard.TYPE), not(nullValue()));
+        assertThat(registry.getMetadataPrototype("custom_type"), not(nullValue()));
+        assertThat(registry.getMetadataPrototype("does_not_exist"), nullValue());
+        expectThrows(IllegalArgumentException.class, () -> registry.getMetadataPrototypeSafe("does_not_exist"));
+
+        assertThat(registry.getIndexMetadataPrototype("custom_type"), not(nullValue()));
+        assertThat(registry.getIndexMetadataPrototype("does_not_exist"), nullValue());
+        expectThrows(IllegalArgumentException.class, () -> registry.getIndexMetadataPrototypeSafe("does_not_exist"));
+
+        List<NamedWriteableRegistry.Entry> entries = registry.getNamedWriteables();
+        assertThat(entries.size(), equalTo(9));
+    }
+
+    public void testCustomClusterCustoms_duplicateParts() {
+        ClusterPlugin plugin1 = new ClusterPlugin() {
+            @Override
+            public Collection<ClusterState.Custom> getCustomClusterState() {
+                return Collections.singleton(createCustomClusterState(SnapshotsInProgress.TYPE));
+            }
+        };
+        IllegalStateException e =
+            expectThrows(IllegalStateException.class, () -> ClusterModule.createCustomPrototypeRegistry(Collections.singleton(plugin1)));
+        assertThat(e.getMessage(), equalTo("Custom cluster state [snapshots] already declared"));
+
+        ClusterPlugin plugin2 = new ClusterPlugin() {
+            @Override
+            public Collection<ClusterState.Custom> getCustomClusterState() {
+                return Arrays.asList(createCustomClusterState("custom_type"), createCustomClusterState("custom_type"));
+            }
+        };
+        e = expectThrows(IllegalStateException.class, () -> ClusterModule.createCustomPrototypeRegistry(Collections.singleton(plugin2)));
+        assertThat(e.getMessage(), equalTo("Custom cluster state [custom_type] already declared"));
+
+        ClusterPlugin plugin3 = new ClusterPlugin() {
+
+            @Override
+            public Collection<MetaData.Custom> getCustomMetadata() {
+                return Collections.singleton(createCustomMetadata(IndexGraveyard.TYPE));
+            }
+        };
+        e = expectThrows(IllegalStateException.class, () -> ClusterModule.createCustomPrototypeRegistry(Collections.singleton(plugin3)));
+        assertThat(e.getMessage(), equalTo("Custom metadata [index-graveyard] already declared"));
+
+        ClusterPlugin plugin4 = new ClusterPlugin() {
+
+            @Override
+            public Collection<MetaData.Custom> getCustomMetadata() {
+                return Arrays.asList(createCustomMetadata("custom_type"), createCustomMetadata("custom_type"));
+            }
+        };
+        e = expectThrows(IllegalStateException.class, () -> ClusterModule.createCustomPrototypeRegistry(Collections.singleton(plugin4)));
+        assertThat(e.getMessage(), equalTo("Custom metadata [custom_type] already declared"));
+
+        ClusterPlugin plugin5 = new ClusterPlugin() {
+
+            @Override
+            public Collection<IndexMetaData.Custom> getCustomIndexMetadata() {
+                return Arrays.asList(createCustomIndexMetadata("custom_type"), createCustomIndexMetadata("custom_type"));
+            }
+        };
+        e = expectThrows(IllegalStateException.class, () -> ClusterModule.createCustomPrototypeRegistry(Collections.singleton(plugin5)));
+        assertThat(e.getMessage(), equalTo("Custom index metadata [custom_type] already declared"));
+    }
+
+    private static ClusterState.Custom createCustomClusterState(String type) {
+        return new ClusterState.Custom() {
+
+            @Override
+            public Diff<ClusterState.Custom> diff(ClusterState.Custom previousState) {
+                return null;
+            }
+
+            @Override
+            public Diff<ClusterState.Custom> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
+                return null;
+            }
+
+            @Override
+            public ClusterState.Custom readFrom(StreamInput in) throws IOException {
+                return null;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return null;
+            }
+
+            @Override
+            public String type() {
+                return type;
+            }
+        };
+    }
+
+    private MetaData.Custom createCustomMetadata(String type) {
+        return new MetaData.Custom() {
+            @Override
+            public String type() {
+                return type;
+            }
+
+            @Override
+            public MetaData.Custom fromXContent(XContentParser parser) throws IOException {
+                return null;
+            }
+
+            @Override
+            public EnumSet<MetaData.XContentContext> context() {
+                return null;
+            }
+
+            @Override
+            public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+                return null;
+            }
+
+            @Override
+            public Diff<MetaData.Custom> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
+                return null;
+            }
+
+            @Override
+            public MetaData.Custom readFrom(StreamInput in) throws IOException {
+                return null;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return null;
+            }
+        };
+    }
+
+    private IndexMetaData.Custom createCustomIndexMetadata(String type) {
+        return new IndexMetaData.Custom() {
+            @Override
+            public String type() {
+                return type;
+            }
+
+            @Override
+            public IndexMetaData.Custom fromMap(Map<String, Object> map) throws IOException {
+                return null;
+            }
+
+            @Override
+            public IndexMetaData.Custom fromXContent(XContentParser parser) throws IOException {
+                return null;
+            }
+
+            @Override
+            public IndexMetaData.Custom mergeWith(IndexMetaData.Custom another) {
+                return null;
+            }
+
+            @Override
+            public Diff<IndexMetaData.Custom> diff(IndexMetaData.Custom previousState) {
+                return null;
+            }
+
+            @Override
+            public Diff<IndexMetaData.Custom> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
+                return null;
+            }
+
+            @Override
+            public IndexMetaData.Custom readFrom(StreamInput in) throws IOException {
+                return null;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return null;
+            }
+        };
     }
 }

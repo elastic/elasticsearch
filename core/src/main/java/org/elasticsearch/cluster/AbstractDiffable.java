@@ -41,7 +41,7 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
     }
 
     @Override
-    public Diff<T> readDiffFrom(StreamInput in) throws IOException {
+    public Diff<T> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
         return new CompleteDiff<>(this, in);
     }
 

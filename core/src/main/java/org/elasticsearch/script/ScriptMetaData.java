@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -169,7 +170,7 @@ public final class ScriptMetaData implements MetaData.Custom {
     }
 
     @Override
-    public Diff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public Diff<MetaData.Custom> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
         return new ScriptMetadataDiff(in);
     }
 

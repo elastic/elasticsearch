@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -281,7 +282,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     @SuppressWarnings("unchecked")
-    public PutIndexTemplateRequest source(Map templateSource) {
+    public PutIndexTemplateRequest source(Map templateSource, CustomPrototypeRegistry registry) {
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
@@ -312,8 +313,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
+                IndexMetaData.Custom proto = registry.getIndexMetadataPrototypeSafe(name);
                 if (proto != null) {
                     try {
                         customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
@@ -331,7 +331,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(String templateSource) {
         try (XContentParser parser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
-            return source(parser.mapOrdered());
+            return source(parser.mapOrdered(), CustomPrototypeRegistry.EMPTY);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
         }
@@ -349,7 +349,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
         try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
-            return source(parser.mapOrdered());
+            return source(parser.mapOrdered(), CustomPrototypeRegistry.EMPTY);
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }
@@ -359,8 +359,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source) {
+        return source(source, CustomPrototypeRegistry.EMPTY);
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(BytesReference source, CustomPrototypeRegistry registry) {
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            return source(parser.mapOrdered());
+            return source(parser.mapOrdered(), registry);
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }
@@ -459,9 +466,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);
+            customs.put(customIndexMetaData.type(), customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {

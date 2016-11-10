@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -63,7 +65,6 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -77,9 +78,14 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuilder<IndexMetaData>, ToXContent {
 
-    public interface Custom extends Diffable<Custom>, ToXContent {
+    public interface Custom extends Diffable<Custom>, ToXContent, NamedWriteable {
 
         String type();
+
+        @Override
+        default String getWriteableName(){
+            return type();
+        }
 
         Custom fromMap(Map<String, Object> map) throws IOException;
 
@@ -90,30 +96,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
          * this will prevail.
          */
         Custom mergeWith(Custom another);
-    }
-
-    public static Map<String, Custom> customPrototypes = new HashMap<>();
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
-    }
-
-    @Nullable
-    public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
-    }
-
-    public static <T extends Custom> T lookupPrototypeSafe(String type) {
-        //noinspection unchecked
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
-        }
-        return proto;
     }
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
@@ -562,13 +544,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     }
 
     @Override
-    public Diff<IndexMetaData> readDiffFrom(StreamInput in) throws IOException {
-        return new IndexMetaDataDiff(in);
+    public Diff<IndexMetaData> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
+        return new IndexMetaDataDiff(in, registry);
     }
 
     @Override
-    public IndexMetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return Builder.fromXContent(parser);
+    public IndexMetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, CustomPrototypeRegistry registry) throws IOException {
+        return Builder.fromXContent(parser, registry);
     }
 
     @Override
@@ -604,7 +586,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
         }
 
-        public IndexMetaDataDiff(StreamInput in) throws IOException {
+        public IndexMetaDataDiff(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
             index = in.readString();
             routingNumShards = in.readInt();
             version = in.readLong();
@@ -617,12 +599,20 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                     @Override
                     public Custom read(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readFrom(in);
+                        // Can't use named writeables here to read custom cluster customs, because
+                        // the key already represents the name of the custom metadata. If we would use
+                        // the readNamedWriteable(...) here than we would read the name of the custom
+                        // metadata twice and that would be a break the wire protocol.
+                        return registry.getIndexMetadataPrototypeSafe(key).readFrom(in);
                     }
 
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readDiffFrom(in);
+                        // Can't use named writeables here to read custom cluster customs, because
+                        // the key already represents the name of the custom metadata. If we would use
+                        // the readNamedWriteable(...) here than we would read the name of the custom
+                        // metadata twice and that would be a break the wire protocol.
+                        return registry.getIndexMetadataPrototypeSafe(key).readDiffFrom(in, registry);
                     }
                 });
             inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
@@ -679,9 +669,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+            Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
+            builder.putCustom(customIndexMetaData.type(), customIndexMetaData);
         }
         int inSyncAllocationIdsSize = in.readVInt();
         for (int i = 0; i < inSyncAllocationIdsSize; i++) {
@@ -1084,7 +1073,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             builder.endObject();
         }
 
-        public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
+        public static IndexMetaData fromXContent(XContentParser parser, CustomPrototypeRegistry registry) throws IOException {
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
             }
@@ -1148,8 +1137,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
                     } else {
-                        // check if its a custom index metadata
-                        Custom proto = lookupPrototype(currentFieldName);
+                        Custom proto = registry.getIndexMetadataPrototype(currentFieldName);
                         if (proto == null) {
                             //TODO warn
                             parser.skipChildren();
@@ -1250,10 +1238,23 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     private static final ToXContent.Params FORMAT_PARAMS = new MapParams(Collections.singletonMap("binary", "true"));
 
+
+    /**
+     * Instance of {@link Format} for when reading custom index metadata is not needed.
+     */
+    public static final MetaDataStateFormat<IndexMetaData> FORMAT = new Format(CustomPrototypeRegistry.EMPTY);
+
     /**
      * State format for {@link IndexMetaData} to write to and load from disk
      */
-    public static final MetaDataStateFormat<IndexMetaData> FORMAT = new MetaDataStateFormat<IndexMetaData>(XContentType.SMILE, INDEX_STATE_FILE_PREFIX) {
+    public static class Format extends MetaDataStateFormat<IndexMetaData> {
+
+        private final CustomPrototypeRegistry registry;
+
+        public Format(CustomPrototypeRegistry registry) {
+            super(XContentType.SMILE, INDEX_STATE_FILE_PREFIX);
+            this.registry = registry;
+        }
 
         @Override
         public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
@@ -1262,7 +1263,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         @Override
         public IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
+            return Builder.fromXContent(parser, registry);
         }
     };
 

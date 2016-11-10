@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -359,10 +360,17 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(BytesReference source) {
+        return source(source, CustomPrototypeRegistry.EMPTY);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(BytesReference source, CustomPrototypeRegistry registry) {
         XContentType xContentType = XContentFactory.xContentType(source);
         if (xContentType != null) {
             try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
-                source(parser.map());
+                source(parser.map(), registry);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse source for create index", e);
             }
@@ -375,8 +383,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the settings and mappings as a single source.
      */
-    @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source) {
+        return source(source, CustomPrototypeRegistry.EMPTY);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    @SuppressWarnings("unchecked")
+    public CreateIndexRequest source(Map<String, ?> source, CustomPrototypeRegistry registry) {
         boolean found = false;
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
@@ -393,8 +408,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
+                IndexMetaData.Custom proto = registry.getIndexMetadataPrototype(name);
                 if (proto != null) {
                     found = true;
                     try {
@@ -475,7 +489,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -489,9 +502,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);
+            customs.put(customIndexMetaData.type(), customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {

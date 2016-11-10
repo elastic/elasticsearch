@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -73,13 +75,16 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class ClusterStateDiffIT extends ESIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
+        CustomPrototypeRegistry pRegistry = ClusterModule.createCustomPrototypeRegistry(Collections.emptyList());
+        NamedWriteableRegistry nRegistry = new NamedWriteableRegistry(pRegistry.getNamedWriteables());
         DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
-        ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), otherNode);
+        ClusterState clusterStateFromDiffs =
+            ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), otherNode, nRegistry);
 
         int iterationCount = randomIntBetween(10, 300);
         for (int iteration = 0; iteration < iterationCount; iteration++) {
@@ -115,7 +120,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             if (randomIntBetween(0, 10) < 1) {
                 // Update cluster state via full serialization from time to time
-                clusterStateFromDiffs = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), previousClusterStateFromDiffs.nodes().getLocalNode());
+                clusterStateFromDiffs = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState),
+                        previousClusterStateFromDiffs.nodes().getLocalNode(), nRegistry);
             } else {
                 // Update cluster states using diffs
                 Diff<ClusterState> diffBeforeSerialization = clusterState.diff(previousClusterState);
@@ -124,7 +130,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 byte[] diffBytes = BytesReference.toBytes(os.bytes());
                 Diff<ClusterState> diff;
                 try (StreamInput input = StreamInput.wrap(diffBytes)) {
-                    diff = previousClusterStateFromDiffs.readDiffFrom(input);
+                    diff = previousClusterStateFromDiffs.readDiffFrom(input, pRegistry);
                     clusterStateFromDiffs = diff.apply(previousClusterStateFromDiffs);
                 }
             }

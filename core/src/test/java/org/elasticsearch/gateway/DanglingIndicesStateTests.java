@@ -19,6 +19,8 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -27,10 +29,12 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -45,7 +49,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
     public void testCleanupWhenEmpty() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, CustomPrototypeRegistry.EMPTY);
             DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
 
             assertTrue(danglingState.getDanglingIndices().isEmpty());
@@ -56,7 +60,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
     }
     public void testDanglingIndicesDiscovery() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, CustomPrototypeRegistry.EMPTY);
             DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
 
             assertTrue(danglingState.getDanglingIndices().isEmpty());
@@ -74,7 +78,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
     public void testInvalidIndexFolder() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, CustomPrototypeRegistry.EMPTY);
             DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
 
             MetaData metaData = MetaData.builder().build();
@@ -98,7 +102,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
     public void testDanglingProcessing() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, CustomPrototypeRegistry.EMPTY);
             DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
 
             MetaData metaData = MetaData.builder().build();
@@ -142,7 +146,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
     public void testDanglingIndicesNotImportedWhenTombstonePresent() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, CustomPrototypeRegistry.EMPTY);
             DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
 
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");

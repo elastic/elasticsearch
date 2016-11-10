@@ -935,3 +935,34 @@ GET metricbeat-2016.05.31-1/beat/1
 
 The previous method can also be used in combination with <<docs-reindex-change-name, change the name of a field>>
 to only load the existing data into the new index, but also rename fields if needed.
+
+[float]
+=== Extracting a random subset of an index
+
+Reindex can be used to extract a random subset of an index for testing:
+
+[source,js]
+----------------------------------------------------------------
+POST _reindex
+{
+  "size": 10,
+  "source": {
+    "index": "twitter",
+    "query": {
+      "function_score" : {
+        "query" : { "match_all": {} },
+        "random_score" : {}
+      }
+    },
+    "sort": "_score"    <1>
+  },
+  "dest": {
+    "index": "random_twitter"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+<1> Reindex defaults to sorting by `_doc` so `random_score` won't have any
+effect unless you override the sort to `_score`.

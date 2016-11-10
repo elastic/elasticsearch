@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import com.sun.javafx.collections.ElementObservableListDecorator;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;

@@ -73,7 +73,7 @@ scope (e.g. `_local_,_site_` for all loopback and private network addresses)
 or by explicit interface names, hostnames, or addresses.
 
 The `netty.epollBugWorkaround` settings is removed. This settings allow people to enable
-a netty work around for https://github.com/netty/netty/issues/327[a high CPU usage issue] with early JVM versions. 
+a netty work around for https://github.com/netty/netty/issues/327[a high CPU usage issue] with early JVM versions.
 This bug was http://bugs.java.com/view_bug.do?bug_id=6403933[fixed in Java 7]. Since Elasticsearch 5.0 requires Java 8 the settings is removed. Note that if the workaround needs to be reintroduced you can still set the `org.jboss.netty.epollBugWorkaround` system property to control Netty directly.
 
 ==== Forbid changing of thread pool types
@@ -264,6 +264,36 @@ a fallback realtime setting for the get and mget APIs when realtime
 wasn't specified. Now if the parameter isn't specified we always
 default to true.
 
+==== Memory lock settings
+
+The setting `bootstrap.mlockall` has been renamed to
+`bootstrap.memory_lock`.
+
+==== Snapshot settings
+
+The default setting `include_global_state` for restoring snapshots has been
+changed from `true` to `false`. It has not been changed for taking snapshots and
+still defaults to `true` in that case.
+
+==== Time value parsing
+
+The unit 'w' representing weeks is no longer supported.
+
+Fractional time values (e.g., 0.5s) are no longer supported. For example, this means when setting
+timeouts "0.5s" will be rejected and should instead be input as "500ms".
+
+==== Node max local storage nodes
+
+Previous versions of Elasticsearch defaulted to allowing multiple nodes to share the same data
+directory (up to 50). This can be confusing where users accidentally startup multiple nodes and end
+up thinking that they've lost data because the second node will start with an empty data directory.
+While the default of allowing multiple nodes is friendly to playing with forming a small cluster on
+a laptop, and end-users do sometimes run multiple nodes on the same host, this tends to be the
+exception. Keeping with Elasticsearch's continual movement towards safer out-of-the-box defaults,
+and optimizing for the norm instead of the exception, the default for
+`node.max_local_storage_nodes` is now one.
+
+[float]
 === Script settings
 
 ==== Indexed script settings
@@ -298,31 +328,3 @@ The setting `index.query.bool.max_clause_count` has been removed. In order to
 set the maximum number of boolean clauses `indices.query.bool.max_clause_count`
 should be used instead.
 
-==== Memory lock settings
-
-The setting `bootstrap.mlockall` has been renamed to
-`bootstrap.memory_lock`.
-
-==== Snapshot settings
-
-The default setting `include_global_state` for restoring snapshots has been
-changed from `true` to `false`. It has not been changed for taking snapshots and
-still defaults to `true` in that case.
-
-==== Time value parsing
-
-The unit 'w' representing weeks is no longer supported.
-
-Fractional time values (e.g., 0.5s) are no longer supported. For example, this means when setting
-timeouts "0.5s" will be rejected and should instead be input as "500ms".
-
-==== Node max local storage nodes
-
-Previous versions of Elasticsearch defaulted to allowing multiple nodes to share the same data
-directory (up to 50). This can be confusing where users accidentally startup multiple nodes and end
-up thinking that they've lost data because the second node will start with an empty data directory.
-While the default of allowing multiple nodes is friendly to playing with forming a small cluster on
-a laptop, and end-users do sometimes run multiple nodes on the same host, this tends to be the
-exception. Keeping with Elasticsearch's continual movement towards safer out-of-the-box defaults,
-and optimizing for the norm instead of the exception, the default for
-`node.max_local_storage_nodes` is now one.

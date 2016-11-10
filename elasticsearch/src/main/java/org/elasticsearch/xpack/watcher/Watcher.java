@@ -137,8 +137,6 @@ import static java.util.Collections.emptyList;
 
 public class Watcher implements ActionPlugin, ScriptPlugin {
 
-    public static final Setting<String> INDEX_WATCHER_VERSION_SETTING =
-            new Setting<>("index.xpack.watcher.plugin.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
@@ -249,7 +247,6 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
             settings.add(templateConfig.getSetting());
         }
-        settings.add(INDEX_WATCHER_VERSION_SETTING);
         settings.add(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
         settings.add(MAX_STOP_TIMEOUT_SETTING);
         settings.add(ExecutionService.DEFAULT_THROTTLE_PERIOD_SETTING);

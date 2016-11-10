@@ -408,7 +408,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                IndexMetaData.Custom proto = registry.getIndexMetadataPrototypeSafe(name);
+                IndexMetaData.Custom proto = registry.getIndexMetadataPrototype(name);
                 if (proto != null) {
                     found = true;
                     try {

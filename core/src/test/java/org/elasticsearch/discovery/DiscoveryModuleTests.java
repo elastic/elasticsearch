@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -83,7 +84,8 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     private DiscoveryModule newModule(Settings settings, Function<UnicastHostsProvider, ZenPing> createZenPing,
                                       List<DiscoveryPlugin> plugins) {
-        return new DiscoveryModule(settings, null, transportService, null, clusterService, createZenPing, plugins);
+        return new DiscoveryModule(settings, null, transportService, null, clusterService, createZenPing, plugins,
+            CustomPrototypeRegistry.EMPTY);
     }
 
     public void testDefaults() {

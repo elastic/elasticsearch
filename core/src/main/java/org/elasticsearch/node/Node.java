@@ -409,7 +409,7 @@ public class Node implements Closeable {
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
                 networkService, clusterService, hostsProvider -> newZenPing(settings, threadPool, transportService, hostsProvider),
-                pluginsService.filterPlugins(DiscoveryPlugin.class));
+                pluginsService.filterPlugins(DiscoveryPlugin.class), clusterModule.getRegistry());
             pluginsService.processModules(modules);
             modules.add(b -> {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());

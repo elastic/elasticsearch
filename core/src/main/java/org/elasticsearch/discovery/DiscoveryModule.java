@@ -28,10 +28,9 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import org.elasticsearch.cluster.CustomPrototypeRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +56,7 @@ public class DiscoveryModule {
 
     public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService, NetworkService networkService,
                            ClusterService clusterService, Function<UnicastHostsProvider, ZenPing> createZenPing,
-                           List<DiscoveryPlugin> plugins) {
+                           List<DiscoveryPlugin> plugins, CustomPrototypeRegistry registry) {
         final UnicastHostsProvider hostsProvider;
 
         Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
@@ -82,8 +81,8 @@ public class DiscoveryModule {
         zenPing = createZenPing.apply(hostsProvider);
 
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
-        discoveryTypes.put("zen",
-            () -> new ZenDiscovery(settings, threadPool, transportService, clusterService, clusterService.getClusterSettings(), zenPing));
+        discoveryTypes.put("zen",() -> new ZenDiscovery(settings, threadPool, transportService, clusterService,
+            clusterService.getClusterSettings(), zenPing, registry));
         discoveryTypes.put("none", () -> new NoneDiscovery(settings, clusterService, clusterService.getClusterSettings()));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getDiscoveryTypes(threadPool, transportService, clusterService, zenPing).entrySet().forEach(entry -> {

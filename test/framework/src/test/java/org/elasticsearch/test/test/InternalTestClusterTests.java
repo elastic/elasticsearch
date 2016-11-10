@@ -116,7 +116,8 @@ public class InternalTestClusterTests extends ESTestCase {
     public static void assertSettings(Settings left, Settings right, boolean checkClusterUniqueSettings) {
         Set<Map.Entry<String, String>> entries0 = left.getAsMap().entrySet();
         Map<String, String> entries1 = right.getAsMap();
-        assertThat(entries0.size(), equalTo(entries1.size()));
+        assertThat("--> left:\n" + left.toDelimitedString('\n') +  "\n-->right:\n" + right.toDelimitedString('\n'),
+            entries0.size(), equalTo(entries1.size()));
         for (Map.Entry<String, String> entry : entries0) {
             if (clusterUniqueSettings.contains(entry.getKey()) && checkClusterUniqueSettings == false) {
                 continue;

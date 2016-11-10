@@ -109,14 +109,14 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         for (int i = 0; i < nodesResponses.length(); ++i) {
             Object response = nodesResponses.get(i);
 
-            if (nodeResponseClass.isInstance(response)) {
-                responses.add(nodeResponseClass.cast(response));
-            } else if (response instanceof FailedNodeException) {
-                failures.add((FailedNodeException)response);
+            if (response instanceof FailedNodeException) {
+                if (accumulateExceptions()) {
+                    failures.add((FailedNodeException)response);
+                } else {
+                    logger.warn("not accumulating exceptions, excluding exception from response", (FailedNodeException)response);
+                }
             } else {
-                logger.warn("ignoring unexpected response [{}] of type [{}], expected [{}] or [{}]",
-                            response, response != null ? response.getClass().getName() : null,
-                            nodeResponseClass.getSimpleName(), FailedNodeException.class.getSimpleName());
+                responses.add(nodeResponseClass.cast(response));
             }
         }
 
@@ -243,9 +243,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                     (org.apache.logging.log4j.util.Supplier<?>)
                         () -> new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
             }
-            if (accumulateExceptions()) {
-                responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
-            }
+            responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();
             }

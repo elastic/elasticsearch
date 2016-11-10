@@ -1446,7 +1446,11 @@ public final class InternalTestCluster extends TestCluster {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }
         if (callback.validateClusterForming() || updateMinMaster) {
+            // we have to validate cluster size if updateMinMaster == true, because we need the
+            // second node to join in order to increment min_master_nodes back to 2.
             validateClusterFormed();
+        }
+        if (updateMinMaster) {
             updateMinMasterNodes(0);
         }
     }

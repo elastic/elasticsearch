@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ZenDiscovery.ClusterServiceStateUpdateTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -1176,7 +1178,7 @@ public class ClusterServiceTests extends ESTestCase {
         nodes = state.nodes();
         nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
         state = ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES))
-            .nodes(nodesBuilder).build();
+                    .nodes(nodesBuilder).build();
         setState(timedClusterService, state);
         assertThat(isMaster.get(), is(false));
         nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
@@ -1185,6 +1187,57 @@ public class ClusterServiceTests extends ESTestCase {
         assertThat(isMaster.get(), is(true));
 
         timedClusterService.close();
+    }
+
+    public void testSettingHasNoMaster() throws Exception {
+        final ClusterService clusterService = createTimedClusterService(randomBoolean());
+        // set the initial random cluster state
+        ClusterState state = ClusterStateCreationUtils.state("idx", randomIntBetween(1, 5), randomIntBetween(1, 5));
+        state = ClusterState.builder(state).nodes(
+            DiscoveryNodes.builder(state.nodes()).masterNodeId(clusterService.localNode().getId())
+        ).build();
+        final ClusterState initialState = state;
+        setState(clusterService, initialState);
+        // set the noMaster flag on the cluster service and ensure the cluster state returned
+        // has the NO_MASTER block
+        final CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("set no master", new ClusterServiceStateUpdateTask() {
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
+
+            @Override
+            public boolean clusterHasNoMaster() {
+                return true;
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return currentState;
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                latch.countDown();
+            }
+        });
+        latch.await();
+        ClusterState clusterState = clusterService.state();
+        assertTrue(clusterState.blocks().hasGlobalBlock(clusterService.getDiscoverySettings().getNoMasterBlock()));
+        assertNull(clusterState.nodes().getMasterNodeId());
+        // submit a new cluster state update with the master set, and make sure the cluster state
+        // returned does not have any blocks
+        setState(clusterService, initialState);
+        clusterState = clusterService.state();
+        assertFalse(clusterState.blocks().hasGlobalBlock(clusterService.getDiscoverySettings().getNoMasterBlock()));
+        assertNotNull(clusterState.nodes().getMasterNodeId());
+        clusterService.close();
     }
 
     private static class SimpleTask {

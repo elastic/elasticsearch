@@ -28,10 +28,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -687,31 +686,57 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 String>>>());
         for (final String node : majoritySide) {
             masters.put(node, new ArrayList<Tuple<String, String>>());
-            internalCluster().getInstance(ClusterService.class, node).add(new ClusterStateListener() {
+            internalCluster().getInstance(ClusterService.class, node).add(TimeValue.timeValueSeconds(30), new TimeoutClusterStateListener() {
                 @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-                    DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
+                public void clusterServiceStateChanged(ClusterServiceState previousState, ClusterServiceState currentState) {
+                    DiscoveryNode previousMaster = previousState.getLocalClusterState().nodes().getMasterNode();
+                    DiscoveryNode currentMaster = currentState.getLocalClusterState().nodes().getMasterNode();
                     if (!Objects.equals(previousMaster, currentMaster)) {
-                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
-                                event.previousState());
+                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}",
+                            node, previousState.getLocalClusterState(), currentState.getLocalClusterState());
                         String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
                         String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
                         masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
                     }
                 }
+
+                @Override
+                public void postAdded() {
+                }
+
+                @Override
+                public void onClose() {
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                }
             });
         }
 
         final CountDownLatch oldMasterNodeSteppedDown = new CountDownLatch(1);
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).add(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                if (event.state().nodes().getMasterNodeId() == null) {
-                    oldMasterNodeSteppedDown.countDown();
+        internalCluster().getInstance(ClusterService.class, oldMasterNode).add(TimeValue.timeValueSeconds(10),
+            new TimeoutClusterStateListener() {
+                @Override
+                public void clusterServiceStateChanged(ClusterServiceState previousState, ClusterServiceState currentState) {
+                    if (currentState.getLocalClusterState().nodes().getMasterNodeId() == null) {
+                        oldMasterNodeSteppedDown.countDown();
+                    }
+                }
+
+                @Override
+                public void postAdded() {
+                }
+
+                @Override
+                public void onClose() {
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
                 }
             }
-        });
+        );
 
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         logger.info("freezing node [{}]", oldMasterNode);

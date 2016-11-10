@@ -72,14 +72,16 @@ public interface ClusterStateTaskExecutor<T> {
     class BatchResult<T> {
         public final ClusterState resultingState;
         public final Map<T, TaskResult> executionResults;
+        public final boolean hasNoMaster;
 
         /**
          * Construct an execution result instance with a correspondence between the tasks and their execution result
          * @param resultingState the resulting cluster state
          * @param executionResults the correspondence between tasks and their outcome
          */
-        BatchResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
+        private BatchResult(ClusterState resultingState, boolean hasNoMaster, Map<T, TaskResult> executionResults) {
             this.resultingState = resultingState;
+            this.hasNoMaster = hasNoMaster;
             this.executionResults = executionResults;
         }
 
@@ -119,7 +121,11 @@ public interface ClusterStateTaskExecutor<T> {
             }
 
             public BatchResult<T> build(ClusterState resultingState) {
-                return new BatchResult<>(resultingState, executionResults);
+                return new BatchResult<>(resultingState, false, executionResults);
+            }
+
+            public BatchResult<T> build(ClusterState resultingState, boolean hasNoMaster) {
+                return new BatchResult<>(resultingState, hasNoMaster, executionResults);
             }
         }
     }

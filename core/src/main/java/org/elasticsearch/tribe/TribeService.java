@@ -262,7 +262,7 @@ public class TribeService extends AbstractLifecycleComponent {
         if (nodes.isEmpty() == false) {
             // remove the initial election / recovery blocks since we are not going to have a
             // master elected in this single tribe  node local "cluster"
-            clusterService.removeInitialStateBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+            clusterService.setInitialNoMaster(false);
             clusterService.removeInitialStateBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
         }
     }

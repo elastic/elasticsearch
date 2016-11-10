@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * A task that can update the cluster state.
  */
-public abstract  class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
 
     private final Priority priority;
 
@@ -43,7 +43,7 @@ public abstract  class ClusterStateUpdateTask implements ClusterStateTaskConfig,
     @Override
     public final BatchResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
         ClusterState result = execute(currentState);
-        return BatchResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
+        return BatchResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result, clusterHasNoMaster());
     }
 
     @Override
@@ -74,5 +74,13 @@ public abstract  class ClusterStateUpdateTask implements ClusterStateTaskConfig,
     @Override
     public Priority priority() {
         return priority;
+    }
+
+    /**
+     * Returns {@code true} if the update task should reflect that there is no master
+     * in the cluster from the point of view of the current node, {@code false} otherwise.
+     */
+    public boolean clusterHasNoMaster() {
+        return false;
     }
 }

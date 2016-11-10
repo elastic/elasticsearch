@@ -42,8 +42,8 @@ public class ClusterStateObserver {
     public final ChangePredicate MATCH_ALL_CHANGES_PREDICATE = new EventPredicate() {
 
         @Override
-        public boolean apply(ClusterChangedEvent changedEvent) {
-            return changedEvent.previousState().version() != changedEvent.state().version();
+        public boolean apply(ClusterServiceState previousState, ClusterServiceState currentState) {
+            return previousState.getClusterState().version() != currentState.getClusterState().version();
         }
     };
 
@@ -173,24 +173,27 @@ public class ClusterStateObserver {
     class ObserverClusterStateListener implements TimeoutClusterStateListener {
 
         @Override
-        public void clusterChanged(ClusterChangedEvent event) {
+        public void clusterServiceStateChanged(ClusterServiceState previousState, ClusterServiceState currentState) {
             ObservingContext context = observingContext.get();
             if (context == null) {
                 // No need to remove listener as it is the responsibility of the thread that set observingContext to null
                 return;
             }
-            if (context.changePredicate.apply(event)) {
+            if (context.changePredicate.apply(previousState, currentState)) {
                 if (observingContext.compareAndSet(context, null)) {
                     clusterService.remove(this);
-                    ClusterServiceState state = new ClusterServiceState(event.state(), ClusterStateStatus.APPLIED);
+                    ClusterServiceState state = new ClusterServiceState(currentState.getClusterState(), ClusterStateStatus.APPLIED,
+                                                                           currentState.getLocalClusterState());
                     logger.trace("observer: accepting cluster state change ({})", state);
                     lastObservedState.set(state);
                     context.listener.onNewClusterState(state.getClusterState());
                 } else {
-                    logger.trace("observer: predicate approved change but observing context has changed - ignoring (new cluster state version [{}])", event.state().version());
+                    logger.trace("observer: predicate approved change but observing context has changed - " +
+                                     "ignoring (new cluster state version [{}])", currentState.getClusterState().version());
                 }
             } else {
-                logger.trace("observer: predicate rejected change (new cluster state version [{}])", event.state().version());
+                logger.trace("observer: predicate rejected change (new cluster state version [{}])",
+                    currentState.getClusterState().version());
             }
         }
 
@@ -258,19 +261,12 @@ public class ClusterStateObserver {
     public interface ChangePredicate {
 
         /**
-         * a rough check used when starting to monitor for a new change. Called infrequently can be less accurate.
+         * Called to see whether a cluster change should be accepted.
          *
          * @return true if newState should be accepted
          */
         boolean apply(ClusterServiceState previousState,
                       ClusterServiceState newState);
-
-        /**
-         * called to see whether a cluster change should be accepted
-         *
-         * @return true if changedEvent.state() should be accepted
-         */
-        boolean apply(ClusterChangedEvent changedEvent);
     }
 
 
@@ -278,18 +274,12 @@ public class ClusterStateObserver {
 
         @Override
         public boolean apply(ClusterServiceState previousState, ClusterServiceState newState) {
-            return (previousState.getClusterState() != newState.getClusterState() ||
+            return (previousState.getLocalClusterState() != newState.getLocalClusterState() ||
                         previousState.getClusterStateStatus() != newState.getClusterStateStatus()) &&
                 validate(newState);
         }
 
         protected abstract boolean validate(ClusterServiceState newState);
-
-        @Override
-        public boolean apply(ClusterChangedEvent changedEvent) {
-            return changedEvent.previousState().version() != changedEvent.state().version() &&
-                validate(new ClusterServiceState(changedEvent.state(), ClusterStateStatus.APPLIED));
-        }
     }
 
     public abstract static class EventPredicate implements ChangePredicate {

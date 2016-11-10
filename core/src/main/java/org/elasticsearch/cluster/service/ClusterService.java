@@ -62,6 +62,7 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -117,7 +118,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final Collection<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<>();
     final Map<ClusterStateTaskExecutor, LinkedHashSet<UpdateTask>> updateTasksPerExecutor = new HashMap<>();
     // TODO this is rather frequently changing I guess a Synced Set would be better here and a dedicated remove API
-    private final Collection<ClusterStateListener> postAppliedListeners = new CopyOnWriteArrayList<>();
+    private final Collection<ClusterServiceStateListener> postAppliedListeners = new CopyOnWriteArrayList<>();
     private final Iterable<ClusterStateListener> preAppliedListeners = Iterables.concat(priorityClusterStateListeners,
             clusterStateListeners, lastClusterStateListeners);
 
@@ -131,12 +132,16 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private NodeConnectionsService nodeConnectionsService;
 
-    public ClusterService(Settings settings,
-                          ClusterSettings clusterSettings, ThreadPool threadPool) {
+    private final DiscoverySettings discoverySettings;
+
+    private boolean initialNoMaster = true;
+
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings);
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
+        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // will be replaced on doStart.
         this.state = new AtomicReference<>(new ClusterServiceState(ClusterState.builder(clusterName).build(), ClusterStateStatus.UNKNOWN));
@@ -164,7 +169,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         updateState(css -> {
             ClusterState clusterState = css.getClusterState();
             DiscoveryNodes nodes = DiscoveryNodes.builder(clusterState.nodes()).add(localNode).localNodeId(localNode.getId()).build();
-            return new ClusterServiceState(ClusterState.builder(clusterState).nodes(nodes).build(), css.getClusterStateStatus());
+            return new ClusterServiceState(ClusterState.builder(clusterState).nodes(nodes).build(),
+                                              css.getClusterStateStatus(), true, discoverySettings);
         });
     }
 
@@ -222,6 +228,14 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Updates the initial no master flag, only use when initializing to indicate that the cluster
+     * service should not have the no master flag set after initialization is completed.
+     */
+    public void setInitialNoMaster(boolean initialNoMaster) {
+        this.initialNoMaster = initialNoMaster;
+    }
+
+    /**
      * Remove an initial block to be set on the first cluster state created.
      */
     public synchronized void removeInitialStateBlock(int blockId) throws IllegalStateException {
@@ -239,7 +253,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         add(localNodeMasterListeners);
         updateState(css -> new ClusterServiceState(
             ClusterState.builder(css.getClusterState()).blocks(initialBlocks).build(),
-            css.getClusterStateStatus()));
+            css.getClusterStateStatus(), initialNoMaster, discoverySettings));
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),
                 threadPool.getThreadContext());
     }
@@ -285,10 +299,10 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * The current cluster state.
+     * The local cluster state view.
      */
     public ClusterState state() {
-        return clusterServiceState().getClusterState();
+        return clusterServiceState().getLocalClusterState();
     }
 
     /**
@@ -296,6 +310,13 @@ public class ClusterService extends AbstractLifecycleComponent {
      */
     public ClusterServiceState clusterServiceState() {
         return this.state.get();
+    }
+
+    /**
+     * Gets the discovery settings for this cluster.
+     */
+    public DiscoverySettings getDiscoverySettings() {
+        return discoverySettings;
     }
 
     /**
@@ -334,6 +355,13 @@ public class ClusterService extends AbstractLifecycleComponent {
                 it.remove();
             }
         }
+    }
+
+    /**
+     * Removes a {@link ClusterServiceStateListener} from listening to {@link ClusterServiceState} change events.
+     */
+    public void remove(ClusterServiceStateListener clusterServiceStateListener) {
+        postAppliedListeners.remove(clusterServiceStateListener);
     }
 
     /**
@@ -612,7 +640,8 @@ public class ClusterService extends AbstractLifecycleComponent {
             return;
         }
         logger.debug("processing [{}]: execute", tasksSummary);
-        ClusterState previousClusterState = clusterServiceState().getClusterState();
+        ClusterServiceState previousClusterServiceState = clusterServiceState();
+        ClusterState previousClusterState = previousClusterServiceState.getLocalClusterState();
         if (!previousClusterState.nodes().isLocalNodeElectedMaster() && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", tasksSummary);
             toExecute.stream().forEach(task -> task.listener.onNoLongerMaster(task.source));
@@ -675,6 +704,27 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
 
         if (previousClusterState == newClusterState) {
+            if (batchResult.hasNoMaster && previousClusterServiceState.hasNoMaster() == false) {
+                // the no master state changed, update it
+                if (state.get().getClusterState().nodes().isLocalNodeElectedMaster()) {
+                    // no longer master, call the listeners
+                    try {
+                        localNodeMasterListeners.offMaster();
+                    } catch (Exception ex) {
+                        logger.warn("failed to notify LocalNodeMasterListeners", ex);
+                    }
+                }
+                final boolean hasNoMaster = batchResult.hasNoMaster;
+                state.getAndUpdate(css -> new ClusterServiceState(css.getClusterState(), css.getClusterStateStatus(),
+                                                                     hasNoMaster, discoverySettings));
+                for (ClusterServiceStateListener listener : postAppliedListeners) {
+                    try {
+                        listener.clusterServiceStateChanged(previousClusterServiceState, state.get());
+                    } catch (Exception ex) {
+                        logger.warn("failed to notify ClusterServiceStateListener", ex);
+                    }
+                }
+            }
             for (UpdateTask<T> task : proccessedListeners) {
                 if (task.listener instanceof AckedClusterStateTaskListener) {
                     //no need to wait for ack if nothing changed, the update can be counted as acknowledged
@@ -765,6 +815,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             ClusterState finalNewClusterState = newClusterState;
             updateState(css -> new ClusterServiceState(finalNewClusterState, ClusterStateStatus.BEING_APPLIED));
             logger.debug("set local cluster state to version {}", newClusterState.version());
+
             try {
                 // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
                 if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
@@ -774,6 +825,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             } catch (Exception ex) {
                 logger.warn("failed to apply cluster settings", ex);
             }
+
             for (ClusterStateListener listener : preAppliedListeners) {
                 try {
                     listener.clusterChanged(clusterChangedEvent);
@@ -786,11 +838,11 @@ public class ClusterService extends AbstractLifecycleComponent {
 
             updateState(css -> new ClusterServiceState(css.getClusterState(), ClusterStateStatus.APPLIED));
 
-            for (ClusterStateListener listener : postAppliedListeners) {
+            for (ClusterServiceStateListener listener : postAppliedListeners) {
                 try {
-                    listener.clusterChanged(clusterChangedEvent);
+                    listener.clusterServiceStateChanged(previousClusterServiceState, state.get());
                 } catch (Exception ex) {
-                    logger.warn("failed to notify ClusterStateListener", ex);
+                    logger.warn("failed to notify ClusterServiceStateListener", ex);
                 }
             }
 
@@ -1034,11 +1086,15 @@ public class ClusterService extends AbstractLifecycleComponent {
             }
 
             if (master && !event.localNodeMaster()) {
-                master = false;
-                for (LocalNodeMasterListener listener : listeners) {
-                    Executor executor = threadPool.executor(listener.executorName());
-                    executor.execute(new OffMasterRunnable(listener));
-                }
+                offMaster();
+            }
+        }
+
+        private void offMaster() {
+            master = false;
+            for (LocalNodeMasterListener listener : listeners) {
+                Executor executor = threadPool.executor(listener.executorName());
+                executor.execute(new OffMasterRunnable(listener));
             }
         }
 

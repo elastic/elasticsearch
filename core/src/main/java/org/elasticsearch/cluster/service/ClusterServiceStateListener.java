@@ -17,21 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
-
-import org.elasticsearch.cluster.service.ClusterServiceStateListener;
-import org.elasticsearch.common.unit.TimeValue;
+package org.elasticsearch.cluster.service;
 
 /**
- * An exception to cluster service state listener that allows for timeouts and for post added notifications.
- *
- *
+ * A listener to listen for changes to the {@link ClusterServiceState} held by the {@link ClusterService}.
  */
-public interface TimeoutClusterStateListener extends ClusterServiceStateListener {
+public interface ClusterServiceStateListener {
 
-    void postAdded();
-
-    void onClose();
-
-    void onTimeout(TimeValue timeout);
+    /**
+     * Called when the local cluster state of the {@link ClusterService} changes.
+     *
+     * @param previousState the previous cluster service state
+     * @param currentState the current cluster service state
+     */
+    void clusterServiceStateChanged(ClusterServiceState previousState, ClusterServiceState currentState);
 }

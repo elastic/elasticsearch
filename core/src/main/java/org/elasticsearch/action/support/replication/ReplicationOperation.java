@@ -112,12 +112,13 @@ public class ReplicationOperation<
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
         primaryResult = primary.perform(request);
-        if (logger.isTraceEnabled()) {
-            logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
-        }
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
             assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
+            }
+
             // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
             // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
             // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.

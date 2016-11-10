@@ -157,11 +157,12 @@ public class InternalTestClusterTests extends ESTestCase {
 
         Path baseDir = createTempDir();
         final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class);
+        final boolean autoManageMinMasterNodes = randomBoolean();
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
+            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, mockPlugins, Function.identity());
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
+            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, mockPlugins, Function.identity());
 
         assertClusters(cluster0, cluster1, false);

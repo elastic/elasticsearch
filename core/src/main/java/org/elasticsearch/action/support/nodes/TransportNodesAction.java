@@ -106,11 +106,12 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         final List<NodeResponse> responses = new ArrayList<>();
         final List<FailedNodeException> failures = new ArrayList<>();
 
+        final boolean accumulateExceptions = accumulateExceptions();
         for (int i = 0; i < nodesResponses.length(); ++i) {
             Object response = nodesResponses.get(i);
 
             if (response instanceof FailedNodeException) {
-                if (accumulateExceptions()) {
+                if (accumulateExceptions) {
                     failures.add((FailedNodeException)response);
                 } else {
                     logger.warn("not accumulating exceptions, excluding exception from response", (FailedNodeException)response);

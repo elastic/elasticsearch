@@ -366,6 +366,14 @@ public abstract class TransportReplicationAction<
                 executeOnReplicas, replicasProxy, clusterService::state, logger, actionName
             );
         }
+
+        @Override // used for trace logging when acquiring or releasing operation lock
+        public String toString() {
+            return "AsyncPrimaryAction" +
+                    "[request=" + request + "]"
+                    + "[targetAllocationId=" + targetAllocationID + "]"
+                    + "[taskId=" + replicationTask.getId() + "]";
+        }
     }
 
     protected class PrimaryResult implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
@@ -558,6 +566,14 @@ public abstract class TransportReplicationAction<
                     actualAllocationId);
             }
             replica.acquireReplicaOperationLock(request.primaryTerm, this, executor);
+        }
+
+        @Override // used for trace logging when acquiring or releasing operation lock
+        public String toString() {
+            return "AsyncReplicaAction"
+                    + "[request=" + request + "]"
+                    + "[targetAllocationId=" + targetAllocationID + "]"
+                    + "[taskId=" + task.getId() + "]";
         }
 
         /**
@@ -880,6 +896,11 @@ public abstract class TransportReplicationAction<
             @Override
             public void onFailure(Exception e) {
                 onReferenceAcquired.onFailure(e);
+            }
+
+            @Override
+            public String toString() {
+                return onReferenceAcquired.toString();
             }
         };
 

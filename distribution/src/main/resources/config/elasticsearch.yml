@@ -86,10 +86,6 @@
 #
 # ---------------------------------- Various -----------------------------------
 #
-# Disable starting multiple nodes on a single system:
-#
-#node.max_local_storage_nodes: 1
-#
 # Require explicit names when deleting indices:
 #
 #action.destructive_requires_name: true

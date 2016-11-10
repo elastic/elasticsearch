@@ -445,7 +445,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("-->  creating test template");
-        assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
+        assertThat(client.admin().indices().preparePutTemplate("test-template").setPatterns(Collections.singletonList("te*")).addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
             .startObject("field1").field("type", "string").field("store", "yes").endObject()
             .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
             .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
@@ -486,7 +486,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         if(testTemplate) {
             logger.info("-->  creating test template");
-            assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
+            assertThat(client.admin().indices().preparePutTemplate("test-template").setPatterns(Collections.singletonList("te*")).addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
                 .startObject("field1").field("type", "string").field("store", "yes").endObject()
                 .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
                 .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));

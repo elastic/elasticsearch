@@ -87,7 +87,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertFalse(clusterHealthResponse.isTimedOut());
         client().admin().indices()
             .preparePutTemplate("random_index_template")
-            .setTemplate("*")
+            .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();

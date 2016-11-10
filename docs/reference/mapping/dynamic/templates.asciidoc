@@ -407,7 +407,7 @@ new indices, you could create the following index template:
 PUT _template/disable_all_field
 {
   "order": 0,
-  "template": "*", <1>
+  "index_patterns": ["*"], <1>
   "mappings": {
     "_default_": { <2>
       "_all": { <3>

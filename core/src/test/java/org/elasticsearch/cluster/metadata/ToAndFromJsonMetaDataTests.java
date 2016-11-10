@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ToAndFromJsonMetaDataTests extends ESTestCase {
+
     public void testSimpleJsonFromAndTo() throws IOException {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1")
@@ -113,7 +115,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias2"))
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
                 .put(IndexTemplateMetaData.builder("foo")
-                        .template("bar")
+                        .patterns(Collections.singletonList("bar"))
                         .order(1)
                         .settings(Settings.builder()
                                 .put("setting1", "value1")
@@ -134,7 +136,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias2"))
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
                 .put(IndexTemplateMetaData.builder("foo")
-                        .template("bar")
+                        .patterns(Collections.singletonList("bar"))
                         .order(1)
                         .settings(Settings.builder()
                                 .put("setting1", "value1")
@@ -292,7 +294,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
 
         // templates
         assertThat(parsedMetaData.templates().get("foo").name(), is("foo"));
-        assertThat(parsedMetaData.templates().get("foo").template(), is("bar"));
+        assertThat(parsedMetaData.templates().get("foo").patterns(), is(Collections.singletonList("bar")));
         assertThat(parsedMetaData.templates().get("foo").settings().get("index.setting1"), is("value1"));
         assertThat(parsedMetaData.templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
         assertThat(parsedMetaData.templates().get("foo").aliases().size(), equalTo(3));

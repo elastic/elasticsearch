@@ -338,18 +338,17 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final SearchScript getSearchScript(Script script, ScriptContext context, Map<String, String> params) {
+    public final SearchScript getSearchScript(Script script, ScriptContext context) {
         failIfFrozen();
-        return scriptService.search(lookup(), script, context, params);
+        return scriptService.search(lookup(), script, context);
     }
     /**
      * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context,
-            Map<String, String> params) {
+    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context) {
         failIfFrozen();
-        CompiledScript compile = scriptService.compile(script, context, params);
+        CompiledScript compile = scriptService.compile(script, context, script.getOptions());
         return (p) -> scriptService.search(lookup(), compile, p);
     }
 
@@ -357,19 +356,18 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final ExecutableScript getExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
+    public final ExecutableScript getExecutableScript(Script script, ScriptContext context) {
         failIfFrozen();
-        return scriptService.executable(script, context, params);
+        return scriptService.executable(script, context);
     }
 
     /**
      * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context,
-            Map<String, String> params) {
+    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context) {
         failIfFrozen();
-        CompiledScript executable = scriptService.compile(script, context, params);
+        CompiledScript executable = scriptService.compile(script, context, script.getOptions());
         return (p) ->  scriptService.executable(executable, p);
     }
 

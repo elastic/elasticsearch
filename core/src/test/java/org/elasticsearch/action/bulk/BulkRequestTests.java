@@ -89,7 +89,7 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
         Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("counter += param1"));
+        assertThat(script.getIdOrCode(), equalTo("counter += param1"));
         assertThat(script.getLang(), equalTo("javascript"));
         Map<String, Object> scriptParams = script.getParams();
         assertThat(scriptParams, notNullValue());

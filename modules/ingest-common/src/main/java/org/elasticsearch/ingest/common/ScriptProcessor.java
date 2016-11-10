@@ -59,7 +59,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument document) {
-        ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.INGEST, emptyMap());
+        ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.INGEST);
         executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
         executableScript.run();
     }
@@ -82,6 +82,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
             String lang = readOptionalStringProperty(TYPE, processorTag, config, "lang");
@@ -101,17 +102,21 @@ public final class ScriptProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id], or [inline] may be configured");
             }
 
-            if(params == null) {
+            if (lang == null) {
+                lang = Script.DEFAULT_SCRIPT_LANG;
+            }
+
+            if (params == null) {
                 params = emptyMap();
             }
 
             final Script script;
             if (Strings.hasLength(file)) {
-                script = new Script(file, FILE, lang, params);
+                script = new Script(FILE, lang, file, (Map<String, Object>)params);
             } else if (Strings.hasLength(inline)) {
-                script = new Script(inline, INLINE, lang, params);
+                script = new Script(INLINE, lang, inline, (Map<String, Object>)params);
             } else if (Strings.hasLength(id)) {
-                script = new Script(id, STORED, lang, params);
+                script = new Script(STORED, lang, id, (Map<String, Object>)params);
             } else {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
             }

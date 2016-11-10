@@ -31,6 +31,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -76,7 +77,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             Script script = original.script();
             ScriptSortType type = original.type();
             if (randomBoolean()) {
-                result = new ScriptSortBuilder(new Script(script.getScript() + "_suffix"), type);
+                result = new ScriptSortBuilder(new Script(script.getIdOrCode() + "_suffix"), type);
             } else {
                 result = new ScriptSortBuilder(script, type.equals(ScriptSortType.NUMBER) ? ScriptSortType.STRING : ScriptSortType.NUMBER);
             }
@@ -173,7 +174,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
-        assertEquals("doc['field_name'].value * factor", builder.script().getScript());
+        assertEquals("doc['field_name'].value * factor", builder.script().getIdOrCode());
         assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
         assertEquals(1.1, builder.script().getParams().get("factor"));
         assertEquals(ScriptType.INLINE, builder.script().getType());
@@ -199,9 +200,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
-        assertEquals("doc['field_name'].value", builder.script().getScript());
+        assertEquals("doc['field_name'].value", builder.script().getIdOrCode());
         assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
-        assertNull(builder.script().getParams());
+        assertEquals(builder.script().getParams(), Collections.emptyMap());
         assertEquals(ScriptType.INLINE, builder.script().getType());
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());

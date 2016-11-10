@@ -320,15 +320,14 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     static SearchSourceBuilder.ScriptField randomScript() {
         ScriptType randomScriptType = randomFrom(ScriptType.values());
-        Map<String, Object> randomMap = null;
+        Map<String, Object> randomMap = new HashMap<>();
         if (randomBoolean()) {
-            randomMap = new HashMap<>();
             int numEntries = randomIntBetween(0, 32);
             for (int i = 0; i < numEntries; i++) {
                 randomMap.put(String.valueOf(i), randomAsciiOfLength(16));
             }
         }
-        Script script = new Script(randomAsciiOfLength(128), randomScriptType, randomAsciiOfLengthBetween(1, 4),randomMap);
+        Script script = new Script(randomScriptType, randomAsciiOfLengthBetween(1, 4), randomAsciiOfLength(128), randomMap);
         return new SearchSourceBuilder.ScriptField(randomAsciiOfLengthBetween(1, 32), script, randomBoolean());
     }
 

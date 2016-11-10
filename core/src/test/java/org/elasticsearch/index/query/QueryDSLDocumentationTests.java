@@ -293,13 +293,11 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 new Script("doc['num1'].value > 1")
             );
 
-        Map<String, Integer> parameters = new HashMap<>();
+        Map<String, Object> parameters = new HashMap<>();
         parameters.put("param1", 5);
         scriptQuery(
                 new Script(
-                    "mygroovyscript",
-                    ScriptType.FILE,
-                    "groovy",
+                    ScriptType.FILE, "groovy", "mygroovyscript",
                     parameters)
             );
 

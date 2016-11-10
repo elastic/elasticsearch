@@ -24,12 +24,15 @@ way to reindex old indices is to use the `reindex` API.
 [float]
 === Also see:
 
+* <<breaking_60_cat_changes>>
 * <<breaking_60_rest_changes>>
 * <<breaking_60_search_changes>>
 * <<breaking_60_docs_changes>>
 * <<breaking_60_cluster_changes>>
 * <<breaking_60_settings_changes>>
 * <<breaking_60_plugins_changes>>
+
+include::migrate_6_0/cat.asciidoc[]
 
 include::migrate_6_0/rest.asciidoc[]
 

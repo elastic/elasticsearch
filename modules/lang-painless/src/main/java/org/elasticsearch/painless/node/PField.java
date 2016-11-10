@@ -40,13 +40,15 @@ import java.util.Set;
  */
 public final class PField extends AStoreable {
 
+    private final boolean nullSafe;
     private final String value;
 
     private AStoreable sub = null;
 
-    public PField(Location location, AExpression prefix, String value) {
+    public PField(Location location, AExpression prefix, boolean nullSafe, String value) {
         super(location, prefix);
 
+        this.nullSafe = nullSafe;
         this.value = Objects.requireNonNull(value);
     }
 
@@ -104,6 +106,10 @@ public final class PField extends AStoreable {
 
         if (sub == null) {
             throw createError(new IllegalArgumentException("Unknown field [" + value + "] for type [" + prefix.actual.name + "]."));
+        }
+
+        if (nullSafe) {
+            sub = new PSubNullSafeField(location, sub);
         }
 
         sub.write = write;

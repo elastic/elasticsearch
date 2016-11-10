@@ -367,6 +367,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         protected PrimaryResult performOnPrimary(IndexShard primary, IndexRequest request) throws Exception {
             final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary,
                     null);
+            if (indexResult.hasFailure() == false) {
+                // update the version on request so it will happen on the replicas
+                final long version = indexResult.getVersion();
+                request.version(version);
+                request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+                assert request.versionType().validateVersionForWrites(request.version());
+            }
             request.primaryTerm(primary.getPrimaryTerm());
             TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getTranslogLocation(), logger);
             IndexResponse response = new IndexResponse(primary.shardId(), request.type(), request.id(), indexResult.getVersion(),

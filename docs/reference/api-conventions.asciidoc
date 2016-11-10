@@ -84,11 +84,13 @@ Where:
 `date_format`:: is the optional format in which the computed date should be rendered. Defaults to `YYYY.MM.dd`.
 `time_zone`:: is the optional time zone . Defaults to `utc`.
 
-You must enclose date math index name expressions within angle brackets. For example:
+You must enclose date math index name expressions within angle brackets, and
+all special characters should be URI encoded. For example:
 
 [source,js]
 ----------------------------------------------------------------------
-GET /<logstash-{now/d}>/_search
+# GET /<logstash-{now/d}>/_search
+GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
 {
   "query" : {
     "match": {
@@ -99,12 +101,12 @@ GET /<logstash-{now/d}>/_search
 ----------------------------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT logstash-2016.09.20\n/]
-// TEST[s/\{now\//{2016.09.20||%2f/]
+// TEST[s/now/2016.09.20||/]
 
 [NOTE]
 .Percent encoding of date math characters
 ======================================================
-The special characters used for date rounding must be url encoded as follows:
+The special characters used for date rounding must be URI encoded as follows:
 
 [horizontal]
 `<`:: `%3C`
@@ -141,7 +143,8 @@ three days, assuming the indices use the default Logstash index name format,
 
 [source,js]
 ----------------------------------------------------------------------
-GET /<logstash-{now%2Fd-2d}>,<logstash-{now%2Fd-1d}>,<logstash-{now%2Fd}>/_search
+# GET /<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_search
+GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E/_search
 {
   "query" : {
     "match": {
@@ -152,7 +155,7 @@ GET /<logstash-{now%2Fd-2d}>,<logstash-{now%2Fd-1d}>,<logstash-{now%2Fd}>/_searc
 ----------------------------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
-// TEST[s/\{now/{2016.09.20||/]
+// TEST[s/now/2016.09.20||/]
 
 [[common-options]]
 == Common options

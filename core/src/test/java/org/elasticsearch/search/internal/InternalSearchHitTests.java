@@ -76,4 +76,15 @@ public class InternalSearchHitTests extends ESTestCase {
         assertThat(results.getAt(1).shard(), equalTo(target));
     }
 
+    public void testNullSource() throws Exception {
+        InternalSearchHit searchHit = new InternalSearchHit(0, "_id", new Text("_type"), null);
+
+        assertThat(searchHit.source(), nullValue());
+        assertThat(searchHit.sourceRef(), nullValue());
+        assertThat(searchHit.sourceAsMap(), nullValue());
+        assertThat(searchHit.sourceAsString(), nullValue());
+        assertThat(searchHit.getSource(), nullValue());
+        assertThat(searchHit.getSourceRef(), nullValue());
+        assertThat(searchHit.getSourceAsString(), nullValue());
+    }
 }

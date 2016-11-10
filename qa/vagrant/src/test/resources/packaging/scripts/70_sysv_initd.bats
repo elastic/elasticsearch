@@ -135,6 +135,7 @@ setup() {
 }
 
 @test "[INIT.D] start Elasticsearch with custom JVM options" {
+    assert_file_exist $ESENVFILE
     local es_java_opts=$ES_JAVA_OPTS
     local es_jvm_options=$ES_JVM_OPTIONS
     local temp=`mktemp -d`
@@ -142,15 +143,15 @@ setup() {
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"
     echo "-Xmx512m" >> "$temp/jvm.options"
-    cp /etc/sysconfig/elasticsearch "$temp/elasticsearch"
-    echo "ES_JVM_OPTIONS=\"$temp/jvm.options\"" >> /etc/sysconfig/elasticsearch
-    echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> /etc/sysconfig/elasticsearch
+    cp $ESENVFILE "$temp/elasticsearch"
+    echo "ES_JVM_OPTIONS=\"$temp/jvm.options\"" >> $ESENVFILE
+    echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
     service elasticsearch start
     wait_for_elasticsearch_status
     curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
     curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
     service elasticsearch stop
-    cp "$temp/elasticsearch" /etc/sysconfig/elasticsearch
+    cp "$temp/elasticsearch" $ESENVFILE
 }
 
 # Simulates the behavior of a system restart:

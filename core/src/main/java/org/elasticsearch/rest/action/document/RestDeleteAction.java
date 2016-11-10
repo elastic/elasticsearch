@@ -48,6 +48,10 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (RestActions.hasBodyContent(request)) {
+            throw new IllegalArgumentException("can't specify a request body");
+        }
+
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         deleteRequest.routing(request.param("routing"));
         deleteRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing

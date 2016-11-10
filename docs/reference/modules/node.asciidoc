@@ -8,7 +8,7 @@ then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
 <<modules-transport,Transport>> traffic by default. The transport layer
-is used exclusively for communication between nodes and between nodes and the
+is used exclusively for communication between nodes and the
 {javaclient}/transport-client.html[Java `TransportClient`]; the HTTP layer is
 used only by external REST clients.
 

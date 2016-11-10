@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Wraps a {@link StreamInput} and associates it with a {@link NamedWriteableRegistry}
@@ -30,7 +31,7 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
 
     public NamedWriteableAwareStreamInput(StreamInput delegate, NamedWriteableRegistry namedWriteableRegistry) {
         super(delegate);
-        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.namedWriteableRegistry = Objects.requireNonNull(namedWriteableRegistry);
     }
 
     @Override

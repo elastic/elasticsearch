@@ -312,7 +312,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 }
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
-            } else if (registry != null) {
+            } else {
                 IndexMetaData.Custom proto = registry.getIndexMetadataPrototypeSafe(name);
                 if (proto != null) {
                     try {
@@ -331,7 +331,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(String templateSource) {
         try (XContentParser parser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
-            return source(parser.mapOrdered(), null);
+            return source(parser.mapOrdered(), CustomPrototypeRegistry.EMPTY);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
         }
@@ -349,7 +349,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
         try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
-            return source(parser.mapOrdered(), null);
+            return source(parser.mapOrdered(), CustomPrototypeRegistry.EMPTY);
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }
@@ -359,7 +359,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source) {
-        return source(source, null);
+        return source(source, CustomPrototypeRegistry.EMPTY);
     }
 
     /**

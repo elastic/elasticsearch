@@ -360,7 +360,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(BytesReference source) {
-        return source(source, null);
+        return source(source, CustomPrototypeRegistry.EMPTY);
     }
 
     /**
@@ -384,7 +384,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(Map<String, ?> source) {
-        return source(source, null);
+        return source(source, CustomPrototypeRegistry.EMPTY);
     }
 
     /**
@@ -407,7 +407,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else if (name.equals("aliases")) {
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
-            } else if (registry != null) {
+            } else {
                 IndexMetaData.Custom proto = registry.getIndexMetadataPrototypeSafe(name);
                 if (proto != null) {
                     found = true;

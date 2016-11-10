@@ -505,8 +505,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     /**
      * Parses shard snapshot metadata
      *
-     * @param parser parser
-     * @param registry registry
+     * @param parser parser             The parsing containing the content to create a shard snapshot metadata
+     * @param registry registry         The registry used lookup how to parse custom metadata parts if exist.
      * @return shard snapshot metadata
      */
     public BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher,

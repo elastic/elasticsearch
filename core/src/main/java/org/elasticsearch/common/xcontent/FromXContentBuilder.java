@@ -30,6 +30,10 @@ import java.io.IOException;
 public interface FromXContentBuilder<T> {
     /**
      * Parses an object with the type T from parser
+     *
+     * @param parser parser             The parsing containing the content to create the object
+     * @param parseFieldMatcher         The matcher that matches field names and can make parsing if the field name is deprecated
+     * @param registry registry         The registry used lookup how to parse custom metadata parts if exist.
      */
     T fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, CustomPrototypeRegistry registry) throws IOException;
 }

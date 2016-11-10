@@ -384,7 +384,6 @@ public class PublishClusterStateAction extends AbstractComponent {
             in = request.bytes().streamInput();
         }
         in.setVersion(request.version());
-        // only custom cluster state named writeables are known here:
         in = new NamedWriteableAwareStreamInput(in, new NamedWriteableRegistry(registry.getNamedWriteables()));
         synchronized (lastSeenClusterStateMutex) {
             final ClusterState incomingState;

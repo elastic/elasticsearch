@@ -650,10 +650,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
          * @param localNode used to set the local node in the cluster state.
          */
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, NamedWriteableRegistry registry) throws IOException {
-            StreamInput input = StreamInput.wrap(data);
-            if (registry != null) {
-                input = new NamedWriteableAwareStreamInput(input, registry);
-            }
+            StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(data), registry);
             return readFrom(input, localNode);
 
         }

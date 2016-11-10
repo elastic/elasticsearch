@@ -556,16 +556,40 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    /**
+     * builds a new node given the settings.
+     *
+     * @param settings              the settings to use
+     * @param defaultMinMasterNodes min_master_nodes value to use if min_master_nodes is auto managed
+     * @return
+     */
     private NodeAndClient buildNode(Settings settings, int defaultMinMasterNodes) {
         int ord = nextNodeId.getAndIncrement();
         return buildNode(ord, random.nextLong(), settings, false, defaultMinMasterNodes);
     }
 
+    /**
+     * builds a new node with default settings
+     *
+     * @param defaultMinMasterNodes min_master_nodes value to use if min_master_nodes is auto managed
+     * @return
+     */
     private NodeAndClient buildNode(int defaultMinMasterNodes) {
         int ord = nextNodeId.getAndIncrement();
         return buildNode(ord, random.nextLong(), null, false, defaultMinMasterNodes);
     }
 
+    /**
+     * builds a new node
+     *
+     * @param nodeId                the node internal id (see {@link NodeAndClient#nodeAndClientId()}
+     * @param seed                  the node's random seed
+     * @param settings              the settings to use
+     * @param reuseExisting         if a node with the same name is already part of {@link #nodes}, no new node will be built and
+     *                              the method will return the existing one
+     * @param defaultMinMasterNodes min_master_nodes value to use if min_master_nodes is auto managed
+     * @return
+     */
     private NodeAndClient buildNode(int nodeId, long seed, Settings settings,
                                     boolean reuseExisting, int defaultMinMasterNodes) {
         assert Thread.holdsLock(this);
@@ -858,6 +882,9 @@ public final class InternalTestCluster extends TestCluster {
             node.close();
         }
 
+        /***
+         * closes the current node if not already closed, builds a new node object using the current node settings and starts it
+         */
         void restart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes) throws Exception {
             if (!node.isClosed()) {
                 closeNode();
@@ -866,6 +893,9 @@ public final class InternalTestCluster extends TestCluster {
             startNode();
         }
 
+        /***
+         * rebuilds a new node object using the current node settings and starts it
+         */
         void recreateNodeOnRestart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes) throws Exception {
             assert callback != null;
             resetClient();
@@ -1041,6 +1071,7 @@ public final class InternalTestCluster extends TestCluster {
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), newSize);
     }
 
+    /** ensure a cluster is form with {@link #nodes}.size() nodes. */
     private void validateClusterFormed() {
         final int size = nodes.size();
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size)).get();
@@ -1323,7 +1354,7 @@ public final class InternalTestCluster extends TestCluster {
                 publishNode(nodeAndClient);
             }
             if (autoManageMinMasterNodes && currentMasters == 1) {
-                // update once master have joined
+                // update once masters have joined
                 validateClusterFormed();
                 updateMinMasterNodes(newMasters);
             }
@@ -1603,6 +1634,11 @@ public final class InternalTestCluster extends TestCluster {
         return buildNode.name;
     }
 
+    /**
+     * updates the min master nodes setting in the current running cluster.
+     *
+     * @param masterNodesDelta how many masters nodes are being added to the cluster
+     */
     private void updateMinMasterNodes(int masterNodesDelta) {
         assert autoManageMinMasterNodes;
         final int currentMasters = getMasterNodesCount();
@@ -1610,6 +1646,8 @@ public final class InternalTestCluster extends TestCluster {
         if (currentMasters == 0) {
             // there is no one to update
         } else if (currentMasters == 1 && minMasterNodes > 1) {
+            // TODO: this can be removed if we remove async node starting
+
             // we cant really update min master node as it will cause the master to reject it (there is only one)
             // so instead ensure there is a master
             client().admin().cluster().prepareHealth().get();
@@ -1622,6 +1660,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    /** calculates a new min master nodes value based on the given change to the number of master nodes */
     private int getNewMinMasterNodes(int masterNodesDelta) {
         int mastersAfterState = getMasterNodesCount() + masterNodesDelta;
         return mastersAfterState / 2 + 1;

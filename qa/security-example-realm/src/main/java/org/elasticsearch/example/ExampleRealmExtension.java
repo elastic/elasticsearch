@@ -7,6 +7,7 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.example.realm.CustomAuthenticationFailureHandler;
 import org.elasticsearch.example.realm.CustomRealm;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.authc.Realm;
@@ -40,7 +41,7 @@ public class ExampleRealmExtension extends XPackExtension {
     }
 
     @Override
-    public Map<String, Realm.Factory> getRealms() {
+    public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
         return Collections.singletonMap(CustomRealm.TYPE, CustomRealm::new);
     }
 

@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.Realm;
 
@@ -41,8 +42,10 @@ public abstract class XPackExtension {
      * The key of the returned {@link Map} is the type name of the realm, and the value
      * is a {@link org.elasticsearch.xpack.security.authc.Realm.Factory} which will construct
      * that realm for use in authentication when that realm type is configured.
+     *
+     * @param resourceWatcherService Use to watch configuration files for changes
      */
-    public Map<String, Realm.Factory> getRealms() {
+    public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
         return Collections.emptyMap();
     }
 

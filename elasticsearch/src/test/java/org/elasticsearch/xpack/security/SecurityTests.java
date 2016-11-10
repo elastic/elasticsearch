@@ -23,6 +23,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -53,7 +54,7 @@ public class SecurityTests extends ESTestCase {
             return "dummy";
         }
         @Override
-        public Map<String, Realm.Factory> getRealms() {
+        public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
             return Collections.singletonMap(realmType, config -> null);
         }
     }

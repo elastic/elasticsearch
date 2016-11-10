@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -73,6 +74,32 @@ public class XContentParserTests extends ESTestCase {
         } catch (Exception e) {
             assertThat(e, instanceOf(ElasticsearchParseException.class));
             assertThat(e.getMessage(), containsString("Failed to parse list"));
+        }
+    }
+
+    public void testReadMapStrings() throws IOException {
+        Map<String, String> map = readMapStrings("{\"foo\": {\"kbar\":\"vbar\"}}");
+        assertThat(map.get("kbar"), equalTo("vbar"));
+        assertThat(map.size(), equalTo(1));
+        map = readMapStrings("{\"foo\": {\"kbar\":\"vbar\", \"kbaz\":\"vbaz\"}}");
+        assertThat(map.get("kbar"), equalTo("vbar"));
+        assertThat(map.get("kbaz"), equalTo("vbaz"));
+        assertThat(map.size(), equalTo(2));
+        map = readMapStrings("{\"foo\": {}}");
+        assertThat(map.size(), equalTo(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> readMapStrings(String source) throws IOException {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(source)) {
+            XContentParser.Token token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("foo"));
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            return randomBoolean() ? parser.mapStringsOrdered() : parser.mapStrings();
         }
     }
 }

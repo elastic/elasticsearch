@@ -25,6 +25,7 @@ import java.util.List;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -223,6 +225,24 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(NetworkModule module) {}
+
+    /**
+     * Old-style snapshot/restore extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
+     * from 2.x.
+     *
+     * @deprecated implement {@link RepositoryPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(RepositoriesModule module) {}
+
+    /**
+     * Old-style cluster extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
+     * from 2.x.
+     *
+     * @deprecated implement {@link ClusterPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(ClusterModule module) {}
 
     /**
      * Old-style discovery extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading

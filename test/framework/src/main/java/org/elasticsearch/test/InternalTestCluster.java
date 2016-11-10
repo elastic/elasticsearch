@@ -1744,9 +1744,17 @@ public final class InternalTestCluster extends TestCluster {
      * The order of the node names returned matches the order of the settings provided.
      */
     public synchronized Async<List<String>> startNodesAsync(final Settings... settings) {
+        final int defaultMinMasterNodes;
+        if (autoManageMinMasterNodes) {
+            int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
+            defaultMinMasterNodes = getNewMinMasterNodes(mastersDelta);
+            updateMinMasterNodes(mastersDelta);
+        } else {
+            defaultMinMasterNodes = -1;
+        }
         List<Async<String>> asyncs = new ArrayList<>();
         for (Settings setting : settings) {
-            asyncs.add(startNodeAsync(setting));
+            asyncs.add(startNodeAsync(setting, defaultMinMasterNodes));
         }
         return () -> {
             List<String> ids = new ArrayList<>();

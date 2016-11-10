@@ -317,8 +317,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 userModel.put("metadata", Collections.unmodifiableMap(user.metadata()));
                 params.put("_user", userModel);
                 // Always enforce mustache script lang:
-                script = new Script(script.getScript(), script.getType(), "mustache", params, script.getContentType());
-                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                script = new Script(script.getType(), "mustache", script.getIdOrCode(), script.getOptions(), params);
+                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.SEARCH);
                 return (BytesReference) executable.run();
             } else {
                 return querySource;

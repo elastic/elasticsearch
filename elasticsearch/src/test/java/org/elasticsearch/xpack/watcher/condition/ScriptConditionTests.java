@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -104,7 +104,8 @@ public class ScriptConditionTests extends ESTestCase {
     }
 
     public void testExecuteMergedParams() throws Exception {
-        Script script = new Script("ctx.payload.hits.total > threshold", ScriptType.INLINE, null, singletonMap("threshold", 1));
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
+                "ctx.payload.hits.total > threshold", singletonMap("threshold", 1));
         ScriptCondition executable = new ScriptCondition(script, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
@@ -143,9 +144,9 @@ public class ScriptConditionTests extends ESTestCase {
         try {
             ScriptCondition.parse(scriptService, "_id", parser, false, defaultScriptLang);
             fail("expected a condition exception trying to parse an invalid condition XContent");
-        } catch (ElasticsearchParseException e) {
-            // TODO add these when the test if fixed
-            // assertThat(e.getMessage(), is("ASDF"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                    containsString("must specify either code for an [inline] script or an id for a [stored] script or [file] script"));
         }
     }
 

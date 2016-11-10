@@ -265,7 +265,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @return Never {@code null}
      */
     private static Condition mockScriptCondition(String inlineScript) {
-        Script script = new Script(inlineScript, ScriptType.INLINE, MockScriptPlugin.NAME, null, null);
+        Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, inlineScript, Collections.emptyMap());
         return new ScriptCondition(script);
     }
 

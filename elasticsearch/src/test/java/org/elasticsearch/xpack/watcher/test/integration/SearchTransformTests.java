@@ -54,6 +54,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -230,7 +231,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
         if (templateName != null) {
             assertThat(executable.transform().getRequest().getTemplate(),
-                    equalTo(new Script("template1", ScriptType.FILE, "mustache", null)));
+                    equalTo(new Script(ScriptType.FILE, "mustache", "template1", Collections.emptyMap())));
         }
         assertThat(executable.transform().getRequest().getSearchSource().utf8ToString(), equalTo("{\"query\":{\"match_all\":{}}}"));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));

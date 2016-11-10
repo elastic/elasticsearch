@@ -107,7 +107,7 @@ public class WatcherUtilsTests extends ESTestCase {
             }
             String text = randomAsciiOfLengthBetween(1, 5);
             ScriptType scriptType = randomFrom(ScriptType.values());
-            expectedTemplate = new Script(text, scriptType, "mustache", params);
+            expectedTemplate = new Script(scriptType, "mustache", text, params);
             request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
                     expectedIndicesOptions, expectedTemplate);
         } else {
@@ -134,11 +134,11 @@ public class WatcherUtilsTests extends ESTestCase {
         assertNotNull(result.getTemplate());
         assertThat(result.getTemplate().getLang(), equalTo("mustache"));
         if (expectedSource == null) {
-            assertThat(result.getTemplate().getScript(), equalTo(expectedTemplate.getScript()));
+            assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedTemplate.getIdOrCode()));
             assertThat(result.getTemplate().getType(), equalTo(expectedTemplate.getType()));
             assertThat(result.getTemplate().getParams(), equalTo(expectedTemplate.getParams()));
         } else {
-            assertThat(result.getTemplate().getScript(), equalTo(expectedSource.utf8ToString()));
+            assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedSource.utf8ToString()));
             assertThat(result.getTemplate().getType(), equalTo(ScriptType.INLINE));
         }
     }
@@ -206,7 +206,7 @@ public class WatcherUtilsTests extends ESTestCase {
             }
             String text = randomAsciiOfLengthBetween(1, 5);
             ScriptType scriptType = randomFrom(ScriptType.values());
-            template = new Script(text, scriptType, "mustache", params);
+            template = new Script(scriptType, "mustache", text, params);
             builder.field("template", template);
         }
         builder.endObject();
@@ -228,7 +228,7 @@ public class WatcherUtilsTests extends ESTestCase {
         if (template == null) {
             assertThat(result.getTemplate(), nullValue());
         } else {
-            assertThat(result.getTemplate().getScript(), equalTo(template.getScript()));
+            assertThat(result.getTemplate().getIdOrCode(), equalTo(template.getIdOrCode()));
             assertThat(result.getTemplate().getType(), equalTo(template.getType()));
             assertThat(result.getTemplate().getParams(), equalTo(template.getParams()));
             assertThat(result.getTemplate().getLang(), equalTo("mustache"));

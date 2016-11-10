@@ -118,7 +118,7 @@ public class XContentSource implements ToXContent {
 
     public static void writeTo(XContentSource source, StreamOutput out) throws IOException {
         out.writeBytesReference(source.bytes);
-        XContentType.writeTo(source.contentType, out);
+        source.contentType.writeTo(out);
     }
 
     private Object data() {

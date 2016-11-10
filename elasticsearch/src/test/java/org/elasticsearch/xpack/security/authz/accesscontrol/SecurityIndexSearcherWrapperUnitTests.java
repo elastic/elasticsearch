@@ -587,24 +587,23 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 };
 
         ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.executable(any(Script.class), eq(ScriptContext.Standard.SEARCH), eq(Collections.emptyMap())))
-                .thenReturn(executableScript);
+        when(scriptService.executable(any(Script.class), eq(ScriptContext.Standard.SEARCH))).thenReturn(executableScript);
 
         XContentBuilder builder = jsonBuilder();
         String query = new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
-        Script script = new Script(query, ScriptType.INLINE, null, Collections.singletonMap("custom", "value"));
+        Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap("custom", "value"));
         builder = jsonBuilder().startObject().field("template");
         script.toXContent(builder, ToXContent.EMPTY_PARAMS);
         BytesReference querySource = builder.endObject().bytes();
 
         securityIndexSearcherWrapper.evaluateTemplate(querySource);
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
-        verify(scriptService).executable(argument.capture(), eq(ScriptContext.Standard.SEARCH), eq(Collections.emptyMap()));
+        verify(scriptService).executable(argument.capture(), eq(ScriptContext.Standard.SEARCH));
         Script usedScript = argument.getValue();
-        assertThat(usedScript.getScript(), equalTo(script.getScript()));
+        assertThat(usedScript.getIdOrCode(), equalTo(script.getIdOrCode()));
         assertThat(usedScript.getType(), equalTo(script.getType()));
         assertThat(usedScript.getLang(), equalTo("mustache"));
-        assertThat(usedScript.getContentType(), equalTo(script.getContentType()));
+        assertThat(usedScript.getOptions(), equalTo(script.getOptions()));
         assertThat(usedScript.getParams().size(), equalTo(2));
         assertThat(usedScript.getParams().get("custom"), equalTo("value"));
 

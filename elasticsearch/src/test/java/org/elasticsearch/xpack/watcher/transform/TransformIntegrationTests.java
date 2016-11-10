@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -128,10 +129,10 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                     .setScriptLang("painless")
                     .setSource(new BytesArray("{\"script\" : \"['key3' : ctx.payload.key1 + ctx.payload.key2]\"}"))
                     .get());
-            script = new Script("my-script", ScriptType.STORED, "painless", null);
+            script = new Script(ScriptType.STORED, "painless", "my-script", Collections.emptyMap());
         } else {
             logger.info("testing script transform with a file script");
-            script = new Script("my-script", ScriptType.FILE, "painless", null);
+            script = new Script(ScriptType.FILE, "painless", "my-script", Collections.emptyMap());
         }
 
         // put a watch that has watch level transform:

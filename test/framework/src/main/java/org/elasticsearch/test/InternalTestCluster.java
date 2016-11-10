@@ -561,7 +561,6 @@ public final class InternalTestCluster extends TestCluster {
      *
      * @param settings              the settings to use
      * @param defaultMinMasterNodes min_master_nodes value to use if min_master_nodes is auto managed
-     * @return
      */
     private NodeAndClient buildNode(Settings settings, int defaultMinMasterNodes) {
         int ord = nextNodeId.getAndIncrement();
@@ -572,7 +571,6 @@ public final class InternalTestCluster extends TestCluster {
      * builds a new node with default settings
      *
      * @param defaultMinMasterNodes min_master_nodes value to use if min_master_nodes is auto managed
-     * @return
      */
     private NodeAndClient buildNode(int defaultMinMasterNodes) {
         int ord = nextNodeId.getAndIncrement();
@@ -588,7 +586,6 @@ public final class InternalTestCluster extends TestCluster {
      * @param reuseExisting         if a node with the same name is already part of {@link #nodes}, no new node will be built and
      *                              the method will return the existing one
      * @param defaultMinMasterNodes min_master_nodes value to use if min_master_nodes is auto managed
-     * @return
      */
     private NodeAndClient buildNode(int nodeId, long seed, Settings settings,
                                     boolean reuseExisting, int defaultMinMasterNodes) {

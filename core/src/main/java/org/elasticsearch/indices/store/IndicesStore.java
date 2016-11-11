@@ -191,7 +191,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             }
         }
 
-        ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(indexShardRoutingTable.shardId(), state, requests.size());
+        ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(indexShardRoutingTable.shardId(), state.getVersion(),
+            requests.size());
         for (Tuple<DiscoveryNode, ShardActiveRequest> request : requests) {
             logger.trace("{} sending shard active check to {}", request.v2().shardId, request.v1());
             transportService.sendRequest(request.v1(), ACTION_SHARD_EXISTS, request.v2(), responseHandler);
@@ -202,14 +203,14 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         private final ShardId shardId;
         private final int expectedActiveCopies;
-        private final ClusterState clusterState;
+        private final long clusterStateVersion;
         private final AtomicInteger awaitingResponses;
         private final AtomicInteger activeCopies;
 
-        public ShardActiveResponseHandler(ShardId shardId, ClusterState clusterState, int expectedActiveCopies) {
+        public ShardActiveResponseHandler(ShardId shardId, long clusterStateVersion, int expectedActiveCopies) {
             this.shardId = shardId;
             this.expectedActiveCopies = expectedActiveCopies;
-            this.clusterState = clusterState;
+            this.clusterStateVersion = clusterStateVersion;
             this.awaitingResponses = new AtomicInteger(expectedActiveCopies);
             this.activeCopies = new AtomicInteger();
         }
@@ -251,8 +252,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             }
 
             ClusterState latestClusterState = clusterService.state();
-            if (clusterState.getVersion() != latestClusterState.getVersion()) {
-                logger.trace("not deleting shard {}, the latest cluster state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, latestClusterState.getVersion(), clusterState.getVersion());
+            if (clusterStateVersion != latestClusterState.getVersion()) {
+                logger.trace("not deleting shard {}, the latest cluster state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, latestClusterState.getVersion(), clusterStateVersion);
                 return;
             }
 
@@ -264,8 +265,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    if (clusterState.getVersion() != currentState.getVersion()) {
-                        logger.trace("not deleting shard {}, the update task state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, currentState.getVersion(), clusterState.getVersion());
+                    if (clusterStateVersion != currentState.getVersion()) {
+                        logger.trace("not deleting shard {}, the update task state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, currentState.getVersion(), clusterStateVersion);
                         return currentState;
                     }
                     try {

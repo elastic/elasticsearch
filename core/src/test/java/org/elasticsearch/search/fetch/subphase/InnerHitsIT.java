@@ -167,7 +167,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                                 .setExplain(true)
                                 .addDocValueField("comments.message")
                                 .addScriptField("script",
-                                        new Script("5", ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
+                                        new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                 .setSize(1)
                 )).get();
         assertNoFailures(response);
@@ -301,8 +301,8 @@ public class InnerHitsIT extends ESIntegTestCase {
                                         .addDocValueField("message")
                                         .setHighlightBuilder(new HighlightBuilder().field("message"))
                                         .setExplain(true).setSize(1)
-                                        .addScriptField("script", new Script("5", ScriptType.INLINE,
-                                                MockScriptEngine.NAME, Collections.emptyMap()))
+                                        .addScriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5",
+                                            Collections.emptyMap()))
                         )
                 ).get();
         assertNoFailures(response);

@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -45,19 +44,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
@@ -65,28 +58,42 @@ import static org.junit.Assert.fail;
  */
 //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
 @IgnoreJRERequirement
-public class RestClientIntegTests extends RestClientTestCase {
+public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     private static HttpServer httpServer;
     private static RestClient restClient;
+    private static String pathPrefix;
     private static Header[] defaultHeaders;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        String pathPrefixWithoutLeadingSlash;
+        if (randomBoolean()) {
+            pathPrefixWithoutLeadingSlash = "testPathPrefix/" + randomAsciiOfLengthBetween(1, 5);
+            pathPrefix = "/" + pathPrefixWithoutLeadingSlash;
+        } else {
+            pathPrefix = pathPrefixWithoutLeadingSlash = "";
+        }
+
+        httpServer = createHttpServer();
+        int numHeaders = randomIntBetween(0, 5);
+        defaultHeaders = generateHeaders("Header-default", "Header-array", numHeaders);
+        RestClientBuilder restClientBuilder = RestClient.builder(
+                new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort())).setDefaultHeaders(defaultHeaders);
+        if (pathPrefix.length() > 0) {
+            restClientBuilder.setPathPrefix((randomBoolean() ? "/" : "") + pathPrefixWithoutLeadingSlash);
+        }
+        restClient = restClientBuilder.build();
+    }
+
+    private static HttpServer createHttpServer() throws Exception {
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         //returns a different status code depending on the path
         for (int statusCode : getAllStatusCodes()) {
-            createStatusCodeContext(httpServer, statusCode);
+            httpServer.createContext(pathPrefix + "/" + statusCode, new ResponseHandler(statusCode));
         }
-        int numHeaders = randomIntBetween(0, 5);
-        defaultHeaders = generateHeaders("Header-default", "Header-array", numHeaders);
-        restClient = RestClient.builder(new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
-                .setDefaultHeaders(defaultHeaders).build();
-    }
-
-    private static void createStatusCodeContext(HttpServer httpServer, final int statusCode) {
-        httpServer.createContext("/" + statusCode, new ResponseHandler(statusCode));
+        return httpServer;
     }
 
     //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
@@ -157,7 +164,11 @@ public class RestClientIntegTests extends RestClientTestCase {
             } catch(ResponseException e) {
                 esResponse = e.getResponse();
             }
-            assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
+
+            assertEquals(method, esResponse.getRequestLine().getMethod());
+            assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
+            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, esResponse.getRequestLine().getUri());
+
             for (final Header responseHeader : esResponse.getHeaders()) {
                 final String name = responseHeader.getName();
                 final String value = responseHeader.getValue();
@@ -197,49 +208,6 @@ public class RestClientIntegTests extends RestClientTestCase {
         bodyTest("GET");
     }
 
-    /**
-     * Ensure that pathPrefix works as expected.
-     */
-    public void testPathPrefix() throws IOException {
-        // guarantee no other test setup collides with this one and lets it sneak through
-        final String uniqueContextSuffix = "/testPathPrefix";
-        final String pathPrefix = "base/" + randomAsciiOfLengthBetween(1, 5) + "/";
-        final int statusCode = randomStatusCode(getRandom());
-
-        final HttpContext context =
-            httpServer.createContext("/" + pathPrefix + statusCode + uniqueContextSuffix, new ResponseHandler(statusCode));
-
-        try (final RestClient client =
-                RestClient.builder(new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
-                    .setPathPrefix((randomBoolean() ? "/" : "") + pathPrefix).build()) {
-
-            for (final String method : getHttpMethods()) {
-                Response esResponse;
-                try {
-                    esResponse = client.performRequest(method, "/" + statusCode + uniqueContextSuffix);
-                } catch(ResponseException e) {
-                    esResponse = e.getResponse();
-                }
-
-                assertThat(esResponse.getRequestLine().getUri(), equalTo("/" + pathPrefix + statusCode + uniqueContextSuffix));
-                assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
-            }
-        } finally {
-            httpServer.removeContext(context);
-        }
-    }
-
-    public void testPath() throws IOException {
-        for (String method : getHttpMethods()) {
-            try {
-                restClient.performRequest(method, null);
-                fail("path set to null should fail!");
-            } catch (NullPointerException e) {
-                assertEquals("path must not be null", e.getMessage());
-            }
-        }
-    }
-
     private void bodyTest(String method) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(requestBody);
@@ -250,60 +218,9 @@ public class RestClientIntegTests extends RestClientTestCase {
         } catch(ResponseException e) {
             esResponse = e.getResponse();
         }
+        assertEquals(method, esResponse.getRequestLine().getMethod());
         assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
+        assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, esResponse.getRequestLine().getUri());
         assertEquals(requestBody, EntityUtils.toString(esResponse.getEntity()));
-    }
-
-    public void testAsyncRequests() throws Exception {
-        int numRequests = randomIntBetween(5, 20);
-        final CountDownLatch latch = new CountDownLatch(numRequests);
-        final List<TestResponse> responses = new CopyOnWriteArrayList<>();
-        for (int i = 0; i < numRequests; i++) {
-            final String method = RestClientTestUtil.randomHttpMethod(getRandom());
-            final int statusCode = randomStatusCode(getRandom());
-            restClient.performRequestAsync(method, "/" + statusCode, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    responses.add(new TestResponse(method, statusCode, response));
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception exception) {
-                    responses.add(new TestResponse(method, statusCode, exception));
-                    latch.countDown();
-                }
-            });
-        }
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
-
-        assertEquals(numRequests, responses.size());
-        for (TestResponse response : responses) {
-            assertEquals(response.method, response.getResponse().getRequestLine().getMethod());
-            assertEquals(response.statusCode, response.getResponse().getStatusLine().getStatusCode());
-
-        }
-    }
-
-    private static class TestResponse {
-        private final String method;
-        private final int statusCode;
-        private final Object response;
-
-        TestResponse(String method, int statusCode, Object response) {
-            this.method = method;
-            this.statusCode = statusCode;
-            this.response = response;
-        }
-
-        Response getResponse() {
-            if (response instanceof Response) {
-                return (Response) response;
-            }
-            if (response instanceof ResponseException) {
-                return ((ResponseException) response).getResponse();
-            }
-            throw new AssertionError("unexpected response " + response.getClass());
-        }
     }
 }

@@ -4,7 +4,7 @@
       indices.put_template:
         name: test
         body:
-          template: test-*
+          index_patterns: test-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
@@ -14,7 +14,26 @@
         name: test
         flat_settings: true
 
-  - match: {test.template: "test-*"}
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+
+---
+"Put multiple template":
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: [test-*, test2-*]
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      indices.get_template:
+        name: test
+        flat_settings: true
+
+  - match: {test.index_patterns: ["test-*", "test2-*"]}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 
 ---
@@ -23,7 +42,7 @@
       indices.put_template:
         name: test
         body:
-          template: test-*
+          index_patterns: test-*
           aliases:
             test_alias: {}
             test_blias: { routing: b }
@@ -33,7 +52,7 @@
       indices.get_template:
         name: test
 
-  - match:  { test.template: "test-*" }
+  - match:  { test.index_patterns: ["test-*"] }
   - length: { test.aliases: 3 }
   - is_true: test.aliases.test_alias
   - match: { test.aliases.test_blias.index_routing: "b" }
@@ -47,7 +66,7 @@
         name: test
         create: true
         body:
-          template: test-*
+          index_patterns: test-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
@@ -57,7 +76,7 @@
         name: test
         flat_settings: true
 
-  - match: {test.template: "test-*"}
+  - match: {test.index_patterns: ["test-*"]}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 
   - do:
@@ -66,7 +85,7 @@
         name: test
         create: true
         body:
-          template: test-*
+          index_patterns: test-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
@@ -79,7 +98,7 @@
         body: >
           {
             "version": 10,
-            "template": "*",
+            "index_patterns": "*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }
@@ -96,7 +115,7 @@
         body: >
           {
             "version": 9,
-            "template": "*",
+            "index_patterns": "*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }
@@ -113,7 +132,7 @@
         body: >
           {
             "version": 6789,
-            "template": "*",
+            "index_patterns": "*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }
@@ -129,7 +148,7 @@
         name: "my_template"
         body: >
           {
-            "template": "*",
+            "index_patterns": "*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }
@@ -146,7 +165,7 @@
         body: >
           {
             "version": 5385,
-            "template": "*",
+            "index_patterns": "*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }

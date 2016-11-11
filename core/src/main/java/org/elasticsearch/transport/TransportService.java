@@ -955,6 +955,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * are invoked we restore the context.
      */
     private static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+
         private final TransportResponseHandler<T> delegate;
         private final ThreadContext.StoredContext threadContext;
 
@@ -984,6 +985,12 @@ public class TransportService extends AbstractLifecycleComponent {
         public String executor() {
             return delegate.executor();
         }
+
+        @Override
+        public String toString() {
+            return getClass().getName() + "/" + delegate.toString();
+        }
+
     }
 
     static class DirectResponseChannel implements TransportChannel {

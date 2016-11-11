@@ -44,22 +44,28 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
 
     private static Logger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String EC2 = "ec2";
 
@@ -93,8 +99,12 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         this.settings = settings;
     }
 
-    public void onModule(DiscoveryModule discoveryModule) {
-        discoveryModule.addDiscoveryType(EC2, ZenDiscovery.class);
+    @Override
+    public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
+                                                              ClusterService clusterService, ZenPing zenPing) {
+        // this is for backcompat with pre 5.1, where users would set discovery.type to use ec2 hosts provider
+        return Collections.singletonMap(EC2, () ->
+            new ZenDiscovery(settings, threadPool, transportService, clusterService, clusterService.getClusterSettings(), zenPing));
     }
 
     @Override
@@ -147,10 +157,25 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         AwsEc2Service.AUTO_ATTRIBUTE_SETTING);
     }
 
-    /** Adds a node attribute for the ec2 availability zone. */
     @Override
     public Settings additionalSettings() {
-        return getAvailabilityZoneNodeAttributes(settings, AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone");
+        Settings.Builder builder = Settings.builder();
+        // For 5.0, discovery.type was used prior to the new discovery.zen.hosts_provider
+        // setting existed. This check looks for the legacy setting, and sets hosts provider if set
+        String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
+        if (discoveryType.equals(EC2)) {
+            deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
+                " setting to set hosts provider is deprecated. " +
+                "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + EC2 + "\" instead");
+            if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
+                builder.put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), EC2).build();
+            }
+        }
+
+        // Adds a node attribute for the ec2 availability zone
+        String azMetadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone";
+        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
+        return builder.build();
     }
 
     // pkg private for testing

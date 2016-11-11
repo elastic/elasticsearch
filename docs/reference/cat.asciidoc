@@ -191,7 +191,7 @@ order by column3.
 
 [source,sh]
 --------------------------------------------------
-GET _cat/templates?v&s=order:desc,template
+GET _cat/templates?v&s=order:desc,index_patterns
 --------------------------------------------------
 //CONSOLE
 
@@ -199,10 +199,10 @@ returns:
 
 [source,sh]
 --------------------------------------------------
-name                  template     order version
-pizza_pepperoni       *pepperoni*  2
-sushi_california_roll *avocado*    1     1
-pizza_hawaiian        *pineapples* 1
+name                  index_patterns order version
+pizza_pepperoni       [*pepperoni*]  2
+sushi_california_roll [*avocado*]    1     1
+pizza_hawaiian        [*pineapples*] 1
 --------------------------------------------------
 
 --

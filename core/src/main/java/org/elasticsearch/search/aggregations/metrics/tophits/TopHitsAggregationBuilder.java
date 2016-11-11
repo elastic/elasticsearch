@@ -536,7 +536,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
                 SearchScript searchScript = context.searchContext().getQueryShardContext().getSearchScript(field.script(),
-                    ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                    ScriptContext.Standard.SEARCH);
                 fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), searchScript, field.ignoreFailure()));
             }

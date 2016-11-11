@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,12 +68,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
-        private final ClusterState clusterState;
 
-        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, ClusterState clusterState) {
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
-            this.clusterState = clusterState;
         }
 
         public BigArrays bigArrays() {
@@ -83,10 +80,6 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
         public ScriptService scriptService() {
             return scriptService;
-        }
-
-        public ClusterState clusterState() {
-            return clusterState;
         }
     }
 
@@ -125,7 +118,6 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
     }
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
 
     @Override
     public String getName() {
@@ -215,5 +207,4 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         public static final String TO = "to";
         public static final String TO_AS_STRING = "to_as_string";
     }
-
 }

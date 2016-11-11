@@ -44,10 +44,13 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -56,7 +59,14 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
+        return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Set<Class<? extends Plugin>> mocks = new HashSet<>(super.getMockPlugins());
+        mocks.remove(MockEngineFactoryPlugin.class);
+        return mocks;
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -153,17 +163,22 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
-        public static class TestPlugin extends Plugin {
+        public static class TestPlugin extends MockEngineFactoryPlugin {
             public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING =
                 Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
             public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
                 Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
             @Override
             public List<Setting<?>> getSettings() {
-                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
+                List<Setting<?>> settings = new ArrayList<>();
+                settings.addAll(super.getSettings());
+                settings.add(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
+                settings.add(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
+                return settings;
             }
-            public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
-                module.setReaderClass(RandomExceptionDirectoryReaderWrapper.class);
+            @Override
+            protected Class<? extends FilterDirectoryReader> getReaderWrapperClass() {
+                return RandomExceptionDirectoryReaderWrapper.class;
             }
         }
 

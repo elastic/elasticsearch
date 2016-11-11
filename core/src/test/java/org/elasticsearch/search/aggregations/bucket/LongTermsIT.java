@@ -442,7 +442,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                        .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -495,7 +495,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("_value - 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value - 1", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -524,7 +524,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("floor(_value / 1000 + 1)", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(
+                                    ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / 1000 + 1)", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -560,7 +561,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
     */
 
     public void testScriptSingleValue() throws Exception {
-        Script script = new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -586,7 +588,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testScriptMultiValued() throws Exception {
-        Script script = new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -1157,7 +1160,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
-                terms("terms").field("d").script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))).get();
+                terms("terms").field("d").script(
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

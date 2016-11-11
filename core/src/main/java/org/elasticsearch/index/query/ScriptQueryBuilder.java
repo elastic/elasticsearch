@@ -33,14 +33,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -83,7 +79,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject(NAME);
-        builder.field(ScriptField.SCRIPT.getPreferredName(), script);
+        builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -104,7 +100,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
                     script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
@@ -114,7 +110,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                     queryName = parser.text();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
                     script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
@@ -133,7 +129,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
+        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH));
     }
 
     static class ScriptQuery extends Query {

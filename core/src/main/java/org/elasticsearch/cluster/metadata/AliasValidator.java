@@ -99,10 +99,11 @@ public class AliasValidator extends AbstractComponent {
         }
     }
 
-    private void validateAliasStandalone(String alias, String indexRouting) {
+    void validateAliasStandalone(String alias, String indexRouting) {
         if (!Strings.hasText(alias)) {
             throw new IllegalArgumentException("alias name is required");
         }
+        MetaDataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);
         if (indexRouting != null && indexRouting.indexOf(',') != -1) {
             throw new IllegalArgumentException("alias [" + alias + "] has several index routing values associated with it");
         }

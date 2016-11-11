@@ -103,7 +103,7 @@ def delete_by_query(es, version, index_name, doc_type):
     return
 
   deleted_count = es.count(index=index_name, doc_type=doc_type, body=query)['count']
-    
+
   result = es.delete_by_query(index=index_name,
                               doc_type=doc_type,
                               body=query)
@@ -113,9 +113,13 @@ def delete_by_query(es, version, index_name, doc_type):
 
   logging.info('Deleted %d docs' % deleted_count)
 
-def run_basic_asserts(es, index_name, type, num_docs):
+def run_basic_asserts(es, version, index_name, type, num_docs):
   count = es.count(index=index_name)['count']
   assert count == num_docs, 'Expected %r but got %r documents' % (num_docs, count)
+  if parse_version(version) < parse_version('5.1.0'):
+    # This alias isn't allowed to be created after 5.1 so we can verify that we can still use it
+    count = es.count(index='#' + index_name)['count']
+    assert count == num_docs, 'Expected %r but got %r documents' % (num_docs, count)
   for _ in range(0, num_docs):
     random_doc_id = random.randint(0, num_docs-1)
     doc = es.get(index=index_name, doc_type=type, id=random_doc_id)
@@ -360,8 +364,11 @@ def generate_index(client, version, index_name):
     # see https://github.com/elastic/elasticsearch/issues/5817
     num_docs = int(num_docs / 10)
   index_documents(client, index_name, 'doc', num_docs, supports_dots_in_field_names)
+  if parse_version(version) < parse_version('5.1.0'):
+    logging.info("Adding a alias that can't be created in 5.1+ so we can assert that we can still use it")
+    client.indices.put_alias(index=index_name, name='#' + index_name)
   logging.info('Running basic asserts on the data added')
-  run_basic_asserts(client, index_name, 'doc', num_docs)
+  run_basic_asserts(client, version, index_name, 'doc', num_docs)
   return num_docs, supports_dots_in_field_names
 
 def snapshot_index(client, version, repo_dir):
@@ -494,7 +501,7 @@ def create_bwc_index(cfg, version):
     if node is not None:
       # This only happens if we've hit an exception:
       shutdown_node(node)
-      
+
     shutil.rmtree(tmp_dir)
 
 def shutdown_node(node):
@@ -533,4 +540,3 @@ if __name__ == '__main__':
     main()
   except KeyboardInterrupt:
     print('Caught keyboard interrupt, exiting...')
-

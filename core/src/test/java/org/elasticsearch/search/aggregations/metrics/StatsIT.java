@@ -229,7 +229,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         stats("stats")
                                 .field("value")
-                                .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", emptyMap())))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -255,7 +255,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         stats("stats")
                                 .field("value")
-                                .script(new Script("_value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params)))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params)))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -300,7 +300,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         stats("stats")
                                 .field("values")
-                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap())))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -326,7 +326,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         stats("stats")
                                 .field("values")
-                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params)))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params)))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -349,7 +349,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         stats("stats")
-                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap())))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -371,7 +371,7 @@ public class StatsIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        Script script = new Script("doc['value'].value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params);
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -394,7 +394,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptMultiValued() throws Exception {
-        Script script = new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -420,8 +420,8 @@ public class StatsIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("[ doc['value'].value, doc['value'].value - dec ]", ScriptType.INLINE,
-                AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "[ doc['value'].value, doc['value'].value - dec ]",
+            params);
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -508,7 +508,8 @@ public class StatsIT extends AbstractNumericTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
-                stats("foo").field("d").script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))).get();
+                stats("foo").field("d").script(
+                    new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

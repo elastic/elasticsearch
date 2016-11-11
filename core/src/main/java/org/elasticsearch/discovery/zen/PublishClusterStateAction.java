@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterStateStatus;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
@@ -397,7 +398,6 @@ public class PublishClusterStateAction extends AbstractComponent {
 
             pendingStatesQueue.addPending(incomingState);
             lastSeenClusterState = incomingState;
-            lastSeenClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
         }
         channel.sendResponse(TransportResponse.Empty.INSTANCE);
     }

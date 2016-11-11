@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregationBuilder.CommonFields;
 
@@ -111,7 +111,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         parseMissingAndAdd(aggregationName, currentFieldName, parser, missingMap);
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");
@@ -121,7 +121,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");

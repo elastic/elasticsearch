@@ -142,9 +142,18 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
     @Override
     protected WritePrimaryResult shardOperationOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
         final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary, mappingUpdatedAction);
-        final IndexResponse response = indexResult.hasFailure() ? null :
-                new IndexResponse(primary.shardId(), request.type(), request.id(), indexResult.getVersion(),
-                        indexResult.isCreated());
+        final IndexResponse response;
+        if (indexResult.hasFailure() == false) {
+            // update the version on request so it will happen on the replicas
+            final long version = indexResult.getVersion();
+            request.version(version);
+            request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+            assert request.versionType().validateVersionForWrites(request.version());
+            response = new IndexResponse(primary.shardId(), request.type(), request.id(), indexResult.getVersion(),
+                    indexResult.isCreated());
+        } else {
+            response = null;
+        }
         return new WritePrimaryResult(request, response, indexResult.getTranslogLocation(), indexResult.getFailure(), primary);
     }
 
@@ -213,15 +222,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
                     "Dynamic mappings are not available on the node that holds the primary yet");
             }
         }
-        Engine.IndexResult result = primary.index(operation);
-        if (result.hasFailure() == false) {
-            // update the version on request so it will happen on the replicas
-            final long version = result.getVersion();
-            request.version(version);
-            request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-            assert request.versionType().validateVersionForWrites(request.version());
-        }
-        return result;
+        return primary.index(operation);
     }
 }
 

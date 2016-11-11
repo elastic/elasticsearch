@@ -10,6 +10,8 @@ setup:
               properties:
                 foo:
                   type: keyword
+                missing:
+                  type: keyword
     - do:
         index:
             index: test
@@ -26,13 +28,41 @@ setup:
             body:
                 script_fields:
                     bar:
-                        script: 
+                        script:
                             inline: "doc['foo'].value + params.x;"
-                            lang: painless
                             params:
                                 x: "bbb"
 
     - match: { hits.hits.0.fields.bar.0: "aaabbb"}
+
+---
+"Scripted Field with a null safe dereference (non-null)":
+    - do:
+        search:
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            inline: "doc['foo'].value?.length() + params.x;"
+                            params:
+                                x: 5
+
+    - match: { hits.hits.0.fields.bar.0: 8}
+
+---
+"Scripted Field with a null safe dereference (null)":
+    # Change this to ?: once we have it implemented
+    - do:
+        search:
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            inline: "(doc['missing'].value?.length() == null ? 0 : doc['missing'].value?.length()) + params.x;"
+                            params:
+                                x: 5
+
+    - match: { hits.hits.0.fields.bar.0: 5}
 
 ---
 "Scripted Field with script error":
@@ -43,7 +73,6 @@ setup:
             script_fields:
               bar:
                 script:
-                  lang: painless
                   inline: "while (true) {}"
 
     - match: { error.root_cause.0.type: "script_exception" }

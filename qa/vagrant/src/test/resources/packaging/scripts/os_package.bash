@@ -36,6 +36,12 @@ export_elasticsearch_paths() {
     export ESDATA="/var/lib/elasticsearch"
     export ESLOG="/var/log/elasticsearch"
     export ESPIDDIR="/var/run/elasticsearch"
+    if is_dpkg; then
+        export ESENVFILE="/etc/default/elasticsearch"
+    fi
+    if is_rpm; then
+        export ESENVFILE="/etc/sysconfig/elasticsearch"
+    fi
 }
 
 # Install the rpm or deb package.

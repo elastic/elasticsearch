@@ -2672,4 +2672,53 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals("IndexShardSnapshotFailedException[Aborted]", snapshotInfo.shardFailures().get(0).reason());
     }
 
+    public void testSnapshotSucceedsAfterSnapshotFailure() throws Exception {
+        logger.info("--> creating repository");
+        final Path repoPath = randomRepoPath();
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("mock").setVerify(false).setSettings(
+                Settings.builder().put("location", repoPath).put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)));
+
+        logger.info("--> indexing some data");
+        createIndex("test-idx");
+        ensureGreen();
+        final int numDocs = randomIntBetween(1, 5);
+        for (int i = 0; i < numDocs; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client().prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo((long) numDocs));
+
+        logger.info("--> snapshot with potential I/O failures");
+        try {
+            CreateSnapshotResponse createSnapshotResponse =
+                client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                    .setWaitForCompletion(true)
+                    .setIndices("test-idx")
+                    .get();
+            if (createSnapshotResponse.getSnapshotInfo().totalShards() != createSnapshotResponse.getSnapshotInfo().successfulShards()) {
+                assertThat(getFailureCount("test-repo"), greaterThan(0L));
+                assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().size(), greaterThan(0));
+                for (SnapshotShardFailure shardFailure : createSnapshotResponse.getSnapshotInfo().shardFailures()) {
+                    assertThat(shardFailure.reason(), containsString("Random IOException"));
+                }
+            }
+        } catch (Exception ex) {
+            // sometimes, the snapshot will fail with a top level I/O exception
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("Random IOException"));
+        }
+
+        logger.info("--> snapshot with no I/O failures");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo-2").setType("mock").setVerify(false).setSettings(
+            Settings.builder().put("location", repoPath)));
+        CreateSnapshotResponse createSnapshotResponse =
+            client().admin().cluster().prepareCreateSnapshot("test-repo-2", "test-snap-2")
+                .setWaitForCompletion(true)
+                .setIndices("test-idx")
+                .get();
+        assertEquals(0, createSnapshotResponse.getSnapshotInfo().failedShards());
+        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots("test-repo-2")
+                                                        .addSnapshots("test-snap-2").get();
+        assertEquals(SnapshotState.SUCCESS, getSnapshotsResponse.getSnapshots().get(0).state());
+    }
+
 }

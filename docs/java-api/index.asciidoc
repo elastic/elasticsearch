@@ -35,9 +35,9 @@ For example, you can define the latest version in your `pom.xml` file:
 </dependency>
 --------------------------------------------------
 
-=== Log4J2 Logger
+=== Log4j 2 Logger
 
-You need to also include Log4J2 dependencies:
+You need to also include Log4j 2 dependencies:
 
 ["source","xml",subs="attributes"]
 --------------------------------------------------
@@ -53,7 +53,7 @@ You need to also include Log4J2 dependencies:
 </dependency>
 --------------------------------------------------
 
-And also provide a log4J2 configuration file in your classpath.
+And also provide a Log4j 2 configuration file in your classpath.
 For example, you can add in your `src/main/resources` project dir a `log4j2.properties` file like:
 
 
@@ -70,7 +70,7 @@ rootLogger.appenderRef.console.ref = console
 
 === Using another Logger
 
-If you want to use another logger than Log4J2, you can use http://www.slf4j.org/[SLF4J] bridge to do that:
+If you want to use another logger than Log4j 2, you can use http://www.slf4j.org/[SLF4J] bridge to do that:
 
 ["source","xml",subs="attributes"]
 --------------------------------------------------

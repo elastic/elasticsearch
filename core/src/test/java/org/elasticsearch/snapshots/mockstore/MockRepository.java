@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -321,20 +322,28 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void move(String sourceBlob, String targetBlob) throws IOException {
-                // simulate a non-atomic move, since many blob container implementations
-                // will not have an atomic move, and we should be able to handle that
-                maybeIOExceptionOrBlock(targetBlob);
-                super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
-                super.deleteBlob(sourceBlob);
+                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                    // simulate a non-atomic move, since many blob container implementations
+                    // will not have an atomic move, and we should be able to handle that
+                    maybeIOExceptionOrBlock(targetBlob);
+                    super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
+                    super.deleteBlob(sourceBlob);
+                } else {
+                    // atomic move since this inherits from FsBlobContainer which provides atomic moves
+                    maybeIOExceptionOrBlock(targetBlob);
+                    super.move(sourceBlob, targetBlob);
+                }
             }
 
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 super.writeBlob(blobName, inputStream, blobSize);
-                // for network based repositories, the blob may have been written but we may still
-                // get an error with the client connection, so an IOException here simulates this
-                maybeIOExceptionOrBlock(blobName);
+                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                    // for network based repositories, the blob may have been written but we may still
+                    // get an error with the client connection, so an IOException here simulates this
+                    maybeIOExceptionOrBlock(blobName);
+                }
             }
         }
     }

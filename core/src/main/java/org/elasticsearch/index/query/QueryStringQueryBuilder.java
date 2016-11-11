@@ -964,8 +964,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                         this.fieldsAndWeights.size() == 0)) {
             // Use the automatically determined expansion of all queryable fields
             resolvedFields = allQueryableDefaultFields(context);
-            // Automatically set leniency to "true" so mismatched fields don't cause exceptions
-            qpSettings.lenient(true);
+            // Automatically set leniency to "true" if unset so mismatched fields don't cause exceptions
+            qpSettings.lenient(lenient == null ? true : lenient);
         } else {
             qpSettings.defaultField(this.defaultField == null ? context.defaultField() : this.defaultField);
 

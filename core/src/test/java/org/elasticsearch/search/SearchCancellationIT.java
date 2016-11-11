@@ -193,7 +193,12 @@ public class SearchCancellationIT extends ESIntegTestCase {
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        ensureSearchWasCancelled(searchResponse);
+        SearchResponse response = ensureSearchWasCancelled(searchResponse);
+        if (response != null) {
+            // The response might not have failed on all shards - we need to clean scroll
+            logger.info("Cleaning scroll with id {}", response.getScrollId());
+            client().prepareClearScroll().addScrollId(response.getScrollId()).get();
+        }
     }
 
 

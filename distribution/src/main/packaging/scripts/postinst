@@ -51,6 +51,11 @@ case "$1" in
     ;;
 esac
 
+# to pick up /usr/lib/sysctl.d/elasticsearch.conf
+if command -v /usr/lib/systemd/systemd-sysctl > /dev/null; then
+    /usr/lib/systemd/systemd-sysctl
+fi
+
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
     if command -v systemctl >/dev/null; then
         echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using systemd"

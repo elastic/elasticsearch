@@ -25,7 +25,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.ReadableDateTime;
@@ -325,4 +324,46 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
     }
+
+    public static class BytesRefs extends AbstractList<BytesRef> implements ScriptDocValues<BytesRef> {
+
+        private final SortedBinaryDocValues values;
+
+        public BytesRefs(SortedBinaryDocValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public void setNextDocId(int docId) {
+            values.setDocument(docId);
+        }
+
+        public SortedBinaryDocValues getInternalValues() {
+            return this.values;
+        }
+
+        public BytesRef getValue() {
+            int numValues = values.count();
+            if (numValues == 0) {
+                return new BytesRef();
+            }
+            return values.valueAt(0);
+        }
+
+        @Override
+        public List<BytesRef> getValues() {
+            return Collections.unmodifiableList(this);
+        }
+
+        @Override
+        public BytesRef get(int index) {
+            return values.valueAt(index);
+        }
+
+        @Override
+        public int size() {
+            return values.count();
+        }
+    }
+
 }

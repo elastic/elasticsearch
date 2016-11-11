@@ -35,6 +35,12 @@ public class ElvisTests extends ScriptTestCase {
         assertEquals(1, exec("int i = params.a ?: 1; return i"));
         assertEquals(1, exec("int i = params.a ?: 2; return i", singletonMap("a", 1), true));
 
+        // Explicit casting
+        assertEquals(1, exec("return (Integer)(params.a ?: Integer.valueOf(1))"));
+        assertEquals(1, exec("return (Integer)(params.a ?: Integer.valueOf(2))", singletonMap("a", 1), true));
+        assertEquals(1, exec("return (int)(params.a ?: 1)"));
+        assertEquals(1, exec("return (int)(params.a ?: 2)", singletonMap("a", 1), true));
+
         // Now some chains
         assertEquals(1, exec("return params.a ?: params.a ?: 1"));
         assertEquals(1, exec("return params.a ?: params.b ?: 'j'", singletonMap("b", 1), true));
@@ -43,7 +49,7 @@ public class ElvisTests extends ScriptTestCase {
         // Precedence
         assertEquals(1, exec("return params.a ?: 2 + 2", singletonMap("a", 1), true));
         assertEquals(4, exec("return params.a ?: 2 + 2"));
-        // NOCOMMIT it feels like you should be able to do more stuff in the lhs but I don't know that you can!
+        assertEquals(2, exec("return params.a + 1 ?: 2 + 2", singletonMap("a", 1), true)); // Yes, this is silly, but it should be valid
 
         // Weird casts
         assertEquals(1,     exec("int i = params.i;     String s = params.s; return s ?: i", singletonMap("i", 1), true));

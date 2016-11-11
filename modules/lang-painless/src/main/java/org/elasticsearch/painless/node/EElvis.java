@@ -34,12 +34,17 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * The Elvis operator ({@code ?:}), a null coalescing operator. Binary operator that evaluates the first expression and return it if it is
- * non null. If the first expression is null then it evaluates the second expression and returns it. Similar to C#'s null coalescing
- * operator ({@code ??}).
+ * non null. If the first expression is null then it evaluates the second expression and returns it.
  */
 public class EElvis extends AExpression {
     private AExpression lhs;
     private AExpression rhs;
+    /**
+     * Should we unbox result of the lhs if it is non null? This is required when the result is being cast to a primitive
+     * ({@code int i = params.i ? : 0}). Unlink {@link EConditional} which can cast the left and right arms to the result, the Elvis
+     * operator has to handle when the lhs is null. So the best it can do is cast the lhs to a the boxed form of the primitive and then
+     * unbox it if it is non-null.
+     */
     private boolean unboxLhs;
 
     public EElvis(Location location, AExpression lhs, AExpression rhs) {
@@ -62,7 +67,7 @@ public class EElvis extends AExpression {
             lhs.expected = Definition.getType(lhs.expected.sort.boxed.getSimpleName());
             unboxLhs = true;
         }
-        lhs.explicit = explicit;     // NOCOMMIT should this have the same de-primitive-ization
+        lhs.explicit = explicit;
         lhs.internal = internal;
         rhs.expected = expected;
         rhs.explicit = explicit;
@@ -100,12 +105,12 @@ public class EElvis extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Label nul = new Label();
         Label end = new Label();
 
         lhs.write(writer, globals);
         writer.dup();
         if (unboxLhs) {
+            Label nul = new Label();
             writer.ifNull(nul);
             writer.unbox(actual.type);
             writer.goTo(end);

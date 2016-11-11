@@ -528,7 +528,21 @@ public class InternalEngine extends Engine {
         return false;
     }
 
+    private boolean assertSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
+        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            // legacy support
+            return seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        } else if (origin == Operation.Origin.PRIMARY) {
+            // sequence number should not be set when operation origin is primary
+            return seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        } else {
+            // sequence number should be set when operation origin is not primary
+            return seqNo >= 0;
+        }
+    }
+
     private IndexResult innerIndex(Index index) throws IOException {
+        assert assertSequenceNumber(index.origin(), index.seqNo());
         final Translog.Location location;
         final long updatedVersion;
         IndexResult indexResult = null;
@@ -692,6 +706,7 @@ public class InternalEngine extends Engine {
     }
 
     private DeleteResult innerDelete(Delete delete) throws IOException {
+        assert assertSequenceNumber(delete.origin(), delete.seqNo());
         final Translog.Location location;
         final long updatedVersion;
         final boolean found;

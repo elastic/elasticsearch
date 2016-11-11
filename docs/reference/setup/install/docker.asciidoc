@@ -9,7 +9,7 @@ The docker image is built with https://www.elastic.co/guide/en/x-pack/current/in
 NOTE: https://www.elastic.co/guide/en/x-pack/current/index.html[X-Pack] is preinstalled in this image.
 Please take a few minutes to familiarize yourself with the https://www.elastic.co/guide/en/x-pack/current/security-getting-started.html[X-Pack security] and how to change default passwords. The default password for the `elastic` user is `changeme`.
 
-NOTE: (To be reviewed by Shay/Skearns/Clint) X-Pack includes a trial license for 30days. After that you can obtain one of https://www.elastic.co/subscriptions[available subscriptions] or https://www.elastic.co/guide/en/x-pack/current/security-settings.html[disable security]. The Basic license is free and includes free moniroting.
+NOTE: X-Pack includes a trial license for 30days. After that you can obtain one of https://www.elastic.co/subscriptions[available subscriptions] or https://www.elastic.co/guide/en/x-pack/current/security-settings.html[disable security]. The Basic license is free and includes free moniroting.
 
 Obtaining Elasticsearch for Docker is as simple as issuing a +docker pull+ command against the Elastic Docker registry.
 

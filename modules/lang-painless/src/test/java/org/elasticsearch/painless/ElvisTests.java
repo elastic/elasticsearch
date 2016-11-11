@@ -20,6 +20,8 @@
 package org.elasticsearch.painless;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Tests for the Elvis operator ({@code ?:}).
@@ -74,18 +76,41 @@ public class ElvisTests extends ScriptTestCase {
         assertEquals(e.getMessage(), "test");
     }
 
+    /**
+     * Checks that {@code a ?: b ?: c} is be parsed as {@code a ?: (b ?: c)} instead of {@code (a ?: b) ?: c} which is nice because the
+     * first one only needs one comparison if the {@code a} is non-null while the second one needs two.
+     */
+    public void testRightAssociative() {
+        /* Sadly this is a bit finicky about the output of the disassembly but I think it is worth having because it makes sure that
+         * the code generated for the elvis operator is as efficient as possible. */
+        String disassembled = Debugger.toString("params.a ?: params.b ?: params.c");
+        int firstLookup = disassembled.indexOf("INVOKEINTERFACE java/util/Map.get (Ljava/lang/Object;)Ljava/lang/Object;");
+        assertThat(disassembled, firstLookup, greaterThan(-1));
+        int firstElvisDestinationLabelIndex = disassembled.indexOf("IFNONNULL L", firstLookup);
+        assertThat(disassembled, firstElvisDestinationLabelIndex, greaterThan(-1));
+        String firstElvisDestinationLabel = disassembled.substring(firstElvisDestinationLabelIndex + "IFNONNULL ".length(),
+                disassembled.indexOf('\n', firstElvisDestinationLabelIndex));
+        int firstElvisDestionation = disassembled.indexOf("   " + firstElvisDestinationLabel);
+        assertThat(disassembled, firstElvisDestionation, greaterThan(-1));
+        int ifAfterFirstElvisDestination = disassembled.indexOf("IF", firstElvisDestionation);
+        assertThat(disassembled,
+                ifAfterFirstElvisDestination, lessThan(0));
+        int returnAfterFirstElvisDestination = disassembled.indexOf("RETURN", firstElvisDestionation);
+        assertThat(disassembled, returnAfterFirstElvisDestination, greaterThan(-1));
+    }
+
     public void testExtraneous() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("int i = params.a; return i ?: 1"));
-        assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is a primitive.");
+        assertEquals("Extraneous elvis operator. LHS is a primitive.", e.getMessage());
         expectScriptThrows(IllegalArgumentException.class, () -> exec("int i = params.a; return i + 10 ?: 'ignored'"));
-        assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is a primitive.");
+        assertEquals("Extraneous elvis operator. LHS is a primitive.", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 'cat' ?: 1"));
-        assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is a constant.");
+        assertEquals("Extraneous elvis operator. LHS is a constant.", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return null ?: 'j'"));
-        assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is null.");
+        assertEquals("Extraneous elvis operator. LHS is null.", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a ?: null ?: 'j'"));
-        assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is null.");
+        assertEquals("Extraneous elvis operator. LHS is null.", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a ?: null"));
-        assertEquals(e.getMessage(), "Extraneous elvis operator. RHS is null.");
+        assertEquals("Extraneous elvis operator. RHS is null.", e.getMessage());
     }
 }

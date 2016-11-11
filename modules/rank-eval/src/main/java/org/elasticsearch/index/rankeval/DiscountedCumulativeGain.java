@@ -99,7 +99,7 @@ public class DiscountedCumulativeGain implements RankedListQualityMetric {
     }
 
     /**
-     * check whether this metric computes only dcg or "normalized" ndcg
+     * get the rating used for unrated documents
      */
     public Integer getUnknownDocRating() {
         return this.unknownDocRating;

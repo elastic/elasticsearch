@@ -74,7 +74,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean addMockZenPings() {
+    protected boolean useMockZenDiscovery() {
         return false;
     }
 

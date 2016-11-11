@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RareClusterStateIT extends ESIntegTestCase {
 
     @Override
-    protected boolean addMockZenPings() {
+    protected boolean useMockZenDiscovery() {
         return false;
     }
 

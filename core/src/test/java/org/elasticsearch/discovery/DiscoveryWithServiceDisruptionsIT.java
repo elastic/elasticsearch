@@ -130,7 +130,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     private ClusterDiscoveryConfiguration discoveryConfig;
 
     @Override
-    protected boolean addMockZenPings() {
+    protected boolean useMockZenDiscovery() {
         return false;
     }
 
@@ -196,7 +196,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        ZenPing zenPing = ((ZenDiscovery)internalCluster().getInstance(Discovery.class)).getZenPing();
         if (zenPing instanceof UnicastZenPing) {
             ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
@@ -856,7 +856,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        ZenPing zenPing = ((ZenDiscovery)internalCluster().getInstance(Discovery.class)).getZenPing();
         if (zenPing instanceof UnicastZenPing) {
             ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
@@ -893,7 +893,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        ZenPing zenPing = ((ZenDiscovery)internalCluster().getInstance(Discovery.class)).getZenPing();
         if (zenPing instanceof UnicastZenPing) {
             ((UnicastZenPing) zenPing).clearTemporalResponses();
         }

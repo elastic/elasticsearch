@@ -119,7 +119,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.client.RandomizingClient;
-import org.elasticsearch.test.discovery.MockZenPing;
+import org.elasticsearch.test.discovery.MockZenDiscovery;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1805,7 +1805,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
-    protected boolean addMockZenPings() {
+    protected boolean useMockZenDiscovery() {
         return true;
     }
 
@@ -1846,8 +1846,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             mocks.add(MockTcpTransportPlugin.class);
         }
 
-        if (addMockZenPings()) {
-            mocks.add(MockZenPing.TestPlugin.class);
+        if (useMockZenDiscovery()) {
+            mocks.add(MockZenDiscovery.TestPlugin.class);
         }
         mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);

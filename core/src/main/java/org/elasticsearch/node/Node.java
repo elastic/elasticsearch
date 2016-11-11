@@ -410,8 +410,7 @@ public class Node implements Closeable {
             }
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
-                networkService, clusterService, hostsProvider -> newZenPing(settings, threadPool, transportService, hostsProvider),
-                pluginsService.filterPlugins(DiscoveryPlugin.class));
+                networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
             pluginsService.processModules(modules);
             modules.add(b -> {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
@@ -445,7 +444,6 @@ public class Node implements Closeable {
                         indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
-                    b.bind(ZenPing.class).toInstance(discoveryModule.getZenPing());
                     {
                         RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
@@ -901,12 +899,6 @@ public class Node implements Closeable {
             }
         }
         return customNameResolvers;
-    }
-
-    /** Create a new ZenPing instance for use in zen discovery. */
-    protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                 UnicastHostsProvider hostsProvider) {
-        return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
     }
 
     /** Constructs an internal node used as a client into a cluster fronted by this tribe node. */

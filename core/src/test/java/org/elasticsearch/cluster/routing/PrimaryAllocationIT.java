@@ -62,7 +62,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean addMockZenPings() {
+    protected boolean useMockZenDiscovery() {
         return false;
     }
 

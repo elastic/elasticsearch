@@ -103,16 +103,6 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                 UnicastHostsProvider hostsProvider) {
-        if (getPluginsService().filterPlugins(MockZenPing.TestPlugin.class).isEmpty()) {
-            return super.newZenPing(settings, threadPool, transportService, hostsProvider);
-        } else {
-            return new MockZenPing(settings);
-        }
-    }
-
-    @Override
     protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
         return new MockNode(settings, classpathPlugins);
     }

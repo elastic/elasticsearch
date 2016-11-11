@@ -205,7 +205,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean addMockZenPings() {
+    protected boolean useMockZenDiscovery() {
         return false;
     }
 

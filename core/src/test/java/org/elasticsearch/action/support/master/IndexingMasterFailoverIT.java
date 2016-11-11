@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
     @Override
-    protected boolean addMockZenPings() {
+    protected boolean useMockZenDiscovery() {
         return false;
     }
 

@@ -162,7 +162,8 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
     '%snetwork.host=localhost' % prefix,
     '%stransport.tcp.port=%s' % (prefix, tcp_port),
     '%shttp.port=%s' % (prefix, http_port),
-    '%spath.repo=%s' % (prefix, repo_dir)
+    '%spath.repo=%s' % (prefix, repo_dir),
+    "%srepositories.url.allowed_urls=http://snapshot.test*" % (prefix)
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically

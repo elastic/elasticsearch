@@ -61,16 +61,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CustomClusterStatePartsBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(TestPlugin.class, DummyScriptPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singleton(TestPlugin.class);
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder setting = Settings.builder();
         setting.put(super.nodeSettings(nodeOrdinal));
@@ -82,31 +72,30 @@ public class CustomClusterStatePartsBackwardsCompatibilityIT extends ESIntegTest
         setupNode();
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
         ScriptMetaData scriptMetaData = state.getMetaData().custom(ScriptMetaData.TYPE);
-        assertThat(scriptMetaData.getScript(MockScriptPlugin.NAME, "key"), equalTo("key"));
+        assertThat(scriptMetaData.getScript("painless", "script1"), equalTo("1 + 1"));
+        assertThat(scriptMetaData.getScript("painless", "script2"), equalTo("1 + 2"));
 
         RepositoriesMetaData repositoriesMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
-        RepositoryMetaData repo = repositoriesMetaData.repository("repo");
+        RepositoryMetaData repo = repositoriesMetaData.repository("repo1");
+        assertThat(repo.type(), equalTo("url"));
+        assertThat(repo.settings().get("url"), equalTo("http://snapshot.test"));
+        repo = repositoriesMetaData.repository("repo2");
         assertThat(repo.type(), equalTo("url"));
         assertThat(repo.settings().get("url"), equalTo("http://snapshot.test"));
 
         IngestMetadata ingestMetadata = state.getMetaData().custom(IngestMetadata.TYPE);
-        PipelineConfiguration pipelineConfiguration = ingestMetadata.getPipelines().get("id");
-        assertThat(pipelineConfiguration.getId(), equalTo("id"));
+        PipelineConfiguration pipelineConfiguration = ingestMetadata.getPipelines().get("pipeline1");
+        assertThat(pipelineConfiguration.getId(), equalTo("pipeline1"));
         assertThat(pipelineConfiguration.getConfigAsMap(), equalTo(Collections.singletonMap("processors", new ArrayList<>())));
-
-        assertThat(state.metaData().indices().size(), equalTo(1));
-        assertThat(state.metaData().indices().get("test"), notNullValue());
-        assertThat(state.metaData().indices().get("test").getCreationVersion(), equalTo(Version.V_5_0_0));
-        assertThat(state.metaData().indices().get("test").getUpgradedVersion(), equalTo(Version.CURRENT));
-        assertThat(state.metaData().indices().get("test").getCustoms().size(), equalTo(1));
-        TestPlugin.IMDC imdc = state.metaData().indices().get("test").custom("custom");
-        assertThat(imdc.field, equalTo("value"));
+        pipelineConfiguration = ingestMetadata.getPipelines().get("pipeline2");
+        assertThat(pipelineConfiguration.getId(), equalTo("pipeline2"));
+        assertThat(pipelineConfiguration.getConfigAsMap(), equalTo(Collections.singletonMap("processors", new ArrayList<>())));
     }
 
     private void setupNode() throws Exception {
         Path unzipDir = createTempDir();
         try (InputStream stream = CustomClusterStatePartsBackwardsCompatibilityIT.class.
-            getResourceAsStream("/indices/bwc/custom_cluster_state_parts-5.0.0.zip")) {
+            getResourceAsStream("/indices/bwc/custom-cluster-state-parts-5.0.0.zip")) {
             TestUtil.unzip(stream, unzipDir);
         }
 
@@ -114,106 +103,6 @@ public class CustomClusterStatePartsBackwardsCompatibilityIT extends ESIntegTest
             .put(Environment.PATH_DATA_SETTING.getKey(), unzipDir.resolve("data"));
         internalCluster().startNode(nodeSettings.build());
         ensureYellow();
-    }
-
-    public static class TestPlugin extends Plugin implements ClusterPlugin, ScriptPlugin {
-
-        @Override
-        public Collection<IndexMetaData.Custom> getCustomIndexMetadata() {
-            return Collections.singleton(IMDC.PROTO);
-        }
-
-        public static class IMDC implements IndexMetaData.Custom {
-
-            public static final IMDC PROTO = new IMDC(null);
-
-            private final String field;
-
-            public IMDC(String field) {
-                this.field = field;
-            }
-
-            @Override
-            public Diff<IndexMetaData.Custom> diff(IndexMetaData.Custom previousState) {
-                return new IMDCDiff((IMDC) previousState);
-            }
-
-            @Override
-            public Diff<IndexMetaData.Custom> readDiffFrom(StreamInput in, CustomPrototypeRegistry registry) throws IOException {
-                IndexMetaData.Custom imdc = in.readNamedWriteable(IndexMetaData.Custom.class);
-                return new IMDCDiff((IMDC) imdc);
-            }
-
-            @Override
-            public IndexMetaData.Custom readFrom(StreamInput in) throws IOException {
-                return new IMDC(in.readString());
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(field);
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field("field", field);
-                return builder;
-            }
-
-            @Override
-            public String type() {
-                return "custom";
-            }
-
-            @Override
-            public IndexMetaData.Custom fromMap(Map<String, Object> map) throws IOException {
-                return new IMDC((String) map.get("field"));
-            }
-
-            @Override
-            public IndexMetaData.Custom fromXContent(XContentParser parser) throws IOException {
-                String fieldValue = null;
-                for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-                    if (token.isValue()) {
-                        fieldValue = parser.text();
-                    }
-                }
-                return new IMDC(fieldValue);
-            }
-
-            @Override
-            public IndexMetaData.Custom mergeWith(IndexMetaData.Custom another) {
-                IMDC other = (IMDC) another;
-                return new IMDC(field + other.field);
-            }
-
-            static class IMDCDiff implements Diff<IndexMetaData.Custom> {
-
-                private final IMDC previous;
-
-                IMDCDiff(IMDC previous) {
-                    this.previous = previous;
-                }
-
-                @Override
-                public IndexMetaData.Custom apply(IndexMetaData.Custom part) {
-                    return new IMDC(((IMDC) part).field);
-                }
-
-                @Override
-                public void writeTo(StreamOutput out) throws IOException {
-                    out.writeNamedWriteable(previous);
-                }
-            }
-        }
-    }
-
-    public static class DummyScriptPlugin extends MockScriptPlugin {
-
-        @Override
-        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("key", params -> "value");
-        }
     }
 
 }

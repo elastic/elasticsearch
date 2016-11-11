@@ -94,7 +94,8 @@ public class IndicesStoreTests extends ESTestCase {
                 if (state == ShardRoutingState.UNASSIGNED) {
                     unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
                 }
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, randomAsciiOfLength(10), null, j == 0, state, unassignedInfo));
+                String relocatingNodeId = state == ShardRoutingState.RELOCATING ? randomAsciiOfLength(10) : null;
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, randomAsciiOfLength(10), relocatingNodeId, j == 0, state, unassignedInfo));
             }
         }
 

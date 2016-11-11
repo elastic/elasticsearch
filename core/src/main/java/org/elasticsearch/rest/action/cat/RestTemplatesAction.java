@@ -70,7 +70,7 @@ public class RestTemplatesAction extends AbstractCatAction {
         Table table = new Table();
         table.startHeaders();
         table.addCell("name", "alias:n;desc:template name");
-        table.addCell("template", "alias:t;desc:template pattern string");
+        table.addCell("index_patterns", "alias:t;desc:template index patterns");
         table.addCell("order", "alias:o;desc:template application order number");
         table.addCell("version", "alias:v;desc:version");
         table.endHeaders();
@@ -85,7 +85,7 @@ public class RestTemplatesAction extends AbstractCatAction {
             if (patternString == null || Regex.simpleMatch(patternString, indexData.name())) {
                 table.startRow();
                 table.addCell(indexData.name());
-                table.addCell(indexData.getTemplate());
+                table.addCell("[" + String.join(", ", indexData.patterns()) + "]");
                 table.addCell(indexData.getOrder());
                 table.addCell(indexData.getVersion());
                 table.endRow();

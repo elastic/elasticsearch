@@ -62,7 +62,6 @@ class Checkpoint {
         + Long.BYTES // generation
         + CodecUtil.footerLength();
 
-    // nocommit: remove legacy support, not needed in 6.0.0
     static final int LEGACY_NON_CHECKSUMMED_FILE_LENGTH = Integer.BYTES  // ops
             + Long.BYTES // offset
             + Long.BYTES; // generation
@@ -90,7 +89,6 @@ class Checkpoint {
         return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), SequenceNumbersService.UNASSIGNED_SEQ_NO);
     }
 
-    // nocommit: remove legacy support, not needed in 6.0.0
     // reads checkpoint from ES < 5.0.0
     static Checkpoint readNonChecksummed(DataInput in) throws IOException {
         return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), SequenceNumbersService.UNASSIGNED_SEQ_NO);

@@ -68,24 +68,15 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
     @Override
     protected PrimaryResult shardOperationOnPrimary(PrimaryRequest request, IndexShard indexShard) throws Exception {
         long checkpoint = indexShard.getGlobalCheckpoint();
-        syncTranslog(indexShard);
+        indexShard.getTranslog().sync();
         return new PrimaryResult(new ReplicaRequest(request, checkpoint), new ReplicationResponse());
     }
 
     @Override
     protected ReplicaResult shardOperationOnReplica(ReplicaRequest request, IndexShard indexShard) throws Exception {
         indexShard.updateGlobalCheckpointOnReplica(request.checkpoint);
-        syncTranslog(indexShard);
+        indexShard.getTranslog().sync();
         return new ReplicaResult();
-    }
-
-    private void syncTranslog(final IndexShard indexShard) {
-        try {
-            indexShard.getTranslog().sync();
-        } catch (final IOException e) {
-            // nocommit: no need to wrap this exception after integrating master into feature/seq_no
-            throw new UncheckedIOException("failed to sync translog after updating global checkpoint for shard " + indexShard.shardId(), e);
-        }
     }
 
     public void updateCheckpointForShard(ShardId shardId) {

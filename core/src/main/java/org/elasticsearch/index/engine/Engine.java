@@ -936,6 +936,7 @@ public abstract class Engine implements Closeable {
 
         public Operation(Term uid, long seqNo, long version, VersionType versionType, Origin origin, long startTime) {
             this.uid = uid;
+            // nocommit move these to InternalEngine where we can assert on the engine version
             assert origin != Origin.PRIMARY || seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "seqNo should not be set when origin is PRIMARY";
             assert origin == Origin.PRIMARY || seqNo >= 0 : "seqNo should be set when origin is not PRIMARY";
             this.seqNo = seqNo;

@@ -243,7 +243,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             builder.field("forced_refresh", forcedRefresh);
         }
         shardInfo.toXContent(builder, params);
-        //nocommit: i'm not sure we want to expose it in the api but it will be handy for debugging while we work...
+        // nocommit i'm not sure we want to expose it in the api but it will be handy for debugging while we work... remove this
         builder.field("_shard_id", shardId.id());
         if (getSeqNo() >= 0) {
             builder.field("_seq_no", getSeqNo());

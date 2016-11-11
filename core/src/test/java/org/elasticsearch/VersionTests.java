@@ -20,7 +20,9 @@
 package org.elasticsearch;
 
 import org.elasticsearch.action.ShardValidateQueryRequestTests;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -275,9 +277,11 @@ public class VersionTests extends ESTestCase {
         assertUnknownVersion(V_20_0_0_UNRELEASED);
         expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
         assertUnknownVersion(AliasFilter.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
+        assertUnknownVersion(IndexTemplateMetaData.V_5_1_0);
         assertUnknownVersion(OsStats.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
-        assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(PutIndexTemplateRequest.V_5_1_0);
         assertUnknownVersion(QueryStringQueryBuilder.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
         // once we released 5.0.0 and it's added to Version.java we need to remove this constant
         assertUnknownVersion(Script.V_5_1_0_UNRELEASED);
         // once we released 5.0.0 and it's added to Version.java we need to remove this constant

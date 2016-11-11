@@ -82,7 +82,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Assertions that should run before the cluster is wiped should be called in this method
      */
-    public void beforeIndexDeletion() throws IOException {
+    public void beforeIndexDeletion() throws Exception {
     }
 
     /**

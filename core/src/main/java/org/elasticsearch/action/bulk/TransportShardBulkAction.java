@@ -219,6 +219,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } catch (Exception e) {
             // nocommit: since we now have RetryOnPrimaryException, retrying doesn't always mean the shard is closed.
             // some operations were already perform and have a seqno assigned. we shouldn't just reindex them
+            // add to the meta-issue
             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
             if (retryPrimaryException(e)) {
                 // restore updated versions...

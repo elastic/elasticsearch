@@ -1611,7 +1611,6 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "// nocommit")
     public void testSeqNoAndCheckpoints() throws IOException {
         final int opCount = randomIntBetween(1, 256);
         long primarySeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
@@ -1630,7 +1629,6 @@ public class InternalEngineTests extends ESTestCase {
                 .updateAllocationIdsFromMaster(new HashSet<>(Arrays.asList("primary", "replica")), Collections.emptySet());
             for (int op = 0; op < opCount; op++) {
                 final String id;
-                boolean versionConflict = false;
                 // mostly index, sometimes delete
                 if (rarely() && indexedIds.isEmpty() == false) {
                     // we have some docs indexed, so delete one of them
@@ -1638,11 +1636,13 @@ public class InternalEngineTests extends ESTestCase {
                     final Engine.Delete delete = new Engine.Delete(
                         "test", id, newUid("test#" + id), SequenceNumbersService.UNASSIGNED_SEQ_NO,
                         rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
-                    try {
-                        initialEngine.delete(delete);
+                    final Engine.DeleteResult result = initialEngine.delete(delete);
+                    if (!result.hasFailure()) {
+                        assertThat(result.getSeqNo(), equalTo(primarySeqNo + 1));
                         indexedIds.remove(id);
-                    } catch (VersionConflictEngineException e) {
-                        versionConflict = true;
+                        primarySeqNo++;
+                    } else {
+                        assertThat(result.getSeqNo(), equalTo(primarySeqNo));
                     }
                 } else {
                     // index a document
@@ -1652,15 +1652,13 @@ public class InternalEngineTests extends ESTestCase {
                         SequenceNumbersService.UNASSIGNED_SEQ_NO,
                         rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
                         PRIMARY, 0, -1, false);
-                    try {
-                        initialEngine.index(index);
+                    final Engine.IndexResult result = initialEngine.index(index);
+                    if (!result.hasFailure()) {
+                        assertThat(result.getSeqNo(), equalTo(primarySeqNo + 1));
                         indexedIds.add(id);
-                    } catch (VersionConflictEngineException e) {
-                        versionConflict = true;
+                        primarySeqNo++;
+                        assertThat(result.getSeqNo(), equalTo(primarySeqNo));
                     }
-                }
-                if (versionConflict == false) {
-                    primarySeqNo++;
                 }
 
                 replicaLocalCheckpoint =
@@ -2088,7 +2086,8 @@ public class InternalEngineTests extends ESTestCase {
         return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
     }
 
-    @AwaitsFix(bugUrl = "// nocommit")
+    // nocommit
+    @AwaitsFix(bugUrl = "trips assertions in Engine, assertions should be moved to InternalEngine")
     public void testUpgradeOldIndex() throws IOException {
         List<Path> indexes = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {

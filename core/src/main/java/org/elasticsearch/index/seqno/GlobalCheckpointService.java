@@ -127,7 +127,6 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
             minCheckpoint = Math.min(cp.value, minCheckpoint);
         }
         if (minCheckpoint < globalCheckpoint) {
-            // nocommit: if this happens - do you we fail the shard?
             throw new IllegalStateException(shardId + " new global checkpoint [" + minCheckpoint
                 + "] is lower than previous one [" + globalCheckpoint + "]");
         }

@@ -131,7 +131,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             listener.onFailure(new IllegalArgumentException("index_template must provide a name"));
             return;
         }
-        if (request.template == null) {
+        if (request.indexPatterns == null) {
             listener.onFailure(new IllegalArgumentException("index_template must provide a template"));
             return;
         }
@@ -209,7 +209,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
             templateBuilder.order(request.order);
             templateBuilder.version(request.version);
-            templateBuilder.template(request.template);
+            templateBuilder.patterns(request.indexPatterns);
             templateBuilder.settings(request.settings);
 
             Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
@@ -248,20 +248,22 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         if (!request.name.toLowerCase(Locale.ROOT).equals(request.name)) {
             validationErrors.add("name must be lower cased");
         }
-        if (request.template.contains(" ")) {
-            validationErrors.add("template must not contain a space");
-        }
-        if (request.template.contains(",")) {
-            validationErrors.add("template must not contain a ','");
-        }
-        if (request.template.contains("#")) {
-            validationErrors.add("template must not contain a '#'");
-        }
-        if (request.template.startsWith("_")) {
-            validationErrors.add("template must not start with '_'");
-        }
-        if (!Strings.validFileNameExcludingAstrix(request.template)) {
-            validationErrors.add("template must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        for(String indexPattern : request.indexPatterns) {
+            if (indexPattern.contains(" ")) {
+                validationErrors.add("template must not contain a space");
+            }
+            if (indexPattern.contains(",")) {
+                validationErrors.add("template must not contain a ','");
+            }
+            if (indexPattern.contains("#")) {
+                validationErrors.add("template must not contain a '#'");
+            }
+            if (indexPattern.startsWith("_")) {
+                validationErrors.add("template must not start with '_'");
+            }
+            if (!Strings.validFileNameExcludingAstrix(indexPattern)) {
+                validationErrors.add("template must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            }
         }
 
         try {
@@ -283,8 +285,9 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         for (Alias alias : request.aliases) {
             //we validate the alias only partially, as we don't know yet to which index it'll get applied to
             aliasValidator.validateAliasStandalone(alias);
-            if (request.template.equals(alias.name())) {
-                throw new IllegalArgumentException("Alias [" + alias.name() + "] cannot be the same as the template pattern [" + request.template + "]");
+            if (request.indexPatterns.contains(alias.name())) {
+                throw new IllegalArgumentException("Alias [" + alias.name() +
+                    "] cannot be the same as any pattern in [" + String.join(", ", request.indexPatterns) + "]");
             }
         }
     }
@@ -302,7 +305,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         boolean create;
         int order;
         Integer version;
-        String template;
+        List<String> indexPatterns;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
@@ -320,8 +323,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             return this;
         }
 
-        public PutRequest template(String template) {
-            this.template = template;
+        public PutRequest patterns(List<String> indexPatterns) {
+            this.indexPatterns = indexPatterns;
             return this;
         }
 

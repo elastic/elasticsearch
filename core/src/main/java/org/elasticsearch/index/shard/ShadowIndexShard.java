@@ -114,18 +114,15 @@ public final class ShadowIndexShard extends IndexShard {
 
     @Override
     public void updateGlobalCheckpointOnReplica(long checkpoint) {
-        // nocommit: think shadow replicas through
     }
 
     @Override
     public long getLocalCheckpoint() {
-        // nocommit: think shadow replicas through
         return -1;
     }
 
     @Override
     public long getGlobalCheckpoint() {
-        // nocommit: think shadow replicas through
         return -1;
     }
 

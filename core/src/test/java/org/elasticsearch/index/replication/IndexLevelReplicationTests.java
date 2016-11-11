@@ -29,19 +29,16 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase {
@@ -152,14 +149,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     new ToXContent.MapParams(Collections.singletonMap("pretty", "false"))));
                 assertThat(shardRouting + " local checkpoint mismatch", shardStats.getLocalCheckpoint(), equalTo(numDocs - 1L));
 
-                final Matcher<Long> globalCheckpointMatcher;
-                if (shardRouting.primary()) {
-                    globalCheckpointMatcher = equalTo(numDocs - 1L);
-                } else {
-                    // nocommit: removed once fixed
-                    globalCheckpointMatcher = anyOf(equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO), equalTo(numDocs - 1L));
-                }
-                assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), globalCheckpointMatcher);
+                assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), equalTo(numDocs - 1L));
                 assertThat(shardRouting + " max seq no mismatch", shardStats.getMaxSeqNo(), equalTo(numDocs - 1L));
             }
         }

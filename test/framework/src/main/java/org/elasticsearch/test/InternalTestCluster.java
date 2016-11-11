@@ -1020,7 +1020,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public void beforeIndexDeletion() throws IOException {
+    public void beforeIndexDeletion() throws Exception {
         // Check that the operations counter on index shard has reached 0.
         // The assumption here is that after a test there are no ongoing write operations.
         // test that have ongoing write operations after the test (for example because ttl is used
@@ -1055,41 +1055,48 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void assertShardIndexCounter() throws IOException {
-        final Collection<NodeAndClient> nodesAndClients = nodes.values();
-        for (NodeAndClient nodeAndClient : nodesAndClients) {
-            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
-            for (IndexService indexService : indexServices) {
-                for (IndexShard indexShard : indexService) {
-                    // we assert busy as we can have background global checkpoint activity
-                    try {
-                        assertBusy(() -> {
-                            assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
-                        });
-                    } catch (Exception e) {
-                        throw new RuntimeException("unexpected error while checking for shard counters", e);
-                    }
-                    int activeOperationsCount = indexShard.getActiveOperationsCount();
-                    if (activeOperationsCount > 0) {
-                        TaskManager taskManager = getInstance(TransportService.class, nodeAndClient.name).getTaskManager();
-                        DiscoveryNode localNode = getInstance(ClusterService.class, nodeAndClient.name).localNode();
-                        List<TaskInfo> taskInfos = taskManager.getTasks().values().stream()
-                            .filter(task -> task instanceof ReplicationTask)
-                            .map(task -> task.taskInfo(localNode.getId(), true))
-                            .collect(Collectors.toList());
-                        ListTasksResponse response = new ListTasksResponse(taskInfos, Collections.emptyList(), Collections.emptyList());
-                        XContentBuilder builder = XContentFactory.jsonBuilder()
-                            .prettyPrint()
-                            .startObject()
-                            .value(response)
-                            .endObject();
-                        throw new AssertionError("expected index shard counter on shard " + indexShard.shardId() + " on node " +
-                            nodeAndClient.name + " to be 0 but was " + activeOperationsCount + ". Current replication tasks on node:\n" +
-                            builder.string());
+    private void assertShardIndexCounter() throws Exception {
+        assertBusy(() -> {
+            final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            for (NodeAndClient nodeAndClient : nodesAndClients) {
+                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+                for (IndexService indexService : indexServices) {
+                    for (IndexShard indexShard : indexService) {
+                        // we assert busy as we can have background global checkpoint activity
+                        try {
+                            assertBusy(() -> {
+                                assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
+                            });
+                        } catch (Exception e) {
+                            throw new RuntimeException("unexpected error while checking for shard counters", e);
+                        }
+                        int activeOperationsCount = indexShard.getActiveOperationsCount();
+                        if (activeOperationsCount > 0) {
+                            TaskManager taskManager = getInstance(TransportService.class, nodeAndClient.name).getTaskManager();
+                            DiscoveryNode localNode = getInstance(ClusterService.class, nodeAndClient.name).localNode();
+                            List<TaskInfo> taskInfos = taskManager.getTasks().values().stream()
+                                    .filter(task -> task instanceof ReplicationTask)
+                                    .map(task -> task.taskInfo(localNode.getId(), true))
+                                    .collect(Collectors.toList());
+                            ListTasksResponse response = new ListTasksResponse(taskInfos, Collections.emptyList(), Collections.emptyList());
+                            XContentBuilder builder = null;
+                            try {
+                                builder = XContentFactory.jsonBuilder()
+                                        .prettyPrint()
+                                        .startObject()
+                                        .value(response)
+                                        .endObject();
+                                throw new AssertionError("expected index shard counter on shard " + indexShard.shardId() + " on node " +
+                                        nodeAndClient.name + " to be 0 but was " + activeOperationsCount + ". Current replication tasks on node:\n" +
+                                        builder.string());
+                            } catch (IOException e) {
+                                throw new RuntimeException("caught exception while building response [" + response + "]", e);
+                            }
+                        }
                     }
                 }
             }
-        }
+        });
     }
 
     private void randomlyResetClients() throws IOException {

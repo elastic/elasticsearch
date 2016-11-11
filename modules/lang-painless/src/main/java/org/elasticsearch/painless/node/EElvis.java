@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -27,18 +28,20 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 
-import java.util.Objects;
 import java.util.Set;
+
+import static java.util.Objects.requireNonNull;
 
 public class EElvis extends AExpression {
     private AExpression left;
     private AExpression right;
+    private boolean unboxLhs;
 
     public EElvis(Location location, AExpression left, AExpression right) {
         super(location);
 
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.left = requireNonNull(left);
+        this.right = requireNonNull(right);
     }
 
     @Override
@@ -49,16 +52,31 @@ public class EElvis extends AExpression {
 
     @Override
     void analyze(Locals locals) {
+        left.expected = expected;
+        if (left.expected.sort.primitive) {
+            left.expected = Definition.getType(left.expected.sort.boxed.getSimpleName());
+            unboxLhs = true;
+        }
+        left.explicit = explicit;     // NOCOMMIT should this have the same de-primitive-ization
+        left.internal = internal;
+        right.expected = expected;
+        right.explicit = explicit;
+        right.internal = internal;
         actual = expected;
-
         left.analyze(locals);
         right.analyze(locals);
 
+        if (left.isNull) {
+            throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
+        }
         if (left.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
         if (left.actual.sort.primitive) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
+        }
+        if (right.isNull) {
+            throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 
         if (expected == null) {
@@ -68,6 +86,9 @@ public class EElvis extends AExpression {
             right.expected = promote;
             actual = promote;
         }
+
+        left = left.cast(locals);
+        right = right.cast(locals);
     }
 
     @Override
@@ -79,18 +100,16 @@ public class EElvis extends AExpression {
 
         left.write(writer, globals);
         writer.dup();
-        if (left.actual == actual) {
-            writer.ifNonNull(end);
-        } else {
+        if (unboxLhs) {
             writer.ifNull(nul);
-            // NOCOMMIT emit the cast
+            writer.unbox(actual.type);
             writer.goTo(end);
             writer.mark(nul);
+        } else {
+            writer.ifNonNull(end);
         }
+        writer.pop();
         right.write(writer, globals);
-        if (right.actual != actual) {
-            // NOCOMMIT emit the cast
-        }
         writer.mark(end);
     }
 }

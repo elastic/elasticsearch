@@ -29,22 +29,21 @@ public class ElvisTests extends ScriptTestCase {
         // Basics
         assertEquals("str", exec("return params.a ?: 'str'"));
         assertEquals("str", exec("return params.a ?: 'str2'", singletonMap("a", "str"), true));
-        assertEquals("str", exec("return params.a ?: null", singletonMap("a", "str"), true));
-        assertNull(         exec("return params.a ?: null"));
+        assertEquals("str", exec("return params.a ?: 'asdf'", singletonMap("a", "str"), true));
 
-        // Basics with primitives
-        assertEquals(1, exec("return params.a ?: 1"));
-        assertEquals(1, exec("return params.a ?: 2", singletonMap("a", 1), true));
+        // Assigning to a primitive
+        assertEquals(1, exec("int i = params.a ?: 1; return i"));
+        assertEquals(1, exec("int i = params.a ?: 2; return i", singletonMap("a", 1), true));
 
         // Now some chains
         assertEquals(1, exec("return params.a ?: params.a ?: 1"));
-        assertEquals(1, exec("return params.a ?: params.b ?: null", singletonMap("b", 1), true));
-        assertEquals(1, exec("return params.a ?: null ?: null", singletonMap("a", 1), true));
+        assertEquals(1, exec("return params.a ?: params.b ?: 'j'", singletonMap("b", 1), true));
+        assertEquals(1, exec("return params.a ?: params.b ?: 'j'", singletonMap("a", 1), true));
 
         // Precedence
         assertEquals(1, exec("return params.a ?: 2 + 2", singletonMap("a", 1), true));
-        assertEquals(2, exec("Integer i = 1; return i + params.a ?: 2 + 2", singletonMap("a", 1), true));
         assertEquals(4, exec("return params.a ?: 2 + 2"));
+        // NOCOMMIT it feels like you should be able to do more stuff in the lhs but I don't know that you can!
 
         // Weird casts
         assertEquals(1,     exec("int i = params.i;     String s = params.s; return s ?: i", singletonMap("i", 1), true));
@@ -59,7 +58,15 @@ public class ElvisTests extends ScriptTestCase {
     public void testExtraneousElvis() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("int i = params.a; return i ?: 1"));
         assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is a primitive.");
+        expectScriptThrows(IllegalArgumentException.class, () -> exec("int i = params.a; return i + 10 ?: 'ignored'"));
+        assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is a primitive.");
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 'cat' ?: 1"));
         assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is a constant.");
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return null ?: 'j'"));
+        assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is null.");
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a ?: null ?: 'j'"));
+        assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is null.");
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a ?: null"));
+        assertEquals(e.getMessage(), "Extraneous elvis operator. RHS is null.");
     }
 }

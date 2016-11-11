@@ -101,7 +101,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
 
     @Override
     public ScriptDocValues getScriptValues() {
-        throw new UnsupportedOperationException();
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     @Override

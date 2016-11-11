@@ -39,6 +39,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -92,16 +93,19 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 1).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
         ShardId shardId = new ShardId(meta.getIndex(), 0);
-        assertFalse("no shard location", indicesService.canDeleteShardContent(shardId, indexSettings));
+        assertEquals("no shard location", indicesService.canDeleteShardContent(shardId, indexSettings),
+            ShardDeletionCheckResult.NO_FOLDER_FOUND);
         IndexService test = createIndex("test");
         shardId = new ShardId(test.index(), 0);
         assertTrue(test.hasShard(0));
-        assertFalse("shard is allocated", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()));
+        assertEquals("shard is allocated", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
+            ShardDeletionCheckResult.STILL_ALLOCATED);
         test.removeShard(0, "boom");
-        assertTrue("shard is removed", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()));
+        assertEquals("shard is removed", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
+            ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE);
         ShardId notAllocated = new ShardId(test.index(), 100);
-        assertFalse("shard that was never on this node should NOT be deletable",
-            indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()));
+        assertEquals("shard that was never on this node should NOT be deletable",
+            indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()), ShardDeletionCheckResult.NO_FOLDER_FOUND);
     }
 
     public void testDeleteIndexStore() throws Exception {

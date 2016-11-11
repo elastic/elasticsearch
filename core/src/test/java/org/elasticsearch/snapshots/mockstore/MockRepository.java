@@ -324,8 +324,7 @@ public class MockRepository extends FsRepository {
                 // simulate a non-atomic move, since many blob container implementations
                 // will not have an atomic move, and we should be able to handle that
                 maybeIOExceptionOrBlock(targetBlob);
-                super.writeBlob(targetBlob, readBlob(sourceBlob), 0L);
-                maybeIOExceptionOrBlock(targetBlob);
+                super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
                 super.deleteBlob(sourceBlob);
             }
 

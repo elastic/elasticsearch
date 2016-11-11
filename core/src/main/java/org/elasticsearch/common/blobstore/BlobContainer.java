@@ -106,7 +106,7 @@ public interface BlobContainer {
 
     /**
      * Renames the source blob into the target blob.  If the source blob does not exist or the
-     * target blob already exists, an exception is thrown.  Atomicity of the move operation is
+     * target blob already exists, an exception is thrown.  Atomicity of the move operation
      * can only be guaranteed on an implementation-by-implementation basis.  The only current
      * implementation of {@link BlobContainer} for which atomicity can be guaranteed is the
      * {@link org.elasticsearch.common.blobstore.fs.FsBlobContainer}.

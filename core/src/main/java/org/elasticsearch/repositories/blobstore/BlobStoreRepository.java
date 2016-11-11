@@ -872,6 +872,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotsBlobContainer.writeBlob(tempBlobName, stream, bytesRef.length());
             snapshotsBlobContainer.move(tempBlobName, blobName);
         } catch (IOException ex) {
+            // temporary blob creation or move failed - try cleaning up
             try {
                 snapshotsBlobContainer.deleteBlob(tempBlobName);
             } catch (IOException e) {

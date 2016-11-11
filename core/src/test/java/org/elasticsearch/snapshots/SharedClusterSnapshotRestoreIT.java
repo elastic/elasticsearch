@@ -2676,7 +2676,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("mock").setVerify(false).setSettings(
-                Settings.builder().put("location", repoPath).put("random_control_io_exception_rate", 0.2)));
+                Settings.builder().put("location", repoPath).put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)));
 
         logger.info("--> indexing some data");
         createIndex("test-idx");
@@ -2703,8 +2703,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 }
             }
         } catch (Exception ex) {
-            // sometimes, the snapshot will fail with a top level I/O exception,
-            // we assert below that we can still create subsequent snapshots
+            // sometimes, the snapshot will fail with a top level I/O exception
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("Random IOException"));
         }
 
         logger.info("--> snapshot with no I/O failures");

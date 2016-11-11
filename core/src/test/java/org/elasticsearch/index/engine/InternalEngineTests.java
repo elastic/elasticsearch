@@ -166,7 +166,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class InternalEngineTests extends ESTestCase {
 
-
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
@@ -1207,7 +1206,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(result.getFailure(), instanceOf(IllegalArgumentException.class));
             assertThat(result.getFailure().getMessage(), containsString("version type [FORCE] may not be used for non-translog operations"));
 
-            index = new Engine.Index(newUid("1"), doc, randomIntBetween(0, 16), 84, VersionType.FORCE,
+            index = new Engine.Index(newUid("1"), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 84, VersionType.FORCE,
                     Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY, 0, -1, false);
             result = engine.index(index);
             assertThat(result.getVersion(), equalTo(84L));
@@ -2086,8 +2085,6 @@ public class InternalEngineTests extends ESTestCase {
         return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
     }
 
-    // nocommit
-    @AwaitsFix(bugUrl = "trips assertions in Engine, assertions should be moved to InternalEngine")
     public void testUpgradeOldIndex() throws IOException {
         List<Path> indexes = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {

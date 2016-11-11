@@ -27,8 +27,12 @@ Elasticsearch website or from our RPM repository.
 +
 <<rpm>>
 
-[float]
-[[config-mgmt-tools]]
+`docker`::
+
+An image is available for running Elasticsearch as a Docker container. It ships with https://www.elastic.co/guide/en/x-pack/current/index.html[X-Pack] pre-installed and may be downloaded from the Elastic Docker Registry.
++
+<<docker>>
+
 === Configuration Management Tools
 
 We also provide the following configuration management tools to help with
@@ -47,4 +51,4 @@ include::install/rpm.asciidoc[]
 
 include::install/windows.asciidoc[]
 
-
+include::install/docker.asciidoc[]

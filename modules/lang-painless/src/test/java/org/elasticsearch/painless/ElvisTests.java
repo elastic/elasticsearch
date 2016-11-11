@@ -67,6 +67,8 @@ public class ElvisTests extends ScriptTestCase {
     public void testWithNullSafeDereferences() {
         assertEquals(1, exec("return params.a?.b ?: 1"));
         assertEquals(1, exec("return params.a?.b ?: 2", singletonMap("a", singletonMap("b", 1)), true));
+
+        // TODO we can save an extra box/unbox when the null safe dereference would output a primitive and the rhs is also a primitive
     }
 
     public void testLazy() {
@@ -81,9 +83,15 @@ public class ElvisTests extends ScriptTestCase {
      * first one only needs one comparison if the {@code a} is non-null while the second one needs two.
      */
     public void testRightAssociative() {
-        /* Sadly this is a bit finicky about the output of the disassembly but I think it is worth having because it makes sure that
+        checkOneBranch("params.a ?: (params.b ?: params.c)", true);
+        checkOneBranch("(params.a ?: params.b) ?: params.c", false);
+        checkOneBranch("params.a ?: params.b ?: params.c", true);
+    }
+
+    private void checkOneBranch(String code, boolean expectOneBranch) {
+        /* Sadly this is a super finicky about the output of the disassembly but I think it is worth having because it makes sure that
          * the code generated for the elvis operator is as efficient as possible. */
-        String disassembled = Debugger.toString("params.a ?: params.b ?: params.c");
+        String disassembled = Debugger.toString(code);
         int firstLookup = disassembled.indexOf("INVOKEINTERFACE java/util/Map.get (Ljava/lang/Object;)Ljava/lang/Object;");
         assertThat(disassembled, firstLookup, greaterThan(-1));
         int firstElvisDestinationLabelIndex = disassembled.indexOf("IFNONNULL L", firstLookup);
@@ -93,8 +101,11 @@ public class ElvisTests extends ScriptTestCase {
         int firstElvisDestionation = disassembled.indexOf("   " + firstElvisDestinationLabel);
         assertThat(disassembled, firstElvisDestionation, greaterThan(-1));
         int ifAfterFirstElvisDestination = disassembled.indexOf("IF", firstElvisDestionation);
-        assertThat(disassembled,
-                ifAfterFirstElvisDestination, lessThan(0));
+        if (expectOneBranch) {
+            assertThat(disassembled, ifAfterFirstElvisDestination, lessThan(0));
+        } else {
+            assertThat(disassembled, ifAfterFirstElvisDestination, greaterThan(-1));
+        }
         int returnAfterFirstElvisDestination = disassembled.indexOf("RETURN", firstElvisDestionation);
         assertThat(disassembled, returnAfterFirstElvisDestination, greaterThan(-1));
     }

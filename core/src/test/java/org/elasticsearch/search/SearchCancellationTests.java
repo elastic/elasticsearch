@@ -22,6 +22,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
@@ -46,7 +47,9 @@ public class SearchCancellationTests extends ESTestCase {
     public static void before() throws IOException {
         dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
-        w.setDoRandomForceMerge(false); // we need 2 segments
+        // we need at least 2 segments - so no merges should be allowed
+        w.w.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+        w.setDoRandomForceMerge(false);
         indexRandomDocuments(w, TestUtil.nextInt(random(), 2, 20));
         w.flush();
         indexRandomDocuments(w, TestUtil.nextInt(random(), 1, 20));
@@ -56,10 +59,6 @@ public class SearchCancellationTests extends ESTestCase {
 
     private static void indexRandomDocuments(RandomIndexWriter w, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; ++i) {
-            final int numHoles = random().nextInt(5);
-            for (int j = 0; j < numHoles; ++j) {
-                w.addDocument(new Document());
-            }
             Document doc = new Document();
             doc.add(new StringField("foo", "bar", Field.Store.NO));
             w.addDocument(doc);

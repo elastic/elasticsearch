@@ -1499,8 +1499,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
-                        .put("max_restore_bytes_per_sec", throttleRestore ? "0.5k" : "0")
-                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "0.5k" : "0")));
+                        .put("max_restore_bytes_per_sec", throttleRestore ? "10k" : "0")
+                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "10k" : "0")));
 
         createIndex("test-idx");
         ensureGreen();

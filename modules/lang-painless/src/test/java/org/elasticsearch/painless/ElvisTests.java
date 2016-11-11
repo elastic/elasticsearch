@@ -54,6 +54,12 @@ public class ElvisTests extends ScriptTestCase {
         // Weird casts
         assertEquals(1,     exec("int i = params.i;     String s = params.s; return s ?: i", singletonMap("i", 1), true));
         assertEquals("str", exec("Integer i = params.i; String s = params.s; return s ?: i", singletonMap("s", "str"), true));
+
+        // Combining
+        assertEquals(2, exec("return (params.a ?: 0) + 1", singletonMap("a", 1), true));
+        assertEquals(1, exec("return (params.a ?: 0) + 1"));
+        assertEquals(2, exec("return (params.a ?: ['b': 10]).b + 1", singletonMap("a", singletonMap("b", 1)), true));
+        assertEquals(11, exec("return (params.a ?: ['b': 10]).b + 1"));
     }
 
     public void testWithNullSafeDereferences() {

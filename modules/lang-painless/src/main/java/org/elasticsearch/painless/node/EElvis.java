@@ -63,7 +63,7 @@ public class EElvis extends AExpression {
     @Override
     void analyze(Locals locals) {
         lhs.expected = expected;
-        if (lhs.expected.sort.primitive) {
+        if (lhs.expected != null && lhs.expected.sort.primitive) {
             lhs.expected = Definition.getType(lhs.expected.sort.boxed.getSimpleName());
             unboxLhs = true;
         }

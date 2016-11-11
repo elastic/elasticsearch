@@ -34,7 +34,7 @@ public class TemplateUtilsTests extends ESTestCase {
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
         assertTemplate(source, equalTo("{\n" +
-                "  \"template\": \".monitoring-data-" + version + "\",\n" +
+                "  \"index_patterns\": \".monitoring-data-" + version + "\",\n" +
                 "  \"mappings\": {\n" +
                 "    \"type_1\": {\n" +
                 "      \"_meta\": {\n" +
@@ -42,7 +42,7 @@ public class TemplateUtilsTests extends ESTestCase {
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +
-                "}"));
+                "}\n"));
     }
 
     public void testLoad() throws IOException {

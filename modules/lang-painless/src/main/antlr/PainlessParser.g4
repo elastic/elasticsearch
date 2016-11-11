@@ -110,6 +110,7 @@ expression
     |               expression BOOLAND expression                         # bool
     |               expression BOOLOR expression                          # bool
     | <assoc=right> expression COND expression COLON expression           # conditional
+    | <assoc=right> expression COND COLON expression                      # elvis
     | <assoc=right> expression ( ASSIGN | AADD | ASUB | AMUL |
                                  ADIV   | AREM | AAND | AXOR |
                                  AOR    | ALSH | ARSH | AUSH ) expression # assignment

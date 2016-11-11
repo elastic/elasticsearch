@@ -116,8 +116,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
         @Override
         public FieldStats stats(IndexReader reader) throws IOException {
-            // nocommit remove implementation when late-binding commits
-            // are possible
+            // TODO: remove implementation when late-binding commits are possible
             final List<LeafReaderContext> leaves = reader.leaves();
             if (leaves.isEmpty()) {
                 return null;

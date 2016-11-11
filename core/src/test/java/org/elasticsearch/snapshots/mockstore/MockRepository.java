@@ -321,14 +321,20 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void move(String sourceBlob, String targetBlob) throws IOException {
+                // simulate a non-atomic move, since many blob container implementations
+                // will not have an atomic move, and we should be able to handle that
                 maybeIOExceptionOrBlock(targetBlob);
-                super.move(sourceBlob, targetBlob);
+                super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
+                super.deleteBlob(sourceBlob);
             }
 
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 super.writeBlob(blobName, inputStream, blobSize);
+                // for network based repositories, the blob may have been written but we may still
+                // get an error with the client connection, so an IOException here simulates this
+                maybeIOExceptionOrBlock(blobName);
             }
         }
     }

@@ -25,7 +25,7 @@ import static java.util.Collections.singletonMap;
  * Tests for the Elvis operator ({@code ?:}).
  */
 public class ElvisTests extends ScriptTestCase {
-    public void testElvisOperator() {
+    public void testBasics() {
         // Basics
         assertEquals("str", exec("return params.a ?: 'str'"));
         assertEquals("str", exec("return params.a ?: 'str2'", singletonMap("a", "str"), true));
@@ -56,12 +56,19 @@ public class ElvisTests extends ScriptTestCase {
         assertEquals("str", exec("Integer i = params.i; String s = params.s; return s ?: i", singletonMap("s", "str"), true));
     }
 
-    public void testElvisOperatorWithNullSafeDereference() {
+    public void testWithNullSafeDereferences() {
         assertEquals(1, exec("return params.a?.b ?: 1"));
         assertEquals(1, exec("return params.a?.b ?: 2", singletonMap("a", singletonMap("b", 1)), true));
     }
 
-    public void testExtraneousElvis() {
+    public void testLazy() {
+        assertEquals(1, exec("def fail() {throw new RuntimeException('test')} return params.a ?: fail()", singletonMap("a", 1), true));
+        Exception e = expectScriptThrows(RuntimeException.class, () ->
+            exec("def fail() {throw new RuntimeException('test')} return params.a ?: fail()"));
+        assertEquals(e.getMessage(), "test");
+    }
+
+    public void testExtraneous() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("int i = params.a; return i ?: 1"));
         assertEquals(e.getMessage(), "Extraneous elvis operator. LHS is a primitive.");
         expectScriptThrows(IllegalArgumentException.class, () -> exec("int i = params.a; return i + 10 ?: 'ignored'"));

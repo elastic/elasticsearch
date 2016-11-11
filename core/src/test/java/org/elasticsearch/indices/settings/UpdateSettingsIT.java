@@ -38,9 +38,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
@@ -398,14 +398,19 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             }
         }
 
+        @Override
+        public boolean ignoreExceptions() {
+            return false;
+        }
+
     }
 
     public void testUpdateAutoThrottleSettings() throws IllegalAccessException {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
         Logger rootLogger = LogManager.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
         Loggers.addAppender(rootLogger, mockAppender);
+        Level savedLevel = rootLogger.getLevel();
         Loggers.setLevel(rootLogger, Level.TRACE);
 
         try {
@@ -436,9 +441,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("false"));
         } finally {
+            Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 
@@ -529,9 +534,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()), equalTo("1"));
 
         } finally {
+            Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 

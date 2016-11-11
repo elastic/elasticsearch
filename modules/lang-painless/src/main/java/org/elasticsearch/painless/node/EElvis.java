@@ -32,63 +32,68 @@ import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
 
+/**
+ * The Elvis operator ({@code ?:}), a null coalescing operator. Binary operator that evaluates the first expression and return it if it is
+ * non null. If the first expression is null then it evaluates the second expression and returns it. Similar to C#'s null coalescing
+ * operator ({@code ??}).
+ */
 public class EElvis extends AExpression {
-    private AExpression left;
-    private AExpression right;
+    private AExpression lhs;
+    private AExpression rhs;
     private boolean unboxLhs;
 
-    public EElvis(Location location, AExpression left, AExpression right) {
+    public EElvis(Location location, AExpression lhs, AExpression rhs) {
         super(location);
 
-        this.left = requireNonNull(left);
-        this.right = requireNonNull(right);
+        this.lhs = requireNonNull(lhs);
+        this.rhs = requireNonNull(rhs);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
+        lhs.extractVariables(variables);
+        rhs.extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
-        left.expected = expected;
-        if (left.expected.sort.primitive) {
-            left.expected = Definition.getType(left.expected.sort.boxed.getSimpleName());
+        lhs.expected = expected;
+        if (lhs.expected.sort.primitive) {
+            lhs.expected = Definition.getType(lhs.expected.sort.boxed.getSimpleName());
             unboxLhs = true;
         }
-        left.explicit = explicit;     // NOCOMMIT should this have the same de-primitive-ization
-        left.internal = internal;
-        right.expected = expected;
-        right.explicit = explicit;
-        right.internal = internal;
+        lhs.explicit = explicit;     // NOCOMMIT should this have the same de-primitive-ization
+        lhs.internal = internal;
+        rhs.expected = expected;
+        rhs.explicit = explicit;
+        rhs.internal = internal;
         actual = expected;
-        left.analyze(locals);
-        right.analyze(locals);
+        lhs.analyze(locals);
+        rhs.analyze(locals);
 
-        if (left.isNull) {
+        if (lhs.isNull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (left.constant != null) {
+        if (lhs.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
-        if (left.actual.sort.primitive) {
+        if (lhs.actual.sort.primitive) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
-        if (right.isNull) {
+        if (rhs.isNull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 
         if (expected == null) {
-            final Type promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
+            final Type promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
 
-            left.expected = promote;
-            right.expected = promote;
+            lhs.expected = promote;
+            rhs.expected = promote;
             actual = promote;
         }
 
-        left = left.cast(locals);
-        right = right.cast(locals);
+        lhs = lhs.cast(locals);
+        rhs = rhs.cast(locals);
     }
 
     @Override
@@ -98,7 +103,7 @@ public class EElvis extends AExpression {
         Label nul = new Label();
         Label end = new Label();
 
-        left.write(writer, globals);
+        lhs.write(writer, globals);
         writer.dup();
         if (unboxLhs) {
             writer.ifNull(nul);
@@ -109,7 +114,7 @@ public class EElvis extends AExpression {
             writer.ifNonNull(end);
         }
         writer.pop();
-        right.write(writer, globals);
+        rhs.write(writer, globals);
         writer.mark(end);
     }
 }

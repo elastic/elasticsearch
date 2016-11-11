@@ -34,10 +34,11 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.junit.Before;
+
+import java.io.IOException;
 
 public class TypeFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -56,20 +57,14 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         });
     }
 
-    public void testTermQuery() throws Exception {
+    public void testTermsQuery() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
-        Document doc = new Document();
-        StringField type = new StringField(TypeFieldMapper.NAME, "my_type", Store.NO);
-        doc.add(type);
-        w.addDocument(doc);
-        w.addDocument(doc);
-        IndexReader reader = DirectoryReader.open(w);
+        IndexReader reader = openReaderWithNewType("my_type", w);
 
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
         ft.setName(TypeFieldMapper.NAME);
         Query query = ft.termQuery("my_type", null);
-
         assertEquals(new MatchAllDocsQuery(), query.rewrite(reader));
 
         // Make sure that Lucene actually simplifies the query when there is a single type
@@ -78,13 +73,55 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         Query rewritten = new IndexSearcher(reader).rewrite(filteredQuery);
         assertEquals(userQuery, rewritten);
 
-        type.setStringValue("my_type2");
-        w.addDocument(doc);
+        // ... and does not rewrite it if there is more than one type
         reader.close();
-        reader = DirectoryReader.open(w);
+        reader = openReaderWithNewType("my_type2", w);
+        Query expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(TypeFieldMapper.NAME, "my_type")), Occur.SHOULD)
+            .build()
+        );
+        assertEquals(expected, query.rewrite(reader));
 
-        assertEquals(new ConstantScoreQuery(new TermQuery(new Term(TypeFieldMapper.NAME, "my_type"))), query.rewrite(reader));
+        BytesRef[] types =
+            new BytesRef[] {new BytesRef("my_type"), new BytesRef("my_type2"), new BytesRef("my_type3")};
+        // the query should match all documents
+        query = new TypeFieldMapper.TypesQuery(types);
+        assertEquals(new MatchAllDocsQuery(), query.rewrite(reader));
+
+        reader.close();
+        reader = openReaderWithNewType("unknown_type", w);
+        // the query cannot rewrite to a match all docs sinc unknown_type is not queried.
+        query = new TypeFieldMapper.TypesQuery(types);
+        expected =
+            new ConstantScoreQuery(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(TypeFieldMapper.CONTENT_TYPE, types[0])), Occur.SHOULD)
+                    .add(new TermQuery(new Term(TypeFieldMapper.CONTENT_TYPE, types[1])), Occur.SHOULD)
+                .build()
+            );
+        rewritten = query.rewrite(reader);
+        assertEquals(expected, rewritten);
+
+        // make sure that redundant types does not rewrite to MatchAllDocsQuery
+        query = new TypeFieldMapper.TypesQuery(new BytesRef("my_type"), new BytesRef("my_type"), new BytesRef("my_type"));
+        expected =
+            new ConstantScoreQuery(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(TypeFieldMapper.CONTENT_TYPE, "my_type")), Occur.SHOULD)
+                    .build()
+            );
+        rewritten = query.rewrite(reader);
+        assertEquals(expected, rewritten);
 
         IOUtils.close(reader, w, dir);
+    }
+
+    static DirectoryReader openReaderWithNewType(String type, IndexWriter writer) throws IOException {
+        Document doc = new Document();
+        StringField typeField = new StringField(TypeFieldMapper.NAME, type, Store.NO);
+        doc.add(typeField);
+        writer.addDocument(doc);
+        return DirectoryReader.open(writer);
     }
 }

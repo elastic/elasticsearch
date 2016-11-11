@@ -69,7 +69,7 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, indexAnalyzers, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher, queryShardContextSupplier.get());
+        return new Mapper.TypeParser.ParserContext(type, indexAnalyzers, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher, queryShardContextSupplier);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

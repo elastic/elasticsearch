@@ -1,6 +1,8 @@
 ---
 "Help":
-
+    - skip:
+        version: " - 5.0.99"
+        reason:  templates were introduced in 5.1.0
     - do:
         cat.templates:
           help: true
@@ -15,7 +17,9 @@
 
 ---
 "No templates":
-
+    - skip:
+        version: " - 5.0.99"
+        reason:  templates were introduced in 5.1.0
     - do:
         cat.templates: {}
 
@@ -26,7 +30,9 @@
 
 ---
 "Normal templates":
-
+    - skip:
+        version: " - 5.0.99"
+        reason:  templates were introduced in 5.1.0
     - do:
         indices.put_template:
           name: test
@@ -72,7 +78,9 @@
 
 ---
 "Filtered templates":
-
+    - skip:
+        version: " - 5.0.99"
+        reason:  templates were introduced in 5.1.0
     - do:
         indices.put_template:
           name: test
@@ -111,7 +119,9 @@
 
 ---
 "Column headers":
-
+    - skip:
+        version: " - 5.0.99"
+        reason:  templates were introduced in 5.1.0
     - do:
         indices.put_template:
           name: test
@@ -145,7 +155,9 @@
 
 ---
 "Select columns":
-
+    - skip:
+        version: " - 5.0.99"
+        reason:  templates were introduced in 5.1.0
     - do:
         indices.put_template:
           name: test
@@ -174,3 +186,52 @@
                     \n
                 $/
 
+---
+"Sort templates":
+    - skip:
+        version: " - 5.0.99"
+        reason:  templates were introduced in 5.1.0
+    - do:
+        indices.put_template:
+          name: test
+          body:
+            order: 0
+            template: t*
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+    - do:
+        indices.put_template:
+          name: test_1
+          body:
+            order: 0
+            version: 1
+            template: te*
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+    - do:
+        cat.templates:
+            h: [name, template, version]
+            s: [version]
+
+    - match:
+        $body: |
+              /^
+                  test \s+ t\* \s+\n
+                  test_1 \s+ te\* \s+ 1\n
+              $/
+
+    - do:
+        cat.templates:
+            h: [name, template, version]
+            s: ["version:desc"]
+
+    - match:
+        $body: |
+              /^
+                  test_1 \s+ te\* \s+ 1\n
+                  test \s+ t\* \s+\n
+              $/

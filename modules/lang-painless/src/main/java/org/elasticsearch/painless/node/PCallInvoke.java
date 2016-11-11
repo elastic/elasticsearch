@@ -39,14 +39,16 @@ import java.util.Set;
 public final class PCallInvoke extends AExpression {
 
     private final String name;
+    private final boolean nullSafe;
     private final List<AExpression> arguments;
 
     private AExpression sub = null;
 
-    public PCallInvoke(Location location, AExpression prefix, String name, List<AExpression> arguments) {
+    public PCallInvoke(Location location, AExpression prefix, String name, boolean nullSafe, List<AExpression> arguments) {
         super(location, prefix);
 
         this.name = Objects.requireNonNull(name);
+        this.nullSafe = nullSafe;
         this.arguments = Objects.requireNonNull(arguments);
     }
 
@@ -85,6 +87,10 @@ public final class PCallInvoke extends AExpression {
         } else {
             throw createError(new IllegalArgumentException(
                 "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.name + "]."));
+        }
+
+        if (nullSafe) {
+            sub = new PSubNullSafeCallInvoke(location, sub);
         }
 
         sub.expected = expected;

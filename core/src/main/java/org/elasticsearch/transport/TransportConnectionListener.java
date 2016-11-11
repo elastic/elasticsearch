@@ -21,9 +21,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-/**
- *
- */
 public interface TransportConnectionListener {
 
     void onNodeConnected(DiscoveryNode node);

@@ -32,9 +32,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-/**
- *
- */
 public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest<Request>
         implements IndicesRequest {
 

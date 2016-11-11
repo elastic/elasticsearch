@@ -45,7 +45,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -444,21 +443,15 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testAllMissingStrict() throws Exception {
         createIndex("test1");
-        try {
+        expectThrows(IndexNotFoundException.class, () ->
             client().prepareSearch("test2")
                     .setQuery(matchAllQuery())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexNotFoundException e) {
-        }
+                    .execute().actionGet());
 
-        try {
+        expectThrows(IndexNotFoundException.class, () ->
             client().prepareSearch("test2","test3")
                     .setQuery(matchAllQuery())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexNotFoundException e) {
-        }
+                    .execute().actionGet());
 
         //you should still be able to run empty searches without things blowing up
         client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();

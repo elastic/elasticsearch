@@ -32,8 +32,6 @@ import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
-/**
- */
 public class ShardStats implements Streamable, ToXContent {
     private ShardRouting shardRouting;
     private CommonStats commonStats;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.tasks.Task;
@@ -56,9 +56,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-/**
- *
- */
 public class TransportValidateQueryAction extends TransportBroadcastAction<ValidateQueryRequest, ValidateQueryResponse, ShardValidateQueryRequest, ShardValidateQueryResponse> {
 
     private final SearchService searchService;
@@ -80,8 +77,9 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.getIndexName(), request.indices());
-        return new ShardValidateQueryRequest(shard.shardId(), filteringAliases, request);
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterService.state(), shard.getIndexName(),
+            request.indices());
+        return new ShardValidateQueryRequest(shard.shardId(), aliasFilter, request);
     }
 
     @Override
@@ -144,15 +142,13 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
-
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws IOException {
         boolean valid;
         String explanation = null;
         String error = null;
         ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
             request.nowInMillis(), request.filteringAliases());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, null);
-        SearchContext.setCurrent(searchContext);
         try {
             ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
@@ -166,7 +162,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             valid = false;
             error = e.getMessage();
         } finally {
-            Releasables.close(searchContext, () -> SearchContext.removeCurrent());
+            Releasables.close(searchContext);
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);

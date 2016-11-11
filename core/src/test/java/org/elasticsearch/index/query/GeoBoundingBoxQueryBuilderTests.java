@@ -32,6 +32,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.geo.LegacyInMemoryGeoBoundingBoxQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.io.GeohashUtils;
@@ -254,8 +255,9 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context)
+    protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, SearchContext searchContext)
         throws IOException {
+        QueryShardContext context = searchContext.getQueryShardContext();
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
@@ -266,7 +268,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 } else {
                     assertTrue("Found no indexed geo query.", query instanceof LegacyInMemoryGeoBoundingBoxQuery);
                 }
-            } else if (context.indexVersionCreated().before(Version.V_5_0_0_alpha6)) {
+            } else if (context.indexVersionCreated().before(Version.V_5_0_0_beta1)) {
                 assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
             } else {
                 assertTrue("Found no indexed geo query.", query instanceof Query);
@@ -431,7 +433,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             assertThat(filter.topLeft().lon(), closeTo(-70, 1E-5));
             assertThat(filter.bottomRight().lat(), closeTo(30, 1E-5));
             assertThat(filter.bottomRight().lon(), closeTo(-80, 1E-5));
-        } else if (shardContext.indexVersionCreated().before(Version.V_5_0_0_alpha6)) {
+        } else if (shardContext.indexVersionCreated().before(Version.V_5_0_0_beta1)) {
             GeoPointInBBoxQuery q = (GeoPointInBBoxQuery) parsedQuery;
             assertThat(q.getField(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(q.getMaxLat(), closeTo(40, 1E-5));

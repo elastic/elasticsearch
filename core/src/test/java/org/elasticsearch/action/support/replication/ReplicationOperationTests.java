@@ -259,7 +259,7 @@ public class ReplicationOperationTests extends ESTestCase {
                                                              final ClusterState initialState,
                                                              final ClusterState changedState) throws Exception {
         AtomicReference<ClusterState> state = new AtomicReference<>(initialState);
-        logger.debug("--> using initial state:\n{}", state.get().prettyPrint());
+        logger.debug("--> using initial state:\n{}", state.get());
         final long primaryTerm = initialState.getMetaData().index(shardId.getIndexName()).primaryTerm(shardId.id());
         final ShardRouting primaryShard = state.get().routingTable().shardRoutingTable(shardId).primaryShard();
         final TestPrimary primary = new TestPrimary(primaryShard, primaryTerm) {
@@ -267,7 +267,7 @@ public class ReplicationOperationTests extends ESTestCase {
             public Result perform(Request request) throws Exception {
                 Result result = super.perform(request);
                 state.set(changedState);
-                logger.debug("--> state after primary operation:\n{}", state.get().prettyPrint());
+                logger.debug("--> state after primary operation:\n{}", state.get());
                 return result;
             }
         };
@@ -306,8 +306,7 @@ public class ReplicationOperationTests extends ESTestCase {
         logger.debug("using active shard count of [{}], assigned shards [{}], total shards [{}]." +
                 " expecting op to [{}]. using state: \n{}",
             request.waitForActiveShards(), 1 + assignedReplicas, 1 + assignedReplicas + unassignedReplicas,
-            passesActiveShardCheck ? "succeed" : "retry",
-            state.prettyPrint());
+            passesActiveShardCheck ? "succeed" : "retry", state);
         final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();

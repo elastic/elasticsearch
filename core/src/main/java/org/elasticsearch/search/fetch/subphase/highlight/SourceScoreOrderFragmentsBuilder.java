@@ -33,9 +33,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
     private final FieldMapper mapper;

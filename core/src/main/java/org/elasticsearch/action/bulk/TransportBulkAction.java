@@ -19,12 +19,10 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -58,18 +56,18 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
- *
+ * Groups bulk request items by shard, optionally creating non-existent indices and
+ * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
@@ -119,15 +117,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         if (needToCheck()) {
             // Keep track of all unique indices and all unique types per index for the create index requests:
-            final Set<String> autoCreateIndices = new HashSet<>();
-            for (ActionRequest request : bulkRequest.requests) {
-                if (request instanceof DocumentRequest) {
-                    DocumentRequest req = (DocumentRequest) request;
-                    autoCreateIndices.add(req.index());
-                } else {
-                    throw new ElasticsearchException("Parsed unknown request in bulk actions: " + request.getClass().getSimpleName());
-                }
-            }
+            final Set<String> autoCreateIndices = bulkRequest.requests.stream()
+                .map(DocWriteRequest::index)
+                .collect(Collectors.toSet());
             final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
             ClusterState state = clusterService.state();
             for (String index : autoCreateIndices) {
@@ -153,7 +145,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             if (!(ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException)) {
                                 // fail all requests involving this index, if create didnt work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                    ActionRequest request = bulkRequest.requests.get(i);
+                                    DocWriteRequest request = bulkRequest.requests.get(i);
                                     if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
                                         bulkRequest.requests.set(i, null);
                                     }
@@ -188,27 +180,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return autoCreateIndex.shouldAutoCreate(index, state);
     }
 
-    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, ActionRequest request, String index, Exception e) {
-        if (request instanceof IndexRequest) {
-            IndexRequest indexRequest = (IndexRequest) request;
-            if (index.equals(indexRequest.index())) {
-                responses.set(idx, new BulkItemResponse(idx, "index", new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e)));
-                return true;
-            }
-        } else if (request instanceof DeleteRequest) {
-            DeleteRequest deleteRequest = (DeleteRequest) request;
-            if (index.equals(deleteRequest.index())) {
-                responses.set(idx, new BulkItemResponse(idx, "delete", new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), e)));
-                return true;
-            }
-        } else if (request instanceof UpdateRequest) {
-            UpdateRequest updateRequest = (UpdateRequest) request;
-            if (index.equals(updateRequest.index())) {
-                responses.set(idx, new BulkItemResponse(idx, "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), e)));
-                return true;
-            }
-        } else {
-            throw new ElasticsearchException("Parsed unknown request in bulk actions: " + request.getClass().getSimpleName());
+    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest request, String index, Exception e) {
+        if (index.equals(request.index())) {
+            responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(), request.id(), e)));
+            return true;
         }
         return false;
     }
@@ -236,95 +211,56 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
         MetaData metaData = clusterState.metaData();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            ActionRequest request = bulkRequest.requests.get(i);
+            DocWriteRequest docWriteRequest = bulkRequest.requests.get(i);
             //the request can only be null because we set it to null in the previous step, so it gets ignored
-            if (request == null) {
+            if (docWriteRequest == null) {
                 continue;
             }
-            DocumentRequest documentRequest = (DocumentRequest) request;
-            if (addFailureIfIndexIsUnavailable(documentRequest, bulkRequest, responses, i, concreteIndices, metaData)) {
+            if (addFailureIfIndexIsUnavailable(docWriteRequest, bulkRequest, responses, i, concreteIndices, metaData)) {
                 continue;
             }
-            Index concreteIndex = concreteIndices.resolveIfAbsent(documentRequest);
-            if (request instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) request;
-                MappingMetaData mappingMd = null;
-                final IndexMetaData indexMetaData = metaData.index(concreteIndex);
-                if (indexMetaData != null) {
-                    mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
+            Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
+            try {
+                switch (docWriteRequest.opType()) {
+                    case CREATE:
+                    case INDEX:
+                        IndexRequest indexRequest = (IndexRequest) docWriteRequest;
+                        MappingMetaData mappingMd = null;
+                        final IndexMetaData indexMetaData = metaData.index(concreteIndex);
+                        if (indexMetaData != null) {
+                            mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
+                        }
+                        indexRequest.resolveRouting(metaData);
+                        indexRequest.process(mappingMd, allowIdGeneration, concreteIndex.getName());
+                        break;
+                    case UPDATE:
+                        TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (UpdateRequest) docWriteRequest);
+                        break;
+                    case DELETE:
+                        TransportDeleteAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (DeleteRequest) docWriteRequest);
+                        break;
+                    default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                 }
-                try {
-                    indexRequest.resolveRouting(metaData);
-                    indexRequest.process(mappingMd, allowIdGeneration, concreteIndex.getName());
-                } catch (ElasticsearchParseException | RoutingMissingException e) {
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), indexRequest.type(), indexRequest.id(), e);
-                    BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "index", failure);
-                    responses.set(i, bulkItemResponse);
-                    // make sure the request gets never processed again
-                    bulkRequest.requests.set(i, null);
-                }
-            } else if (request instanceof DeleteRequest) {
-                try {
-                    TransportDeleteAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (DeleteRequest)request);
-                } catch(RoutingMissingException e) {
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), documentRequest.type(), documentRequest.id(), e);
-                    BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "delete", failure);
-                    responses.set(i, bulkItemResponse);
-                    // make sure the request gets never processed again
-                    bulkRequest.requests.set(i, null);
-                }
-
-            } else if (request instanceof UpdateRequest) {
-                try {
-                    TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (UpdateRequest)request);
-                } catch(RoutingMissingException e) {
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), documentRequest.type(), documentRequest.id(), e);
-                    BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "update", failure);
-                    responses.set(i, bulkItemResponse);
-                    // make sure the request gets never processed again
-                    bulkRequest.requests.set(i, null);
-                }
-            } else {
-                throw new AssertionError("request type not supported: [" + request.getClass().getName() + "]");
+            } catch (ElasticsearchParseException | RoutingMissingException e) {
+                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id(), e);
+                BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
+                responses.set(i, bulkItemResponse);
+                // make sure the request gets never processed again
+                bulkRequest.requests.set(i, null);
             }
         }
 
         // first, go over all the requests and create a ShardId -> Operations mapping
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
-
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            ActionRequest request = bulkRequest.requests.get(i);
-            if (request instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) request;
-                String concreteIndex = concreteIndices.getConcreteIndex(indexRequest.index()).getName();
-                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, indexRequest.id(), indexRequest.routing()).shardId();
-                List<BulkItemRequest> list = requestsByShard.get(shardId);
-                if (list == null) {
-                    list = new ArrayList<>();
-                    requestsByShard.put(shardId, list);
-                }
-                list.add(new BulkItemRequest(i, request));
-            } else if (request instanceof DeleteRequest) {
-                DeleteRequest deleteRequest = (DeleteRequest) request;
-                String concreteIndex = concreteIndices.getConcreteIndex(deleteRequest.index()).getName();
-                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, deleteRequest.id(), deleteRequest.routing()).shardId();
-                List<BulkItemRequest> list = requestsByShard.get(shardId);
-                if (list == null) {
-                    list = new ArrayList<>();
-                    requestsByShard.put(shardId, list);
-                }
-                list.add(new BulkItemRequest(i, request));
-            } else if (request instanceof UpdateRequest) {
-                UpdateRequest updateRequest = (UpdateRequest) request;
-                String concreteIndex = concreteIndices.getConcreteIndex(updateRequest.index()).getName();
-                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, updateRequest.id(), updateRequest.routing()).shardId();
-                List<BulkItemRequest> list = requestsByShard.get(shardId);
-                if (list == null) {
-                    list = new ArrayList<>();
-                    requestsByShard.put(shardId, list);
-                }
-                list.add(new BulkItemRequest(i, request));
+            DocWriteRequest request = bulkRequest.requests.get(i);
+            if (request == null) {
+                continue;
             }
+            String concreteIndex = concreteIndices.getConcreteIndex(request.index()).getName();
+            ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, request.id(), request.routing()).shardId();
+            List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
+            shardRequests.add(new BulkItemRequest(i, request));
         }
 
         if (requestsByShard.isEmpty()) {
@@ -364,19 +300,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     // create failures for all relevant requests
                     for (BulkItemRequest request : requests) {
                         final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                        if (request.request() instanceof IndexRequest) {
-                            IndexRequest indexRequest = (IndexRequest) request.request();
-                            responses.set(request.id(), new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
-                                    new BulkItemResponse.Failure(indexName, indexRequest.type(), indexRequest.id(), e)));
-                        } else if (request.request() instanceof DeleteRequest) {
-                            DeleteRequest deleteRequest = (DeleteRequest) request.request();
-                            responses.set(request.id(), new BulkItemResponse(request.id(), "delete",
-                                    new BulkItemResponse.Failure(indexName, deleteRequest.type(), deleteRequest.id(), e)));
-                        } else if (request.request() instanceof UpdateRequest) {
-                            UpdateRequest updateRequest = (UpdateRequest) request.request();
-                            responses.set(request.id(), new BulkItemResponse(request.id(), "update",
-                                    new BulkItemResponse.Failure(indexName, updateRequest.type(), updateRequest.id(), e)));
-                        }
+                        DocWriteRequest docWriteRequest = request.request();
+                        responses.set(request.id(), new BulkItemResponse(request.id(), docWriteRequest.opType(),
+                            new BulkItemResponse.Failure(indexName, docWriteRequest.type(), docWriteRequest.id(), e)));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -390,9 +316,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    private boolean addFailureIfIndexIsUnavailable(DocumentRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx,
-                                              final ConcreteIndices concreteIndices,
-                                              final MetaData metaData) {
+    private boolean addFailureIfIndexIsUnavailable(DocWriteRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx,
+                                                   final ConcreteIndices concreteIndices,
+                                                   final MetaData metaData) {
         Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
         Exception unavailableException = null;
         if (concreteIndex == null) {
@@ -413,15 +339,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (unavailableException != null) {
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
                     unavailableException);
-            String operationType = "unknown";
-            if (request instanceof IndexRequest) {
-                operationType = "index";
-            } else if (request instanceof DeleteRequest) {
-                operationType = "delete";
-            } else if (request instanceof UpdateRequest) {
-                operationType = "update";
-            }
-            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, operationType, failure);
+            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, request.opType(), failure);
             responses.set(idx, bulkItemResponse);
             // make sure the request gets never processed again
             bulkRequest.requests.set(idx, null);
@@ -444,7 +362,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return indices.get(indexOrAlias);
         }
 
-        Index resolveIfAbsent(DocumentRequest request) {
+        Index resolveIfAbsent(DocWriteRequest request) {
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 concreteIndex = indexNameExpressionResolver.concreteSingleIndex(state, request);

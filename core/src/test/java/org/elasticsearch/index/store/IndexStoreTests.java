@@ -41,8 +41,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Locale;
 
-/**
- */
 public class IndexStoreTests extends ESTestCase {
 
     public void testStoreDirectory() throws IOException {

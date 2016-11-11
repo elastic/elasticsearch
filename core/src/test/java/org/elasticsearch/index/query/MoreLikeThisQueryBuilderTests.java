@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
@@ -243,7 +244,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     @Override
-    protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.likeItems() != null && queryBuilder.likeItems().length > 0) {
             assertThat(query, instanceOf(BooleanQuery.class));
         } else {
@@ -298,6 +299,11 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         Item newItem = Item.parse(parser, ParseFieldMatcher.STRICT, new Item());
         assertEquals(expectedItem, newItem);
+    }
+
+    @Override
+    protected boolean isCachable(MoreLikeThisQueryBuilder queryBuilder) {
+        return queryBuilder.likeItems().length == 0; // items are always fetched
     }
 
     public void testFromJson() throws IOException {
@@ -366,5 +372,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
         assertEquals("Deprecated field [mlt] used, expected [more_like_this] instead", e.getMessage());
+
+        checkWarningHeaders("Deprecated field [mlt] used, expected [more_like_this] instead");
     }
 }

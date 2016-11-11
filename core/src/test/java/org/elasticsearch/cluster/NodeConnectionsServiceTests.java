@@ -26,7 +26,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
@@ -64,7 +63,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
             Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
-            nodes.add(new DiscoveryNode("node_" + i, "" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+            nodes.add(new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                     roles, Version.CURRENT));
         }
         return nodes;
@@ -85,19 +84,19 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         ClusterState current = clusterStateFromNodes(Collections.emptyList());
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
         assertConnected(event.nodesDelta().addedNodes());
 
-        service.disconnectFromRemovedNodes(event);
+        service.disconnectFromNodes(event.nodesDelta().removedNodes());
         assertConnectedExactlyToNodes(event.state());
 
         current = event.state();
         event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
         assertConnected(event.nodesDelta().addedNodes());
 
-        service.disconnectFromRemovedNodes(event);
+        service.disconnectFromNodes(event.nodesDelta().removedNodes());
         assertConnectedExactlyToNodes(event.state());
     }
 
@@ -111,7 +110,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         transport.randomConnectionExceptions = true;
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
 
         for (int i = 0; i < 3; i++) {
             // simulate disconnects
@@ -149,7 +148,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.transport = new MockTransport();
-        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
     }

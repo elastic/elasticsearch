@@ -35,8 +35,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LegacyGeoPointFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 
@@ -63,7 +63,7 @@ public class GeoDistanceRangeQuery extends Query {
     public GeoDistanceRangeQuery(GeoPoint point, Double lowerVal, Double upperVal, boolean includeLower,
                                  boolean includeUpper, GeoDistance geoDistance,
                                  LegacyGeoPointFieldMapper.LegacyGeoPointFieldType fieldType,
-                                 IndexGeoPointFieldData indexFieldData, String optimizeBbox) {
+            IndexGeoPointFieldData indexFieldData, String optimizeBbox, QueryShardContext context) {
         this.lat = point.lat();
         this.lon = point.lon();
         this.geoDistance = geoDistance;
@@ -96,7 +96,7 @@ public class GeoDistanceRangeQuery extends Query {
                 boundingBoxFilter = null;
             } else if ("indexed".equals(optimizeBbox)) {
                 boundingBoxFilter = LegacyIndexedGeoBoundingBoxQuery.create(distanceBoundingCheck.topLeft(),
-                    distanceBoundingCheck.bottomRight(), fieldType);
+                        distanceBoundingCheck.bottomRight(), fieldType, context);
                 distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE; // fine, we do the bounding box check using the filter
             } else {
                 throw new IllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");

@@ -1,38 +1,31 @@
 [[cat-nodes]]
 == cat nodes
 
-The `nodes` command shows the cluster topology.
+The `nodes` command shows the cluster topology. For example
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% GET /_cat/nodes
-192.168.56.30 9 78 22 1.80 2.05 2.51 mdi * bGG90GE
-192.168.56.10 6 75 14 1.24 2.45 1.37 md  - I8hydUG
-192.168.56.20 5 71 12 1.07 1.05 1.11 di  - H5dfFeA
+GET /_cat/nodes?v
 --------------------------------------------------
+// CONSOLE
 
-The first few columns tell you where your nodes live and give
-a picture of your heap, memory, cpu and load.
+Might look like:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-ip            heap.percent ram.percent cpu load_1m load_5m load_15m
-192.168.56.30            9          78  22    1.80    2.05     2.51
-192.168.56.10            6          75  14    1.24    2.45     1.37
-192.168.56.20            5          71  12    1.07    1.05     1.11
+ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
+127.0.0.1           65          99  42    3.07                  mdi       *      mJw06l1
 --------------------------------------------------
+// TESTRESPONSE[s/3.07/(\\d+\\.\\d+( \\d+\\.\\d+ (\\d+\\.\\d+)?)?)?/]
+// TESTRESPONSE[s/65          99  42/\\d+ \\d+ \\d+/]
+// TESTRESPONSE[s/[*]/[*]/ s/mJw06l1/.+/ _cat]
 
-The last columns provide ancillary information that can often be
-useful when looking at the cluster as a whole, particularly large
-ones.  How many master-eligible nodes do I have?
+The first few columns (`ip, `heap.percent`, `ram.percent`, `cpu, `load_*`) tell
+you where your nodes live and give a quick picture of performance stats.
 
-[source,sh]
---------------------------------------------------
-node.role master name
-mdi       *      bGG90GE
-md        -      I8hydUG
-di        -      H5dfFeA
---------------------------------------------------
+The last (`node.role`, `master`, and `name`) columns provide ancillary
+information that can often be useful when looking at the cluster as a whole,
+particularly large ones.  How many master-eligible nodes do I have?
 
 [float]
 === Columns
@@ -52,18 +45,20 @@ by default.  To have the headers appear in the output, use verbose
 mode (`v`). The header name will match the supplied value (e.g.,
 `pid` versus `p`).  For example:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 192.168.56.10:9200/_cat/nodes?v&h=id,ip,port,v,m
-id   ip            port v           m
-pLSN 192.168.56.30 9300 {version} -
-k0zy 192.168.56.10 9300 {version} -
-6Tyi 192.168.56.20 9300 {version} *
-% curl 192.168.56.10:9200/_cat/nodes?h=id,ip,port,v,m
-pLSN 192.168.56.30 9300 {version} -
-k0zy 192.168.56.10 9300 {version} -
-6Tyi 192.168.56.20 9300 {version} *
+GET /_cat/nodes?v&h=id,ip,port,v,m
 --------------------------------------------------
+// CONSOLE
+
+Might look like:
+
+["source","js",subs="attributes,callouts"]
+--------------------------------------------------
+id   ip        port  v         m
+veJR 127.0.0.1 59938 {version} *
+--------------------------------------------------
+// TESTRESPONSE[s/veJR/.+/ s/59938/\\d+/ s/[*]/[*]/ _cat]
 
 [cols="<,<,<,<,<",options="header",subs="normal"]
 |=======================================================================

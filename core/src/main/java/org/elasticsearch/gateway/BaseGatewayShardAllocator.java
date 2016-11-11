@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.UnassignedShardDecision;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -53,21 +53,21 @@ public abstract class BaseGatewayShardAllocator extends AbstractComponent {
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             final ShardRouting shard = unassignedIterator.next();
-            final UnassignedShardDecision unassignedShardDecision = makeAllocationDecision(shard, allocation, logger);
+            final ShardAllocationDecision shardAllocationDecision = makeAllocationDecision(shard, allocation, logger);
 
-            if (unassignedShardDecision.isDecisionTaken() == false) {
+            if (shardAllocationDecision.isDecisionTaken() == false) {
                 // no decision was taken by this allocator
                 continue;
             }
 
-            if (unassignedShardDecision.getFinalDecisionSafe().type() == Decision.Type.YES) {
-                unassignedIterator.initialize(unassignedShardDecision.getAssignedNodeId(),
-                    unassignedShardDecision.getAllocationId(),
+            if (shardAllocationDecision.getFinalDecisionSafe() == Decision.Type.YES) {
+                unassignedIterator.initialize(shardAllocationDecision.getAssignedNodeId(),
+                    shardAllocationDecision.getAllocationId(),
                     shard.primary() ? ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE :
                                       allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                     allocation.changes());
             } else {
-                unassignedIterator.removeAndIgnore(unassignedShardDecision.getAllocationStatus(), allocation.changes());
+                unassignedIterator.removeAndIgnore(shardAllocationDecision.getAllocationStatus(), allocation.changes());
             }
         }
     }
@@ -80,9 +80,9 @@ public abstract class BaseGatewayShardAllocator extends AbstractComponent {
      * @param unassignedShard  the unassigned shard to allocate
      * @param allocation       the current routing state
      * @param logger           the logger
-     * @return an {@link UnassignedShardDecision} with the final decision of whether to allocate and details of the decision
+     * @return an {@link ShardAllocationDecision} with the final decision of whether to allocate and details of the decision
      */
-    public abstract UnassignedShardDecision makeAllocationDecision(ShardRouting unassignedShard,
+    public abstract ShardAllocationDecision makeAllocationDecision(ShardRouting unassignedShard,
                                                                    RoutingAllocation allocation,
                                                                    Logger logger);
 }

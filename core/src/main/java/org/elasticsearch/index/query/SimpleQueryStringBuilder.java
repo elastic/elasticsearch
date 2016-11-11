@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -78,10 +79,6 @@ import java.util.TreeMap;
  * > online documentation</a>.
  */
 public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
-    /** Default locale used for parsing.*/
-    public static final Locale DEFAULT_LOCALE = Locale.ROOT;
-    /** Default for lowercasing parsed terms.*/
-    public static final boolean DEFAULT_LOWERCASE_EXPANDED_TERMS = true;
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
     /** Default for wildcard analysis.*/
@@ -94,16 +91,22 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
+    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
+
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms");
-    private static final ParseField LOCALE_FIELD = new ParseField("locale");
+    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
+            .withAllDeprecated("Decision is now made by the analyzer");
+    private static final ParseField LOCALE_FIELD = new ParseField("locale")
+            .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField FLAGS_FIELD = new ParseField("flags");
     private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
     private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
+    private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
+    private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields");
 
     /** Query text to parse. */
     private final String queryText;
@@ -124,6 +127,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private String minimumShouldMatch;
     /** Any search flags to be used, ALL by default. */
     private int flags = DEFAULT_FLAGS;
+    /** Flag specifying whether query should be forced to expand to all searchable fields */
+    private Boolean useAllFields;
 
     /** Further search settings needed by the ES specific query string parser only. */
     private Settings settings = new Settings();
@@ -153,11 +158,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        settings.lowercaseExpandedTerms(in.readBoolean());
+        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+            in.readBoolean(); // lowercase_expanded_terms
+        }
         settings.lenient(in.readBoolean());
         settings.analyzeWildcard(in.readBoolean());
-        settings.locale(Locale.forLanguageTag(in.readString()));
+        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+            in.readString(); // locale
+        }
         minimumShouldMatch = in.readOptionalString();
+        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            settings.quoteFieldSuffix(in.readOptionalString());
+            useAllFields = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -171,11 +184,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        out.writeBoolean(settings.lowercaseExpandedTerms());
+        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+            out.writeBoolean(true); // lowercase_expanded_terms
+        }
         out.writeBoolean(settings.lenient());
         out.writeBoolean(settings.analyzeWildcard());
-        out.writeString(settings.locale().toLanguageTag());
+        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+            out.writeString(Locale.ROOT.toLanguageTag()); // locale
+        }
         out.writeOptionalString(minimumShouldMatch);
+        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            out.writeOptionalString(settings.quoteFieldSuffix());
+            out.writeOptionalBoolean(useAllFields);
+        }
     }
 
     /** Returns the text to parse the query from. */
@@ -224,6 +245,15 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return this.analyzer;
     }
 
+    public Boolean useAllFields() {
+        return useAllFields;
+    }
+
+    public SimpleQueryStringBuilder useAllFields(Boolean useAllFields) {
+        this.useAllFields = useAllFields;
+        return this;
+    }
+
     /**
      * Specify the default operator for the query. Defaults to "OR" if no
      * operator is specified.
@@ -268,28 +298,18 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     /**
-     * Specifies whether parsed terms for this query should be lower-cased.
-     * Defaults to true if not set.
+     * Set the suffix to append to field names for phrase matching.
      */
-    public SimpleQueryStringBuilder lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.settings.lowercaseExpandedTerms(lowercaseExpandedTerms);
+    public SimpleQueryStringBuilder quoteFieldSuffix(String suffix) {
+        settings.quoteFieldSuffix(suffix);
         return this;
     }
 
-    /** Returns whether parsed terms should be lower cased for this query. */
-    public boolean lowercaseExpandedTerms() {
-        return this.settings.lowercaseExpandedTerms();
-    }
-
-    /** Specifies the locale for parsing terms. Defaults to ROOT if none is set. */
-    public SimpleQueryStringBuilder locale(Locale locale) {
-        this.settings.locale(locale);
-        return this;
-    }
-
-    /** Returns the locale for parsing terms for this query. */
-    public Locale locale() {
-        return this.settings.locale();
+    /**
+     * Return the suffix to append to field names for phrase matching.
+     */
+    public String quoteFieldSuffix() {
+        return settings.quoteFieldSuffix();
     }
 
     /** Specifies whether query parsing should be lenient. Defaults to false. */
@@ -335,17 +355,37 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // field names in builder can have wildcards etc, need to resolve them here
         Map<String, Float> resolvedFieldsAndWeights = new TreeMap<>();
-        // Use the default field if no fields specified
-        if (fieldsAndWeights.isEmpty()) {
-            resolvedFieldsAndWeights.put(resolveIndexName(context.defaultField(), context), AbstractQueryBuilder.DEFAULT_BOOST);
+
+        if ((useAllFields != null && useAllFields) && (fieldsAndWeights.size() != 0)) {
+            throw addValidationError("cannot use [all_fields] parameter in conjunction with [fields]", null);
+        }
+
+        // If explicitly required to use all fields, use all fields, OR:
+        // Automatically determine the fields (to replace the _all field) if all of the following are true:
+        // - The _all field is disabled,
+        // - and the default_field has not been changed in the settings
+        // - and no fields are specified in the request
+        Settings newSettings = new Settings(settings);
+        if ((this.useAllFields != null && this.useAllFields) ||
+                (context.getMapperService().allEnabled() == false &&
+                        "_all".equals(context.defaultField()) &&
+                        this.fieldsAndWeights.isEmpty())) {
+            resolvedFieldsAndWeights = QueryStringQueryBuilder.allQueryableDefaultFields(context);
+            // Need to use lenient mode when using "all-mode" so exceptions aren't thrown due to mismatched types
+            newSettings.lenient(true);
         } else {
-            for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
-                if (Regex.isSimpleMatchPattern(fieldEntry.getKey())) {
-                    for (String fieldName : context.getMapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
-                        resolvedFieldsAndWeights.put(fieldName, fieldEntry.getValue());
+            // Use the default field if no fields specified
+            if (fieldsAndWeights.isEmpty()) {
+                resolvedFieldsAndWeights.put(resolveIndexName(context.defaultField(), context), AbstractQueryBuilder.DEFAULT_BOOST);
+            } else {
+                for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
+                    if (Regex.isSimpleMatchPattern(fieldEntry.getKey())) {
+                        for (String fieldName : context.getMapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
+                            resolvedFieldsAndWeights.put(fieldName, fieldEntry.getValue());
+                        }
+                    } else {
+                        resolvedFieldsAndWeights.put(resolveIndexName(fieldEntry.getKey(), context), fieldEntry.getValue());
                     }
-                } else {
-                    resolvedFieldsAndWeights.put(resolveIndexName(fieldEntry.getKey(), context), fieldEntry.getValue());
                 }
             }
         }
@@ -363,7 +403,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         }
 
-        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, settings, context);
+        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
@@ -404,13 +444,17 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         builder.field(FLAGS_FIELD.getPreferredName(), flags);
         builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), defaultOperator.name().toLowerCase(Locale.ROOT));
-        builder.field(LOWERCASE_EXPANDED_TERMS_FIELD.getPreferredName(), settings.lowercaseExpandedTerms());
         builder.field(LENIENT_FIELD.getPreferredName(), settings.lenient());
         builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());
-        builder.field(LOCALE_FIELD.getPreferredName(), (settings.locale().toLanguageTag()));
+        if (settings.quoteFieldSuffix() != null) {
+            builder.field(QUOTE_FIELD_SUFFIX_FIELD.getPreferredName(), settings.quoteFieldSuffix());
+        }
 
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
+        }
+        if (useAllFields != null) {
+            builder.field(ALL_FIELDS_FIELD.getPreferredName(), useAllFields);
         }
 
         printBoostAndQueryName(builder);
@@ -430,9 +474,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         String analyzerName = null;
         int flags = SimpleQueryStringFlag.ALL.value();
         boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
-        boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
-        Locale locale = null;
+        String quoteFieldSuffix = null;
+        Boolean useAllFields = null;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -483,10 +527,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                         }
                     }
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
-                    String localeStr = parser.text();
-                    locale = Locale.forLanguageTag(localeStr);
+                    // ignore, deprecated setting
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LOWERCASE_EXPANDED_TERMS_FIELD)) {
-                    lowercaseExpandedTerms = parser.booleanValue();
+                    // ignore, deprecated setting
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
                     lenient = parser.booleanValue();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ANALYZE_WILDCARD_FIELD)) {
@@ -495,6 +538,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     queryName = parser.text();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
                     minimumShouldMatch = parser.textOrNull();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, QUOTE_FIELD_SUFFIX_FIELD)) {
+                    quoteFieldSuffix = parser.textOrNull();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ALL_FIELDS_FIELD)) {
+                    useAllFields = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
                             "] unsupported field [" + parser.currentName() + "]");
@@ -510,10 +557,16 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
         }
 
+        if ((useAllFields != null && useAllFields) && (fieldsAndWeights.size() != 0)) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "cannot use [all_fields] parameter in conjunction with [fields]");
+        }
+
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
         qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
-        qb.flags(flags).defaultOperator(defaultOperator).locale(locale).lowercaseExpandedTerms(lowercaseExpandedTerms);
-        qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost);
+        qb.flags(flags).defaultOperator(defaultOperator);
+        qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
+        qb.useAllFields(useAllFields);
         return Optional.of(qb);
     }
 
@@ -524,7 +577,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags);
+        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags, useAllFields);
     }
 
     @Override
@@ -532,7 +585,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return Objects.equals(fieldsAndWeights, other.fieldsAndWeights) && Objects.equals(analyzer, other.analyzer)
                 && Objects.equals(defaultOperator, other.defaultOperator) && Objects.equals(queryText, other.queryText)
                 && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
-                && Objects.equals(settings, other.settings) && (flags == other.flags);
+                && Objects.equals(settings, other.settings)
+                && (flags == other.flags)
+                && (useAllFields == other.useAllFields);
     }
 }
-

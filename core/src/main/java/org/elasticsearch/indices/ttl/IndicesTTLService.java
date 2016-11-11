@@ -197,7 +197,8 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
 
     private void purgeShards(List<IndexShard> shardsToPurge) {
         for (IndexShard shardToPurge : shardsToPurge) {
-            Query query = shardToPurge.mapperService().fullName(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false, true);
+            Query query = shardToPurge.mapperService().fullName(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false,
+                    true, null);
             Engine.Searcher searcher = shardToPurge.acquireSearcher("indices_ttl");
             try {
                 logger.debug("[{}][{}] purging shard", shardToPurge.routingEntry().index(), shardToPurge.routingEntry().id());

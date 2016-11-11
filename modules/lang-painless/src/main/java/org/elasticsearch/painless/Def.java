@@ -109,6 +109,10 @@ public final class Def {
     private static final MethodHandle LIST_SET;
     /** pointer to Iterable.iterator() */
     private static final MethodHandle ITERATOR;
+    /** pointer to {@link Def#mapIndexNormalize}. */
+    private static final MethodHandle MAP_INDEX_NORMALIZE;
+    /** pointer to {@link Def#listIndexNormalize}. */
+    private static final MethodHandle LIST_INDEX_NORMALIZE;
     /** factory for arraylength MethodHandle (intrinsic) from Java 9 */
     private static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
@@ -121,6 +125,10 @@ public final class Def {
             LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
             LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
             ITERATOR = lookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
+            MAP_INDEX_NORMALIZE = lookup.findStatic(Def.class, "mapIndexNormalize",
+                    MethodType.methodType(Object.class, Map.class, Object.class));
+            LIST_INDEX_NORMALIZE = lookup.findStatic(Def.class, "listIndexNormalize",
+                    MethodType.methodType(int.class, List.class, int.class));
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
@@ -523,6 +531,26 @@ public final class Def {
     }
 
     /**
+     * Returns a method handle to normalize the index into an array. This is what makes lists and arrays stored in {@code def} support
+     * negative offsets.
+     * @param receiverClass Class of the array to store the value in
+     * @return a MethodHandle that accepts the receiver as first argument, the index as second argument, and returns the normalized index
+     *   to use with array loads and array stores
+     */
+    static MethodHandle lookupIndexNormalize(Class<?> receiverClass) {
+        if (receiverClass.isArray()) {
+            return ArrayIndexNormalizeHelper.arrayIndexNormalizer(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // noop so that mymap[key] doesn't do funny things with negative keys
+            return MAP_INDEX_NORMALIZE;
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            return LIST_INDEX_NORMALIZE;
+        }
+        throw new IllegalArgumentException("Attempting to address a non-array-like type " +
+                                           "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
+
+    /**
      * Returns a method handle to do an array store.
      * @param receiverClass Class of the array to store the value in
      * @return a MethodHandle that accepts the receiver as first argument, the index as second argument,
@@ -813,5 +841,63 @@ public final class Def {
         } else {
             return ((Number)value).doubleValue();
         }
+    }
+
+    /**
+     * "Normalizes" the index into a {@code Map} by making no change to the index.
+     */
+    public static Object mapIndexNormalize(final Map<?, ?> value, Object index) {
+        return index;
+    }
+
+    /**
+     * "Normalizes" the idnex into a {@code List} by flipping negative indexes around so they are "from the end" of the list.
+     */
+    public static int listIndexNormalize(final List<?> value, int index) {
+        return index >= 0 ? index : value.size() + index;
+    }
+
+    /**
+     * Methods to normalize array indices to support negative indices into arrays stored in {@code def}s.
+     */
+    @SuppressWarnings("unused") // normalizeIndex() methods are are actually used, javac just does not know :)
+    private static final class ArrayIndexNormalizeHelper {
+        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+
+        private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+            Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+                char[].class, float[].class, double[].class, Object[].class)
+                .collect(Collectors.toMap(Function.identity(), type -> {
+                    try {
+                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "normalizeIndex",
+                                MethodType.methodType(int.class, type, int.class));
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
+                    }
+                }))
+        );
+
+        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
+
+        static int normalizeIndex(final boolean[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final byte[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final short[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final int[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final long[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final char[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final float[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final double[] array, final int index) { return index >= 0 ? index : index + array.length; }
+        static int normalizeIndex(final Object[] array, final int index) { return index >= 0 ? index : index + array.length; }
+
+        static MethodHandle arrayIndexNormalizer(Class<?> arrayType) {
+            if (!arrayType.isArray()) {
+                throw new IllegalArgumentException("type must be an array");
+            }
+            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+                ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+                OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+        }
+
+        private ArrayIndexNormalizeHelper() {}
     }
 }

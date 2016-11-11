@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -39,8 +41,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -51,6 +55,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHitsAggregationBuilder> {
@@ -280,11 +285,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      * every hit
      */
     public TopHitsAggregationBuilder fetchSource(boolean fetch) {
-        if (this.fetchSourceContext == null) {
-            this.fetchSourceContext = new FetchSourceContext(fetch);
-        } else {
-            this.fetchSourceContext.fetchSource(fetch);
-        }
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext
+            : FetchSourceContext.FETCH_SOURCE;
+        this.fetchSourceContext = new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
         return this;
     }
 
@@ -319,7 +322,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      *            pattern to filter the returned _source
      */
     public TopHitsAggregationBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        fetchSourceContext = new FetchSourceContext(includes, excludes);
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext
+            : FetchSourceContext.FETCH_SOURCE;
+        this.fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -527,9 +532,24 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     protected TopHitsAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
             throws IOException {
-        return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder,
-            storedFieldsContext, fieldDataFields, scriptFields, fetchSourceContext, context,
-            parent, subfactoriesBuilder, metaData);
+        List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
+        if (scriptFields != null) {
+            for (ScriptField field : scriptFields) {
+                SearchScript searchScript = context.searchContext().getQueryShardContext().getSearchScript(field.script(),
+                    ScriptContext.Standard.SEARCH);
+                fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                    field.fieldName(), searchScript, field.ignoreFailure()));
+            }
+        }
+
+        final Optional<SortAndFormats> optionalSort;
+        if (sorts == null) {
+            optionalSort = Optional.empty();
+        } else {
+            optionalSort = SortBuilder.buildSort(sorts, context.searchContext().getQueryShardContext());
+        }
+        return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, optionalSort, highlightBuilder,
+                storedFieldsContext, fieldDataFields, fields, fetchSourceContext, context, parent, subfactoriesBuilder, metaData);
     }
 
     @Override

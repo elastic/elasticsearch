@@ -23,9 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.jboss.netty.logging.AbstractInternalLogger;
 
-/**
- *
- */
 @SuppressLoggerChecks(reason = "safely delegates to logger")
 final class Netty3InternalESLogger extends AbstractInternalLogger {
 

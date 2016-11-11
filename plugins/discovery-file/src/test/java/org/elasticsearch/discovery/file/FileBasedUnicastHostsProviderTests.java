@@ -74,20 +74,21 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
                                     new NoneCircuitBreakerService(),
                                     new NamedWriteableRegistry(Collections.emptyList()),
                                     new NetworkService(Settings.EMPTY, Collections.emptyList()));
-        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
     }
 
     public void testBuildDynamicNodes() throws Exception {
         final List<String> hostEntries = Arrays.asList("#comment, should be ignored", "192.168.0.1", "192.168.0.2:9305", "255.255.23.15");
         final List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
         assertEquals(hostEntries.size() - 1, nodes.size()); // minus 1 because we are ignoring the first line that's a comment
-        assertEquals("192.168.0.1", nodes.get(0).getAddress().getHost());
+        assertEquals("192.168.0.1", nodes.get(0).getAddress().getAddress());
         assertEquals(9300, nodes.get(0).getAddress().getPort());
         assertEquals(UNICAST_HOST_PREFIX + "1#", nodes.get(0).getId());
-        assertEquals("192.168.0.2", nodes.get(1).getAddress().getHost());
+        assertEquals("192.168.0.2", nodes.get(1).getAddress().getAddress());
         assertEquals(9305, nodes.get(1).getAddress().getPort());
         assertEquals(UNICAST_HOST_PREFIX + "2#", nodes.get(1).getId());
-        assertEquals("255.255.23.15", nodes.get(2).getAddress().getHost());
+        assertEquals("255.255.23.15", nodes.get(2).getAddress().getAddress());
         assertEquals(9300, nodes.get(2).getAddress().getPort());
         assertEquals(UNICAST_HOST_PREFIX + "3#", nodes.get(2).getId());
     }
@@ -117,7 +118,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300", "192.168.0.1:9301");
         List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
         assertEquals(1, nodes.size()); // only one of the two is valid and will be used
-        assertEquals("192.168.0.1", nodes.get(0).getAddress().getHost());
+        assertEquals("192.168.0.1", nodes.get(0).getAddress().getAddress());
         assertEquals(9301, nodes.get(0).getAddress().getPort());
     }
 

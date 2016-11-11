@@ -92,7 +92,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     private void sendShardAction(final String actionName, final ClusterStateObserver observer, final ShardEntry shardEntry, final Listener listener) {
-        DiscoveryNode masterNode = observer.observedState().nodes().getMasterNode();
+        DiscoveryNode masterNode = observer.observedState().getClusterState().nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("{} no master known for action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry);
             waitForNewMasterAndRetry(actionName, observer, shardEntry, listener);
@@ -164,7 +164,7 @@ public class ShardStateAction extends AbstractComponent {
             @Override
             public void onNewClusterState(ClusterState state) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("new cluster state [{}] after waiting for master election to fail shard entry [{}]", state.prettyPrint(), shardEntry);
+                    logger.trace("new cluster state [{}] after waiting for master election to fail shard entry [{}]", state, shardEntry);
                 }
                 sendShardAction(actionName, observer, shardEntry, listener);
             }

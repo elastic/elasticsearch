@@ -99,7 +99,7 @@ public class LogConfigurator {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 if (file.getFileName().toString().equals("log4j2.properties")) {
-                    configurations.add((PropertiesConfiguration) factory.getConfiguration(file.toString(), file.toUri()));
+                    configurations.add((PropertiesConfiguration) factory.getConfiguration(context, file.toString(), file.toUri()));
                 }
                 return FileVisitResult.CONTINUE;
             }

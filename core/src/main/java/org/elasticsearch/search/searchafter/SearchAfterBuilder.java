@@ -43,9 +43,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/**
- *
- */
 public class SearchAfterBuilder implements ToXContent, Writeable {
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];

@@ -28,8 +28,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
 public class FieldStatsShardResponse extends BroadcastShardResponse {
 
     private Map<String, FieldStats<?>> fieldStats;

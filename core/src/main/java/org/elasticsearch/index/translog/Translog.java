@@ -860,14 +860,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
         }
 
-        public Index(Engine.Index index) {
+        public Index(Engine.Index index, Engine.IndexResult indexResult) {
             this.id = index.id();
             this.type = index.type();
             this.source = index.source();
             this.routing = index.routing();
             this.parent = index.parent();
-            this.seqNo = index.seqNo();
-            this.version = index.version();
+            this.seqNo = indexResult.getSeqNo();
+            this.version = indexResult.getVersion();
             this.timestamp = index.timestamp();
             this.ttl = index.ttl();
             this.versionType = index.versionType();
@@ -1039,8 +1039,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
         }
 
-        public Delete(Engine.Delete delete) {
-            this(delete.uid(), delete.seqNo(), delete.version(), delete.versionType());
+        public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
+            this(delete.uid(), deleteResult.getSeqNo(), deleteResult.getVersion(), delete.versionType());
         }
 
         /** utility for testing */
@@ -1050,9 +1050,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public Delete(Term uid, long seqNo, long version, VersionType versionType) {
             this.uid = uid;
+            this.seqNo = seqNo;
             this.version = version;
             this.versionType = versionType;
-            this.seqNo = seqNo;
         }
 
         @Override

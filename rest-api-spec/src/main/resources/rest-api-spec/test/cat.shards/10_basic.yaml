@@ -227,3 +227,43 @@
   - match:
       $body: |
                /^(ba(r|z) \n?){2}$/
+
+---
+"Test cat shards sort":
+  - skip:
+      version: " - 5.0.99"
+      reason:  sorting was introduced in 5.1.0
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: bar
+        type: type
+        body: { test: bar }
+        refresh: true
+
+  - do:
+      cat.shards:
+        h: [index, docs]
+        s: [docs]
+
+  - match: # don't use the store here it's cached and might be stale
+      $body: |
+            /^ foo \s+ 0\n
+               bar \s+ 1\n
+            $/

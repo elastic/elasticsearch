@@ -51,7 +51,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiSearchRequest::new);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
-        this.availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+        this.availableProcessors = EsExecutors.numberOfProcessors(settings);
     }
 
     // For testing only:

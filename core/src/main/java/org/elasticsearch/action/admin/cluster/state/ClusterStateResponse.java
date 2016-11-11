@@ -27,9 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ClusterStateResponse extends ActionResponse {
 
     private ClusterName clusterName;

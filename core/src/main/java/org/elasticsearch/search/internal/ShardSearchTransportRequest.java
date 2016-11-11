@@ -22,16 +22,20 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -51,8 +55,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     public ShardSearchTransportRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                                       String[] filteringAliases, long nowInMillis) {
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, filteringAliases, nowInMillis);
+                                       AliasFilter aliasFilter, long nowInMillis) {
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, aliasFilter, nowInMillis);
         this.originalIndices = new OriginalIndices(searchRequest);
     }
 
@@ -104,7 +108,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public String[] filteringAliases() {
+    public QueryBuilder filteringAliases() {
         return shardSearchLocalRequest.filteringAliases();
     }
 
@@ -156,5 +160,10 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public void rewrite(QueryShardContext context) throws IOException {
         shardSearchLocalRequest.rewrite(context);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
 }

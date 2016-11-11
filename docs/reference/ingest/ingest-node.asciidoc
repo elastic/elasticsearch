@@ -90,6 +90,56 @@ For each returned pipeline, the source and the version are returned.
 The version is useful for knowing which version of the pipeline the node has.
 You can specify multiple IDs to return more than one pipeline. Wildcards are also supported.
 
+[float]
+[[versioning-pipelines]]
+==== Pipeline Versioning
+
+Pipelines can optionally add a `version` number, which can be any integer value,
+in order to simplify pipeline management by external systems. The `version`
+field is completely optional and it is meant solely for external management of
+pipelines. To unset a `version`, simply replace the pipeline without specifying
+one.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "version" : 123,
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+To check for the `version`, you can
+<<common-options-response-filtering, filter responses>>
+using `filter_path` to limit the response to just the `version`:
+
+[source,js]
+--------------------------------------------------
+GET /_ingest/pipeline/my-pipeline-id?filter_path=*.version
+--------------------------------------------------
+// TEST[continued]
+
+This should give a small response that makes it both easy and inexpensive to parse:
+
+[source,js]
+--------------------------------------------------
+{
+  "my-pipeline-id" : {
+    "version" : 123
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
 [[delete-pipeline-api]]
 === Delete Pipeline API
 
@@ -660,7 +710,7 @@ A node will not start if either of these plugins are not available.
 The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
-[[append-procesesor]]
+[[append-processor]]
 === Append Processor
 Appends one or more values to an existing array if the field already exists and it is an array.
 Converts a scalar to an array and appends one or more values to it if the field exists and it is a scalar.
@@ -1384,13 +1434,15 @@ caching see <<modules-scripting-using-caching, Script Caching>>.
 .Script Options
 [options="header"]
 |======
-| Name                   | Required  | Default | Description
-| `lang`                 | no        | -       | The scripting language
-| `file`                 | no        | -       | The script file to refer to
-| `id`                   | no        | -       | The stored script id to refer to
-| `inline`               | no        | -       | An inline script to be executed
-| `params`               | no        | -       | Script Parameters
+| Name                   | Required  | Default    | Description
+| `lang`                 | no        | "painless" | The scripting language
+| `file`                 | no        | -          | The script file to refer to
+| `id`                   | no        | -          | The stored script id to refer to
+| `inline`               | no        | -          | An inline script to be executed
+| `params`               | no        | -          | Script Parameters
 |======
+
+One of `file`, `id`, `inline` options must be provided in order to properly reference a script to execute.
 
 You can access the current ingest document from within the script context by using the `ctx` variable.
 

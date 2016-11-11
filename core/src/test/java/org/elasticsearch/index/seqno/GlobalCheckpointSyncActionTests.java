@@ -60,7 +60,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
@@ -101,9 +101,9 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, id);
         final GlobalCheckpointSyncAction.PrimaryRequest primaryRequest = new GlobalCheckpointSyncAction.PrimaryRequest(shardId);
         if (randomBoolean()) {
-            action.shardOperationOnPrimary(primaryRequest);
+            action.shardOperationOnPrimary(primaryRequest, indexShard);
         } else {
-            action.shardOperationOnReplica(new GlobalCheckpointSyncAction.ReplicaRequest(primaryRequest, randomPositiveLong()));
+            action.shardOperationOnReplica(new GlobalCheckpointSyncAction.ReplicaRequest(primaryRequest, randomPositiveLong()), indexShard);
         }
 
         verify(translog).sync();

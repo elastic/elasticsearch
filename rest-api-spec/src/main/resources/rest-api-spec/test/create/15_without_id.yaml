@@ -1,7 +1,7 @@
 ---
 "Create without ID":
  - do:
-      catch:            /Validation|Invalid/
+      catch: param
       create:
           index:  test_1
           type:   test

@@ -32,7 +32,7 @@ import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -43,6 +43,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
@@ -450,7 +451,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         MultiSearchResponse response = client().prepareMultiSearch()
                 // Add custom score query with bogus script
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1), new ScriptScoreFunctionBuilder(new Script("foo", ScriptService.ScriptType.INLINE, "bar", null)))))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1), new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, "bar", "foo", Collections.emptyMap())))))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();

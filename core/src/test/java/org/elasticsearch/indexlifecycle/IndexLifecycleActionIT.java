@@ -52,9 +52,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleActionIT extends ESIntegTestCase {
     public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {

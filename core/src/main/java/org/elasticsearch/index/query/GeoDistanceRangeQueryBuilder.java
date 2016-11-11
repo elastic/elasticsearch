@@ -327,7 +327,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             } else {
                 fromValue = DistanceUnit.parse((String) from, unit, DistanceUnit.DEFAULT);
             }
-            if (indexCreatedBeforeV2_2 == true) {
+            if (indexCreatedBeforeV2_2) {
                 fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
             }
         } else {
@@ -340,7 +340,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             } else {
                 toValue = DistanceUnit.parse((String) to, unit, DistanceUnit.DEFAULT);
             }
-            if (indexCreatedBeforeV2_2 == true) {
+            if (indexCreatedBeforeV2_2) {
                 toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
             }
         } else {
@@ -356,7 +356,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;
             return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,
-                indexFieldData, bboxOptimization);
+                    indexFieldData, bboxOptimization, context);
         }
 
         // if index created V_2_2 use (soon to be legacy) numeric encoding postings format

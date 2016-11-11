@@ -25,11 +25,15 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.status.StatusConsoleListener;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -43,8 +47,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -100,14 +111,17 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -130,6 +144,13 @@ import static org.hamcrest.Matchers.equalTo;
 })
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
+
+    private static final AtomicInteger portGenerator = new AtomicInteger();
+
+    @AfterClass
+    public static void resetPortCounter() {
+        portGenerator.set(0);
+    }
 
     static {
         System.setProperty("log4j.shutdownHookEnabled", "false");
@@ -174,6 +195,14 @@ public abstract class ESTestCase extends LuceneTestCase {
     });
 
     /**
+     * Generates a new transport address using {@link TransportAddress#META_ADDRESS} with an incrementing port number.
+     * The port number starts at 0 and is reset after each test suite run.
+     */
+    public static TransportAddress buildNewFakeTransportAddress() {
+        return new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet());
+    }
+
+    /**
      * Called when a test fails, supplying the errors it generated. Not called when the test fails because assumptions are violated.
      */
     protected void afterIfFailed(List<Throwable> errors) {
@@ -212,11 +241,49 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void ensureCleanedUp() throws Exception {
+        checkStaticState();
+    }
+
+    private static final List<StatusData> statusData = new ArrayList<>();
+    static {
+        // ensure that the status logger is set to the warn level so we do not miss any warnings with our Log4j usage
+        StatusLogger.getLogger().setLevel(Level.WARN);
+        // Log4j will write out status messages indicating problems with the Log4j usage to the status logger; we hook into this logger and
+        // assert that no such messages were written out as these would indicate a problem with our logging configuration
+        StatusLogger.getLogger().registerListener(new StatusConsoleListener(Level.WARN) {
+
+            @Override
+            public void log(StatusData data) {
+                synchronized (statusData) {
+                    statusData.add(data);
+                }
+            }
+
+        });
+    }
+
+    // separate method so that this can be checked again after suite scoped cluster is shut down
+    protected static void checkStaticState() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
         MockBigArrays.ensureAllArraysAreReleased();
         // field cache should NEVER get loaded.
         String[] entries = UninvertingReader.getUninvertedStats();
         assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
+
+        // ensure no one changed the status logger level on us
+        assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
+        synchronized (statusData) {
+            try {
+                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
+                // StatusData instances to Strings as otherwise their toString output is useless
+                assertThat(
+                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
+                    empty());
+            } finally {
+                // we clear the list so that status data from other tests do not interfere with tests within the same JVM
+                statusData.clear();
+            }
+        }
     }
 
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
@@ -263,7 +330,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @see #scaledRandomIntBetween(int, int)
      */
     public static int randomIntBetween(int min, int max) {
-        return RandomInts.randomIntBetween(random(), min, max);
+        return RandomNumbers.randomIntBetween(random(), min, max);
     }
 
     /**
@@ -732,6 +799,22 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Create a copy of an original {@link Writeable} object by running it through a {@link BytesStreamOutput} and
+     * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
+     * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
+     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
+     */
+    public static <T extends Writeable> T copyWriteable(T original, NamedWriteableRegistry namedWritabelRegistry,
+            Writeable.Reader<T> reader) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            original.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWritabelRegistry)) {
+                return reader.read(in);
+            }
+        }
+    }
+
+    /**
      * Returns true iff assertions for elasticsearch packages are enabled
      */
     public static boolean assertionsEnabled() {
@@ -897,4 +980,5 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.charFilter = charFilter;
         }
     }
+
 }

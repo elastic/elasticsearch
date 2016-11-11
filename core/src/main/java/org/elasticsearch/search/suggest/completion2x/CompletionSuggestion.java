@@ -31,9 +31,6 @@ import org.elasticsearch.search.suggest.Suggest;
 import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
 public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
     public static final int TYPE = 2;

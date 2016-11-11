@@ -20,19 +20,22 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -84,15 +87,37 @@ public class MockNode extends Node {
 
     @Override
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                                   TransportInterceptor interceptor) {
-        // we use the MockTransportService.TestPlugin class as a marker to create a newtwork
+                                                   TransportInterceptor interceptor, ClusterSettings clusterSettings) {
+        // we use the MockTransportService.TestPlugin class as a marker to create a network
         // module with this MockNetworkService. NetworkService is such an integral part of the systme
         // we don't allow to plug it in from plugins or anything. this is a test-only override and
         // can't be done in a production env.
-        if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).size() == 1) {
-            return new MockTransportService(settings, transport, threadPool, interceptor);
+        if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
+            return super.newTransportService(settings, transport, threadPool, interceptor, clusterSettings);
         } else {
-            return super.newTransportService(settings, transport, threadPool, interceptor);
+            return new MockTransportService(settings, transport, threadPool, interceptor, clusterSettings);
+        }
+    }
+
+    @Override
+    protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                 UnicastHostsProvider hostsProvider) {
+        if (getPluginsService().filterPlugins(MockZenPing.TestPlugin.class).isEmpty()) {
+            return super.newZenPing(settings, threadPool, transportService, hostsProvider);
+        } else {
+            return new MockZenPing(settings);
+        }
+    }
+
+    @Override
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        return new MockNode(settings, classpathPlugins);
+    }
+
+    @Override
+    protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
+        if (false == getPluginsService().filterPlugins(RecoverySettingsChunkSizePlugin.class).isEmpty()) {
+            clusterSettings.addSettingsUpdateConsumer(RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING, recoverySettings::setChunkSize);
         }
     }
 }

@@ -30,6 +30,8 @@ import org.hamcrest.TypeSafeMatcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeConstants;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.ArrayList;
@@ -41,9 +43,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
-/**
- */
 public class TimeZoneRoundingTests extends ESTestCase {
 
     public void testUTCTimeUnitRounding() {
@@ -511,6 +512,25 @@ public class TimeZoneRoundingTests extends ESTestCase {
             assertInterval(time("2015-09-27T02:00:00.000+12:45"), time("2015-09-27T04:00:00.000+13:45"), rounding, 60, tz);
             assertInterval(time("2015-09-27T04:00:00.000+13:45"), time("2015-09-27T05:00:00.000+13:45"), rounding, 60, tz);
         }
+    }
+
+    /**
+     * Test that time zones are correctly parsed. There is a bug with
+     * Joda 2.9.4 (see https://github.com/JodaOrg/joda-time/issues/373)
+     */
+    public void testsTimeZoneParsing() {
+        final DateTime expected = new DateTime(2016, 11, 10, 5, 37, 59, randomDateTimeZone());
+
+        // Formatter used to print and parse the sample date.
+        // Printing the date works but parsing it back fails
+        // with Joda 2.9.4
+        DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss " + randomFrom("ZZZ", "[ZZZ]", "'['ZZZ']'"));
+
+        String dateTimeAsString = formatter.print(expected);
+        assertThat(dateTimeAsString, startsWith("2016-11-10T05:37:59 "));
+
+        DateTime parsedDateTime = formatter.parseDateTime(dateTimeAsString);
+        assertThat(parsedDateTime.getZone(), equalTo(expected.getZone()));
     }
 
     private static void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,

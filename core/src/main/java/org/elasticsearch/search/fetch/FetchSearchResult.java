@@ -28,9 +28,6 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class FetchSearchResult extends TransportResponse implements FetchSearchResultProvider {
 
     private long id;

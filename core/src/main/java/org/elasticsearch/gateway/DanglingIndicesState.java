@@ -153,7 +153,7 @@ public class DanglingIndicesState extends AbstractComponent {
      * for allocation.
      */
     private void allocateDanglingIndices() {
-        if (danglingIndices.isEmpty() == true) {
+        if (danglingIndices.isEmpty()) {
             return;
         }
         try {

@@ -42,9 +42,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenien
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
-/**
- *
- */
 public class AllFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_all";

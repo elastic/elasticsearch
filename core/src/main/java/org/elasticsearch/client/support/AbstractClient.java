@@ -348,9 +348,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-/**
- *
- */
 public abstract class AbstractClient extends AbstractComponent implements Client {
 
     private final ThreadPool threadPool;
@@ -1097,6 +1094,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public DeletePipelineRequestBuilder prepareDeletePipeline() {
             return new DeletePipelineRequestBuilder(this, DeletePipelineAction.INSTANCE);
+        }
+
+        @Override
+        public DeletePipelineRequestBuilder prepareDeletePipeline(String id) {
+            return new DeletePipelineRequestBuilder(this, DeletePipelineAction.INSTANCE, id);
         }
 
         @Override

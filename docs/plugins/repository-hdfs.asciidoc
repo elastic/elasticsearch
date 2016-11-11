@@ -19,7 +19,7 @@ The plugin must be installed on _every_ node in the cluster, and each node must
 be restarted after installation.
 
 This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/repository-hdfs/{version}/repository-hdfs-{version}.zip.
+{plugin_url}/repository-hdfs/repository-hdfs-{version}.zip.
 
 [[repository-hdfs-remove]]
 [float]

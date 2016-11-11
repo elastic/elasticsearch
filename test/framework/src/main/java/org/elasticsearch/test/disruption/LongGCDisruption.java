@@ -39,7 +39,9 @@ public class LongGCDisruption extends SingleNodeDisruption {
 
     private static final Pattern[] unsafeClasses = new Pattern[]{
         // logging has shared JVM locks - we may suspend a thread and block other nodes from doing their thing
-        Pattern.compile("logging\\.log4j")
+        Pattern.compile("logging\\.log4j"),
+        // security manager is shared across all nodes AND it uses synced hashmaps interanlly
+        Pattern.compile("java\\.lang\\.SecurityManager")
     };
 
     protected final String disruptedNode;

@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 public class IndexNameExpressionResolver extends AbstractComponent {
@@ -580,6 +579,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
         private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
             Set<String> result = null;
+            boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (aliasOrIndexExists(metaData, expression)) {
@@ -599,13 +599,14 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     }
                     expression = expression.substring(1);
                 } else if (expression.charAt(0) == '-') {
-                    // if its the first, fill it with all the indices...
-                    if (i == 0) {
-                        List<String> concreteIndices = resolveEmptyOrTrivialWildcard(options, metaData, false);
-                        result = new HashSet<>(concreteIndices);
+                    // if there is a negation without a wildcard being previously seen, add it verbatim,
+                    // otherwise return the expression
+                    if (wildcardSeen) {
+                        add = false;
+                        expression = expression.substring(1);
+                    } else {
+                        add = true;
                     }
-                    add = false;
-                    expression = expression.substring(1);
                 }
                 if (result == null) {
                     // add all the previous ones...
@@ -634,6 +635,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
                 if (!noIndicesAllowedOrMatches(options, matches)) {
                     throw infe(expression);
+                }
+
+                if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
                 }
             }
             return result;
@@ -848,12 +853,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                 DateTimeFormatter parser = dateFormatter.withZone(timeZone);
                                 FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, Locale.ROOT);
                                 DateMathParser dateMathParser = new DateMathParser(formatter);
-                                long millis = dateMathParser.parse(mathExpression, new Callable<Long>() {
-                                    @Override
-                                    public Long call() throws Exception {
-                                        return context.getStartTime();
-                                    }
-                                }, false, timeZone);
+                            long millis = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
 
                                 String time = formatter.printer().print(millis);
                                 beforePlaceHolderSb.append(time);

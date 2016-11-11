@@ -20,11 +20,22 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 
 public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQueryBuilder> {
+
+    /**
+     * All tests create deprecation warnings when an new {@link IndicesQueryBuilder} is created.
+     * Instead of having to check them once in every single test, this is done here after each test is run
+     */
+    @After
+    void checkWarningHeaders() throws IOException {
+        checkWarningHeaders("indices query is deprecated. Instead search on the '_index' field");
+    }
 
     @Override
     protected IndicesQueryBuilder doCreateTestQueryBuilder() {
@@ -50,12 +61,12 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
     }
 
     @Override
-    protected void doAssertLuceneQuery(IndicesQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(IndicesQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         Query expected;
         if (queryBuilder.indices().length == 1 && getIndex().getName().equals(queryBuilder.indices()[0])) {
-            expected = queryBuilder.innerQuery().toQuery(context);
+            expected = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
         } else {
-            expected = queryBuilder.noMatchQuery().toQuery(context);
+            expected = queryBuilder.noMatchQuery().toQuery(context.getQueryShardContext());
         }
         assertEquals(expected, query);
     }

@@ -36,6 +36,6 @@ public class IngestUserAgentClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
-        return ESClientYamlSuiteTestCase.createParameters(0, 1);
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }

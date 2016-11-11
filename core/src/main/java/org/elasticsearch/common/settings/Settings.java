@@ -582,6 +582,9 @@ public final class Settings implements ToXContent {
         return builder;
     }
 
+    public static final Set<String> FORMAT_PARAMS =
+        Collections.unmodifiableSet(new HashSet<>(Arrays.asList("settings_filter", "flat_settings")));
+
     /**
      * Returns <tt>true</tt> if this settings object contains no settings
      * @return <tt>true</tt> if this settings object contains no settings

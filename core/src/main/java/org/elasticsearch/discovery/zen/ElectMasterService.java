@@ -38,9 +38,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/**
- *
- */
 public class ElectMasterService extends AbstractComponent {
 
     public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =
@@ -101,7 +98,6 @@ public class ElectMasterService extends AbstractComponent {
         }
     }
 
-    @Inject
     public ElectMasterService(Settings settings) {
         super(settings);
         this.minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
@@ -178,7 +174,7 @@ public class ElectMasterService extends AbstractComponent {
      * Returns the given nodes sorted by likelihood of being elected as master, most likely first.
      * Non-master nodes are not removed but are rather put in the end
      */
-    public List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
+    public static List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
         ArrayList<DiscoveryNode> sortedNodes = CollectionUtils.iterableAsArrayList(nodes);
         CollectionUtil.introSort(sortedNodes, ElectMasterService::compareNodes);
         return sortedNodes;

@@ -34,18 +34,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 
@@ -61,17 +57,17 @@ public class RestSearchTemplateAction extends BaseRestHandler {
                         request.setScriptParams(parser.map())
                 , new ParseField("params"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptService.ScriptType.FILE);
+            request.setScriptType(ScriptType.FILE);
             request.setScript(s);
         }, new ParseField("file"));
         PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptService.ScriptType.STORED);
+            request.setScriptType(ScriptType.STORED);
             request.setScript(s);
         }, new ParseField("id"));
         PARSER.declareBoolean(SearchTemplateRequest::setExplain, new ParseField("explain"));
         PARSER.declareBoolean(SearchTemplateRequest::setProfile, new ParseField("profile"));
         PARSER.declareField((parser, request, value) -> {
-            request.setScriptType(ScriptService.ScriptType.INLINE);
+            request.setScriptType(ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
                     request.setScript(builder.copyCurrentStructure(parser).bytes().utf8ToString());
@@ -100,7 +96,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (RestActions.hasBodyContent(request) == false) {
             throw new ElasticsearchException("request body is required");
         }
@@ -113,7 +109,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         SearchTemplateRequest searchTemplateRequest = parse(RestActions.getRestContent(request));
         searchTemplateRequest.setRequest(searchRequest);
 
-        client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }
 
     public static SearchTemplateRequest parse(BytesReference bytes) throws IOException {

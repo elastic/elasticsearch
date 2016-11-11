@@ -45,10 +45,8 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.local.LocalTransport;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -112,7 +110,6 @@ public final class NetworkModule {
                          NetworkService networkService) {
         this.settings = settings;
         this.transportClient = transportClient;
-        registerTransport(LOCAL_TRANSPORT, () -> new LocalTransport(settings, threadPool, namedWriteableRegistry, circuitBreakerService));
         for (NetworkPlugin plugin : plugins) {
             if (transportClient == false && HTTP_ENABLED.get(settings)) {
                 Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
@@ -126,7 +123,7 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<Transport>> entry : httpTransportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors();
+            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry);
             for (TransportInterceptor interceptor : transportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
@@ -165,8 +162,8 @@ public final class NetworkModule {
      * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because
      *        it is the name under which the command's reader is registered.
      */
-    private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader, AllocationCommand.Parser<T> parser,
-            ParseField commandName) {
+    private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader,
+                                                                            AllocationCommand.Parser<T> parser, ParseField commandName) {
         allocationCommandRegistry.register(parser, commandName);
         namedWriteables.add(new Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
     }
@@ -237,9 +234,10 @@ public final class NetworkModule {
         }
 
         @Override
-        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, TransportRequestHandler<T> actualHandler) {
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                        TransportRequestHandler<T> actualHandler) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
-                actualHandler = interceptor.interceptHandler(action, actualHandler);
+                actualHandler = interceptor.interceptHandler(action, executor, actualHandler);
             }
             return actualHandler;
         }

@@ -19,12 +19,10 @@
 
 package org.elasticsearch.cluster;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
@@ -55,18 +53,17 @@ import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAl
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -109,21 +106,21 @@ public class ClusterModule extends AbstractModule {
     public static Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings,
                                                                          List<ClusterPlugin> clusterPlugins) {
         // collect deciders by class so that we can detect duplicates
-        Map<Class, AllocationDecider> deciders = new HashMap<>();
+        Map<Class, AllocationDecider> deciders = new LinkedHashMap<>();
         addAllocationDecider(deciders, new MaxRetryAllocationDecider(settings));
-        addAllocationDecider(deciders, new SameShardAllocationDecider(settings));
-        addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider(settings));
-        addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider(settings));
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new EnableAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new NodeVersionAllocationDecider(settings));
+        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(settings));
+        addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new SameShardAllocationDecider(settings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())

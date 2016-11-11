@@ -42,9 +42,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- *
- */
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
     public static final IndexTemplateMetaData PROTO = IndexTemplateMetaData.builder("").build();
@@ -222,7 +219,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
             builder.putCustom(type, customIndexMetaData);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_0_0_alpha6)) {
+        if (in.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
             builder.version(in.readOptionalVInt());
         }
         return builder.build();
@@ -248,7 +245,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_0_0_alpha6)) {
+        if (out.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
             out.writeOptionalVInt(version);
         }
     }

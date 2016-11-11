@@ -38,9 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
-/**
- *
- */
 public abstract class TransportAction<Request extends ActionRequest<Request>, Response extends ActionResponse> extends AbstractComponent {
 
     protected final ThreadPool threadPool;
@@ -141,17 +138,8 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
 
-        if (filters.length == 0) {
-            try {
-                doExecute(task, request, listener);
-            } catch(Exception e) {
-                logger.trace("Error during transport action execution.", e);
-                listener.onFailure(e);
-            }
-        } else {
-            RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
-            requestFilterChain.proceed(task, actionName, request, listener);
-        }
+        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
+        requestFilterChain.proceed(task, actionName, request, listener);
     }
 
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {

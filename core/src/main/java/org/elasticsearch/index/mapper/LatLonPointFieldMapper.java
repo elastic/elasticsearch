@@ -34,7 +34,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -44,7 +43,7 @@ import java.util.Map;
  */
 public class LatLonPointFieldMapper extends BaseGeoPointFieldMapper {
     public static final String CONTENT_TYPE = "geo_point";
-    public static final Version LAT_LON_FIELD_VERSION = Version.V_5_0_0_alpha6;
+    public static final Version LAT_LON_FIELD_VERSION = Version.V_5_0_0_beta1;
 
     public static class Defaults extends BaseGeoPointFieldMapper.Defaults {
         public static final LatLonPointFieldType FIELD_TYPE = new LatLonPointFieldType();

@@ -279,3 +279,27 @@
             index: test
           dest:
             index: dest
+
+---
+"junk in slices fails":
+  - do:
+      catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
+      reindex:
+        slices: junk
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"zero slices fails":
+  - do:
+      catch: /\[slices\] must be at least 1/
+      reindex:
+        slices: 0
+        body:
+          source:
+            index: test
+          dest:
+            index: dest

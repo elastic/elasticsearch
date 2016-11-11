@@ -33,7 +33,6 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -93,7 +92,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
 
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
-            (s) -> Integer.toString(EsExecutors.boundedNumberOfProcessors(s) * 2),
+            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope, Property.Shared);
 
     public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
@@ -332,7 +331,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
     }
 
     protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
+        InetSocketAddress address = node.getAddress().address();
         ChannelFuture connect = clientBootstrap.connect(address);
         connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
         if (!connect.isSuccess()) {
@@ -352,7 +351,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
             int numConnections = connectionsPerNodeBulk + connectionsPerNodePing + connectionsPerNodeRecovery + connectionsPerNodeReg
                 + connectionsPerNodeState;
             ArrayList<ChannelFuture> connections = new ArrayList<>();
-            InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
+            InetSocketAddress address = node.getAddress().address();
             for (int i = 0; i < numConnections; i++) {
                 connections.add(clientBootstrap.connect(address));
             }
@@ -491,19 +490,9 @@ public class Netty3Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close) {
+    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) {
         final ChannelFuture future = channel.write(Netty3Utils.toChannelBuffer(reference));
-        if (close) {
-            future.addListener(f -> {
-                try {
-                    sendListener.run();
-                } finally {
-                    f.getChannel().close();
-                }
-            });
-        } else {
-            future.addListener(future1 -> sendListener.run());
-        }
+        future.addListener(future1 -> sendListener.run());
     }
 
     @Override

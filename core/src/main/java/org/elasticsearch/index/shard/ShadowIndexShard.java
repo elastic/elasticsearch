@@ -67,7 +67,7 @@ public final class ShadowIndexShard extends IndexShard {
      */
     @Override
     public void updateRoutingEntry(ShardRouting newRouting) throws IOException {
-        if (newRouting.primary() == true) {// becoming a primary
+        if (newRouting.primary()) {// becoming a primary
             throw new IllegalStateException("can't promote shard to primary");
         }
         super.updateRoutingEntry(newRouting);

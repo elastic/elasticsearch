@@ -36,7 +36,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -285,15 +285,18 @@ public class SearchFieldsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", new Script("doc['num1'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("sNum1_field", new Script("_fields['num1'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("date1", new Script("doc['date'].date.millis", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("sNum1",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+                .addScriptField("sNum1_field",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields['num1'].value", Collections.emptyMap()))
+                .addScriptField("date1",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['date'].date.millis", Collections.emptyMap()))
                 .execute().actionGet();
 
         assertNoFailures(response);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
-        assertThat(response.getHits().getAt(0).hasSource(), equalTo(true));
+        assertFalse(response.getHits().getAt(0).hasSource());
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
         Set<String> fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
@@ -321,7 +324,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", new Script("doc['num1'].value * factor", ScriptType.INLINE, CustomScriptPlugin.NAME, params))
+                .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value * factor", params))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
@@ -357,7 +360,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("uid", new Script("_fields._uid.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -375,7 +378,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("id", new Script("_fields._id.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -393,7 +396,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("type", new Script("_fields._type.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("type",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -411,9 +415,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("id", new Script("_fields._id.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("uid", new Script("_fields._uid.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("type", new Script("_fields._type.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
+                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
+                .addScriptField("type",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -444,11 +449,13 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("s_obj1", new Script("_source.obj1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("s_obj1_test", new Script("_source.obj1.test", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("s_obj2", new Script("_source.obj2", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("s_obj2_arr2", new Script("_source.obj2.arr2", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("s_arr3", new Script("_source.arr3", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("s_obj1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1", Collections.emptyMap()))
+                .addScriptField("s_obj1_test",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1.test", Collections.emptyMap()))
+                .addScriptField("s_obj2", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj2", Collections.emptyMap()))
+                .addScriptField("s_obj2_arr2",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj2.arr2", Collections.emptyMap()))
+                .addScriptField("s_arr3", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.arr3", Collections.emptyMap()))
                 .get();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -481,7 +488,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("test_script_1", new Script("return null", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("test_script_1",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -819,7 +827,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
         assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
-        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) 1L));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).fields().get("text_field").value(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("keyword_field").value(), equalTo("foo"));
     }
@@ -847,7 +855,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         ensureSearchable();
         SearchRequestBuilder req = client().prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
-            req.addScriptField(field, new Script("doc['" + field + "'].values", ScriptType.INLINE, CustomScriptPlugin.NAME, null));
+            req.addScriptField(field,
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
         }
         SearchResponse resp = req.get();
         assertSearchResponse(resp);

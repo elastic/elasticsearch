@@ -22,12 +22,9 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.update.UpdateHelper;
-import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -80,16 +77,11 @@ import java.util.Map;
  * Configures classes and services that are shared by indices on each node.
  */
 public class IndicesModule extends AbstractModule {
-
-    private final Map<String, Mapper.TypeParser> mapperParsers;
-    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
-    private final MapperRegistry mapperRegistry;
     private final List<Entry> namedWritables = new ArrayList<>();
+    private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperParsers = getMappers(mapperPlugins);
-        this.metadataMapperParsers = getMetadataMappers(mapperPlugins);
-        this.mapperRegistry = new MapperRegistry(mapperParsers, metadataMapperParsers);
+        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins));
         registerBuiltinWritables();
     }
 
@@ -176,28 +168,18 @@ public class IndicesModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bindMapperExtension();
-
-        bind(RecoverySettings.class).asEagerSingleton();
-        bind(PeerRecoveryTargetService.class).asEagerSingleton();
-        bind(PeerRecoverySourceService.class).asEagerSingleton();
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
-        bind(UpdateHelper.class).asEagerSingleton();
-        bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
-        bind(NodeServicesProvider.class).asEagerSingleton();
         bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
     }
 
-    // public for testing
+    /**
+     * A registry for all field mappers.
+     */
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
-    }
-
-    protected void bindMapperExtension() {
-        bind(MapperRegistry.class).toInstance(getMapperRegistry());
     }
 }

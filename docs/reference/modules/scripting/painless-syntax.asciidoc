@@ -29,6 +29,23 @@ def mystring = 'foo';
 ---------------------------------------------------------
 
 [float]
+[[painless-arrays]]
+==== Arrays
+
+Arrays can be subscripted starting from `0` for traditional array access or with
+negative numbers to starting from the back of the array. So the following
+returns `2`.
+
+[source,painless]
+---------------------------------------------------------
+int[] x = new int[5];
+x[0]++;
+x[-5]++;
+return x[0];
+---------------------------------------------------------
+
+
+[float]
 [[painless-lists]]
 ==== List
 
@@ -39,11 +56,13 @@ Lists can be created explicitly (e.g. `new ArrayList()`) or initialized similar 
 def list = [1,2,3];
 ---------------------------------------------------------
 
-Lists can also be accessed similar to arrays: they support subscript and `.length`:
+Lists can also be accessed similar to arrays. They support `.length` and
+subscripts, including negative subscripts to read from the back of the list:
 
 [source,painless]
 ---------------------------------------------------------
 def list = [1,2,3];
+list[-1] = 5
 return list[0]
 ---------------------------------------------------------
 
@@ -110,6 +129,37 @@ using these characters:
 |`u` | UNICODE_CASE              | `'Ɛ' ==~ /ɛ/iu`
 |`x` | COMMENTS (aka extended)   | `'a' ==~ /a #comment/x`
 |=======================================================================
+
+[float]
+[[painless-deref]]
+=== Dereferences
+
+Like lots of languages, Painless uses `.` to reference fields and call methods:
+
+[source,painless]
+---------------------------------------------------------
+String foo = 'foo';
+TypeWithGetterOrPublicField bar = new TypeWithGetterOrPublicField()
+return foo.length() + bar.x
+---------------------------------------------------------
+
+Like Groovy, Painless uses `?.` to perform null-safe references, with the
+result being `null` if the left hand side is null:
+
+[source,painless]
+---------------------------------------------------------
+String foo = null;
+return foo?.length()  // Returns null
+---------------------------------------------------------
+
+Unlike Groovy, Painless doesn't support writing to null values with this
+operator:
+
+[source,painless]
+---------------------------------------------------------
+TypeWithSetterOrPublicField foo = null;
+foo?.x = 'bar'  // Compile error
+---------------------------------------------------------
 
 [float]
 [[painless-operators]]

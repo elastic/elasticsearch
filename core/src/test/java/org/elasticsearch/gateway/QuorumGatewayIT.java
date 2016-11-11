@@ -37,9 +37,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-/**
- *
- */
 @ClusterScope(numDataNodes =0, scope= Scope.TEST)
 public class QuorumGatewayIT extends ESIntegTestCase {
     @Override

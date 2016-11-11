@@ -45,8 +45,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- */
 public class AwarenessAllocationTests extends ESAllocationTestCase {
 
     private final Logger logger = Loggers.getLogger(AwarenessAllocationTests.class);

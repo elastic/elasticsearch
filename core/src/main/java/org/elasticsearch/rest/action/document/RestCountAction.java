@@ -32,7 +32,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -40,14 +39,13 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
-/**
- *
- */
 public class RestCountAction extends BaseRestHandler {
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
@@ -65,7 +63,7 @@ public class RestCountAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
@@ -93,7 +91,7 @@ public class RestCountAction extends BaseRestHandler {
         } else if (terminateAfter > 0) {
             searchSourceBuilder.terminateAfter(terminateAfter);
         }
-        client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
+        return channel -> client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -109,4 +107,5 @@ public class RestCountAction extends BaseRestHandler {
             }
         });
     }
+
 }

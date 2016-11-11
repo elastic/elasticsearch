@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
@@ -52,8 +51,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- */
 public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
@@ -75,9 +72,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchRequestParsers, parseFieldMatcher);
-        client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
+        return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
     /**

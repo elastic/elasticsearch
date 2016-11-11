@@ -25,14 +25,15 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Optional;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
 
 public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<ConstantScoreQueryBuilder> {
@@ -45,8 +46,8 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     @Override
-    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Query innerQuery = queryBuilder.innerQuery().toQuery(context);
+    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        Query innerQuery = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
         if (innerQuery == null) {
             assertThat(query, nullValue());
         } else {
@@ -132,11 +133,13 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
+        checkWarningHeaders("query malformed, empty clause found at [1:40]");
 
         parser = XContentFactory.xContent(query).createParser(query);
         QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
-        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
+        assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [1:40]"));
+        checkWarningHeaders("query malformed, empty clause found at [1:40]");
     }
 
 }

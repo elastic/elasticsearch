@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -118,9 +119,9 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoDistanceRangeQueryBuilder queryBuilder, Query query, QueryShardContext context)
+    protected void doAssertLuceneQuery(GeoDistanceRangeQueryBuilder queryBuilder, Query query, SearchContext context)
             throws IOException {
-        Version version = context.indexVersionCreated();
+        Version version = context.getQueryShardContext().indexVersionCreated();
         if (version.before(Version.V_2_2_0)) {
             assertLegacyQuery(queryBuilder, query);
         } else {

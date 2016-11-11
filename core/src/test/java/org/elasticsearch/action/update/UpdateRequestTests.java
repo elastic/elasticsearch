@@ -28,13 +28,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -53,11 +65,11 @@ public class UpdateRequestTests extends ESTestCase {
                 .endObject());
         Script script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         Map<String, Object> params = script.getParams();
-        assertThat(params, nullValue());
+        assertThat(params, equalTo(Collections.emptyMap()));
 
         // simple verbose script
         request.fromXContent(XContentFactory.jsonBuilder().startObject()
@@ -65,11 +77,11 @@ public class UpdateRequestTests extends ESTestCase {
                 .endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
-        assertThat(params, nullValue());
+        assertThat(params, equalTo(Collections.emptyMap()));
 
         // script with params
         request = new UpdateRequest("test", "type", "1");
@@ -82,7 +94,7 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
@@ -96,7 +108,7 @@ public class UpdateRequestTests extends ESTestCase {
             .field("inline", "script1").endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
@@ -121,7 +133,7 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
@@ -148,7 +160,7 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
@@ -184,9 +196,10 @@ public class UpdateRequestTests extends ESTestCase {
                 .doc(jsonBuilder().startObject().field("fooz", "baz").endObject())
                 .upsert(indexRequest);
 
+        long nowInMillis = randomPositiveLong();
         // We simulate that the document is not existing yet
         GetResult getResult = new GetResult("test", "type1", "1", 0, false, null, null);
-        UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0),updateRequest, getResult);
+        UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0),updateRequest, getResult, () -> nowInMillis);
         Streamable action = result.action();
         assertThat(action, instanceOf(IndexRequest.class));
         IndexRequest indexAction = (IndexRequest) action;
@@ -203,7 +216,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // We simulate that the document is not existing yet
         getResult = new GetResult("test", "type1", "2", 0, false, null, null);
-        result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult);
+        result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
         action = result.action();
         assertThat(action, instanceOf(IndexRequest.class));
         indexAction = (IndexRequest) action;
@@ -213,12 +226,8 @@ public class UpdateRequestTests extends ESTestCase {
     // Related to issue #15822
     public void testInvalidBodyThrowsParseException() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
-        try {
-            request.fromXContent(new byte[] { (byte) '"' });
-            fail("Should have thrown a ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("Failed to derive xcontent"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> request.fromXContent(new byte[] { (byte) '"' }));
+        assertThat(e.getMessage(), equalTo("Failed to derive xcontent"));
     }
 
     // Related to issue 15338
@@ -275,5 +284,71 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(request.fetchSource().excludes().length, equalTo(1));
         assertThat(request.fetchSource().includes()[0], equalTo("path.inner.*"));
         assertThat(request.fetchSource().excludes()[0], equalTo("another.inner.*"));
+    }
+
+    public void testNowInScript() throws IOException {
+        Path genericConfigFolder = createTempDir();
+        Settings baseSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
+            .build();
+        Environment environment = new Environment(baseSettings);
+        Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
+        scripts.put("ctx._source.update_timestamp = ctx._now",
+            (vars) -> {
+                Map<String, Object> ctx = (Map) vars.get("ctx");
+                Map<String, Object> source = (Map) ctx.get("_source");
+                source.put("update_timestamp", ctx.get("_now"));
+                return null;});
+        scripts.put("ctx._timestamp = ctx._now",
+            (vars) -> {
+                Map<String, Object> ctx = (Map) vars.get("ctx");
+                ctx.put("_timestamp", ctx.get("_now"));
+                return null;});
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MockScriptEngine("mock",
+            scripts)));
+
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptService scriptService = new ScriptService(baseSettings, environment,
+            new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        TimeValue providedTTLValue = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
+        Settings settings = settings(Version.CURRENT).build();
+
+        UpdateHelper updateHelper = new UpdateHelper(settings, scriptService);
+
+        // We just upsert one document with now() using a script
+        IndexRequest indexRequest = new IndexRequest("test", "type1", "2")
+            .source(jsonBuilder().startObject().field("foo", "bar").endObject())
+            .ttl(providedTTLValue);
+
+        {
+            UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
+                .upsert(indexRequest)
+                .script(new Script(ScriptType.INLINE, "mock", "ctx._source.update_timestamp = ctx._now", Collections.emptyMap()))
+                .scriptedUpsert(true);
+            long nowInMillis = randomPositiveLong();
+            // We simulate that the document is not existing yet
+            GetResult getResult = new GetResult("test", "type1", "2", 0, false, null, null);
+            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
+            Streamable action = result.action();
+            assertThat(action, instanceOf(IndexRequest.class));
+            IndexRequest indexAction = (IndexRequest) action;
+            assertEquals(indexAction.sourceAsMap().get("update_timestamp"), nowInMillis);
+        }
+        {
+            UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
+                .upsert(indexRequest)
+                .script(new Script(ScriptType.INLINE, "mock", "ctx._timestamp = ctx._now", Collections.emptyMap()))
+                .scriptedUpsert(true);
+            long nowInMillis = randomPositiveLong();
+            // We simulate that the document is not existing yet
+            GetResult getResult = new GetResult("test", "type1", "2", 0, true, new BytesArray("{}"), null);
+            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
+            Streamable action = result.action();
+            assertThat(action, instanceOf(IndexRequest.class));
+            IndexRequest indexAction = (IndexRequest) action;
+            assertEquals(indexAction.timestamp(), Long.toString(nowInMillis));
+        }
     }
 }

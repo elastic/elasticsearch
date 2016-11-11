@@ -27,9 +27,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RecoveryFailedException extends ElasticsearchException {
 
     public RecoveryFailedException(StartRecoveryRequest request, Throwable cause) {

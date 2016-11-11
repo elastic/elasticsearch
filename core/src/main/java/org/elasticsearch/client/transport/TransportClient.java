@@ -151,7 +151,7 @@ public abstract class TransportClient extends AbstractClient {
                 bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = new TransportService(settings, transport, threadPool,
-                networkModule.getTransportInterceptor());
+                networkModule.getTransportInterceptor(), null);
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PluginsService.class).toInstance(pluginsService);

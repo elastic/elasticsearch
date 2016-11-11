@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -170,7 +169,7 @@ public class ScriptServiceTests extends ESTestCase {
         Streams.copy("test_file".getBytes("UTF-8"), Files.newOutputStream(testFileWithExt));
         resourceWatcherService.notifyNow();
 
-        CompiledScript compiledScript = scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null),
+        CompiledScript compiledScript = scriptService.compile(new Script(ScriptType.FILE, "test", "test_script", Collections.emptyMap()),
                 ScriptContext.Standard.SEARCH, Collections.emptyMap());
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
@@ -179,7 +178,7 @@ public class ScriptServiceTests extends ESTestCase {
         resourceWatcherService.notifyNow();
 
         try {
-            scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null), ScriptContext.Standard.SEARCH,
+            scriptService.compile(new Script(ScriptType.FILE, "test", "test_script", Collections.emptyMap()), ScriptContext.Standard.SEARCH,
                     Collections.emptyMap());
             fail("the script test_script should no longer exist");
         } catch (IllegalArgumentException ex) {
@@ -197,7 +196,7 @@ public class ScriptServiceTests extends ESTestCase {
         Streams.copy("test_file_script".getBytes("UTF-8"), Files.newOutputStream(testFileScript));
         resourceWatcherService.notifyNow();
 
-        CompiledScript compiledScript = scriptService.compile(new Script("file_script", ScriptType.FILE, "test", null),
+        CompiledScript compiledScript = scriptService.compile(new Script(ScriptType.FILE, "test", "file_script", Collections.emptyMap()),
                 ScriptContext.Standard.SEARCH, Collections.emptyMap());
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file_script"));
 
@@ -208,9 +207,9 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
-        CompiledScript compiledScript1 = scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null),
+        CompiledScript compiledScript1 = scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()),
                 randomFrom(scriptContexts), Collections.emptyMap());
-        CompiledScript compiledScript2 = scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null),
+        CompiledScript compiledScript2 = scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()),
                 randomFrom(scriptContexts), Collections.emptyMap());
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
@@ -267,9 +266,9 @@ public class ScriptServiceTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         for (Map.Entry<ScriptType, Boolean> entry : scriptSourceSettings.entrySet()) {
             if (entry.getValue()) {
-                builder.put("script" + "." + entry.getKey().getScriptType(), "true");
+                builder.put("script" + "." + entry.getKey().getName(), "true");
             } else {
-                builder.put("script" + "." + entry.getKey().getScriptType(), "false");
+                builder.put("script" + "." + entry.getKey().getName(), "false");
             }
         }
         for (Map.Entry<ScriptContext, Boolean> entry : scriptContextSettings.entrySet()) {
@@ -333,8 +332,8 @@ public class ScriptServiceTests extends ESTestCase {
 
         String type = scriptEngineService.getType();
         try {
-            scriptService.compile(new Script("test", randomFrom(ScriptType.values()), type, null), new ScriptContext.Plugin(
-                            pluginName, unknownContext), Collections.emptyMap());
+            scriptService.compile(new Script(randomFrom(ScriptType.values()), type, "test", Collections.emptyMap()),
+                new ScriptContext.Plugin(pluginName, unknownContext), Collections.emptyMap());
             fail("script compilation should have been rejected");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
@@ -343,21 +342,20 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testCompileCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts),
                 Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testExecutableCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
+        scriptService.executable(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testSearchCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.search(null, new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap());
+        scriptService.search(null, new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -366,7 +364,7 @@ public class ScriptServiceTests extends ESTestCase {
         int numberOfCompilations = randomIntBetween(1, 1024);
         for (int i = 0; i < numberOfCompilations; i++) {
             scriptService
-                    .compile(new Script(i + " + " + i, ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
+                    .compile(new Script(ScriptType.INLINE, "test", i + " + " + i, Collections.emptyMap()), randomFrom(scriptContexts),
                             Collections.emptyMap());
         }
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
@@ -377,22 +375,22 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
-        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
+        scriptService.executable(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
+        scriptService.executable(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testFileScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         createFileScripts("test");
-        scriptService.compile(new Script("file_script", ScriptType.FILE, "test", null), randomFrom(scriptContexts),
+        scriptService.compile(new Script(ScriptType.FILE, "test", "file_script", Collections.emptyMap()), randomFrom(scriptContexts),
                 Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script("script", ScriptType.STORED, "test", null), randomFrom(scriptContexts),
+        scriptService.compile(new Script(ScriptType.STORED, "test", "script", Collections.emptyMap()), randomFrom(scriptContexts),
                 Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
@@ -402,8 +400,8 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
-        scriptService.executable(new Script("2+2", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
+        scriptService.executable(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
+        scriptService.executable(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
     }
@@ -412,7 +410,8 @@ public class ScriptServiceTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        CompiledScript script = scriptService.compile(new Script("1 + 1", ScriptType.INLINE, null, null),
+        CompiledScript script = scriptService.compile(
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 + 1", Collections.emptyMap()),
                 randomFrom(scriptContexts), Collections.emptyMap());
         assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
     }
@@ -494,7 +493,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         try {
-            scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap());
+            scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext, Collections.emptyMap());
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
         } catch(IllegalStateException e) {
             //all good
@@ -503,7 +502,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         assertThat(
-                scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap()),
+                scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext, Collections.emptyMap()),
                 notNullValue()
         );
     }

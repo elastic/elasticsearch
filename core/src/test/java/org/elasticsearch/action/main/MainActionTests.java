@@ -120,9 +120,10 @@ public class MainActionTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).blocks(blocks).build();
         when(clusterService.state()).thenReturn(state);
 
-        TransportMainAction action = new TransportMainAction(settings, mock(ThreadPool.class), new TransportService(Settings.EMPTY,
-            null ,null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
-            mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), clusterService);
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
+        TransportMainAction action = new TransportMainAction(settings, mock(ThreadPool.class), transportService, mock(ActionFilters.class),
+                mock(IndexNameExpressionResolver.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
         action.doExecute(new MainRequest(), new ActionListener<MainResponse>() {
             @Override

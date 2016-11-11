@@ -27,7 +27,7 @@ The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
 This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/ingest-geoip/{version}/ingest-geoip-{version}.zip.
+{plugin_url}/ingest-geoip/ingest-geoip-{version}.zip.
 
 [[ingest-geoip-remove]]
 [float]

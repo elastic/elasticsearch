@@ -54,8 +54,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class FreqTermsEnumTests extends ESTestCase {
 
     private String[] terms;

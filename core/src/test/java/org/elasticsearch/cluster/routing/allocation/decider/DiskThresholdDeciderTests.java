@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -823,9 +822,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("foo"))
                 .build();
 
-        DiscoveryNode discoveryNode1 = new DiscoveryNode("node1", new LocalTransportAddress("1"), emptyMap(),
+        DiscoveryNode discoveryNode1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
                 MASTER_DATA_ROLES, Version.CURRENT);
-        DiscoveryNode discoveryNode2 = new DiscoveryNode("node2", new LocalTransportAddress("2"), emptyMap(),
+        DiscoveryNode discoveryNode2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(),
                 MASTER_DATA_ROLES, Version.CURRENT);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();
 
@@ -942,9 +941,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .build();
 
         logger.info("--> adding one master node, one data node");
-        DiscoveryNode discoveryNode1 = new DiscoveryNode("", "node1", new LocalTransportAddress("1"), emptyMap(),
+        DiscoveryNode discoveryNode1 = new DiscoveryNode("", "node1", buildNewFakeTransportAddress(), emptyMap(),
                 singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
-        DiscoveryNode discoveryNode2 = new DiscoveryNode("", "node2", new LocalTransportAddress("2"), emptyMap(),
+        DiscoveryNode discoveryNode2 = new DiscoveryNode("", "node2", buildNewFakeTransportAddress(), emptyMap(),
                 singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();
@@ -1010,7 +1009,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         // Add another datanode, it should relocate.
         logger.info("--> adding node3");
-        DiscoveryNode discoveryNode3 = new DiscoveryNode("", "node3", new LocalTransportAddress("3"), emptyMap(),
+        DiscoveryNode discoveryNode3 = new DiscoveryNode("", "node3", buildNewFakeTransportAddress(), emptyMap(),
                 singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
         ClusterState updateClusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(discoveryNode3)).build();

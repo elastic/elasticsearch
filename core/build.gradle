@@ -62,10 +62,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.9.4'
-  // joda 2.0 moved to using volatile fields for datetime
-  // When updating to a new version, make sure to update our copy of BaseDateTime
-  compile 'org.joda:joda-convert:1.2'
+  compile 'joda-time:joda-time:2.9.5'
 
   // json and yaml
   compile "org.yaml:snakeyaml:${versions.snakeyaml}"
@@ -158,6 +155,10 @@ thirdPartyAudit.excludes = [
   'com.fasterxml.jackson.databind.ObjectMapper',
 
   // from log4j
+  'com.beust.jcommander.IStringConverter',
+  'com.beust.jcommander.JCommander',
+  'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
+  'com.conversantmedia.util.concurrent.SpinPolicy',
   'com.fasterxml.jackson.annotation.JsonInclude$Include',
   'com.fasterxml.jackson.databind.DeserializationContext',
   'com.fasterxml.jackson.databind.JsonMappingException',
@@ -176,6 +177,10 @@ thirdPartyAudit.excludes = [
   'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
   'com.fasterxml.jackson.dataformat.xml.XmlMapper',
   'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
+  'com.fasterxml.jackson.databind.node.JsonNodeFactory',
+  'com.fasterxml.jackson.databind.node.ObjectNode',
+  'org.fusesource.jansi.Ansi',
+  'org.fusesource.jansi.AnsiRenderer$Code',
   'com.lmax.disruptor.BlockingWaitStrategy',
   'com.lmax.disruptor.BusySpinWaitStrategy',
   'com.lmax.disruptor.EventFactory',
@@ -228,6 +233,8 @@ thirdPartyAudit.excludes = [
   'org.apache.kafka.clients.producer.Producer',
   'org.apache.kafka.clients.producer.ProducerRecord',
   'org.codehaus.stax2.XMLStreamWriter2',
+  'org.jctools.queues.MessagePassingQueue$Consumer',
+  'org.jctools.queues.MpscArrayQueue',
   'org.osgi.framework.AdaptPermission',
   'org.osgi.framework.AdminPermission',
   'org.osgi.framework.Bundle',
@@ -247,8 +254,10 @@ thirdPartyAudit.excludes = [
   'org.noggit.JSONParser', 
 ]
 
-// dependency license are currently checked in distribution
-dependencyLicenses.enabled = false
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
 
 if (isEclipse == false || project.path == ":core-tests") {
   task integTest(type: RandomizedTestingTask,

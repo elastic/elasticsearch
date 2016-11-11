@@ -63,4 +63,24 @@
 
   - match:  { _source.foo: xxx }
 
+  - do:
+      update:
+          index:    test_1
+          type:     test
+          id:       3
+          body:
+            script:
+              inline: "ctx._source.has_now = ctx._now > 0"
+              lang: "painless"
+            upsert: { has_now: false }
+            scripted_upsert: true
+
+  - do:
+      get:
+          index:  test_1
+          type:   test
+          id:     3
+
+  - match:  { _source.has_now: true }
+
 

@@ -62,7 +62,7 @@ It is also possible to retrieve information for a particular task:
 
 [source,js]
 --------------------------------------------------
-GET _tasks/taskId:1 <1>
+GET _tasks/task_id:1 <1>
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:missing]
@@ -108,13 +108,14 @@ GET _cat/tasks
 // CONSOLE
 
 [float]
+[[task-cancellation]]
 === Task Cancellation
 
 If a long-running task supports cancellation, it can be cancelled by the following command:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/taskId:1/_cancel
+POST _tasks/task_id:1/_cancel
 --------------------------------------------------
 // CONSOLE
 
@@ -124,7 +125,7 @@ nodes `nodeId1` and `nodeId2`.
 
 [source,js]
 --------------------------------------------------
-POST _tasks/_cancel?node_id=nodeId1,nodeId2&actions=*reindex
+POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
 // CONSOLE
 

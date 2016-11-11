@@ -21,8 +21,8 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -38,6 +38,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -125,12 +126,17 @@ public class AttachmentProcessorTests extends ESTestCase {
             is("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
     }
 
+    public void testPdf() throws Exception {
+        Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
+        assertThat(attachmentData.get("content"),
+                is("This is a test, with umlauts, from München\n\nAlso contains newlines for testing.\n\nAnd one more."));
+        assertThat(attachmentData.get("content_type").toString(), is("application/pdf"));
+        assertThat(attachmentData.get("content_length"), is(notNullValue()));
+    }
+
     public void testEncryptedPdf() throws Exception {
-        try {
-            parseDocument("encrypted.pdf", processor);
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getDetailedMessage(), containsString("document is encrypted"));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
+        assertThat(e.getDetailedMessage(), containsString("document is encrypted"));
     }
 
     public void testHtmlDocument() throws Exception {

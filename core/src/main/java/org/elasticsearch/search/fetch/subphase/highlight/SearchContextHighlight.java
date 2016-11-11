@@ -28,9 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
 public class SearchContextHighlight {
 
     private final Map<String, Field> fields;

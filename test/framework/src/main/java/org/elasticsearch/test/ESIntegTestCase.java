@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.IOUtils;
@@ -82,7 +83,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -95,7 +95,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
@@ -121,10 +120,11 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.client.RandomizingClient;
+import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.AssertingTransportInterceptor;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -153,6 +153,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -165,6 +166,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -180,6 +183,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -434,7 +438,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         if (randomBoolean()) {
             // keep this low so we don't stall tests
-            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), RandomInts.randomIntBetween(random, 1, 15) + "ms");
+            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 1, 15) + "ms");
         }
 
         return builder;
@@ -447,8 +451,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         switch (random.nextInt(4)) {
             case 3:
-                final int maxThreadCount = RandomInts.randomIntBetween(random, 1, 4);
-                final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
+                final int maxThreadCount = RandomNumbers.randomIntBetween(random, 1, 4);
+                final int maxMergeCount = RandomNumbers.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
                 builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
                 builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
                 break;
@@ -459,7 +463,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static Settings.Builder setRandomIndexTranslogSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(RandomNumbers.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
         }
         if (random.nextBoolean()) {
             builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)); // just don't flush
@@ -469,14 +473,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
+            builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
         }
 
         return builder;
     }
 
     private TestCluster buildWithPrivateContext(final Scope scope, final long seed) throws Exception {
-        return RandomizedContext.current().runWithPrivateRandomness(new com.carrotsearch.randomizedtesting.Randomness(seed), new Callable<TestCluster>() {
+        return RandomizedContext.current().runWithPrivateRandomness(seed, new Callable<TestCluster>() {
             @Override
             public TestCluster call() throws Exception {
                 return buildTestCluster(scope, seed);
@@ -536,12 +540,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         for (Discovery discovery : internalCluster().getInstances(Discovery.class)) {
                             if (discovery instanceof ZenDiscovery) {
                                 final ZenDiscovery zenDiscovery = (ZenDiscovery) discovery;
-                                assertBusy(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        assertThat("still having pending states: " + Strings.arrayToDelimitedString(zenDiscovery.pendingClusterStates(), "\n"),
-                                            zenDiscovery.pendingClusterStates(), emptyArray());
-                                    }
+                                assertBusy(() -> {
+                                    final ClusterState[] states = zenDiscovery.pendingClusterStates();
+                                    assertThat(zenDiscovery.localNode().getName() + " still having pending states:\n" +
+                                            Stream.of(states).map(ClusterState::toString).collect(Collectors.joining("\n")),
+                                        states, emptyArray());
                                 });
                             }
                         }
@@ -767,17 +770,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public void waitNoPendingTasksOnAll() throws Exception {
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                for (Client client : clients()) {
-                    ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
-                    assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
-                    PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
-                    assertThat("client " + client + " still has pending tasks " + pendingTasks.prettyPrint(), pendingTasks, Matchers.emptyIterable());
-                    clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
-                    assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
-                }
+        assertBusy(() -> {
+            for (Client client : clients()) {
+                ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
+                assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
+                PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
+                assertThat("client " + client + " still has pending tasks " + pendingTasks, pendingTasks, Matchers.emptyIterable());
+                clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
+                assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
             }
         });
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
@@ -878,14 +878,45 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-            .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
+        return ensureColor(ClusterHealthStatus.GREEN, timeout, indices);
+    }
+
+    /**
+     * Ensures the cluster has a yellow state via the cluster health API.
+     */
+    public ClusterHealthStatus ensureYellow(String... indices) {
+        return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), indices);
+    }
+
+    private ClusterHealthStatus ensureColor(ClusterHealthStatus clusterHealthStatus, TimeValue timeout, String... indices) {
+        String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
+        String method = "ensure" + Strings.capitalize(color);
+
+        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(indices)
+            .timeout(timeout)
+            .waitForStatus(clusterHealthStatus)
+            .waitForEvents(Priority.LANGUID)
+            .waitForNoRelocatingShards(true)
+            // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
+            // a node. If the node that is stopped is the master node, another node will become master and publish a cluster state where it
+            // is master but where the node that was stopped hasn't been removed yet from the cluster state. It will only subsequently
+            // publish a second state where the old master is removed. If the ensureGreen/ensureYellow is timed just right, it will get to
+            // execute before the second cluster state update removes the old master and the condition ensureGreen / ensureYellow will
+            // trivially hold if it held before the node was shut down. The following "waitForNodes" condition ensures that the node has
+            // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
+            .waitForNodes(Integer.toString(cluster().size()));
+
+        ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
-            logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
-            fail("timed out waiting for green state");
+            logger.info("{} timed out, cluster state:\n{}\n{}",
+                method,
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get());
+            fail("timed out waiting for " + color + " state");
         }
-        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);
+        assertThat("Expected at least " + clusterHealthStatus + " but got " + actionGet.getStatus(),
+            actionGet.getStatus().value(), lessThanOrEqualTo(clusterHealthStatus.value()));
+        logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
         return actionGet.getStatus();
     }
 
@@ -908,7 +939,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         ClusterHealthResponse actionGet = client().admin().cluster()
             .health(request).actionGet();
         if (actionGet.isTimedOut()) {
-            logger.info("waitForRelocation timed out (status={}), cluster state:\n{}\n{}", status, client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            logger.info("waitForRelocation timed out (status={}), cluster state:\n{}\n{}", status,
+                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
             assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
         }
         if (status != null) {
@@ -999,24 +1031,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Ensures the cluster has a yellow state via the cluster health API.
-     */
-    public ClusterHealthStatus ensureYellow(String... indices) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-            .health(Requests.clusterHealthRequest(indices).waitForNoRelocatingShards(true).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
-        if (actionGet.isTimedOut()) {
-            logger.info("ensureYellow timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
-            assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
-        }
-        logger.debug("indices {} are yellow", indices.length == 0 ? "[_all]" : indices);
-        return actionGet.getStatus();
-    }
-
-    /**
      * Prints the current cluster state as debug logging.
      */
     public void logClusterState() {
-        logger.debug("cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+        logger.debug("cluster state:\n{}\n{}",
+            client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
     }
 
     /**
@@ -1117,7 +1136,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (clusterHealthResponse.isTimedOut()) {
             ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState().get();
             fail("failed to reach a stable cluster of [" + nodeCount + "] nodes. Tried via [" + viaNode + "]. last cluster state:\n"
-                + stateResponse.getState().prettyPrint());
+                + stateResponse.getState());
         }
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
     }
@@ -1685,7 +1704,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (String stringAddress : stringAddresses) {
             URL url = new URL("http://" + stringAddress);
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new InetSocketTransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
@@ -1736,9 +1755,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(mockPlugins);
             // add both mock plugins - local and tcp if they are not there
             // we do this in case somebody overrides getMockPlugins and misses to call super
-            if (mockPlugins.contains(AssertingLocalTransport.TestPlugin.class) == false) {
-                mocks.add(AssertingLocalTransport.TestPlugin.class);
-            }
             if (mockPlugins.contains(MockTcpTransportPlugin.class) == false) {
                 mocks.add(MockTcpTransportPlugin.class);
             }
@@ -1750,24 +1766,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected NodeConfigurationSource getNodeConfigSource() {
-        SuppressLocalMode noLocal = getAnnotation(this.getClass(), SuppressLocalMode.class);
-        SuppressNetworkMode noNetwork = getAnnotation(this.getClass(), SuppressNetworkMode.class);
         Settings.Builder networkSettings = Settings.builder();
-        final boolean isNetwork;
-        if (noLocal != null && noNetwork != null) {
-            throw new IllegalStateException("Can't suppress both network and local mode");
-        } else if (noLocal != null) {
-            if (addMockTransportService()) {
-                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
-            }
-            isNetwork = true;
-        } else {
-            if (addMockTransportService()) {
-                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.ASSERTING_TRANSPORT_NAME);
-            } else {
-                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, "local");
-            }
-            isNetwork = false;
+        if (addMockTransportService()) {
+            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
         }
 
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -1775,8 +1776,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
                     .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-                        isNetwork ? DiscoveryModule.DISCOVERY_TYPE_SETTING.getDefault(Settings.EMPTY) : "local")
                     .put(networkSettings.build()).
                         put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
@@ -1795,12 +1794,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> transportClientPlugins() {
                 Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
-                if (isNetwork && plugins.contains(MockTcpTransportPlugin.class) == false) {
+                if (plugins.contains(MockTcpTransportPlugin.class) == false) {
                     plugins = new ArrayList<>(plugins);
                     plugins.add(MockTcpTransportPlugin.class);
-                } else if (isNetwork == false && plugins.contains(AssertingLocalTransport.class) == false) {
-                    plugins = new ArrayList<>(plugins);
-                    plugins.add(AssertingLocalTransport.TestPlugin.class);
                 }
                 return Collections.unmodifiableCollection(plugins);
             }
@@ -1813,6 +1809,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * The defautl is <tt>true</tt>
      */
     protected boolean addMockTransportService() {
+        return true;
+    }
+
+    protected boolean addMockZenPings() {
         return true;
     }
 
@@ -1844,11 +1844,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 mocks.add(MockSearchService.TestPlugin.class);
             }
+            if (randomBoolean()) {
+                mocks.add(AssertingTransportInterceptor.TestPlugin.class);
+            }
         }
 
         if (addMockTransportService()) {
-            mocks.add(AssertingLocalTransport.TestPlugin.class);
             mocks.add(MockTcpTransportPlugin.class);
+        }
+
+        if (addMockZenPings()) {
+            mocks.add(MockZenPing.TestPlugin.class);
         }
         mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
@@ -1994,6 +2000,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
+                checkStaticState();
             } finally {
                 INSTANCE = null;
             }
@@ -2112,8 +2119,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (NodeInfo node : nodes) {
             if (node.getHttp() != null) {
                 TransportAddress publishAddress = node.getHttp().address().publishAddress();
-                assertEquals(1, publishAddress.uniqueAddressTypeId());
-                InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+                InetSocketAddress address = publishAddress.address();
                 hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
             }
         }
@@ -2149,29 +2155,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public @interface SuiteScopeTestCase {
     }
 
-    /**
-     * If used the test will never run in local mode.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Inherited
-    @Target(ElementType.TYPE)
-    public @interface SuppressLocalMode {
-    }
-
-    /**
-     * If used the test will never run in network mode
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Inherited
-    @Target(ElementType.TYPE)
-    public @interface SuppressNetworkMode {
-    }
-
     public static Index resolveIndex(String index) {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
-
 }

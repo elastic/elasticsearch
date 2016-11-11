@@ -38,10 +38,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -778,6 +780,11 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
         if (values == null) {
             return nullValue();
         }
+
+        // checks that the array of object does not contain references to itself because
+        // iterating over entries will cause a stackoverflow error
+        ensureNoSelfReferences(values);
+
         startArray();
         for (Object o : values) {
             value(o);
@@ -859,6 +866,11 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
         if (values == null) {
             return nullValue();
         }
+
+        // checks that the map does not contain references to itself because
+        // iterating over map entries will cause a stackoverflow error
+        ensureNoSelfReferences(values);
+
         startObject();
         for (Map.Entry<String, ?> value : values.entrySet()) {
             field(value.getKey());
@@ -881,6 +893,10 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
             //treat as single value
             value((Path) values);
         } else {
+            // checks that the iterable does not contain references to itself because
+            // iterating over entries will cause a stackoverflow error
+            ensureNoSelfReferences(values);
+
             startArray();
             for (Object value : values) {
                 unknownValue(value);
@@ -1010,6 +1026,34 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
     static void ensureNotNull(Object value, String message) {
         if (value == null) {
             throw new IllegalArgumentException(message);
+        }
+    }
+
+    static void ensureNoSelfReferences(Object value) {
+        ensureNoSelfReferences(value, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    private static void ensureNoSelfReferences(final Object value, final Set<Object> ancestors) {
+        if (value != null) {
+
+            Iterable<?> it;
+            if (value instanceof Map) {
+                it = ((Map) value).values();
+            } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
+                it = (Iterable) value;
+            } else if (value instanceof Object[]) {
+                it = Arrays.asList((Object[]) value);
+            } else {
+                return;
+            }
+
+            if (ancestors.add(value) == false) {
+                throw new IllegalArgumentException("Object has already been built and is self-referencing itself");
+            }
+            for (Object o : it) {
+                ensureNoSelfReferences(o, ancestors);
+            }
+            ancestors.remove(value);
         }
     }
 }

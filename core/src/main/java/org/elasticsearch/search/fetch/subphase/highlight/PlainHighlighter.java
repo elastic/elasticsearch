@@ -47,9 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class PlainHighlighter implements Highlighter {
 
     private static final String CACHE_KEY = "highlight-plain";

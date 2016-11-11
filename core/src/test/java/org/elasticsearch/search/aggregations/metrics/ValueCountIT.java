@@ -28,10 +28,8 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
@@ -43,20 +41,18 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class ValueCountIT extends ESIntegTestCase {
     @Override
@@ -161,7 +157,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testSingleValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("value", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
+                .addAggregation(count("count").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "value", Collections.emptyMap()))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -173,7 +169,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testMultiValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("values", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
+                .addAggregation(count("count").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "values", Collections.emptyMap()))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -186,7 +182,7 @@ public class ValueCountIT extends ESIntegTestCase {
     public void testSingleValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("s", "value");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
+                .addAggregation(count("count").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -199,7 +195,7 @@ public class ValueCountIT extends ESIntegTestCase {
     public void testMultiValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("s", "values");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
+                .addAggregation(count("count").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -207,6 +203,46 @@ public class ValueCountIT extends ESIntegTestCase {
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
         assertThat(valueCount.getValue(), equalTo(20L));
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(count("foo").field("d").script(
+                    new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "value", Collections.emptyMap())))
+                .get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(count("foo").field("d")).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 
     /**

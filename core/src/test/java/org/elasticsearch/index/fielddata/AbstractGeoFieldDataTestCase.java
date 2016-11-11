@@ -33,9 +33,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
 public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImplTestCase {
     @Override
     protected abstract String getFieldDataType();

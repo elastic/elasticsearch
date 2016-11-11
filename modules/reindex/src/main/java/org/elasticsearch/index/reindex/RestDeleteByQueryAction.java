@@ -25,13 +25,9 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -51,11 +47,11 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_delete_by_query requires a request body");
         }
-        handleRequest(request, channel, client, false, false);
+        return doPrepareRequest(request, client, false, false);
     }
 
     @Override

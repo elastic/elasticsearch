@@ -28,9 +28,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
 public class AvgParser extends NumericValuesSourceParser {
 
     public AvgParser() {

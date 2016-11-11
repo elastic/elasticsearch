@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex.remote;
 
+import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpEntity;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
@@ -184,6 +185,9 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             }
                             e = wrapExceptionToPreserveStatus(re.getResponse().getStatusLine().getStatusCode(),
                                     re.getResponse().getEntity(), re);
+                        } else if (e instanceof ContentTooLongException) {
+                            e = new IllegalArgumentException(
+                                    "Remote responded with a chunk that was too large. Use a smaller batch size.", e);
                         }
                         fail.accept(e);
                     }

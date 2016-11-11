@@ -30,17 +30,16 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- */
 public class RestUpdateAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
@@ -52,7 +51,7 @@ public class RestUpdateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.routing(request.param("routing"));
         updateRequest.parent(request.param("parent"));
@@ -108,6 +107,7 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         }
 
-        client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
+        return channel ->
+            client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
     }
 }

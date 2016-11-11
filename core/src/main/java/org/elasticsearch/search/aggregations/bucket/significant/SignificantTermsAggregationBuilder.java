@@ -44,9 +44,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, SignificantTermsAggregationBuilder> {
     public static final String NAME = "significant_terms";
     public static final InternalAggregation.Type TYPE = new Type(NAME);
@@ -220,8 +217,9 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context.searchContext());
         return new SignificantTermsAggregatorFactory(name, type, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, significanceHeuristic, context, parent, subFactoriesBuilder, metaData);
+                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

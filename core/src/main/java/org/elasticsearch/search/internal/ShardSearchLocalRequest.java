@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
@@ -62,7 +63,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private SearchType searchType;
     private Scroll scroll;
     private String[] types = Strings.EMPTY_ARRAY;
-    private String[] filteringAliases;
+    private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
     private Boolean requestCache;
     private long nowInMillis;
@@ -73,29 +74,29 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                            String[] filteringAliases, long nowInMillis) {
+                            AliasFilter aliasFilter, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
-                searchRequest.source(), searchRequest.types(), searchRequest.requestCache());
+                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter);
         this.scroll = searchRequest.scroll();
-        this.filteringAliases = filteringAliases;
         this.nowInMillis = nowInMillis;
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, String[] filteringAliases) {
+    public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
         this.types = types;
         this.nowInMillis = nowInMillis;
-        this.filteringAliases = filteringAliases;
+        this.aliasFilter = aliasFilter;
         this.shardId = shardId;
     }
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
-            Boolean requestCache) {
+            Boolean requestCache, AliasFilter aliasFilter) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
         this.types = types;
         this.requestCache = requestCache;
+        this.aliasFilter = aliasFilter;
     }
 
 
@@ -130,8 +131,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public String[] filteringAliases() {
-        return filteringAliases;
+    public QueryBuilder filteringAliases() {
+        return aliasFilter.getQueryBuilder();
     }
 
     @Override
@@ -166,7 +167,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
-        filteringAliases = in.readStringArray();
+        aliasFilter = new AliasFilter(in);
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
     }
@@ -180,7 +181,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
         out.writeStringArray(types);
-        out.writeStringArrayNullable(filteringAliases);
+        aliasFilter.writeTo(out);
         if (!asKey) {
             out.writeVLong(nowInMillis);
         }
@@ -200,6 +201,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     public void rewrite(QueryShardContext context) throws IOException {
         SearchSourceBuilder source = this.source;
         SearchSourceBuilder rewritten = null;
+        aliasFilter = aliasFilter.rewrite(context);
         while (rewritten != source) {
             rewritten = source.rewrite(context);
             source = rewritten;

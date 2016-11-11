@@ -26,9 +26,6 @@ import org.joda.time.chrono.ISOChronology;
 
 import java.util.function.Function;
 
-/**
- *
- */
 public enum DateTimeUnit {
 
     WEEK_OF_WEEKYEAR(   (byte) 1, tz -> ISOChronology.getInstance(tz).weekOfWeekyear()),

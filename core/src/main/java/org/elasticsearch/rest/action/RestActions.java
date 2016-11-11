@@ -51,9 +51,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class RestActions {
 
     public static long parseVersion(RestRequest request) {
@@ -195,7 +192,6 @@ public class RestActions {
         queryBuilder.defaultField(request.param("df"));
         queryBuilder.analyzer(request.param("analyzer"));
         queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
-        queryBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
         queryBuilder.lenient(request.paramAsBoolean("lenient", null));
         String defaultOperator = request.param("default_operator");
         if (defaultOperator != null) {

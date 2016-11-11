@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -136,8 +135,8 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         final DiscoveryNodes discoNodesA = builderA.build();
         final DiscoveryNodes discoNodesB = builderB.build();
-        logger.info("nodes A: {}", discoNodesA.prettyPrint());
-        logger.info("nodes B: {}", discoNodesB.prettyPrint());
+        logger.info("nodes A: {}", discoNodesA);
+        logger.info("nodes B: {}", discoNodesB);
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 
@@ -194,7 +193,7 @@ public class DiscoveryNodesTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, LocalTransportAddress.buildUnique(), attributes, roles,
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
             Version.CURRENT);
     }
 

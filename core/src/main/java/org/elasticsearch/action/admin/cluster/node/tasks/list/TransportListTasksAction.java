@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -40,9 +41,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
-/**
- *
- */
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
@@ -72,8 +70,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
-    protected TaskInfo taskOperation(ListTasksRequest request, Task task) {
-        return task.taskInfo(clusterService.localNode(), request.getDetailed());
+    protected void taskOperation(ListTasksRequest request, Task task, ActionListener<TaskInfo> listener) {
+        listener.onResponse(task.taskInfo(clusterService.localNode().getId(), request.getDetailed()));
     }
 
     @Override

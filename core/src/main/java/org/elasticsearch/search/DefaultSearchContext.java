@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -28,6 +27,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -48,10 +48,10 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -65,7 +65,6 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -75,6 +74,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -89,7 +89,6 @@ final class DefaultSearchContext extends SearchContext {
     private final Counter timeEstimateCounter;
     private SearchType searchType;
     private final Engine.Searcher engineSearcher;
-    private final ScriptService scriptService;
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
     private final IndexService indexService;
@@ -115,8 +114,11 @@ final class DefaultSearchContext extends SearchContext {
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
     private FieldDoc searchAfter;
+    private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
+    private SearchTask task;
+
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -138,7 +140,6 @@ final class DefaultSearchContext extends SearchContext {
     private SearchContextHighlight highlight;
     private SuggestionSearchContext suggest;
     private List<RescoreSearchContext> rescore;
-    private SearchLookup searchLookup;
     private volatile long keepAlive;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
@@ -150,9 +151,9 @@ final class DefaultSearchContext extends SearchContext {
     private FetchPhase fetchPhase;
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
-            IndexService indexService, IndexShard indexShard, ScriptService scriptService,
-            BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
-            FetchPhase fetchPhase) {
+                         IndexService indexService, IndexShard indexShard,
+                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
+                         FetchPhase fetchPhase) {
         super(parseFieldMatcher);
         this.id = id;
         this.request = request;
@@ -160,7 +161,6 @@ final class DefaultSearchContext extends SearchContext {
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
-        this.scriptService = scriptService;
         // SearchContexts use a BigArrays that can circuit break
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.dfsResult = new DfsSearchResult(id, shardTarget);
@@ -171,7 +171,7 @@ final class DefaultSearchContext extends SearchContext {
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeout = timeout;
-        queryShardContext = indexService.newQueryShardContext(searcher.getIndexReader());
+        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis);
         queryShardContext.setTypes(request.types());
     }
 
@@ -231,7 +231,12 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         // initialize the filtering alias based on the provided filters
-        aliasFilter = indexService.aliasFilter(queryShardContext, request.filteringAliases());
+        try {
+            final QueryBuilder queryBuilder = request.filteringAliases();
+            aliasFilter = queryBuilder == null ? null : queryBuilder.toFilter(queryShardContext);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
 
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
@@ -292,7 +297,7 @@ final class DefaultSearchContext extends SearchContext {
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
+            typesFilter = new TypeFieldMapper.TypesQuery(typesBytes);
         }
 
         if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {
@@ -356,11 +361,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public long getOriginNanoTime() {
         return originNanoTime;
-    }
-
-    @Override
-    protected long nowInMillisImpl() {
-        return request.nowInMillis();
     }
 
     @Override
@@ -502,11 +502,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public ScriptService scriptService() {
-        return scriptService;
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }
@@ -578,6 +573,15 @@ final class DefaultSearchContext extends SearchContext {
     public SearchContext searchAfter(FieldDoc searchAfter) {
         this.searchAfter = searchAfter;
         return this;
+    }
+
+    @Override
+    public boolean lowLevelCancellation() {
+        return lowLevelCancellation;
+    }
+
+    public void lowLevelCancellation(boolean lowLevelCancellation) {
+        this.lowLevelCancellation = lowLevelCancellation;
     }
 
     @Override
@@ -749,15 +753,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchLookup lookup() {
-        // TODO: The types should take into account the parsing context in QueryParserContext...
-        if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldData(), request.types());
-        }
-        return searchLookup;
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return dfsResult;
     }
@@ -809,5 +804,20 @@ final class DefaultSearchContext extends SearchContext {
 
     public void setProfilers(Profilers profilers) {
         this.profilers = profilers;
+    }
+
+    @Override
+    public void setTask(SearchTask task) {
+        this.task = task;
+    }
+
+    @Override
+    public SearchTask getTask() {
+        return task;
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return task.isCancelled();
     }
 }

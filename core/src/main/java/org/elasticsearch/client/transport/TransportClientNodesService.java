@@ -66,9 +66,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
-/**
- *
- */
 public class TransportClientNodesService extends AbstractComponent implements Closeable {
 
     private final TimeValue nodesSamplerInterval;

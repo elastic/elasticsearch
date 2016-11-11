@@ -44,8 +44,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class KuromojiAnalysisTests extends ESTestCase {
     public void testDefaultsKuromojiAnalysis() throws IOException {
         TestAnalysis analysis = createTestAnalysis();

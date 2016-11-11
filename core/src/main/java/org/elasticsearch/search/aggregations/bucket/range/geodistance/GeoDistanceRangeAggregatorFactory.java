@@ -51,13 +51,13 @@ public class GeoDistanceRangeAggregatorFactory
 
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;
     private final GeoPoint origin;
-    private final List<Range> ranges;
+    private final Range[] ranges;
     private final DistanceUnit unit;
     private final GeoDistance distanceType;
     private final boolean keyed;
 
     public GeoDistanceRangeAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
-            List<Range> ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, AggregationContext context,
+            Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, AggregationContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.origin = origin;
@@ -70,7 +70,7 @@ public class GeoDistanceRangeAggregatorFactory
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new Unmapped<Range>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
+        return new Unmapped<>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
     }
 
     @Override

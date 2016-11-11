@@ -57,7 +57,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(AzureDiscoveryPlugin.class, mockPlugin);
+        return Arrays.asList(mockPlugin);
     }
 
     protected void checkNumberOfNodes(int expected) {

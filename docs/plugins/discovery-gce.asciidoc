@@ -18,7 +18,7 @@ The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
 This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/discovery-gce/{version}/discovery-gce-{version}.zip.
+{plugin_url}/discovery-gce/discovery-gce-{version}.zip.
 
 [[discovery-gce-remove]]
 [float]
@@ -46,7 +46,7 @@ cloud:
       project_id: <your-google-project-id>
       zone: <your-zone>
 discovery:
-      type: gce
+      zen.hosts_provider: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:

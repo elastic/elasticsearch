@@ -47,8 +47,6 @@ import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocat
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class EnableAllocationTests extends ESAllocationTestCase {
 
     private final Logger logger = Loggers.getLogger(EnableAllocationTests.class);

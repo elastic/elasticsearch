@@ -37,6 +37,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -323,6 +324,9 @@ public class MatchQuery {
                 return prefixQuery;
             } else if (query instanceof TermQuery) {
                 prefixQuery.add(((TermQuery) query).getTerm());
+                return prefixQuery;
+            } else if (query instanceof AllTermQuery) {
+                prefixQuery.add(((AllTermQuery) query).getTerm());
                 return prefixQuery;
             }
             return query;

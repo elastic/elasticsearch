@@ -48,9 +48,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     protected static final Settings HEADER_SETTINGS = Settings.builder()

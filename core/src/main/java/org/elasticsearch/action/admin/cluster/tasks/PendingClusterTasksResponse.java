@@ -25,15 +25,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- */
 public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask>, ToXContent {
 
     private List<PendingClusterTask> pendingTasks;
@@ -61,26 +58,14 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         return pendingTasks.iterator();
     }
 
-    public String prettyPrint() {
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("tasks: (").append(pendingTasks.size()).append("):\n");
         for (PendingClusterTask pendingClusterTask : this) {
             sb.append(pendingClusterTask.getInsertOrder()).append("/").append(pendingClusterTask.getPriority()).append("/").append(pendingClusterTask.getSource()).append("/").append(pendingClusterTask.getTimeInQueue()).append("\n");
         }
         return sb.toString();
-    }
-
-    @Override
-    public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
     }
 
     @Override

@@ -25,7 +25,6 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -61,9 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- *
- */
 public class JavaScriptScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "javascript";

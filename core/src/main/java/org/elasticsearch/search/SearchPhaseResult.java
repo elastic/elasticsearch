@@ -21,9 +21,6 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.common.io.stream.Streamable;
 
-/**
- *
- */
 public interface SearchPhaseResult extends Streamable {
 
     long id();

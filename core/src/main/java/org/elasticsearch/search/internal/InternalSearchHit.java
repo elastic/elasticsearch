@@ -57,9 +57,6 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 import static org.elasticsearch.search.internal.InternalSearchHitField.readSearchHitField;
 
-/**
- *
- */
 public class InternalSearchHit implements SearchHit {
 
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];
@@ -203,6 +200,10 @@ public class InternalSearchHit implements SearchHit {
      */
     @Override
     public BytesReference sourceRef() {
+        if (this.source == null) {
+            return null;
+        }
+
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
@@ -248,7 +249,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public boolean hasSource() {
-        return source == null;
+        return source != null;
     }
 
     @Override

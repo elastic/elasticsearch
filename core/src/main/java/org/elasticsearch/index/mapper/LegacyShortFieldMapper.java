@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -48,9 +49,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeShortValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseNumberField;
 
-/**
- *
- */
 public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
 
     public static final String CONTENT_TYPE = "short";
@@ -135,7 +133,7 @@ public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Short valueForSearch(Object value) {
+        public Short valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }
@@ -150,7 +148,7 @@ public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : (int)parseValue(lowerTerm),
                 upperTerm == null ? null : (int)parseValue(upperTerm),

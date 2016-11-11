@@ -41,9 +41,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 public class CombiIT extends ESIntegTestCase {
 
     /**

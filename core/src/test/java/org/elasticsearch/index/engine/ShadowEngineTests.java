@@ -990,8 +990,8 @@ public class ShadowEngineTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
             Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
-            primaryEngine.index(firstIndexRequest);
-            assertThat(firstIndexRequest.version(), equalTo(1L));
+            Engine.IndexResult indexResult = primaryEngine.index(firstIndexRequest);
+            assertThat(indexResult.getVersion(), equalTo(1L));
         }
         DocsStats docStats = primaryEngine.getDocStats();
         assertEquals(numDocs, docStats.getCount());

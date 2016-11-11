@@ -30,9 +30,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class BooleanTermsIT extends ESIntegTestCase {
 

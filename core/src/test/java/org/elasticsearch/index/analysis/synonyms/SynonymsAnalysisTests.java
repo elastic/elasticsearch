@@ -42,8 +42,6 @@ import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class SynonymsAnalysisTests extends ESTestCase {
     protected final Logger logger = Loggers.getLogger(getClass());
     private IndexAnalyzers indexAnalyzers;

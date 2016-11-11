@@ -26,9 +26,13 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.ArrayUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -77,95 +81,25 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testEqualsAndHashcode() throws IOException {
-        SearchRequest firstSearchRequest = createSearchRequest();
-        assertNotNull("search request is equal to null", firstSearchRequest);
-        assertNotEquals("search request  is equal to incompatible type", firstSearchRequest, "");
-        assertEquals("search request is not equal to self", firstSearchRequest, firstSearchRequest);
-        assertEquals("same source builder's hashcode returns different values if called multiple times",
-                firstSearchRequest.hashCode(), firstSearchRequest.hashCode());
+        checkEqualsAndHashCode(createSearchRequest(), SearchRequestTests::copyRequest, this::mutate);
+    }
 
-        SearchRequest secondSearchRequest = copyRequest(firstSearchRequest);
-        assertEquals("search request  is not equal to self", secondSearchRequest, secondSearchRequest);
-        assertEquals("search request is not equal to its copy", firstSearchRequest, secondSearchRequest);
-        assertEquals("search request is not symmetric", secondSearchRequest, firstSearchRequest);
-        assertEquals("search request copy's hashcode is different from original hashcode",
-                firstSearchRequest.hashCode(), secondSearchRequest.hashCode());
-
-        SearchRequest thirdSearchRequest = copyRequest(secondSearchRequest);
-        assertEquals("search request is not equal to self", thirdSearchRequest, thirdSearchRequest);
-        assertEquals("search request is not equal to its copy", secondSearchRequest, thirdSearchRequest);
-        assertEquals("search request copy's hashcode is different from original hashcode",
-                secondSearchRequest.hashCode(), thirdSearchRequest.hashCode());
-        assertEquals("equals is not transitive", firstSearchRequest, thirdSearchRequest);
-        assertEquals("search request copy's hashcode is different from original hashcode",
-                firstSearchRequest.hashCode(), thirdSearchRequest.hashCode());
-        assertEquals("equals is not symmetric", thirdSearchRequest, secondSearchRequest);
-        assertEquals("equals is not symmetric", thirdSearchRequest, firstSearchRequest);
-
-        boolean changed = false;
-        if (randomBoolean()) {
-            secondSearchRequest.indices(generateRandomStringArray(10, 10, false, false));
-            if (Arrays.equals(secondSearchRequest.indices(), firstSearchRequest.indices()) == false) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchRequest.indicesOptions(
-                    IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
-            if (secondSearchRequest.indicesOptions().equals(firstSearchRequest.indicesOptions()) == false) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchRequest.types(generateRandomStringArray(10, 10, false, false));
-            if (Arrays.equals(secondSearchRequest.types(), firstSearchRequest.types()) == false) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchRequest.preference(randomAsciiOfLengthBetween(3, 10));
-            if (secondSearchRequest.preference().equals(firstSearchRequest.preference()) == false) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchRequest.routing(randomAsciiOfLengthBetween(3, 10));
-            if (secondSearchRequest.routing().equals(firstSearchRequest.routing()) == false) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchRequest.requestCache(randomBoolean());
-            if (secondSearchRequest.requestCache().equals(firstSearchRequest.requestCache()) == false) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchRequest.scroll(randomPositiveTimeValue());
-            if (secondSearchRequest.scroll().equals(firstSearchRequest.scroll()) == false) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchRequest.searchType(randomFrom(SearchType.values()));
-            if (secondSearchRequest.searchType() != firstSearchRequest.searchType()) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchRequest.source(createSearchSourceBuilder());
-            if (secondSearchRequest.source().equals(firstSearchRequest.source()) == false) {
-                changed = true;
-            }
-        }
-
-        if (changed) {
-            assertNotEquals(firstSearchRequest, secondSearchRequest);
-            assertNotEquals(firstSearchRequest.hashCode(), secondSearchRequest.hashCode());
-        } else {
-            assertEquals(firstSearchRequest, secondSearchRequest);
-            assertEquals(firstSearchRequest.hashCode(), secondSearchRequest.hashCode());
-        }
+    private SearchRequest mutate(SearchRequest searchRequest) throws IOException {
+        SearchRequest mutation = copyRequest(searchRequest);
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> mutation.indices(ArrayUtils.concat(searchRequest.indices(), new String[] { randomAsciiOfLength(10) })));
+        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(searchRequest.indicesOptions(),
+                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+        mutators.add(() -> mutation.types(ArrayUtils.concat(searchRequest.types(), new String[] { randomAsciiOfLength(10) })));
+        mutators.add(() -> mutation.preference(randomValueOtherThan(searchRequest.preference(), () -> randomAsciiOfLengthBetween(3, 10))));
+        mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAsciiOfLengthBetween(3, 10))));
+        mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), () -> randomBoolean()))));
+        mutators.add(() -> mutation
+                .scroll(randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomPositiveLong() % 100000)))));
+        mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(), () -> randomFrom(SearchType.values()))));
+        mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
+        randomFrom(mutators).run();
+        return mutation;
     }
 
     private static SearchRequest copyRequest(SearchRequest searchRequest) throws IOException {

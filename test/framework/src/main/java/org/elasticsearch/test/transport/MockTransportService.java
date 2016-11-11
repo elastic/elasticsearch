@@ -20,21 +20,20 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportService;
-
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -43,13 +42,15 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
-import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -57,9 +58,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A mock transport service that allows to simulate different network topology failures.
@@ -74,6 +78,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public final class MockTransportService extends TransportService {
 
+
     public static class TestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
@@ -81,22 +86,25 @@ public final class MockTransportService extends TransportService {
         }
     }
 
-    public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool) {
+    public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
+            @Nullable ClusterSettings clusterSettings) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        Transport transport = new LocalTransport(settings, threadPool, namedWriteableRegistry, new NoneCircuitBreakerService()) {
-            @Override
-            protected Version getVersion() {
-                return version;
-            }
-        };
-        return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+                new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
+        return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
     }
 
     private final Transport original;
 
-    @Inject
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor) {
-        super(settings, new LookupTestTransport(transport), threadPool, interceptor);
+    /**
+     * Build the service.
+     *
+     * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
+     *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+     */
+    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
+            @Nullable ClusterSettings clusterSettings) {
+        super(settings, new LookupTestTransport(transport), threadPool, interceptor, clusterSettings);
         this.original = transport;
     }
 
@@ -137,7 +145,10 @@ public final class MockTransportService extends TransportService {
      * Clears the rule associated with the provided transport address.
      */
     public void clearRule(TransportAddress transportAddress) {
-        transport().transports.remove(transportAddress);
+        Transport transport = transport().transports.remove(transportAddress);
+        if (transport instanceof ClearableTransport) {
+            ((ClearableTransport) transport).clearRule();
+        }
     }
 
     /**
@@ -287,7 +298,9 @@ public final class MockTransportService extends TransportService {
     public void addUnresponsiveRule(TransportAddress transportAddress, final TimeValue duration) {
         final long startTime = System.currentTimeMillis();
 
-        addDelegate(transportAddress, new DelegateTransport(original) {
+        addDelegate(transportAddress, new ClearableTransport(original) {
+            private final Queue<Runnable> requestsToSendWhenCleared = new LinkedBlockingDeque<Runnable>();
+            private boolean cleared = false;
 
             TimeValue getDelay() {
                 return new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
@@ -357,7 +370,9 @@ public final class MockTransportService extends TransportService {
                 final TransportRequest clonedRequest = reg.newRequest();
                 clonedRequest.readFrom(bStream.bytes().streamInput());
 
-                threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                Runnable runnable = new AbstractRunnable() {
+                    AtomicBoolean requestSent = new AtomicBoolean();
+
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug("failed to send delayed request", e);
@@ -365,9 +380,31 @@ public final class MockTransportService extends TransportService {
 
                     @Override
                     protected void doRun() throws IOException {
-                        original.sendRequest(node, requestId, action, clonedRequest, options);
+                        if (requestSent.compareAndSet(false, true)) {
+                            original.sendRequest(node, requestId, action, clonedRequest, options);
+                        }
                     }
-                });
+                };
+
+                // store the request to send it once the rule is cleared.
+                synchronized (this) {
+                    if (cleared) {
+                        runnable.run();
+                    } else {
+                        requestsToSendWhenCleared.add(runnable);
+                        threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
+                    }
+                }
+            }
+
+
+            @Override
+            public void clearRule() {
+                synchronized (this) {
+                    assert cleared == false;
+                    cleared = true;
+                    requestsToSendWhenCleared.forEach(Runnable::run);
+                }
             }
         });
     }
@@ -548,6 +585,23 @@ public final class MockTransportService extends TransportService {
         public Map<String, BoundTransportAddress> profileBoundAddresses() {
             return transport.profileBoundAddresses();
         }
+    }
+
+    /**
+     * The delegate transport instances defined in this class mock various kinds of disruption types. This subclass adds a method
+     * {@link #clearRule()} so that when the disruptions are cleared (see {@link #clearRule(TransportService)}) this gives the
+     * disruption a possibility to run clean-up actions.
+     */
+    public abstract static class ClearableTransport extends DelegateTransport {
+
+        public ClearableTransport(Transport transport) {
+            super(transport);
+        }
+
+        /**
+         * Called by {@link #clearRule(TransportService)}
+         */
+        public abstract void clearRule();
     }
 
 

@@ -23,9 +23,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 
-/**
- *
- */
 public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
 
     @Override

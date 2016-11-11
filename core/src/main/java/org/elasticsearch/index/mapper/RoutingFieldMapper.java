@@ -32,9 +32,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
-/**
- *
- */
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_routing";

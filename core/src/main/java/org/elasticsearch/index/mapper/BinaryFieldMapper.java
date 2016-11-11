@@ -43,9 +43,6 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
-/**
- *
- */
 public class BinaryFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "binary";
@@ -104,7 +101,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
 
         @Override
-        public BytesReference valueForSearch(Object value) {
+        public BytesReference valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

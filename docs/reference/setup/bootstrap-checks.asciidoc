@@ -23,14 +23,19 @@ documented individually.
 [float]
 === Development vs. production mode
 
-By default, Elasticsearch binds and publishes to `localhost`. This is
+By default, Elasticsearch binds to `localhost` for <<modules-http,HTTP>>
+and <<modules-transport,transport (internal)>> communication. This is
 fine for downloading and playing with Elasticsearch, and everyday
-development but it's useless for production systems. For a production
-installation to be reachable, it must either bind or publish to an
-external interface. Thus, we consider Elasticsearch to be in development
-mode if it does not bind nor publish to an external interface (the
-default), and is otherwise in production mode if it does bind or publish
-to an external interface.
+development but it's useless for production systems. To form a cluster,
+Elasticsearch instances must be reachable via transport communication so
+they must bind transport to an external interface. Thus, we consider an
+Elaticsearch instance to be in development mode if it does not bind
+transport to an external interface (the default), and is otherwise in
+production mode if it does bind transport to an external interface. Note
+that HTTP can be configured independently of transport via
+<<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>;
+this can be useful for configuring a single instance to be reachable via
+HTTP for testing purposes without triggering production mode.
 
 === Heap size check
 
@@ -51,7 +56,7 @@ File descriptors are a Unix construct for tracking open "files". In Unix
 though, https://en.wikipedia.org/wiki/Everything_is_a_file[everything is
 a file]. For example, "files" could be a physical file, a virtual file
 (e.g., `/proc/loadavg`), or network sockets. Elasticsearch requires
-lots file descriptors (e.g., every shard is composed of multiple
+lots of file descriptors (e.g., every shard is composed of multiple
 segments and other files, plus connections to other nodes, etc.). This
 bootstrap check is enforced on OS X and Linux. To pass the file
 descriptor check, you might have to configure <<file-descriptors,file
@@ -101,7 +106,7 @@ process has unlimited address space and is enforced only on Linux. To
 pass the maximum size virtual memory check, you must configure your
 system to allow the Elasticsearch process the ability to have unlimited
 address space. This can be done via `/etc/security/limits.conf` using
-the `as` setting to `unlimited` (note that you might have to increaes
+the `as` setting to `unlimited` (note that you might have to increase
 the limits for the `root` user too).
 
 === Maximum map count check
@@ -156,3 +161,11 @@ enabled. This check is always enforced. To pass this check do not enable
 use the JVM flag `ExitOnOutOfMemoryError`. While this does not have the
 full capabilities of `OnError` nor `OnOutOfMemoryError`, arbitrary
 forking will not be supported with seccomp enabled.
+
+=== G1GC check
+
+Early versions of the HotSpot JVM that shipped with JDK 8 are known to have
+issues that can lead to index corruption when the G1GC collector is enabled.
+The versions impacted are those earlier than the version of HotSpot that
+shipped with JDK 8u40. The G1GC check detects these early versions of the
+HotSpot JVM.

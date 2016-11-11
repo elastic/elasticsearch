@@ -28,9 +28,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.net.SocketAddress;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -39,6 +42,7 @@ public abstract class RestRequest implements ToXContent.Params {
 
     private final Map<String, String> params;
     private final String rawPath;
+    private final Set<String> consumedParams = new HashSet<>();
 
     public RestRequest(String uri) {
         final Map<String, String> params = new HashMap<>();
@@ -106,11 +110,13 @@ public abstract class RestRequest implements ToXContent.Params {
 
     @Override
     public final String param(String key) {
+        consumedParams.add(key);
         return params.get(key);
     }
 
     @Override
     public final String param(String key, String defaultValue) {
+        consumedParams.add(key);
         String value = params.get(key);
         if (value == null) {
             return defaultValue;
@@ -120,6 +126,30 @@ public abstract class RestRequest implements ToXContent.Params {
 
     public Map<String, String> params() {
         return params;
+    }
+
+    /**
+     * Returns a list of parameters that have been consumed. This method returns a copy, callers
+     * are free to modify the returned list.
+     *
+     * @return the list of currently consumed parameters.
+     */
+    List<String> consumedParams() {
+        return consumedParams.stream().collect(Collectors.toList());
+    }
+
+    /**
+     * Returns a list of parameters that have not yet been consumed. This method returns a copy,
+     * callers are free to modify the returned list.
+     *
+     * @return the list of currently unconsumed parameters.
+     */
+    List<String> unconsumedParams() {
+        return params
+            .keySet()
+            .stream()
+            .filter(p -> !consumedParams.contains(p))
+            .collect(Collectors.toList());
     }
 
     public float paramAsFloat(String key, float defaultValue) {

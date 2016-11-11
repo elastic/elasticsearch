@@ -438,9 +438,9 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected UnblockTestTaskResponse taskOperation(UnblockTestTasksRequest request, Task task) {
+        protected void taskOperation(UnblockTestTasksRequest request, Task task, ActionListener<UnblockTestTaskResponse> listener) {
             ((TestTask) task).unblock();
-            return new UnblockTestTaskResponse();
+            listener.onResponse(new UnblockTestTaskResponse());
         }
 
         @Override

@@ -19,22 +19,26 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Instant;
 
@@ -92,8 +96,13 @@ public class ExtendedBoundsTests extends ESTestCase {
 
     public void testParseAndValidate() {
         long now = randomLong();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         SearchContext context = mock(SearchContext.class);
-        when(context.nowInMillis()).thenReturn(now);
+        QueryShardContext qsc = new QueryShardContext(0,
+                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
+                null, null, null, null, null, () -> now);
+        when(context.getQueryShardContext()).thenReturn(qsc);
         FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
 

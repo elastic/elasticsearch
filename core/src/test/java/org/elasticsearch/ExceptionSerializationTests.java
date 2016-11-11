@@ -40,7 +40,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreadsTests;
 import org.elasticsearch.common.util.set.Sets;
@@ -51,7 +51,6 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -373,11 +372,12 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testActionTransportException() throws IOException {
+        TransportAddress transportAddress = buildNewFakeTransportAddress();
         ActionTransportException ex = serialize(
-                new ActionTransportException("name?", new LocalTransportAddress("dead.end:666"), "ACTION BABY!", "message?", null));
+                new ActionTransportException("name?", transportAddress, "ACTION BABY!", "message?", null));
         assertEquals("ACTION BABY!", ex.action());
-        assertEquals(new LocalTransportAddress("dead.end:666"), ex.address());
-        assertEquals("[name?][local[dead.end:666]][ACTION BABY!] message?", ex.getMessage());
+        assertEquals(transportAddress, ex.address());
+        assertEquals("[name?][" + transportAddress.toString() +"][ACTION BABY!] message?", ex.getMessage());
     }
 
     public void testSearchContextMissingException() throws IOException {
@@ -397,21 +397,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         TimestampParsingException ex = serialize(new TimestampParsingException("TIMESTAMP", null));
         assertEquals("failed to parse timestamp [TIMESTAMP]", ex.getMessage());
         assertEquals("TIMESTAMP", ex.timestamp());
-    }
-
-    public void testIndexFailedEngineException() throws IOException {
-        ShardId id = new ShardId("foo", "_na_", 1);
-        IndexFailedEngineException ex = serialize(new IndexFailedEngineException(id, "type", "id", null));
-        assertEquals(ex.getShardId(), new ShardId("foo", "_na_", 1));
-        assertEquals("type", ex.type());
-        assertEquals("id", ex.id());
-        assertNull(ex.getCause());
-
-        ex = serialize(new IndexFailedEngineException(null, "type", "id", new NullPointerException()));
-        assertNull(ex.getShardId());
-        assertEquals("type", ex.type());
-        assertEquals("id", ex.id());
-        assertTrue(ex.getCause() instanceof NullPointerException);
     }
 
     public void testAliasesMissingException() throws IOException {
@@ -440,16 +425,17 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testConnectTransportException() throws IOException {
-        DiscoveryNode node = new DiscoveryNode("thenode", new LocalTransportAddress("dead.end:666"),
+        TransportAddress transportAddress = buildNewFakeTransportAddress();
+        DiscoveryNode node = new DiscoveryNode("thenode", transportAddress,
                 emptyMap(), emptySet(), Version.CURRENT);
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
-        assertEquals("[][local[dead.end:666]][action] msg", ex.getMessage());
+        assertEquals("[][" + transportAddress.toString() + "][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
         assertEquals("action", ex.action());
         assertNull(ex.getCause());
 
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
-        assertEquals("[][local[dead.end:666]][action] msg", ex.getMessage());
+        assertEquals("[]["+ transportAddress+ "][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
         assertEquals("action", ex.action());
         assertTrue(ex.getCause() instanceof NullPointerException);
@@ -678,7 +664,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException.class);
         ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
-        ids.put(28, org.elasticsearch.index.engine.DeleteFailedEngineException.class);
+        ids.put(28, org.elasticsearch.index.engine.DeleteFailedEngineException.class); //deprecated in 6.0
         ids.put(29, org.elasticsearch.index.engine.DocumentMissingException.class);
         ids.put(30, org.elasticsearch.snapshots.SnapshotException.class);
         ids.put(31, org.elasticsearch.indices.InvalidAliasNameException.class);
@@ -730,7 +716,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(77, org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class);
         ids.put(78, org.elasticsearch.action.TimestampParsingException.class);
         ids.put(79, org.elasticsearch.action.RoutingMissingException.class);
-        ids.put(80, org.elasticsearch.index.engine.IndexFailedEngineException.class);
+        ids.put(80, org.elasticsearch.index.engine.IndexFailedEngineException.class); //deprecated in 6.0
         ids.put(81, org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class);
         ids.put(82, org.elasticsearch.repositories.RepositoryException.class);
         ids.put(83, org.elasticsearch.transport.ReceiveTimeoutTransportException.class);
@@ -793,6 +779,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(143, org.elasticsearch.script.ScriptException.class);
         ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
         ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
+        ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

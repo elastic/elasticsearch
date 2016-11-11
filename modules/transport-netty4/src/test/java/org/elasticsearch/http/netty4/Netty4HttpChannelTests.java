@@ -30,10 +30,12 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelProgressivePromise;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
@@ -209,6 +211,37 @@ public class Netty4HttpChannelTests extends ESTestCase {
             assertThat(response.headers().get(customHeader), equalTo(customHeaderValue));
             assertThat(response.headers().get(HttpHeaderNames.CONTENT_LENGTH), equalTo(Integer.toString(resp.content().length())));
             assertThat(response.headers().get(HttpHeaderNames.CONTENT_TYPE), equalTo(resp.contentType()));
+        }
+    }
+
+    public void testConnectionClose() throws Exception {
+        final Settings settings = Settings.builder().build();
+        try (Netty4HttpServerTransport httpServerTransport =
+                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool)) {
+            httpServerTransport.start();
+            final FullHttpRequest httpRequest;
+            final boolean close = randomBoolean();
+            if (randomBoolean()) {
+                httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+                if (close) {
+                    httpRequest.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+                }
+            } else {
+                httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_0, HttpMethod.GET, "/");
+                if (!close) {
+                    httpRequest.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                }
+            }
+            final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
+            final Netty4HttpRequest request = new Netty4HttpRequest(httpRequest, embeddedChannel);
+
+            // send a response, the channel close status should match
+            assertTrue(embeddedChannel.isOpen());
+            final Netty4HttpChannel channel =
+                new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
+            final TestResponse resp = new TestResponse();
+            channel.sendResponse(resp);
+            assertThat(embeddedChannel.isOpen(), equalTo(!close));
         }
     }
 

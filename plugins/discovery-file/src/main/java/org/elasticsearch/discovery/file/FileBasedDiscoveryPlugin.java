@@ -19,13 +19,21 @@
 
 package org.elasticsearch.discovery.file;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
+
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.TransportService;
 
 /**
  * Plugin for providing file-based unicast hosts discovery. The list of unicast hosts
@@ -35,17 +43,33 @@ import org.elasticsearch.plugins.Plugin;
 public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     private static final Logger logger = Loggers.getLogger(FileBasedDiscoveryPlugin.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Settings settings;
 
     public FileBasedDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        logger.trace("starting file-based discovery plugin...");
     }
 
-    public void onModule(DiscoveryModule discoveryModule) {
-        logger.trace("registering file-based unicast hosts provider");
-        // using zen discovery for the discovery type and we're just adding a unicast host provider for it
-        discoveryModule.addUnicastHostProvider("zen", FileBasedUnicastHostsProvider.class);
+    @Override
+    public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
+                                                                            NetworkService networkService) {
+        return Collections.singletonMap("file", () -> new FileBasedUnicastHostsProvider(settings, transportService));
+    }
+
+    @Override
+    public Settings additionalSettings() {
+        // For 5.0, the hosts provider was "zen", but this was before the discovery.zen.hosts_provider
+        // setting existed. This check looks for the legacy zen, and sets the file hosts provider if not set
+        String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
+        if (discoveryType.equals("zen")) {
+            deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
+                " setting to set hosts provider is deprecated. " +
+                "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": file\" instead");
+            if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
+                return Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file").build();
+            }
+        }
+        return Settings.EMPTY;
     }
 }

@@ -37,7 +37,6 @@ List<String> availableBoxes = [
     'sles-12',
     'ubuntu-1204',
     'ubuntu-1404',
-    'ubuntu-1504',
     'ubuntu-1604'
 ]
 
@@ -91,7 +90,14 @@ configurations {
 }
 
 repositories {
-  mavenCentral()
+  mavenCentral() // Try maven central first, it'll have releases before 5.0.0
+  /* Setup a repository that tries to download from
+    https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]
+    which should work for 5.0.0+. This isn't a real ivy repository but gradle
+    is fine with that */
+  ivy {
+    artifactPattern "https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
+  }
 }
 
 dependencies {
@@ -126,10 +132,7 @@ Set<String> getVersions() {
   new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
     xml = new XmlParser().parse(s)
   }
-
-  // List all N-1 releases from maven central
-  int major = Integer.parseInt(project.version.substring(0, project.version.indexOf('.'))) - 1
-  Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /$major\.\d\.\d/ })
+  Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /[5]\.\d\.\d/ })
   if (versions.isEmpty() == false) {
     return versions;
   }
@@ -152,9 +155,10 @@ task verifyPackagingTestUpgradeFromVersions {
     String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
     if (maybeUpdateFromVersions == null) {
       Set<String> versions = getVersions()
-      Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
+      Set<String> actualVersions = new TreeSet<>(Arrays.asList(upgradeFromVersions))
       if (!versions.equals(actualVersions)) {
-        throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
+        throw new GradleException("out-of-date versions " + actualVersions +
+          ", expected " + versions + "; run gradle updatePackagingTestUpgradeFromVersions")
       }
     }
   }
@@ -204,9 +208,26 @@ task checkVagrantVersion(type: Exec) {
   standardOutput = new ByteArrayOutputStream()
   doLast {
     String version = standardOutput.toString().trim()
-    if ((version ==~ /Vagrant 1\.[789]\..+/) == false) {
-      throw new InvalidUserDataException(
-        "Illegal version of vagrant [${version}]. Need [Vagrant 1.7+]")
+    if ((version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) == false) {
+      throw new InvalidUserDataException("Illegal version of vagrant [${version}]. Need [Vagrant 1.8.6+]")
+    }
+  }
+}
+
+task checkVirtualBoxVersion(type: Exec) {
+  commandLine 'vboxmanage', '--version'
+  standardOutput = new ByteArrayOutputStream()
+  doLast {
+    String version = standardOutput.toString().trim()
+    try {
+      String[] versions = version.split('\\.')
+      int major = Integer.parseInt(versions[0])
+      int minor = Integer.parseInt(versions[1])
+      if ((major < 5) || (major == 5 && minor < 1)) {
+        throw new InvalidUserDataException("Illegal version of virtualbox [${version}]. Need [5.1+]")
+      }
+    } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+      throw new InvalidUserDataException("Unable to parse version of virtualbox [${version}]. Required [5.1+]", e)
     }
   }
 }
@@ -243,12 +264,12 @@ for (String box : availableBoxes) {
   Task update = tasks.create("vagrant${boxTask}#update", VagrantCommandTask) {
     boxName box
     args 'box', 'update', box
-    dependsOn checkVagrantVersion
+    dependsOn checkVagrantVersion, checkVirtualBoxVersion
   }
 
   Task up = tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
     boxName box
-    /* Its important that we try to reprovision the box even if it already
+    /* It's important that we try to reprovision the box even if it already
       exists. That way updates to the vagrant configuration take automatically.
       That isn't to say that the updates will always be compatible. Its ok to
       just destroy the boxes if they get busted but that is a manual step

@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
-
 public class TimestampFieldTypeTests extends LegacyDateFieldTypeTests {
     @Override
     protected MappedFieldType createDefaultFieldType() {
@@ -33,6 +29,6 @@ public class TimestampFieldTypeTests extends LegacyDateFieldTypeTests {
         MappedFieldType ft = createDefaultFieldType();
         String date = "2015-10-12T12:09:55.000Z";
         long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
-        assertEquals(instant, ft.valueForSearch(instant));
+        assertEquals(instant, ft.valueForDisplay(instant));
     }
 }

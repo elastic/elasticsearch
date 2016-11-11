@@ -93,11 +93,6 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         removeAllocationId(removedRelocationSource);
     }
 
-    @Override
-    public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
-        removeAllocationId(startedPrimaryShard);
-    }
-
     /**
      * Updates the current {@link MetaData} based on the changes of this RoutingChangesObserver. Specifically
      * we update {@link IndexMetaData#getInSyncAllocationIds()} and {@link IndexMetaData#primaryTerm(int)} based on
@@ -238,7 +233,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                 Set<String> oldInSyncAllocations = oldIndexMetaData.inSyncAllocationIds(shardNumber);
                 Set<String> idsToRemove = shardEntry.getValue().stream().map(e -> e.getAllocationId()).collect(Collectors.toSet());
                 assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null) :
-                    "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable.prettyPrint();
+                    "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable;
                 Set<String> remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);
                 assert remainingInSyncAllocations.isEmpty() == false : "Set of in-sync ids cannot become empty for shard " +
                     shardEntry.getKey() + " (before: " + oldInSyncAllocations + ", ids to remove: " + idsToRemove + ")";

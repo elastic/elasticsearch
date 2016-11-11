@@ -127,7 +127,7 @@ public class TransportClusterAllocationExplainAction
     }
 
     /**
-     * Construct a {@code NodeExplanation} object for the given shard given all the metadata. This also attempts to construct the human
+     * Construct a {@code WeightedDecision} object for the given shard given all the metadata. This also attempts to construct the human
      * readable FinalDecision and final explanation as part of the explanation.
      */
     public static NodeExplanation calculateNodeExplanation(ShardRouting shard,

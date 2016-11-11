@@ -375,7 +375,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2);
         assertOrderedSearchHits(searchResponse, "1", "2");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(462.1d, 10d));
-        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
 
         // Order: Desc
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
@@ -385,7 +385,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Doc with missing geo point is first, is consistent with 0.20.x
         assertHitCount(searchResponse, 2);
         assertOrderedSearchHits(searchResponse, "2", "1");
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5286d, 10d));
     }
 
@@ -523,9 +523,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("4"));
         assertSearchHits(searchResponse, "1", "2", "3", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8572.0d, 10d));
-        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
-        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
-        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
 
         try {
                 client().prepareSearch("companies").setQuery(matchAllQuery())

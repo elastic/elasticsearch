@@ -197,9 +197,9 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         private final SearchHit delegate;
         private final BytesReference source;
 
-        public ClientHit(SearchHit delegate) {
+        ClientHit(SearchHit delegate) {
             this.delegate = delegate;
-            source = delegate.hasSource() ? null : delegate.getSourceRef();
+            source = delegate.hasSource() ? delegate.getSourceRef() : null;
         }
 
         @Override

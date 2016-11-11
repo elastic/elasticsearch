@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ForceMergeAction extends Action<ForceMergeRequest, ForceMergeResponse, ForceMergeRequestBuilder> {
 
     public static final ForceMergeAction INSTANCE = new ForceMergeAction();

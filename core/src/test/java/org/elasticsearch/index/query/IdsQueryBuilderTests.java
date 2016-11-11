@@ -21,11 +21,12 @@ package org.elasticsearch.index.query;
 
 
 import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -80,7 +81,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     }
 
     @Override
-    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.ids().size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
@@ -139,6 +140,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(contentString));
         assertEquals("Deprecated field [_type] used, expected [type] instead", e.getMessage());
+        checkWarningHeaders("Deprecated field [_type] used, expected [type] instead");
 
         //array of types can also be called type rather than types
         final String contentString2 = "{\n" +
@@ -152,5 +154,6 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
         e = expectThrows(IllegalArgumentException.class, () -> parseQuery(contentString2));
         assertEquals("Deprecated field [types] used, expected [type] instead", e.getMessage());
+        checkWarningHeaders("Deprecated field [_type] used, expected [type] instead");
     }
 }

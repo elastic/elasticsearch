@@ -66,9 +66,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
-/**
- *
- */
 public class PluginsService extends AbstractComponent {
 
     /**

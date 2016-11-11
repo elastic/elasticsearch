@@ -30,8 +30,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class UpdateSettingsValidationIT extends ESIntegTestCase {
     public void testUpdateSettingsValidation() throws Exception {

@@ -53,6 +53,9 @@ public class IndexShardOperationsLock implements Closeable {
     @Override
     public void close() {
         closed = true;
+        if (logger.isTraceEnabled()) {
+            logger.trace("operation lock on [{}] closed", shardId);
+        }
     }
 
     /**
@@ -120,7 +123,7 @@ public class IndexShardOperationsLock implements Closeable {
         Releasable releasable;
         try {
             synchronized (this) {
-                releasable = tryAcquire();
+                releasable = tryAcquire(onAcquired.toString());
                 if (releasable == null) {
                     // blockOperations is executing, this operation will be retried by blockOperations once it finishes
                     if (delayedOperations == null) {
@@ -142,12 +145,18 @@ public class IndexShardOperationsLock implements Closeable {
         onAcquired.onResponse(releasable);
     }
 
-    @Nullable private Releasable tryAcquire() throws InterruptedException {
+    @Nullable private Releasable tryAcquire(String resource) throws InterruptedException {
         if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the untimed tryAcquire methods do not honor the fairness setting
             AtomicBoolean closed = new AtomicBoolean();
+            if (logger.isTraceEnabled()) {
+                logger.trace("acquired operation lock on [{}] for resource [{}]", shardId, resource);
+            }
             return () -> {
                 if (closed.compareAndSet(false, true)) {
                     semaphore.release(1);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("released operation lock on [{}] for resource [{}]", shardId, resource);
+                    }
                 }
             };
         }

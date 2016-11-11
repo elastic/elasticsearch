@@ -66,7 +66,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                         new NamedWriteableRegistry(Collections.emptyList()),
                         new NetworkService(settings, Collections.emptyList()));
         TransportService transportService = new MockTransportService(settings, transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         DiscoveryNode node =

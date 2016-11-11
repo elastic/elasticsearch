@@ -102,8 +102,10 @@ public class TasksIT extends ESIntegTestCase {
     private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
 
     @Override
-    protected boolean addMockTransportService() {
-        return false;
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Collection<Class<? extends Plugin>> mockPlugins = new ArrayList<>(super.getMockPlugins());
+        mockPlugins.remove(MockTransportService.TestPlugin.class);
+        return mockPlugins;
     }
 
     @Override
@@ -780,7 +782,7 @@ public class TasksIT extends ESIntegTestCase {
     private void registerTaskManageListeners(String actionMasks) {
         for (String nodeName : internalCluster().getNodeNames()) {
             DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
-            RecordingTaskManagerListener listener = new RecordingTaskManagerListener(node, actionMasks.split(","));
+            RecordingTaskManagerListener listener = new RecordingTaskManagerListener(node.getId(), actionMasks.split(","));
             ((MockTaskManager) internalCluster().getInstance(TransportService.class, nodeName).getTaskManager()).addListener(listener);
             RecordingTaskManagerListener oldListener = listeners.put(new Tuple<>(node.getName(), actionMasks), listener);
             assertNull(oldListener);

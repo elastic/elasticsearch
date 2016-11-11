@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
@@ -59,15 +58,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 /**
  * Helper for translating an update request to an index, delete request or update response.
  */
 public class UpdateHelper extends AbstractComponent {
-
     private final ScriptService scriptService;
 
-    @Inject
     public UpdateHelper(Settings settings, ScriptService scriptService) {
         super(settings);
         this.scriptService = scriptService;
@@ -76,19 +74,18 @@ public class UpdateHelper extends AbstractComponent {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    @SuppressWarnings("unchecked")
-    public Result prepare(UpdateRequest request, IndexShard indexShard) {
+    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
-        return prepare(indexShard.shardId(), request, getResult);
+        return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     @SuppressWarnings("unchecked")
-    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult) {
+    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
         long getDateNS = System.nanoTime();
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
@@ -104,6 +101,7 @@ public class UpdateHelper extends AbstractComponent {
                 // Tell the script that this is a create and not an update
                 ctx.put("op", "create");
                 ctx.put("_source", upsertDoc);
+                ctx.put("_now", nowInMillis.getAsLong());
                 ctx = executeScript(request.script, ctx);
                 //Allow the script to set TTL using ctx._ttl
                 if (ttl == null) {
@@ -118,7 +116,7 @@ public class UpdateHelper extends AbstractComponent {
                 if (!"create".equals(scriptOpChoice)) {
                     if (!"none".equals(scriptOpChoice)) {
                         logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice,
-                                request.script.getScript());
+                                request.script.getIdOrCode());
                     }
                     UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                             getResult.getVersion(), DocWriteResponse.Result.NOOP);
@@ -143,7 +141,12 @@ public class UpdateHelper extends AbstractComponent {
             return new Result(indexRequest, DocWriteResponse.Result.CREATED, null, null);
         }
 
-        final long updateVersion = getResult.getVersion();
+        long updateVersion = getResult.getVersion();
+
+        if (request.versionType() != VersionType.INTERNAL) {
+            assert request.versionType() == VersionType.FORCE;
+            updateVersion = request.version(); // remember, match_any is excluded by the conflict test
+        }
 
         if (getResult.internalSourceRef() == null) {
             // no source, we can't do nothing, through a failure...
@@ -192,6 +195,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_timestamp", originalTimestamp);
             ctx.put("_ttl", originalTtl);
             ctx.put("_source", sourceAndContent.v2());
+            ctx.put("_now", nowInMillis.getAsLong());
 
             ctx = executeScript(request.script, ctx);
 
@@ -238,7 +242,7 @@ public class UpdateHelper extends AbstractComponent {
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
-            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
+            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getIdOrCode());
             UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         }
@@ -247,7 +251,7 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.UPDATE, Collections.emptyMap());
+                ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.UPDATE);
                 executableScript.setNextVar("ctx", ctx);
                 executableScript.run();
                 // we need to unwrap the ctx...
@@ -308,7 +312,7 @@ public class UpdateHelper extends AbstractComponent {
         if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
             sourceRequested = true;
             if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-                Object value = sourceLookup.filter(request.fetchSource().includes(), request.fetchSource().excludes());
+                Object value = sourceLookup.filter(request.fetchSource());
                 try {
                     final int initialCapacity = Math.min(1024, sourceAsBytes.length());
                     BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);

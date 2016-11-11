@@ -24,8 +24,6 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations.asciidoc',
-  'reference/aggregations/bucket/children-aggregation.asciidoc',
   'reference/aggregations/bucket/datehistogram-aggregation.asciidoc',
   'reference/aggregations/bucket/daterange-aggregation.asciidoc',
   'reference/aggregations/bucket/diversified-sampler-aggregation.asciidoc',
@@ -95,21 +93,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/stop-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/synonym-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/word-delimiter-tokenfilter.asciidoc',
-  'reference/cat.asciidoc',
-  'reference/cat/alias.asciidoc',
-  'reference/cat/allocation.asciidoc',
-  'reference/cat/count.asciidoc',
-  'reference/cat/fielddata.asciidoc',
-  'reference/cat/health.asciidoc',
-  'reference/cat/indices.asciidoc',
-  'reference/cat/master.asciidoc',
-  'reference/cat/nodeattrs.asciidoc',
-  'reference/cat/nodes.asciidoc',
-  'reference/cat/pending_tasks.asciidoc',
-  'reference/cat/plugins.asciidoc',
   'reference/cat/recovery.asciidoc',
-  'reference/cat/repositories.asciidoc',
-  'reference/cat/segments.asciidoc',
   'reference/cat/shards.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
@@ -133,7 +117,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/docs/termvectors.asciidoc',
   'reference/docs/update-by-query.asciidoc',
   'reference/docs/update.asciidoc',
-  'reference/getting-started.asciidoc',
   'reference/index-modules/similarity.asciidoc',
   'reference/index-modules/store.asciidoc',
   'reference/index-modules/translog.asciidoc',
@@ -147,7 +130,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/shadow-replicas.asciidoc',
   'reference/indices/shard-stores.asciidoc',
   'reference/indices/update-settings.asciidoc',
-  'reference/indices/upgrade.asciidoc',
   'reference/ingest/ingest-node.asciidoc',
   'reference/mapping/dynamic/templates.asciidoc',
   'reference/mapping/fields/all-field.asciidoc',
@@ -173,9 +155,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/search/request/highlighting.asciidoc',
   'reference/search/request/inner-hits.asciidoc',
   'reference/search/request/rescore.asciidoc',
-  'reference/search/request/scroll.asciidoc',
   'reference/search/search-template.asciidoc',
-  'reference/search/suggesters/completion-suggest.asciidoc',
 ]
 
 integTest {
@@ -194,7 +174,7 @@ integTest {
     configFile 'userdict_ja.txt'
     configFile 'KeywordTokenizer.rbbi'
     // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', 'myself'
+    setting 'reindex.remote.whitelist', '127.0.0.1:*'
   }
 }
 
@@ -303,3 +283,26 @@ buildRestTests.setups['sales'] = '''
         {"date": "2015/03/01 00:00:00", "price": 200, "type": "hat"}
         {"index":{}}
         {"date": "2015/03/01 00:00:00", "price": 175, "type": "t-shirt"}'''
+
+// Dummy bank account data used by getting-started.asciidoc
+buildRestTests.setups['bank'] = '''
+  - do:
+    bulk:
+      index: bank
+      type: account
+      refresh: true
+      body: |
+#bank_data#
+'''
+/* Load the actual accounts only if we're going to use them. This complicates
+ * dependency checking but that is a small price to pay for not building a
+ * 400kb string every time we start the build. */
+File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
+buildRestTests.inputs.file(accountsFile)
+buildRestTests.doFirst {
+  String accounts = accountsFile.getText('UTF-8')
+  // Indent like a yaml test needs
+  accounts = accounts.replaceAll('(?m)^', '        ')
+  buildRestTests.setups['bank'] =
+    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
+}

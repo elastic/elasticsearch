@@ -24,7 +24,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -43,8 +43,12 @@ import java.util.concurrent.CyclicBarrier;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class IndexingMasterFailoverIT extends ESIntegTestCase {
+
+    @Override
+    protected boolean addMockZenPings() {
+        return false;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

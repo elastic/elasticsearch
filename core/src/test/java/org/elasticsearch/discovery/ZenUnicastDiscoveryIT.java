@@ -35,7 +35,6 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
 
     private ClusterDiscoveryConfiguration discoveryConfig;
@@ -67,7 +66,7 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(currentNumNodes - unicastHostOrdinals.length).get();
 
         if (client().admin().cluster().prepareHealth().setWaitForNodes("" + currentNumNodes).get().isTimedOut()) {
-            logger.info("cluster forming timed out, cluster state:\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint());
+            logger.info("cluster forming timed out, cluster state:\n{}", client().admin().cluster().prepareState().get().getState());
             fail("timed out waiting for cluster to form with [" + currentNumNodes + "] nodes");
         }
     }

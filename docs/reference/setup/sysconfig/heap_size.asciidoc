@@ -67,7 +67,7 @@ ES_JAVA_OPTS="-Xms4000m -Xmx4000m" ./bin/elasticsearch <2>
 <2> Set the minimum and maximum heap size to 4000 MB.
 
 NOTE: Configuring the heap for the <<windows-service,Windows service>>
-is different than the above. The values initiallly populated for the
+is different than the above. The values initially populated for the
 Windows service can be configured as above but are different after the
 service has been installed. Consult the
 <<windows-service,Windows service documentation>> for additional

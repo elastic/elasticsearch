@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -40,15 +41,19 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.joda.time.DateTime;
+import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -84,6 +89,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHigh
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -2906,5 +2912,76 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
         assertThat(field.getFragments().length, equalTo(1));
         assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+    }
+
+    public void testSynonyms() throws IOException {
+        Builder builder = Settings.builder()
+            .put(indexSettings())
+            .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
+            .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
+            .put("index.analysis.filter.synonym.type", "synonym")
+            .putArray("index.analysis.filter.synonym.synonyms", "fast,quick");
+
+        assertAcked(prepareCreate("test").setSettings(builder.build())
+            .addMapping("type1", "field1",
+                "type=text,term_vector=with_positions_offsets,search_analyzer=synonym," +
+                    "analyzer=english,index_options=offsets"));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "0").setSource(
+            "field1", "The quick brown fox jumps over the lazy dog").get();
+        refresh();
+        for (String highlighterType : new String[] {"plain", "postings", "fvh"}) {
+            logger.info("--> highlighting (type=" + highlighterType + ") and searching on field1");
+            SearchSourceBuilder source = searchSource()
+                .query(matchQuery("field1", "quick brown fox").operator(Operator.AND))
+                .highlighter(
+                    highlight()
+                        .field("field1")
+                        .order("score")
+                        .preTags("<x>")
+                        .postTags("</x>")
+                        .highlighterType(highlighterType));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            assertHighlight(searchResponse, 0, "field1", 0, 1,
+                equalTo("The <x>quick</x> <x>brown</x> <x>fox</x> jumps over the lazy dog"));
+
+            source = searchSource()
+                .query(matchQuery("field1", "fast brown fox").operator(Operator.AND))
+                .highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
+            searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            assertHighlight(searchResponse, 0, "field1", 0, 1,
+                equalTo("The <x>quick</x> <x>brown</x> <x>fox</x> jumps over the lazy dog"));
+        }
+    }
+
+    public void testHighlightQueryRewriteDatesWithNow() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index-1").addMapping("type", "d", "type=date",
+            "field", "type=text,store=true,term_vector=with_positions_offsets")
+            .setSettings("index.number_of_replicas", 0, "index.number_of_shards", 2)
+            .get());
+        DateTime now = new DateTime(ISOChronology.getInstanceUTC());
+        indexRandom(true, client().prepareIndex("index-1", "type", "1").setSource("d", now, "field", "hello world"),
+            client().prepareIndex("index-1", "type", "2").setSource("d", now.minusDays(1), "field", "hello"),
+            client().prepareIndex("index-1", "type", "3").setSource("d", now.minusDays(2), "field", "world"));
+        ensureSearchable("index-1");
+        for (int i = 0; i < 5; i++) {
+            final SearchResponse r1 = client().prepareSearch("index-1")
+                .addSort("d", SortOrder.DESC)
+                .setTrackScores(true)
+                .highlighter(highlight()
+                    .field("field")
+                    .preTags("<x>")
+                    .postTags("</x>")
+                ).setQuery(QueryBuilders.boolQuery().must(
+                    QueryBuilders.rangeQuery("d").gte("now-12h").lte("now").includeLower(true).includeUpper(true).boost(1.0f))
+                    .should(QueryBuilders.termQuery("field", "hello")))
+                .get();
+
+            assertSearchResponse(r1);
+            assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+            assertHighlight(r1, 0, "field", 0, 1,
+                equalTo("<x>hello</x> world"));
+        }
     }
 }

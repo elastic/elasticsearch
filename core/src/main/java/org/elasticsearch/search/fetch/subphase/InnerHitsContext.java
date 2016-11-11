@@ -59,8 +59,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- */
 public final class InnerHitsContext {
 
     private final Map<String, BaseInnerHits> innerHits;

@@ -29,7 +29,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -51,14 +50,14 @@ public class RestTemplatesAction extends AbstractCatAction {
     }
 
     @Override
-    protected void doRequest(final RestRequest request, RestChannel channel, NodeClient client) {
+    protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().metaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
-        client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse clusterStateResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, clusterStateResponse, matchPattern), channel);

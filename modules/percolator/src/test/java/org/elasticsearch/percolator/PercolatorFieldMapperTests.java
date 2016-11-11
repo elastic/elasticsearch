@@ -292,7 +292,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .field(fieldName, queryBuilder)
                 .endObject().bytes());
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
-        assertQueryBuilder(qbSource, queryBuilder.rewrite(indexService.newQueryShardContext()));
+        assertQueryBuilder(qbSource, queryBuilder.rewrite(indexService.newQueryShardContext(
+                randomInt(20), null, () -> { throw new UnsupportedOperationException(); })));
     }
 
 
@@ -476,7 +477,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
         XContentParser sourceParser = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent()
                 .createParser(actual.bytes, actual.offset, actual.length);
-        QueryParseContext qsc = indexService.newQueryShardContext().newParseContext(sourceParser);
+        QueryParseContext qsc = indexService.newQueryShardContext(
+                randomInt(20), null, () -> { throw new UnsupportedOperationException(); })
+                .newParseContext(sourceParser);
         assertThat(qsc.parseInnerQueryBuilder().get(), equalTo(expected));
     }
 

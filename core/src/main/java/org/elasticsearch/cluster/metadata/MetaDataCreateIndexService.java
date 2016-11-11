@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
@@ -63,7 +64,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -88,6 +88,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
@@ -109,7 +110,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final AllocationService allocationService;
     private final AliasValidator aliasValidator;
     private final Environment env;
-    private final NodeServicesProvider nodeServicesProvider;
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
 
@@ -117,37 +117,48 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService,
                                       AliasValidator aliasValidator, Environment env,
-                                      NodeServicesProvider nodeServicesProvider, IndexScopedSettings indexScopedSettings,
-                                      ThreadPool threadPool) {
+                                      IndexScopedSettings indexScopedSettings, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
         this.aliasValidator = aliasValidator;
         this.env = env;
-        this.nodeServicesProvider = nodeServicesProvider;
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
     }
 
+    /**
+     * Validate the name for an index against some static rules and a cluster state.
+     */
     public static void validateIndexName(String index, ClusterState state) {
+        validateIndexOrAliasName(index, InvalidIndexNameException::new);
+        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
+            throw new InvalidIndexNameException(index, "must be lowercase");
+        }
         if (state.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
         if (state.metaData().hasIndex(index)) {
             throw new IndexAlreadyExistsException(state.metaData().index(index).getIndex());
         }
+        if (state.metaData().hasAlias(index)) {
+            throw new InvalidIndexNameException(index, "already exists as alias");
+        }
+    }
+
+    /**
+     * Validate the name for an index or alias against some static rules.
+     */
+    public static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
         if (!Strings.validFileName(index)) {
-            throw new InvalidIndexNameException(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
         if (index.contains("#")) {
-            throw new InvalidIndexNameException(index, "must not contain '#'");
+            throw exceptionCtor.apply(index, "must not contain '#'");
         }
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
-            throw new InvalidIndexNameException(index, "must not start with '_', '-', or '+'");
-        }
-        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
-            throw new InvalidIndexNameException(index, "must be lowercase");
+            throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
         }
         int byteCount = 0;
         try {
@@ -157,15 +168,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new ElasticsearchException("Unable to determine length of index name", e);
         }
         if (byteCount > MAX_INDEX_NAME_BYTES) {
-            throw new InvalidIndexNameException(index,
-                    "index name is too long, (" + byteCount +
-                            " > " + MAX_INDEX_NAME_BYTES + ")");
-        }
-        if (state.metaData().hasAlias(index)) {
-            throw new InvalidIndexNameException(index, "already exists as alias");
+            throw exceptionCtor.apply(index, "index name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + ")");
         }
         if (index.equals(".") || index.equals("..")) {
-            throw new InvalidIndexNameException(index, "must not be '.' or '..'");
+            throw exceptionCtor.apply(index, "must not be '.' or '..'");
         }
     }
 
@@ -318,7 +324,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
                                 indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
                             }
-
+                            indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                             final Index shrinkFromIndex = request.shrinkFrom();
                             int routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());;
@@ -344,8 +350,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                                                    (tmpImd.getNumberOfReplicas() + 1) + "]");
                             }
                             // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                            final IndexService indexService = indicesService.createIndex(nodeServicesProvider, tmpImd,
-                                Collections.emptyList(), shardId -> {});
+                            final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList(), shardId -> {});
                             createdIndex = indexService.index();
                             // now add the mappings
                             MapperService mapperService = indexService.mapperService();
@@ -356,7 +361,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 throw mpe;
                             }
 
-                            final QueryShardContext queryShardContext = indexService.newQueryShardContext();
+                            // the context is only used for validation so it's fine to pass fake values for the shard id and the current
+                            // timestamp
+                            final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {
                                     aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext);

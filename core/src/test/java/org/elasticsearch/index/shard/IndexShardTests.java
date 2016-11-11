@@ -58,7 +58,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -117,6 +116,7 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
+import static org.elasticsearch.common.lucene.Lucene.readScoreDoc;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -424,7 +424,7 @@ public class IndexShardTests extends IndexShardTestCase {
         flushShard(shard);
 
         final IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
@@ -472,8 +472,6 @@ public class IndexShardTests extends IndexShardTestCase {
                         throw new RuntimeException(ex);
                     }
                 }
-
-                ;
             };
             thread[i].start();
         }
@@ -570,11 +568,15 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                if (created) {
-                    postIndexCreate.incrementAndGet();
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
+                if (result.hasFailure() == false) {
+                    if (result.isCreated()) {
+                        postIndexCreate.incrementAndGet();
+                    } else {
+                        postIndexUpdate.incrementAndGet();
+                    }
                 } else {
-                    postIndexUpdate.incrementAndGet();
+                    postIndex(index, result.getFailure());
                 }
             }
 
@@ -590,8 +592,12 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
-                postDelete.incrementAndGet();
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+                if (result.hasFailure() == false) {
+                    postDelete.incrementAndGet();
+                } else {
+                    postDelete(delete, result.getFailure());
+                }
             }
 
             @Override
@@ -866,7 +872,7 @@ public class IndexShardTests extends IndexShardTestCase {
             translogOps = 0;
         }
         IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -889,7 +895,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingHelper.initWithSameId(shardRouting, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE)
         );
 
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
         assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -914,7 +920,7 @@ public class IndexShardTests extends IndexShardTestCase {
         cleanLuceneIndex(store.directory());
         store.decRef();
         IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         ShardRouting routing = newShard.routingEntry();
         newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         try {
@@ -988,7 +994,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Store sourceStore = source.store();
         Store targetStore = target.store();
 
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
@@ -1133,7 +1139,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
                 postIndex.incrementAndGet();
             }
 
@@ -1144,7 +1150,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
                 postDelete.incrementAndGet();
 
             }
@@ -1176,6 +1182,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 throw new RuntimeException("boom");
             }
 
+            @Override
             public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }
@@ -1227,7 +1234,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "type", "0");
         shard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, null));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
@@ -1254,7 +1261,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
@@ -1302,7 +1309,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING, RecoverySource.LocalShardsRecoverySource.INSTANCE);
 
         final IndexShard targetShard;
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Map<String, MappingMetaData> requestedMappingUpdates = ConcurrentCollections.newConcurrentMap();
         {
             targetShard = newShard(targetRouting);

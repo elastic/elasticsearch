@@ -35,8 +35,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocationTestCase {
 
     public void testPreferLocalPrimaryAllocationOverFiltered() {

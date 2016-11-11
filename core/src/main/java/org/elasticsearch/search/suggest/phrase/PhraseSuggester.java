@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
@@ -109,7 +110,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             response.addTerm(resultEntry);
 
             final BytesRefBuilder byteSpare = new BytesRefBuilder();
-            final CompiledScript collateScript = suggestion.getCollateQueryScript();
+            final Function<Map<String, Object>, ExecutableScript> collateScript = suggestion.getCollateQueryScript();
             final boolean collatePrune = (collateScript != null) && suggestion.collatePrune();
             for (int i = 0; i < checkerResult.corrections.length; i++) {
                 Correction correction = checkerResult.corrections[i];
@@ -121,8 +122,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     QueryShardContext shardContext = suggestion.getShardContext();
-                    ScriptService scriptService = shardContext.getScriptService();
-                    final ExecutableScript executable = scriptService.executable(collateScript, vars);
+                    final ExecutableScript executable = collateScript.apply(vars);
                     final BytesReference querySource = (BytesReference) executable.run();
                     try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
                         Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();

@@ -41,8 +41,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- */
 public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
     private final Logger logger = Loggers.getLogger(ExpectedShardSizeAllocationTests.class);
 

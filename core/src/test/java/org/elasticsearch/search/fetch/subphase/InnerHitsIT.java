@@ -32,7 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -167,7 +167,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                                 .setExplain(true)
                                 .addDocValueField("comments.message")
                                 .addScriptField("script",
-                                        new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
+                                        new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                 .setSize(1)
                 )).get();
         assertNoFailures(response);
@@ -301,8 +301,8 @@ public class InnerHitsIT extends ESIntegTestCase {
                                         .addDocValueField("message")
                                         .setHighlightBuilder(new HighlightBuilder().field("message"))
                                         .setExplain(true).setSize(1)
-                                        .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE,
-                                                MockScriptEngine.NAME, Collections.emptyMap()))
+                                        .addScriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5",
+                                            Collections.emptyMap()))
                         )
                 ).get();
         assertNoFailures(response);
@@ -666,7 +666,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                         .innerHit(new InnerHitBuilder())).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
-        SearchHit hit = response.getHits().getAt(0); 
+        SearchHit hit = response.getHits().getAt(0);
         assertThat(hit.id(), equalTo("1"));
         SearchHits messages = hit.getInnerHits().get("comments.messages");
         assertThat(messages.getTotalHits(), equalTo(1L));
@@ -982,7 +982,8 @@ public class InnerHitsIT extends ESIntegTestCase {
         // other features (like in the query dsl or aggs) in order for consistency:
         SearchResponse response = client().prepareSearch()
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None)
-                .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext("comments.message"))))
+                .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true,
+                    new String[]{"comments.message"}, null))))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);

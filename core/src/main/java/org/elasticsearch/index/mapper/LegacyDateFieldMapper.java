@@ -43,8 +43,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.LegacyLongFieldMapper.CustomLongNumericField;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -53,7 +54,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -176,67 +176,6 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
 
     public static class DateFieldType extends NumberFieldType {
 
-        final class LateParsingQuery extends Query {
-
-            final Object lowerTerm;
-            final Object upperTerm;
-            final boolean includeLower;
-            final boolean includeUpper;
-            final DateTimeZone timeZone;
-            final DateMathParser forcedDateParser;
-
-            public LateParsingQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, DateTimeZone timeZone, DateMathParser forcedDateParser) {
-                this.lowerTerm = lowerTerm;
-                this.upperTerm = upperTerm;
-                this.includeLower = includeLower;
-                this.includeUpper = includeUpper;
-                this.timeZone = timeZone;
-                this.forcedDateParser = forcedDateParser;
-            }
-
-            @Override
-            public Query rewrite(IndexReader reader) throws IOException {
-                Query rewritten = super.rewrite(reader);
-                if (rewritten != this) {
-                    return rewritten;
-                }
-                return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
-            }
-
-            // Even though we only cache rewritten queries it is good to let all queries implement hashCode() and equals():
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (sameClassAs(o) == false) return false;
-
-                LateParsingQuery that = (LateParsingQuery) o;
-                if (includeLower != that.includeLower) return false;
-                if (includeUpper != that.includeUpper) return false;
-                if (lowerTerm != null ? !lowerTerm.equals(that.lowerTerm) : that.lowerTerm != null) return false;
-                if (upperTerm != null ? !upperTerm.equals(that.upperTerm) : that.upperTerm != null) return false;
-                if (timeZone != null ? !timeZone.equals(that.timeZone) : that.timeZone != null) return false;
-
-                return true;
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(classHash(), lowerTerm, upperTerm, includeLower, includeUpper, timeZone);
-            }
-
-            @Override
-            public String toString(String s) {
-                final StringBuilder sb = new StringBuilder();
-                return sb.append(name()).append(':')
-                    .append(includeLower ? '[' : '{')
-                    .append((lowerTerm == null) ? "*" : lowerTerm.toString())
-                    .append(" TO ")
-                    .append((upperTerm == null) ? "*" : upperTerm.toString())
-                    .append(includeUpper ? ']' : '}')
-                    .toString();
-            }
-        }
-
         protected FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
         protected TimeUnit timeUnit = Defaults.TIME_UNIT;
         protected DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
@@ -339,7 +278,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             Long val = (Long) value;
             if (val == null) {
                 return null;
@@ -348,8 +287,8 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null);
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context);
         }
 
         @Override
@@ -366,14 +305,20 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
                 dateTimeFormatter(), minValue, maxValue);
         }
 
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
-            return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+            return  innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, context);
         }
 
-        private Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+        private Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, !includeLower, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
+                    lowerTerm == null ? null
+                            : parseToMilliseconds(lowerTerm, !includeLower, timeZone,
+                                    forcedDateParser == null ? dateMathParser : forcedDateParser, context),
+                    upperTerm == null ? null
+                            : parseToMilliseconds(upperTerm, includeUpper, timeZone,
+                                    forcedDateParser == null ? dateMathParser : forcedDateParser, context),
                 includeLower, includeUpper);
         }
 
@@ -381,7 +326,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         public Relation isFieldWithinQuery(IndexReader reader,
                 Object from, Object to,
                 boolean includeLower, boolean includeUpper,
-                DateTimeZone timeZone, DateMathParser dateParser) throws IOException {
+                DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -397,7 +342,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser);
+                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser, context);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -408,7 +353,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser);
+                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser, context);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;
@@ -426,7 +371,8 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
             }
         }
 
-        public long parseToMilliseconds(Object value, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
+        public long parseToMilliseconds(Object value, boolean inclusive, @Nullable DateTimeZone zone,
+                @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             if (value instanceof Long) {
                 return ((Long) value).longValue();
             }
@@ -442,7 +388,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, now(), inclusive, zone);
+            return dateParser.parse(strValue, context::nowInMillis, inclusive, zone);
         }
 
         @Override
@@ -472,18 +418,6 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
     @Override
     public DateFieldType fieldType() {
         return (DateFieldType) super.fieldType();
-    }
-
-    private static Callable<Long> now() {
-        return new Callable<Long>() {
-            @Override
-            public Long call() {
-                final SearchContext context = SearchContext.current();
-                return context != null
-                    ? context.nowInMillis()
-                    : System.currentTimeMillis();
-            }
-        };
     }
 
     @Override

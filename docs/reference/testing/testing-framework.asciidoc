@@ -30,11 +30,10 @@ First, you need to include the testing dependency in your project, along with th
     <scope>test</scope>
   </dependency>
   <dependency>
-    <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch</artifactId>
+    <groupId>org.elasticsearch.test</groupId>
+    <artifactId>framework</artifactId>
     <version>${elasticsearch.version}</version>
     <scope>test</scope>
-    <type>test-jar</type>
   </dependency>
 </dependencies>
 --------------------------------------------------
@@ -253,7 +252,7 @@ Usually, you would combine assertions and matchers in your test like this
 
 [source,java]
 ----------------------------
-SearchResponse seearchResponse = client().prepareSearch() ...;
+SearchResponse searchResponse = client().prepareSearch() ...;
 assertHitCount(searchResponse, 4);
 assertFirstHit(searchResponse, hasId("4"));
 assertSearchHits(searchResponse, "1", "2", "3", "4");

@@ -19,16 +19,24 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
+
+import java.util.Collections;
+import java.util.function.LongSupplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -41,10 +49,11 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final Client client;
     protected final IndexReader reader;
     protected final ClusterState clusterState;
+    protected final LongSupplier nowInMillis;
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
                                IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
-                               ClusterState clusterState) {
+                               ClusterState clusterState, LongSupplier nowInMillis) {
         this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
@@ -52,12 +61,13 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         this.client = client;
         this.reader = reader;
         this.clusterState = clusterState;
+        this.nowInMillis = nowInMillis;
     }
 
     /**
      * Returns a clients to fetch resources from local or remove nodes.
      */
-    public final Client getClient() {
+    public Client getClient() {
         return client;
     }
 
@@ -70,20 +80,15 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     }
 
     /**
-     * Returns a script service to fetch scripts.
-     */
-    public final ScriptService getScriptService() {
-        return scriptService;
-    }
-
-    /**
      * Return the MapperService.
      */
     public final MapperService getMapperService() {
         return mapperService;
     }
 
-    /** Return the current {@link IndexReader}, or {@code null} if we are on the coordinating node. */
+    /** Return the current {@link IndexReader}, or {@code null} if no index reader is available, for
+     *  instance if we are on the coordinating node or if this rewrite context is used to index
+     *  queries (percolation). */
     public IndexReader getIndexReader() {
         return reader;
     }
@@ -116,4 +121,15 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         String defaultScriptLanguage = ScriptSettings.getLegacyDefaultLang(indexSettings.getNodeSettings());
         return new QueryParseContext(defaultScriptLanguage, indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
     }
+
+    public long nowInMillis() {
+        return nowInMillis.getAsLong();
+    }
+
+    public BytesReference getTemplateBytes(Script template) {
+        ExecutableScript executable = scriptService.executable(template, ScriptContext.Standard.SEARCH);
+        return (BytesReference) executable.run();
+    }
+
+
 }

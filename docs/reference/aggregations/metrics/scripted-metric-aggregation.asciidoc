@@ -268,6 +268,4 @@ params::           Optional. An object whose contents will be passed as variable
     "_agg" : {}
 }
 --------------------------------------------------
-reduce_params::    Optional. An object whose contents will be passed as variables to the `reduce_script`. This can be useful to allow the user to control 
-                   the behavior of the reduce phase. If this is not specified the variable will be undefined in the reduce_script execution.
 

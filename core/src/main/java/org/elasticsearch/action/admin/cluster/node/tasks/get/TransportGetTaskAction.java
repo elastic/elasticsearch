@@ -150,7 +150,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     @Override
                     protected void doRun() throws Exception {
                         taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
-                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode(), true), listener);
+                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), listener);
                     }
 
                     @Override
@@ -159,7 +159,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     }
                 });
             } else {
-                TaskInfo info = runningTask.taskInfo(clusterService.localNode(), true);
+                TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
             }
         }

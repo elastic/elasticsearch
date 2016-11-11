@@ -31,9 +31,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterServiceState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -91,7 +91,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
     private final RecoveriesCollection onGoingRecoveries;
 
-    @Inject
     public PeerRecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
             recoverySettings, ClusterService clusterService) {
         super(settings);
@@ -401,7 +400,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     private void waitForClusterState(long clusterStateVersion) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, TimeValue.timeValueMinutes(5), logger,
             threadPool.getThreadContext());
-        final ClusterState clusterState = observer.observedState();
+        final ClusterState clusterState = observer.observedState().getClusterState();
         if (clusterState.getVersion() >= clusterStateVersion) {
             logger.trace("node has cluster state with version higher than {} (current: {})", clusterStateVersion,
                 clusterState.getVersion());
@@ -428,20 +427,20 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             }, new ClusterStateObserver.ValidationPredicate() {
 
                 @Override
-                protected boolean validate(ClusterState newState) {
-                    return newState.getVersion() >= clusterStateVersion;
+                protected boolean validate(ClusterServiceState newState) {
+                    return newState.getClusterState().getVersion() >= clusterStateVersion;
                 }
             });
             try {
                 future.get();
                 logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion,
-                    observer.observedState().getVersion());
+                    observer.observedState().getClusterState().getVersion());
             } catch (Exception e) {
                 logger.debug(
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "failed waiting for cluster state with version {} (current: {})",
                         clusterStateVersion,
-                        observer.observedState()),
+                        observer.observedState().getClusterState().getVersion()),
                     e);
                 throw ExceptionsHelper.convertToRuntime(e);
             }

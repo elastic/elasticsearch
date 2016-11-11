@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
@@ -57,7 +56,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null, null);
+        searchPhaseController = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     public void testSort() throws Exception {

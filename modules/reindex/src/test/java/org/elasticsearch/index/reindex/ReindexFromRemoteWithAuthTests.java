@@ -72,7 +72,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         // Weird incantation required to test with netty
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
-        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");
+        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*");
         settings.put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME);
         return settings.build();
     }
@@ -89,7 +89,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexFromRemoteWithAuthentication() throws Exception {
-        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), "Aladdin",
+        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), "Aladdin",
                 "open sesame", emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);
@@ -97,8 +97,8 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexSendsHeaders() throws Exception {
-        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null,
-                singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter"));
+        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
+            null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter"));
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
@@ -107,8 +107,8 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexWithoutAuthenticationWhenRequired() throws Exception {
-        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null,
-                emptyMap());
+        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
+            null, emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
@@ -118,7 +118,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexWithBadAuthentication() throws Exception {
-        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), "junk",
+        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), "junk",
                 "auth", emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);

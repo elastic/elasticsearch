@@ -30,13 +30,6 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/ubuntu-14.04-x86_64"
     ubuntu_common config
   end
-  config.vm.define "ubuntu-1504" do |config|
-    config.vm.box = "elastic/ubuntu-15.04-x86_64"
-    ubuntu_common config, extra: <<-SHELL
-      # Install Jayatana so we can work around it being present.
-      [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
-    SHELL
-  end
   config.vm.define "ubuntu-1604" do |config|
     config.vm.box = "elastic/ubuntu-16.04-x86_64"
     ubuntu_common config, extra: <<-SHELL
@@ -156,6 +149,7 @@ def dnf_common(config)
     update_command: "dnf check-update",
     update_tracking_file: "/var/cache/dnf/last_update",
     install_command: "dnf install -y",
+    install_command_retries: 5,
     java_package: "java-1.8.0-openjdk-devel")
   if Vagrant.has_plugin?("vagrant-cachier")
     # Autodetect doesn't work....
@@ -205,6 +199,7 @@ def provision(config,
     update_command: 'required',
     update_tracking_file: 'required',
     install_command: 'required',
+    install_command_retries: 0,
     java_package: 'required',
     extra: '')
   # Vagrant run ruby 2.0.0 which doesn't have required named parameters....
@@ -215,9 +210,27 @@ def provision(config,
   config.vm.provision "bats dependencies", type: "shell", inline: <<-SHELL
     set -e
     set -o pipefail
+
+    # Retry install command up to $2 times, if failed
+    retry_installcommand() {
+      n=0
+      while true; do
+        #{install_command} $1 && break
+        let n=n+1
+        if [ $n -ge $2 ]; then
+          echo "==> Exhausted retries to install $1"
+          return 1
+        fi
+        echo "==> Retrying installing $1, attempt $((n+1))"
+        # Add a small delay to increase chance of metalink providing updated list of mirrors
+        sleep 5
+      done
+    }
+
     installed() {
       command -v $1 2>&1 >/dev/null
     }
+
     install() {
       # Only apt-get update if we haven't in the last day
       if [ ! -f #{update_tracking_file} ] || [ "x$(find #{update_tracking_file} -mtime +0)" == "x#{update_tracking_file}" ]; then
@@ -226,8 +239,14 @@ def provision(config,
         touch #{update_tracking_file}
       fi
       echo "==> Installing $1"
-      #{install_command} $1
+      if [ #{install_command_retries} -eq 0 ]
+      then
+            #{install_command} $1
+      else
+            retry_installcommand $1 #{install_command_retries}
+      fi
     }
+
     ensure() {
       installed $1 || install $1
     }

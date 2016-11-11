@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -71,7 +71,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
      */
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
-    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+    public AbstractAsyncBulkIndexByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                                 ThreadPool threadPool, Request mainRequest,
                                                 ActionListener<BulkIndexByScrollResponse> listener,
                                                 ScriptService scriptService, ClusterState clusterState) {
@@ -154,9 +154,9 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
     }
 
     /**
-     * Wrapper for the {@link ActionRequest} that are used in this action class.
+     * Wrapper for the {@link DocWriteRequest} that are used in this action class.
      */
-    interface RequestWrapper<Self extends ActionRequest<Self>> {
+    interface RequestWrapper<Self extends DocWriteRequest<Self>> {
 
         void setIndex(String index);
 
@@ -422,7 +422,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
      */
     public abstract class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
 
-        private final BulkByScrollTask task;
+        private final WorkingBulkByScrollTask task;
         private final ScriptService scriptService;
         private final Script script;
         private final Map<String, Object> params;
@@ -430,7 +430,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         private ExecutableScript executable;
         private Map<String, Object> context;
 
-        public ScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
+        public ScriptApplier(WorkingBulkByScrollTask task, ScriptService scriptService, Script script,
                              Map<String, Object> params) {
             this.task = task;
             this.scriptService = scriptService;

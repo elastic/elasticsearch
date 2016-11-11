@@ -20,7 +20,7 @@ The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
 This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/analysis-phonetic/{version}/analysis-phonetic-{version}.zip.
+{plugin_url}/analysis-phonetic/analysis-phonetic-{version}.zip.
 
 [[analysis-phonetic-remove]]
 [float]
@@ -82,7 +82,11 @@ PUT phonetic_sample
   }
 }
 
-POST phonetic_sample/_analyze?analyzer=my_analyzer&text=Joe Bloggs <1>
+GET phonetic_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Joe Bloggs" <1>
+}
 --------------------------------------------------
 // CONSOLE
 

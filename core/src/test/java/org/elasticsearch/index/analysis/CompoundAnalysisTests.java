@@ -49,8 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
 public class CompoundAnalysisTests extends ESTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
         Settings settings = getJsonSettings();

@@ -16,22 +16,6 @@ following:
 gradle assemble
 -----------------------------
 
-== Other test options
-
-To disable and enable network transport, set the `tests.es.node.mode` system property.
-
-Use network transport:
-
-------------------------------------
--Dtests.es.node.mode=network
-------------------------------------
-
-Use local transport (default since 1.3):
-
--------------------------------------
--Dtests.es.node.mode=local
--------------------------------------
-
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can
@@ -39,6 +23,12 @@ run it using Gradle:
 
 -------------------------------------
 gradle run
+-------------------------------------
+
+or to attach a remote debugger, run it as:
+
+-------------------------------------
+gradle run --debug-jvm
 -------------------------------------
 
 === Test case filtering.
@@ -363,7 +353,6 @@ These are the linux flavors the Vagrantfile currently supports:
 
 * ubuntu-1204 aka precise
 * ubuntu-1404 aka trusty
-* ubuntu-1504 aka vivid
 * ubuntu-1604 aka xenial
 * debian-8 aka jessie, the current debian stable distribution
 * centos-6

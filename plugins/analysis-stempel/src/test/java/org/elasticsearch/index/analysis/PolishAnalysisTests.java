@@ -32,8 +32,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
 public class PolishAnalysisTests extends ESTestCase {
     public void testDefaultsPolishAnalysis() throws IOException {
         final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY,

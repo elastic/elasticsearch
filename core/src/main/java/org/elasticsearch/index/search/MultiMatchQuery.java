@@ -27,11 +27,12 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -227,7 +228,7 @@ public class MultiMatchQuery extends MatchQuery {
             if (blendedFields == null) {
                 return super.blendTerm(term, fieldType);
             }
-            return MultiMatchQuery.blendTerm(term.bytes(), commonTermsCutoff, tieBreaker, blendedFields);
+            return MultiMatchQuery.blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, blendedFields);
         }
 
         @Override
@@ -241,7 +242,8 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
-    static Query blendTerm(BytesRef value, Float commonTermsCutoff, float tieBreaker, FieldAndFieldType... blendedFields) {
+    static Query blendTerm(QueryShardContext context, BytesRef value, Float commonTermsCutoff, float tieBreaker,
+            FieldAndFieldType... blendedFields) {
         List<Query> queries = new ArrayList<>();
         Term[] terms = new Term[blendedFields.length];
         float[] blendedBoost = new float[blendedFields.length];
@@ -249,12 +251,20 @@ public class MultiMatchQuery extends MatchQuery {
         for (FieldAndFieldType ft : blendedFields) {
             Query query;
             try {
-                query = ft.fieldType.termQuery(value, null);
+                query = ft.fieldType.termQuery(value, context);
             } catch (IllegalArgumentException e) {
                 // the query expects a certain class of values such as numbers
                 // of ip addresses and the value can't be parsed, so ignore this
                 // field
                 continue;
+            } catch (ElasticsearchParseException parseException) {
+                // date fields throw an ElasticsearchParseException with the
+                // underlying IAE as the cause, ignore this field if that is
+                // the case
+                if (parseException.getCause() instanceof IllegalArgumentException) {
+                    continue;
+                }
+                throw parseException;
             }
             float boost = ft.boost;
             while (query instanceof BoostQuery) {

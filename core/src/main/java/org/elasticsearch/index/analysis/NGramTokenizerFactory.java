@@ -33,9 +33,6 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class NGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int minGram;

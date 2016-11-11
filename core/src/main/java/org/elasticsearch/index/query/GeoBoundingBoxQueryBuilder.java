@@ -299,7 +299,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == true || indexCreatedBeforeV2_0) {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) || indexCreatedBeforeV2_0) {
             return null;
         }
 
@@ -377,7 +377,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         switch(type) {
             case INDEXED:
                 LegacyGeoPointFieldType geoFieldType = ((LegacyGeoPointFieldType) fieldType);
-                query = LegacyIndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType);
+                query = LegacyIndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType, context);
                 break;
             case MEMORY:
                 IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.search.DefaultSearchContext;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
@@ -38,13 +36,13 @@ public class DefaultSearchContextTests extends ESTestCase {
     public void testCreateSearchFilter() {
         Query searchFilter = DefaultSearchContext.createSearchFilter(new String[]{"type1", "type2"}, null, randomBoolean());
         Query expectedQuery = new BooleanQuery.Builder()
-            .add(new TermsQuery(TypeFieldMapper.NAME, new BytesRef("type1"), new BytesRef("type2")), FILTER)
+            .add(new TypeFieldMapper.TypesQuery(new BytesRef("type1"), new BytesRef("type2")), FILTER)
             .build();
         assertThat(searchFilter, equalTo(expectedQuery));
 
         searchFilter = DefaultSearchContext.createSearchFilter(new String[]{"type1", "type2"}, new MatchAllDocsQuery(), randomBoolean());
         expectedQuery = new BooleanQuery.Builder()
-            .add(new TermsQuery(TypeFieldMapper.NAME, new BytesRef("type1"), new BytesRef("type2")), FILTER)
+            .add(new TypeFieldMapper.TypesQuery(new BytesRef("type1"), new BytesRef("type2")), FILTER)
             .add(new MatchAllDocsQuery(), FILTER)
             .build();
         assertThat(searchFilter, equalTo(expectedQuery));

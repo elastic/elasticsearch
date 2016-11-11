@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -101,14 +102,27 @@ public class S3Repository extends BlobStoreRepository {
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING =
             Setting.boolSetting("repositories.s3.server_side_encryption", false, Property.NodeScope);
+
+        /**
+         * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
+         * the available memory for smaller heaps.
+         */
+        ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
+                Math.max(
+                        ByteSizeUnit.MB.toBytes(5), // minimum value
+                        Math.min(
+                                ByteSizeUnit.MB.toBytes(100),
+                                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)),
+                ByteSizeUnit.BYTES);
+
         /**
          * repositories.s3.buffer_size: Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
          * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
          * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
-         * use of the Multipart API and may result in upload errors. Defaults to 100m.
+         * use of the Multipart API and may result in upload errors. Defaults to the minimum between 100MB and 5% of the heap size.
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.s3.buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+            Setting.byteSizeSetting("repositories.s3.buffer_size", DEFAULT_BUFFER_SIZE,
                 new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
         /**
          * repositories.s3.max_retries: Number of retries in case of S3 errors. Defaults to 3.
@@ -195,12 +209,13 @@ public class S3Repository extends BlobStoreRepository {
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
+
         /**
          * buffer_size
          * @see  Repositories#BUFFER_SIZE_SETTING
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+            Setting.byteSizeSetting("buffer_size", Repositories.DEFAULT_BUFFER_SIZE,
                 new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
         /**
          * max_retries
@@ -306,11 +321,12 @@ public class S3Repository extends BlobStoreRepository {
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {
-            BlobPath path = new BlobPath();
-            for(String elem : basePath.split("/")) {
-                path = path.add(elem);
+            if (basePath.startsWith("/")) {
+                basePath = basePath.substring(1);
+                deprecationLogger.deprecated("S3 repository base_path trimming the leading `/`, and " +
+                                                 "leading `/` will not be supported for the S3 repository in future releases");
             }
-            this.basePath = path;
+            this.basePath = new BlobPath().add(basePath);
         } else {
             this.basePath = BlobPath.cleanPath();
         }

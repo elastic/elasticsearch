@@ -35,9 +35,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Set;
 
-/**
- *
- */
 public final class CompletionTokenStream extends TokenStream {
 
     private final PayloadAttribute payloadAttr = addAttribute(PayloadAttribute.class);

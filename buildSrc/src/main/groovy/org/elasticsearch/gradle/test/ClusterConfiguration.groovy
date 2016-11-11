@@ -62,6 +62,15 @@ class ClusterConfiguration {
     @Input
     boolean debug = false
 
+    /**
+     * if <code>true</code> each node will be configured with <tt>discovery.zen.minimum_master_nodes</tt> set
+     * to the total number of nodes in the cluster. This will also cause that each node has `0s` state recovery
+     * timeout which can lead to issues if for instance an existing clusterstate is expected to be recovered
+     * before any tests start
+     */
+    @Input
+    boolean useMinimumMasterNodes = true
+
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
             " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
@@ -95,11 +104,13 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.echo("==> [${new Date()}] checking health: http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}")
+        String waitUrl = "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow"
+        ant.echo(message: "==> [${new Date()}] checking health: ${waitUrl}",
+                 level: 'info')
         // checking here for wait_for_nodes to be >= the number of nodes because its possible
         // this cluster is attempting to connect to nodes created by another task (same cluster name),
         // so there will be more nodes in that case in the cluster state
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}",
+        ant.get(src: waitUrl,
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)

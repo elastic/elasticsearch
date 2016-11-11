@@ -134,7 +134,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     node.put("index", index);
                 }
-                
+
                 return new StringFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
@@ -196,7 +196,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

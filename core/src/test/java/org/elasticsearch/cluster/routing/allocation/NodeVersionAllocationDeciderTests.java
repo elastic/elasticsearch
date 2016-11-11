@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryA
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -293,11 +292,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testRebalanceDoesNotAllocatePrimaryAndReplicasOnDifferentVersionNodes() {
         ShardId shard1 = new ShardId("test1", "_na_", 0);
         ShardId shard2 = new ShardId("test2", "_na_", 0);
-        final DiscoveryNode newNode = new DiscoveryNode("newNode", LocalTransportAddress.buildUnique(), emptyMap(),
+        final DiscoveryNode newNode = new DiscoveryNode("newNode", buildNewFakeTransportAddress(), emptyMap(),
                 MASTER_DATA_ROLES, Version.CURRENT);
-        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", LocalTransportAddress.buildUnique(), emptyMap(),
+        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", buildNewFakeTransportAddress(), emptyMap(),
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
-        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", LocalTransportAddress.buildUnique(), emptyMap(),
+        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", buildNewFakeTransportAddress(), emptyMap(),
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();
@@ -336,11 +335,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRestoreDoesNotAllocateSnapshotOnOlderNodes() {
-        final DiscoveryNode newNode = new DiscoveryNode("newNode", LocalTransportAddress.buildUnique(), emptyMap(),
+        final DiscoveryNode newNode = new DiscoveryNode("newNode", buildNewFakeTransportAddress(), emptyMap(),
                 MASTER_DATA_ROLES, Version.CURRENT);
-        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", LocalTransportAddress.buildUnique(), emptyMap(),
+        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", buildNewFakeTransportAddress(), emptyMap(),
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
-        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", LocalTransportAddress.buildUnique(), emptyMap(),
+        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", buildNewFakeTransportAddress(), emptyMap(),
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
 
         int numberOfShards = randomIntBetween(1, 3);
@@ -372,7 +371,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState stabilize(ClusterState clusterState, AllocationService service) {
-        logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
+        logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes());
 
         clusterState = service.deassociateDeadNodes(clusterState, true, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
@@ -381,7 +380,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         logger.info("complete rebalancing");
         boolean changed;
         do {
-            logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
+            logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes());
             ClusterState newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
             changed = newState.equals(clusterState) == false;
             clusterState = newState;
@@ -392,7 +391,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
-        logger.trace("RoutingNodes: {}", routingNodes.prettyPrint());
+        logger.trace("RoutingNodes: {}", routingNodes);
 
         List<ShardRouting> mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.RELOCATING);
         for (ShardRouting r : mutableShardRoutings) {

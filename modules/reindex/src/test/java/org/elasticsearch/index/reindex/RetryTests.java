@@ -109,7 +109,7 @@ public class RetryTests extends ESSingleNodeTestCase {
         // Enable http so we can test retries on reindex from remote. In this case the "remote" cluster is just this cluster.
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
-        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");
+        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*");
         if (useNetty3) {
             settings.put(NetworkModule.HTTP_TYPE_KEY, Netty3Plugin.NETTY_HTTP_TRANSPORT_NAME);
             settings.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME);
@@ -125,8 +125,8 @@ public class RetryTests extends ESSingleNodeTestCase {
     public void testReindexFromRemote() throws Exception {
         NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
         TransportAddress address = nodeInfo.getHttp().getAddress().publishAddress();
-        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null,
-                emptyMap());
+        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
+            null, emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);
         testCase(ReindexAction.NAME, request, matcher().created(DOC_COUNT));

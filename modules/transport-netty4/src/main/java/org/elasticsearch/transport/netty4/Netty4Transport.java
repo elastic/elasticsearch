@@ -54,7 +54,6 @@ import org.elasticsearch.common.network.NetworkService.TcpSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -96,7 +95,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
-            (s) -> Integer.toString(EsExecutors.boundedNumberOfProcessors(s) * 2),
+            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope, Property.Shared);
 
     public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
@@ -333,7 +332,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
+        InetSocketAddress address = node.getAddress().address();
         ChannelFuture connect = bootstrap.connect(address);
         connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
         if (!connect.isSuccess()) {
@@ -364,7 +363,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                     connectionsPerNodeState +
                     connectionsPerNodeRecovery;
             final ArrayList<ChannelFuture> connections = new ArrayList<>(numConnections);
-            final InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
+            final InetSocketAddress address = node.getAddress().address();
             for (int i = 0; i < numConnections; i++) {
                 connections.add(bootstrap.connect(address));
             }
@@ -445,19 +444,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close) {
+    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) {
         final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
-        if (close) {
-            future.addListener(f -> {
-                try {
-                    sendListener.run();
-                } finally {
-                    future.channel().close();
-                }
-            });
-        } else {
-            future.addListener(f -> sendListener.run());
-        }
+        future.addListener(f -> sendListener.run());
     }
 
     @Override

@@ -68,7 +68,7 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
-        return (indexSettings.getIndexVersionCreated().before(Version.V_2_2_0) == true) ?
+        return (indexSettings.getIndexVersionCreated().before(Version.V_2_2_0)) ?
             loadLegacyFieldData(reader, estimator, terms, data) : loadFieldData22(reader, estimator, terms, data);
     }
 

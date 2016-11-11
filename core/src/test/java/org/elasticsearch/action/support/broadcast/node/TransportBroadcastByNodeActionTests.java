@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -192,7 +191,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         final TransportService transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         setClusterState(clusterService, TEST_INDEX);
@@ -248,7 +247,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        return new DiscoveryNode("node_" + nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
     }
 
     @AfterClass

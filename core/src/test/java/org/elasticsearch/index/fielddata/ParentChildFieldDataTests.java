@@ -54,8 +54,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
     private final String parentType = "parent";
     private final String childType = "child";

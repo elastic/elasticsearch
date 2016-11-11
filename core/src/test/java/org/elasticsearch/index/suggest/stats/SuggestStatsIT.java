@@ -47,8 +47,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SuggestStatsIT extends ESIntegTestCase {
     @Override

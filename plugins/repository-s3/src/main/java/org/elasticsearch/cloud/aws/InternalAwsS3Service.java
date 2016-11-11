@@ -42,9 +42,6 @@ import java.util.Map;
 
 import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 
-/**
- *
- */
 public class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
     /**

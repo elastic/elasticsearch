@@ -42,8 +42,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
-/**
- */
 public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     private String index;

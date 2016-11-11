@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -58,7 +59,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.startsWith;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
@@ -120,7 +120,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
         assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
         HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
         assertEquals(queryBuilder.minChildren(), lpq.getMinChildren());
@@ -129,9 +129,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         if (queryBuilder.innerHit() != null) {
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
-            queryBuilder = (HasChildQueryBuilder) queryBuilder.rewrite(context);
-            SearchContext searchContext = SearchContext.current();
-            assertNotNull(searchContext);
+            queryBuilder = (HasChildQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
             Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
             InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
             for (InnerHitBuilder builder : innerHitBuilders.values()) {
@@ -243,7 +241,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         parser = XContentFactory.xContent(query).createParser(query);
         QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
-        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
+        assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [3:17]"));
+        checkWarningHeaders("query malformed, empty clause found at [3:17]");
     }
 
     public void testToQueryInnerQueryType() throws IOException {
@@ -282,7 +281,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(termQuery.getTerm().bytes(), equalTo(ids[0]));
         //check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(type)), booleanQuery.clauses().get(1).getQuery());
+        assertEquals(new TypeFieldMapper.TypesQuery(new BytesRef(type)), booleanQuery.clauses().get(1).getQuery());
     }
 
     @Override

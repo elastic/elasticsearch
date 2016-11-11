@@ -39,9 +39,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartIT extends ESIntegTestCase {
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
@@ -152,7 +149,8 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state.prettyPrint(), recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
+            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state,
+                recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
@@ -160,7 +158,8 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-           assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode()+ "-- \nbefore: \n" + state.prettyPrint() + "\nafter: \n" + afterState.prettyPrint(), recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
+           assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode()+ "-- \nbefore: \n" + state,
+               recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
         }
     }
 }

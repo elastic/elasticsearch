@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Point;
@@ -130,8 +130,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Version version = context.indexVersionCreated();
+    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        Version version = context.getQueryShardContext().indexVersionCreated();
         if (version.before(Version.V_2_2_0)) {
             assertLegacyQuery(queryBuilder, query);
         } else {

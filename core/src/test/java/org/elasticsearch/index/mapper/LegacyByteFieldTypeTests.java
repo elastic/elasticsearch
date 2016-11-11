@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyByteFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Before;
 
 public class LegacyByteFieldTypeTests extends FieldTypeTestCase {
@@ -36,6 +34,6 @@ public class LegacyByteFieldTypeTests extends FieldTypeTestCase {
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
         // bytes are stored as ints
-        assertEquals(Byte.valueOf((byte) 3), ft.valueForSearch(Integer.valueOf(3)));
+        assertEquals(Byte.valueOf((byte) 3), ft.valueForDisplay(Integer.valueOf(3)));
     }
 }

@@ -19,9 +19,15 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.action.ShardValidateQueryRequestTests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
@@ -95,40 +101,23 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testTooLongVersionFromString() {
-        try {
-            Version.fromString("1.0.0.1.3");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("1.0.0.1.3"));
+        assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
     }
 
     public void testTooShortVersionFromString() {
-        try {
-            Version.fromString("1.0");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
-        }
-
+        Exception e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("1.0"));
+        assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
     }
 
     public void testWrongVersionFromString() {
-        try {
-            Version.fromString("WRONG.VERSION");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("WRONG.VERSION"));
+        assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
     }
 
     public void testVersionNoPresentInSettings() {
-        try {
-            Version.indexCreated(Settings.builder().build());
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
-        }
+        Exception e = expectThrows(IllegalStateException.class, () -> Version.indexCreated(Settings.builder().build()));
+        assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
     }
 
     public void testIndexCreatedVersion() {
@@ -278,5 +267,24 @@ public class VersionTests extends ESTestCase {
                 }
             }
         }
+    }
+    private  static final Version V_20_0_0_UNRELEASED = new Version(20000099, Version.CURRENT.luceneVersion);
+
+    // see comment in Version.java about this test
+    public void testUnknownVersions() {
+        assertUnknownVersion(V_20_0_0_UNRELEASED);
+        expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
+        assertUnknownVersion(AliasFilter.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
+        assertUnknownVersion(OsStats.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
+        assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(QueryStringQueryBuilder.V_5_1_0_UNRELEASED);
+        // once we released 5.0.0 and it's added to Version.java we need to remove this constant
+        assertUnknownVersion(Script.V_5_1_0_UNRELEASED);
+        // once we released 5.0.0 and it's added to Version.java we need to remove this constant
+    }
+
+    public static void assertUnknownVersion(Version version) {
+        assertFalse("Version " + version + " has been releaed don't use a new instance of this version",
+            VersionUtils.allVersions().contains(version));
     }
 }

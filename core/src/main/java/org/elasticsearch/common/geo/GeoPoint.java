@@ -32,9 +32,6 @@ import java.util.Arrays;
 import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
-/**
- *
- */
 public final class GeoPoint {
 
     private double lat;

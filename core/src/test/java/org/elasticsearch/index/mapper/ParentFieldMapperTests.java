@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -103,7 +104,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
     public void testNoParentNullFieldCreatedIfNoParentSpecified() throws Exception {
         Index index = new Index("_index", "testUUID");
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
-        NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", new StandardAnalyzer());
+        NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, namedAnalyzer, namedAnalyzer, namedAnalyzer,
             Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());

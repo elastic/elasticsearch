@@ -35,10 +35,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -59,12 +57,13 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     /** Template to fill. */
     private final Script template;
 
-    public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params) {
-        this(new Script(template, scriptType, "mustache", params));
+    public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params) {
+        this(new Script(scriptType, "mustache", template, params));
     }
 
-    public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        this(new Script(template, scriptType, "mustache", params, ct));
+    public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
+        this(new Script(scriptType, "mustache", template,
+            ct == null ? Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()), params));
     }
 
     TemplateQueryBuilder(Script template) {
@@ -120,9 +119,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
-            ScriptContext.Standard.SEARCH, Collections.emptyMap());
-        BytesReference querySource = (BytesReference) executable.run();
+        BytesReference querySource = queryRewriteContext.getTemplateBytes(template);
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
             final QueryParseContext queryParseContext = queryRewriteContext.newParseContext(qSourceParser);
             final QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder().orElseThrow(

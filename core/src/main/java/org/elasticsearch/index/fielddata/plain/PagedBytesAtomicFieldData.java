@@ -31,8 +31,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-/**
- */
 public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
     private final PagedBytes.Reader bytes;

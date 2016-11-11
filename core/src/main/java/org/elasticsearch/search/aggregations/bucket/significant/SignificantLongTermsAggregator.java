@@ -41,9 +41,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
-/**
- *
- */
 public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,

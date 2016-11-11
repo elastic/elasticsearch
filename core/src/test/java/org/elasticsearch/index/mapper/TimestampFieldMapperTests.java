@@ -30,20 +30,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -57,7 +48,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,8 +57,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-/**
- */
 public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build();
@@ -214,12 +202,9 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
                     .field("default", (String) null)
                 .endObject()
                 .endObject().endObject();
-        try {
-            createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping.string()));
-            fail("we should reject the mapping with a TimestampParsingException: default timestamp can not be set to null");
-        } catch (TimestampParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set to null"));
-        }
+        TimestampParsingException e = expectThrows(TimestampParsingException.class, () -> createIndex("test", BW_SETTINGS).mapperService()
+                .documentMapperParser().parse("type", new CompressedXContent(mapping.string())));
+        assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set to null"));
     }
 
     // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
@@ -231,12 +216,9 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject();
 
-        try {
-            createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping.string()));
-            fail("we should reject the mapping with a TimestampParsingException: default timestamp can not be set to null");
-        } catch (TimestampParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set to null"));
-        }
+        TimestampParsingException e = expectThrows(TimestampParsingException.class, () -> createIndex("test", BW_SETTINGS).mapperService()
+                .documentMapperParser().parse("type", new CompressedXContent(mapping.string())));
+        assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set to null"));
     }
 
     // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
@@ -249,12 +231,9 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject();
 
-        try {
-            createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping.string()));
-            fail("we should reject the mapping with a TimestampParsingException: default timestamp can not be set with ignore_missing set to false");
-        } catch (TimestampParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set with ignore_missing set to false"));
-        }
+        TimestampParsingException e = expectThrows(TimestampParsingException.class, () -> createIndex("test", BW_SETTINGS).mapperService()
+                .documentMapperParser().parse("type", new CompressedXContent(mapping.string())));
+        assertThat(e.getDetailedMessage(), containsString("default timestamp can not be set with ignore_missing set to false"));
     }
 
     // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]

@@ -46,8 +46,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class ExplainActionIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test")

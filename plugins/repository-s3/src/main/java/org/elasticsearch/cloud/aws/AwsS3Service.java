@@ -29,9 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Locale;
 import java.util.function.Function;
 
-/**
- *
- */
 public interface AwsS3Service extends LifecycleComponent {
 
     // Global AWS settings (shared between discovery-ec2 and repository-s3)

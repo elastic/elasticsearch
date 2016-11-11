@@ -89,7 +89,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
         QueryBuilder innerQueryBuilder = queryBuilder.query();
         assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
         ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
@@ -97,9 +97,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         if (queryBuilder.innerHit() != null) {
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
-            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(context);
+            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
 
-            SearchContext searchContext = SearchContext.current();
             assertNotNull(searchContext);
             Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
             InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);

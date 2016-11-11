@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -79,7 +78,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
             if (i < ingestNodes) {
                 roles.add(DiscoveryNode.Role.INGEST);
             }
-            DiscoveryNode node = new DiscoveryNode(nodeId, nodeId, LocalTransportAddress.buildUnique(), attributes, roles, VersionUtils.randomVersion(random()));
+            DiscoveryNode node = new DiscoveryNode(nodeId, nodeId, buildNewFakeTransportAddress(), attributes, roles, VersionUtils.randomVersion(random()));
             builder.add(node);
             if (i == totalNodes - 1) {
                 localNode = node;
@@ -89,7 +88,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         when(clusterService.state()).thenReturn(clusterState.build());
-        transportService = new TransportService(Settings.EMPTY, null, null, interceptor);
+        transportService = new TransportService(Settings.EMPTY, null, null, interceptor, null);
         return new IngestProxyActionFilter(clusterService, transportService);
     }
 
@@ -268,16 +267,5 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         verify(actionListener, never()).onResponse(any(TransportResponse.class));
         assertTrue(run.get());
 
-    }
-
-    private static class IngestNodeMatcher extends CustomTypeSafeMatcher<DiscoveryNode> {
-        private IngestNodeMatcher() {
-            super("discovery node should be an ingest node");
-        }
-
-        @Override
-        protected boolean matchesSafely(DiscoveryNode node) {
-            return node.isIngestNode();
-        }
     }
 }

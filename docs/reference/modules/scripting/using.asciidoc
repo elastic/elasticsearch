@@ -8,12 +8,12 @@ the same pattern:
 -------------------------------------
   "script": {
     "lang":   "...",  <1>
-    "inline" | "id" | "file": "...", <2>
+    "inline" | "stored" | "file": "...", <2>
     "params": { ... } <3>
   }
 -------------------------------------
 <1> The language the script is written in, which defaults to `painless`.
-<2> The script itself which may be specfied as `inline`, `id`, or `file`.
+<2> The script itself which may be specified as `inline`, `stored`, or `file`.
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a
@@ -211,7 +211,7 @@ GET _scripts/groovy/calculate-score
 // CONSOLE
 // TEST[continued]
 
-Stored scripts can be used by specifying the `lang` and `id` parameters as follows:
+Stored scripts can be used by specifying the `lang` and `stored` parameters as follows:
 
 [source,js]
 --------------------------------------------------
@@ -221,7 +221,7 @@ GET _search
     "script": {
       "script": {
         "lang": "groovy",
-        "id":   "calculate-score",
+        "stored": "calculate-score",
         "params": {
           "my_modifier": 2
         }

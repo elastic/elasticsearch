@@ -82,8 +82,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     /**

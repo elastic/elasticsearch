@@ -42,7 +42,7 @@ public interface NetworkPlugin {
      * Returns a list of {@link TransportInterceptor} instances that are used to intercept incoming and outgoing
      * transport (inter-node) requests. This must not return <code>null</code>
      */
-    default List<TransportInterceptor> getTransportInterceptors() {
+    default List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
         return Collections.emptyList();
     }
 

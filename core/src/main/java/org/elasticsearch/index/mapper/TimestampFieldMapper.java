@@ -179,7 +179,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             return value;
         }
     }

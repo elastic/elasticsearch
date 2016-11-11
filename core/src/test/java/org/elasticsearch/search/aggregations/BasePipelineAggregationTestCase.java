@@ -46,7 +46,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelineAggregationBuilder<AF>> extends ESTestCase {
 
@@ -73,6 +73,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     /**
      * Setup for the whole base test class.
      */
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         Settings settings = Settings.builder()
@@ -153,28 +154,9 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
 
 
     public void testEqualsAndHashcode() throws IOException {
-        AF firstAgg = createTestAggregatorFactory();
-        assertFalse("aggregation is equal to null", firstAgg.equals(null));
-        assertFalse("aggregation is equal to incompatible type", firstAgg.equals(""));
-        assertTrue("aggregation is not equal to self", firstAgg.equals(firstAgg));
-        assertThat("same aggregation's hashcode returns different values if called multiple times", firstAgg.hashCode(),
-                equalTo(firstAgg.hashCode()));
-
-        AF secondQuery = copyAggregation(firstAgg);
-        assertTrue("aggregation is not equal to self", secondQuery.equals(secondQuery));
-        assertTrue("aggregation is not equal to its copy", firstAgg.equals(secondQuery));
-        assertTrue("equals is not symmetric", secondQuery.equals(firstAgg));
-        assertThat("aggregation copy's hashcode is different from original hashcode", secondQuery.hashCode(), equalTo(firstAgg.hashCode()));
-
-        AF thirdQuery = copyAggregation(secondQuery);
-        assertTrue("aggregation is not equal to self", thirdQuery.equals(thirdQuery));
-        assertTrue("aggregation is not equal to its copy", secondQuery.equals(thirdQuery));
-        assertThat("aggregation copy's hashcode is different from original hashcode", secondQuery.hashCode(),
-                equalTo(thirdQuery.hashCode()));
-        assertTrue("equals is not transitive", firstAgg.equals(thirdQuery));
-        assertThat("aggregation copy's hashcode is different from original hashcode", firstAgg.hashCode(), equalTo(thirdQuery.hashCode()));
-        assertTrue("equals is not symmetric", thirdQuery.equals(secondQuery));
-        assertTrue("equals is not symmetric", thirdQuery.equals(firstAgg));
+        // TODO we only change name and boost, we should extend by any sub-test supplying a "mutate" method that randomly changes one
+        // aspect of the object under test
+        checkEqualsAndHashCode(createTestAggregatorFactory(), this::copyAggregation);
     }
 
     // we use the streaming infra to create a copy of the query provided as

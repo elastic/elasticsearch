@@ -53,8 +53,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testReasonOrdinalOrder() {
         UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[]{
@@ -308,7 +306,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         // make sure both replicas are marked as delayed (i.e. not reallocated)
         clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
-        assertThat(clusterState.prettyPrint(), UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(2));
+        assertThat(clusterState.toString(), UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(2));
     }
 
     public void testFindNextDelayedAllocation() {

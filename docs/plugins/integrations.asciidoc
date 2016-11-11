@@ -201,4 +201,3 @@ These projects appear to have been abandoned:
   D3.
 * https://github.com/OlegKunitsyn/eslogd[eslogd]:
   Linux daemon that replicates events to a central Elasticsearch server in realtime
->>>>>>> 02602a3... Update integrations.asciidoc (#18915)

@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -420,7 +419,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexingOperationListener listener = new IndexingOperationListener() {
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
                 try {
                     assertNotNull(shardRef.get());
                     // this is all IMC needs to do - check current memory and refresh
@@ -434,7 +433,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
 
             @Override
-            public void postDelete(Engine.Delete delete) {
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
                 try {
                     assertNotNull(shardRef.get());
                     // this is all IMC needs to do - check current memory and refresh
@@ -459,7 +458,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
 
     public  static final IndexShard recoverShard(IndexShard newShard) throws IOException {
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
         newShard.updateRoutingEntry(newShard.routingEntry().moveToStarted());

@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -111,6 +113,82 @@ public class ObjectParserTests extends ESTestCase {
         assertNotNull(s.object);
         assertEquals(s.object.test, 0);
 
+    }
+
+    /**
+     * This test ensures we can use a classic pull-parsing parser
+     * together with the object parser
+     */
+    public void testUseClassicPullParsingSubParser() throws IOException {
+        class ClassicParser {
+            URI parseURI(XContentParser parser) throws IOException {
+                String fieldName = null;
+                String host = "";
+                int port = 0;
+                XContentParser.Token token;
+                while (( token = parser.currentToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        fieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.VALUE_STRING){
+                        if (fieldName.equals("host")) {
+                            host = parser.text();
+                        } else {
+                            throw new IllegalStateException("boom");
+                        }
+                    } else if (token == XContentParser.Token.VALUE_NUMBER){
+                        if (fieldName.equals("port")) {
+                            port = parser.intValue();
+                        } else {
+                            throw new IllegalStateException("boom");
+                        }
+                    }
+                    parser.nextToken();
+                }
+                return URI.create(host + ":" + port);
+            }
+        }
+        class Foo {
+            public String name;
+            public URI uri;
+            public void setName(String name) {
+                this.name = name;
+            }
+
+            public void setURI(URI uri) {
+                this.uri = uri;
+            }
+        }
+
+        class CustomParseFieldMatchSupplier implements ParseFieldMatcherSupplier {
+
+            public final ClassicParser parser;
+
+            CustomParseFieldMatchSupplier(ClassicParser parser) {
+                this.parser = parser;
+            }
+
+            @Override
+            public ParseFieldMatcher getParseFieldMatcher() {
+                return ParseFieldMatcher.EMPTY;
+            }
+
+            public URI parseURI(XContentParser parser) {
+                try {
+                    return this.parser.parseURI(parser);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser("{\"url\" : { \"host\": \"http://foobar\", \"port\" : 80}, \"name\" : \"foobarbaz\"}");
+        ObjectParser<Foo, CustomParseFieldMatchSupplier> objectParser = new ObjectParser<>("foo");
+        objectParser.declareString(Foo::setName, new ParseField("name"));
+        objectParser.declareObjectOrDefault(Foo::setURI, (p, s) -> s.parseURI(p), () -> null, new ParseField("url"));
+        Foo s = objectParser.parse(parser, new Foo(), new CustomParseFieldMatchSupplier(new ClassicParser()));
+        assertEquals(s.uri.getHost(),  "foobar");
+        assertEquals(s.uri.getPort(),  80);
+        assertEquals(s.name, "foobarbaz");
     }
 
     public void testExceptions() throws IOException {

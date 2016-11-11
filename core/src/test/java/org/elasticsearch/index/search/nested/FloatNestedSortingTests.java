@@ -43,8 +43,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class FloatNestedSortingTests extends DoubleNestedSortingTests {
 
     @Override

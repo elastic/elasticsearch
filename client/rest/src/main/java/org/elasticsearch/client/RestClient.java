@@ -143,7 +143,7 @@ public class RestClient implements Closeable {
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), (HttpEntity)null, headers);
+        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
     }
 
     /**
@@ -165,9 +165,9 @@ public class RestClient implements Closeable {
 
     /**
      * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
-     * will be used to consume the response body.
+     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, Header...)}
+     * which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
+     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -181,8 +181,7 @@ public class RestClient implements Closeable {
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
-        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
-        return performRequest(method, endpoint, params, entity, responseConsumer, headers);
+        return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, headers);
     }
 
     /**
@@ -196,8 +195,9 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param params the query_string parameters
      * @param entity the body of the request, null if not applicable
-     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback. Controls how the response
-     * body gets streamed from a non-blocking HTTP connection on the client side.
+     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
+     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
+     * connection on the client side.
      * @param headers the optional request headers
      * @return the response returned by Elasticsearch
      * @throws IOException in case of a problem or the connection was aborted
@@ -205,10 +205,10 @@ public class RestClient implements Closeable {
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                                   HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                    Header... headers) throws IOException {
         SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
-        performRequestAsync(method, endpoint, params, entity, responseConsumer, listener, headers);
+        performRequestAsync(method, endpoint, params, entity, httpAsyncResponseConsumerFactory, listener, headers);
         return listener.get();
     }
 
@@ -245,9 +245,9 @@ public class RestClient implements Closeable {
     /**
      * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
      * the provided {@link ResponseListener} will be notified upon completion or failure.
-     * Shortcut to {@link #performRequestAsync(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
-     * will be used to consume the response body.
+     * Shortcut to {@link #performRequestAsync(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, ResponseListener,
+     * Header...)} which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
+     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -258,8 +258,7 @@ public class RestClient implements Closeable {
      */
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
-        performRequestAsync(method, endpoint, params, entity, responseConsumer, responseListener, headers);
+        performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, responseListener, headers);
     }
 
     /**
@@ -274,29 +273,31 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param params the query_string parameters
      * @param entity the body of the request, null if not applicable
-     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback. Controls how the response
-     * body gets streamed from a non-blocking HTTP connection on the client side.
+     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
+     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
+     * connection on the client side.
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
      */
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
         URI uri = buildUri(pathPrefix, endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
         setHeaders(request, headers);
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost().iterator(), request, responseConsumer, failureTrackingResponseListener);
+        performRequestAsync(startTime, nextHost().iterator(), request, httpAsyncResponseConsumerFactory, failureTrackingResponseListener);
     }
 
     private void performRequestAsync(final long startTime, final Iterator<HttpHost> hosts, final HttpRequestBase request,
-                                     final HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                                     final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
         final HttpHost host = hosts.next();
         //we stream the request body if the entity allows for it
         HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
-        client.execute(requestProducer, responseConsumer, new FutureCallback<HttpResponse>() {
+        HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer = httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
+        client.execute(requestProducer, asyncResponseConsumer, new FutureCallback<HttpResponse>() {
             @Override
             public void completed(HttpResponse httpResponse) {
                 try {
@@ -346,7 +347,7 @@ public class RestClient implements Closeable {
                     } else {
                         listener.trackFailure(exception);
                         request.reset();
-                        performRequestAsync(startTime, hosts, request, responseConsumer, listener);
+                        performRequestAsync(startTime, hosts, request, httpAsyncResponseConsumerFactory, listener);
                     }
                 } else {
                     listener.onDefinitiveFailure(exception);
@@ -510,6 +511,7 @@ public class RestClient implements Closeable {
 
     private static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
         Objects.requireNonNull(params, "params must not be null");
+        Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;
             if (pathPrefix != null) {

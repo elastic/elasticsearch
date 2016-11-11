@@ -57,7 +57,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.SuppressLocalMode
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster

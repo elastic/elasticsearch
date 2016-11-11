@@ -20,8 +20,8 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -89,7 +89,7 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
         Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("counter += param1"));
+        assertThat(script.getIdOrCode(), equalTo("counter += param1"));
         assertThat(script.getLang(), equalTo("javascript"));
         Map<String, Object> scriptParams = script.getParams();
         assertThat(scriptParams, notNullValue());
@@ -113,7 +113,7 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        List<ActionRequest<?>> requests = new ArrayList<>();
+        List<DocWriteRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test", "test", "id").source("field", "value"));
         requests.add(new UpdateRequest("test", "test", "id").doc("field", "value"));
         requests.add(new DeleteRequest("test", "test", "id"));

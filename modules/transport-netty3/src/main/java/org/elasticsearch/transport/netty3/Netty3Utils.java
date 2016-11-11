@@ -37,8 +37,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 
-/**
- */
 public class Netty3Utils {
 
     /**
@@ -101,7 +99,6 @@ public class Netty3Utils {
         InternalLoggerFactory.setDefaultFactory(new InternalLoggerFactory() {
             @Override
             public InternalLogger newInstance(String name) {
-                name = name.replace("org.jboss.netty.", "netty3.").replace("org.jboss.netty.", "netty3.");
                 return new Netty3InternalESLogger(Loggers.getLogger(name));
             }
         });

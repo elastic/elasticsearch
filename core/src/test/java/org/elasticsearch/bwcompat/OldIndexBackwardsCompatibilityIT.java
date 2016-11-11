@@ -23,6 +23,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.VersionTests;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -82,7 +83,9 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.test.OldIndexUtils.assertUpgradeWorks;
+import static org.elasticsearch.test.OldIndexUtils.getIndexDir;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // needs at least 2 nodes since it bumps replicas to 1
@@ -187,7 +190,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
-            if (v.isAlpha()) continue; // no guarantees for alpha releases
+            if (v.isRelease() == false) continue; // no guarantees for prereleases
             if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add("index-" + v.toString() + ".zip");
@@ -246,6 +249,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertUpgradeWorks(client(), indexName, version);
         assertDeleteByQueryWorked(indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
+        assertAliasWithBadName(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -431,6 +435,31 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
     }
 
+    private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
+
+    public void testUnreleasedVersion() {
+        VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
+    }
+
+    /**
+     * Search on an alias that contains illegal characters that would prevent it from being created after 5.1.0. It should still be
+     * search-able though.
+     */
+    void assertAliasWithBadName(String indexName, Version version) throws Exception {
+        if (version.onOrAfter(VERSION_5_1_0_UNRELEASED)) {
+            return;
+        }
+        // We can read from the alias just like we can read from the index.
+        String aliasName = "#" + indexName;
+        long totalDocs = client().prepareSearch(indexName).setSize(0).get().getHits().totalHits();
+        assertHitCount(client().prepareSearch(aliasName).setSize(0).get(), totalDocs);
+        assertThat(totalDocs, greaterThanOrEqualTo(2000L));
+
+        // We can remove the alias.
+        assertAcked(client().admin().indices().prepareAliases().removeAlias(indexName, aliasName).get());
+        assertFalse(client().admin().indices().prepareAliasesExist(aliasName).get().exists());
+    }
+
     private Path getNodeDir(String indexFile) throws IOException {
         Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
@@ -448,8 +477,15 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             throw new IllegalStateException("Backwards index must contain exactly one cluster");
         }
 
-        // the bwc scripts packs the indices under this path
-        return list[0].resolve("nodes/0/");
+        int zipIndex = indexFile.indexOf(".zip");
+        final Version version = Version.fromString(indexFile.substring("index-".length(), zipIndex));
+        if (version.before(Version.V_5_0_0_alpha1)) {
+            // the bwc scripts packs the indices under this path
+            return list[0].resolve("nodes/0/");
+        } else {
+            // after 5.0.0, data folders do not include the cluster name
+            return list[0].resolve("0");
+        }
     }
 
     public void testOldClusterStates() throws Exception {
@@ -484,9 +520,19 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
             Path nodeDir = getNodeDir(indexFile);
             logger.info("Parsing cluster state files from index [{}]", indexName);
-            assertNotNull(globalFormat.loadLatestState(logger, nodeDir)); // no exception
-            Path indexDir = nodeDir.resolve("indices").resolve(indexName);
-            assertNotNull(indexFormat.loadLatestState(logger, indexDir)); // no exception
+            final MetaData metaData = globalFormat.loadLatestState(logger, nodeDir);
+            assertNotNull(metaData);
+
+            final Version version = Version.fromString(indexName.substring("index-".length()));
+            final Path dataDir;
+            if (version.before(Version.V_5_0_0_alpha1)) {
+                dataDir = nodeDir.getParent().getParent();
+            } else {
+                dataDir = nodeDir.getParent();
+            }
+            final Path indexDir = getIndexDir(logger, indexName, indexFile, dataDir);
+            assertNotNull(indexFormat.loadLatestState(logger, indexDir));
         }
     }
+
 }

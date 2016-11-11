@@ -19,13 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
 
     public IndicesExistsRequestBuilder(ElasticsearchClient client, IndicesExistsAction action, String... indices) {
@@ -38,12 +34,18 @@ public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestB
     }
 
     /**
-     * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p>
-     * For example indices that don't exist.
+     * Controls whether wildcard expressions will be expanded to existing open indices
      */
-    public IndicesExistsRequestBuilder setIndicesOptions(IndicesOptions options) {
-        request.indicesOptions(options);
+    public IndicesExistsRequestBuilder setExpandWildcardsOpen(boolean expandWildcardsOpen) {
+        request.expandWilcardsOpen(expandWildcardsOpen);
+        return this;
+    }
+
+    /**
+     * Controls whether wildcard expressions will be expanded to existing closed indices
+     */
+    public IndicesExistsRequestBuilder setExpandWildcardsClosed(boolean expandWildcardsClosed) {
+        request.expandWilcardsClosed(expandWildcardsClosed);
         return this;
     }
 }

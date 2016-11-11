@@ -72,9 +72,6 @@ import org.tartarus.snowball.ext.FrenchStemmer;
 
 import java.util.Locale;
 
-/**
- *
- */
 public enum PreBuiltTokenFilters {
 
     WORD_DELIMITER(CachingStrategy.ONE) {

@@ -24,9 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ShardNotFoundException extends ResourceNotFoundException {
     public ShardNotFoundException(ShardId shardId) {
         this(shardId, null);

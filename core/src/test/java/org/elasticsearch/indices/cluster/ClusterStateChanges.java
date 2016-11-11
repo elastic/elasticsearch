@@ -67,7 +67,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -138,10 +137,10 @@ public class ClusterStateChanges extends AbstractComponent {
         try {
             @SuppressWarnings("unchecked") final List<IndexEventListener> listeners = anyList();
             @SuppressWarnings("unchecked") final Consumer<ShardId> globalCheckpointSyncer = any(Consumer.class);
-            when(indicesService.createIndex(any(NodeServicesProvider.class), any(IndexMetaData.class), listeners, globalCheckpointSyncer))
+            when(indicesService.createIndex(any(IndexMetaData.class), listeners, globalCheckpointSyncer))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
-                    IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[1];
+                    IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[0];
                     when(indexService.index()).thenReturn(indexMetaData.getIndex());
                     MapperService mapperService = mock(MapperService.class);
                     when(indexService.mapperService()).thenReturn(mapperService);
@@ -155,7 +154,7 @@ public class ClusterStateChanges extends AbstractComponent {
 
         // services
         TransportService transportService = new TransportService(settings, transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
         MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, null, null) {
             // metaData upgrader should do nothing
             @Override
@@ -163,15 +162,14 @@ public class ClusterStateChanges extends AbstractComponent {
                 return indexMetaData;
             }
         };
-        NodeServicesProvider nodeServicesProvider = new NodeServicesProvider(threadPool, null, null, null, null, null, clusterService);
         MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(settings, clusterService, allocationService,
-            metaDataIndexUpgradeService, nodeServicesProvider, indicesService);
+            metaDataIndexUpgradeService, indicesService);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(settings, clusterService, allocationService);
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(settings, clusterService,
-            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, nodeServicesProvider);
+            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(settings, clusterService, indicesService,
             allocationService, new AliasValidator(settings), environment,
-            nodeServicesProvider, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool);
 
         transportCloseIndexAction = new TransportCloseIndexAction(settings, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);

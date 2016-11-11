@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -39,7 +40,6 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
@@ -48,8 +48,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
@@ -108,7 +109,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     protected Set<String> getObjectsHoldingArbitraryContent() {
         //script_score.script.params can contain arbitrary parameters. no error is expected when adding additional objects
         //within the params object. Score functions get parsed in the data nodes, so they are not validated in the coord node.
-        return new HashSet<>(Arrays.asList(Script.ScriptField.PARAMS.getPreferredName(), ExponentialDecayFunctionBuilder.NAME,
+        return new HashSet<>(Arrays.asList(Script.PARAMS_PARSE_FIELD.getPreferredName(), ExponentialDecayFunctionBuilder.NAME,
                 LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME));
     }
 
@@ -168,16 +169,18 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             String script = "1";
             Map<String, Object> params = Collections.emptyMap();
             functionBuilder = new ScriptScoreFunctionBuilder(
-                    new Script(script, ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params));
+                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, script, params));
             break;
         case 3:
             RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
-            if (randomBoolean()) {
-                randomScoreFunctionBuilder.seed(randomLong());
-            } else if (randomBoolean()) {
-                randomScoreFunctionBuilder.seed(randomInt());
-            } else {
-                randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+            if (randomBoolean()) { // sometimes provide no seed
+                if (randomBoolean()) {
+                    randomScoreFunctionBuilder.seed(randomLong());
+                } else if (randomBoolean()) {
+                    randomScoreFunctionBuilder.seed(randomInt());
+                } else {
+                    randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+                }
             }
             functionBuilder = randomScoreFunctionBuilder;
             break;
@@ -238,7 +241,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FiltersFunctionScoreQuery.class)));
     }
 
@@ -587,13 +590,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         String json =
             "{\n" +
                 "  \"function_score\" : {\n" +
-                "    \"query\" : { },\n" +
+                "    \"query\" : { \"match_all\" : {} },\n" +
                 "    \"functions\" : [ {\n" +
-                "      \"filter\" : { },\n" +
+                "      \"filter\" : { \"match_all\" : {}},\n" +
                 "      \"weight\" : 23.0,\n" +
                 "      \"random_score\" : { }\n" +
                 "    }, {\n" +
-                "      \"filter\" : { },\n" +
+                "      \"filter\" : { \"match_all\" : {}},\n" +
                 "      \"weight\" : 5.0\n" +
                 "    } ],\n" +
                 "    \"score_mode\" : \"multiply\",\n" +
@@ -611,11 +614,11 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     "  \"function_score\" : {\n" +
                     "    \"query\" : { \"match_all\" : {} },\n" +
                     "    \"functions\" : [ {\n" +
-                    "      \"filter\" : { },\n" +
+                    "      \"filter\" : { \"match_all\" : {}},\n" +
                     "      \"weight\" : 23.0,\n" +
                     "      \"random_score\" : { }\n" +
                     "    }, {\n" +
-                    "      \"filter\" : { },\n" +
+                    "      \"filter\" : { \"match_all\" : {}},\n" +
                     "      \"weight\" : 5.0\n" +
                     "    } ],\n" +
                     "    \"score_mode\" : \"multiply\",\n" +
@@ -763,12 +766,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
 
         @Override
-        int getCurrentShardId() {
-            // We can't use the method that normal queries use during this test so we hack something instead
-            return 0;
-        }
-
-        @Override
         public String getName() {
             return NAME;
         }
@@ -777,7 +774,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 throws IOException, ParsingException {
             RandomScoreFunctionBuilder builder = RandomScoreFunctionBuilder.fromXContent(parseContext);
             RandomScoreFunctionBuilderWithFixedSeed replacement = new RandomScoreFunctionBuilderWithFixedSeed();
-            replacement.seed(builder.getSeed());
+            if (builder.getSeed() != null) {
+                replacement.seed(builder.getSeed());
+            }
             return replacement;
         }
     }
@@ -788,5 +787,19 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             return singletonList(new ScoreFunctionSpec<>(RandomScoreFunctionBuilderWithFixedSeed.NAME,
                     RandomScoreFunctionBuilderWithFixedSeed::new, RandomScoreFunctionBuilderWithFixedSeed::fromXContent));
         }
+    }
+
+    @Override
+    protected boolean isCachable(FunctionScoreQueryBuilder queryBuilder) {
+        FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
+        for (FilterFunctionBuilder builder : filterFunctionBuilders) {
+            if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {
+                return false;
+            } else if (builder.getScoreFunction() instanceof RandomScoreFunctionBuilder
+                && ((RandomScoreFunctionBuilder) builder.getScoreFunction()).getSeed() == null) {
+                return false;
+            }
+        }
+        return true;
     }
 }

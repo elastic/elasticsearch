@@ -20,12 +20,9 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -63,7 +60,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 /**
  * A request to add/remove aliases for one or more indices.
  */
-public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements CompositeIndicesRequest {
+public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> {
     private List<AliasActions> allAliasActions = new ArrayList<>();
 
     //indices options that require every specified index to exist, expand wildcards only to open indices and
@@ -501,10 +498,5 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
     public IndicesOptions indicesOptions() {
         return INDICES_OPTIONS;
-    }
-
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return allAliasActions;
     }
 }

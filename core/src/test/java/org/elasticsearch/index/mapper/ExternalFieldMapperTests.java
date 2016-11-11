@@ -29,6 +29,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -39,13 +40,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
@@ -61,8 +61,11 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 Collections.singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
                 Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()));
 
+        Supplier<QueryShardContext> queryShardContext = () -> {
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+        };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
+                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
@@ -110,8 +113,11 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         mapperParsers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
+        Supplier<QueryShardContext> queryShardContext = () -> {
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+        };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
+                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -180,8 +186,11 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         mapperParsers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
+        Supplier<QueryShardContext> queryShardContext = () -> {
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+        };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
+                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")

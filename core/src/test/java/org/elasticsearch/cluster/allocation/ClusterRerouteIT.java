@@ -65,8 +65,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-/**
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterRerouteIT extends ESIntegTestCase {
     private final Logger logger = Loggers.getLogger(ClusterRerouteIT.class);

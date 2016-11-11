@@ -42,7 +42,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
@@ -118,11 +117,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_reindex requires a request body");
         }
-        handleRequest(request, channel, client, true, true);
+        return doPrepareRequest(request, client, true, true);
     }
 
     @Override

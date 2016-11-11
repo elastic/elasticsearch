@@ -73,6 +73,13 @@ setup() {
     verify_archive_installation
 }
 
+@test "[TAR] verify elasticsearch-plugin list runs without any plugins installed" {
+    # previously this would fail because the archive installations did
+    # not create an empty plugins directory
+    local plugins_list=`$ESHOME/bin/elasticsearch-plugin list`
+    [[ -z $plugins_list ]]
+}
+
 @test "[TAR] elasticsearch fails if java executable is not found" {
   local JAVA=$(which java)
 
@@ -103,12 +110,12 @@ setup() {
     local temp=`mktemp -d`
     touch "$temp/jvm.options"
     chown -R elasticsearch:elasticsearch "$temp"
-    echo "-Xms264m" >> "$temp/jvm.options"
-    echo "-Xmx264m" >> "$temp/jvm.options"
+    echo "-Xms512m" >> "$temp/jvm.options"
+    echo "-Xmx512m" >> "$temp/jvm.options"
     export ES_JVM_OPTIONS="$temp/jvm.options"
     export ES_JAVA_OPTS="-XX:-UseCompressedOops"
     start_elasticsearch_service
-    curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":276824064'
+    curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
     curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
     stop_elasticsearch_service
     export ES_JVM_OPTIONS=$es_jvm_options

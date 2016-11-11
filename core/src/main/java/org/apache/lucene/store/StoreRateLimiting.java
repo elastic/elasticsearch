@@ -22,8 +22,6 @@ import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-/**
- */
 public class StoreRateLimiting {
 
     public interface Provider {

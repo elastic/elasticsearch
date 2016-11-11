@@ -3,7 +3,13 @@
 
 :version:        6.0.0-alpha1
 :major-version:  6.x
-:lucene_version: 6.2.0
+
+//////////
+release-state can be: released | prerelease | unreleased
+//////////
+
+:release-state:  unreleased
+:lucene_version: 6.3.0
 :branch:         master
 :jdk:            1.8.0_73
 :defguide:       https://www.elastic.co/guide/en/elasticsearch/guide/master

@@ -21,7 +21,7 @@ The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
 This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/lang-python/{version}/lang-python-{version}.zip.
+{plugin_url}/lang-python/lang-python-{version}.zip.
 
 [[lang-python-remove]]
 [float]
@@ -119,7 +119,7 @@ GET test/_search
     "function_score": {
       "script_score": {
         "script": {
-          "id": "my_script", <2>
+          "stored": "my_script", <2>
           "lang": "python",
           "params": {
             "factor": 2

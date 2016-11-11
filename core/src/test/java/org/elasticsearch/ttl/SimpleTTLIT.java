@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -48,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -301,5 +303,26 @@ public class SimpleTTLIT extends ESIntegTestCase {
         String ttlAsString = mappingSource.get("_ttl").toString();
         assertThat(ttlAsString, is(notNullValue()));
         assertThat(errMsg, ttlAsString, is("{enabled=true}"));
+    }
+
+    // Test for #21457
+    public void testSearchWithTTL() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0.id)
+                .addMapping("type1", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("type1")
+                        .startObject("_ttl").field("enabled", true).endObject()
+                        .endObject()
+                        .endObject()));
+
+        long providedTTLValue = 300000;
+        IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .setTTL(providedTTLValue).setRefreshPolicy(IMMEDIATE).get();
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+
+        SearchResponse searchResponse = client().prepareSearch("test").get();
+        assertSearchResponse(searchResponse);
+        assertEquals(1L, searchResponse.getHits().getTotalHits());
     }
 }

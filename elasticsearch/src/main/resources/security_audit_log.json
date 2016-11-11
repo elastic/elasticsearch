@@ -1,5 +1,5 @@
 {
-  "template": ".security_audit_log*",
+  "index_patterns": ".security_audit_log*",
   "order": 2147483647,
   "settings": {
     "index.mapper.dynamic" : false

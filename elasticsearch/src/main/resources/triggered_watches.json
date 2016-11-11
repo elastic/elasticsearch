@@ -1,5 +1,5 @@
 {
-  "template": ".triggered_watches",
+  "index_patterns": ".triggered_watches",
   "order": 2147483647,
   "settings": {
     "index.number_of_shards": 1,

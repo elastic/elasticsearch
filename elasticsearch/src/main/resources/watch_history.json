@@ -1,5 +1,5 @@
 {
-  "template": ".watcher-history-${xpack.watcher.template.version}*",
+  "index_patterns": ".watcher-history-${xpack.watcher.template.version}*",
   "order": 2147483647,
   "settings": {
     "xpack.watcher.template.version": "${xpack.watcher.template.version}",

@@ -273,7 +273,10 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     protected Store createStore(final Directory directory) throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
+        return createStore(INDEX_SETTINGS, directory);
+    }
+    protected Store createStore(final IndexSettings indexSettings, final Directory directory) throws IOException {
+        final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
             public Directory newDirectory() throws IOException {
                 return directory;
@@ -284,7 +287,7 @@ public class InternalEngineTests extends ESTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
     }
 
     protected Translog createTranslog() throws IOException {
@@ -2120,11 +2123,13 @@ public class InternalEngineTests extends ESTestCase {
             final long size = Files.size(tlogFile);
             logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
             Directory directory = newFSDirectory(src.resolve("0").resolve("index"));
-            Store store = createStore(directory);
+            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, src);
+            final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+            final Store store = createStore(indexSettings, directory);
             final int iters = randomIntBetween(0, 2);
             int numDocs = -1;
             for (int i = 0; i < iters; i++) { // make sure we can restart on an upgraded index
-                try (InternalEngine engine = createEngine(store, translog)) {
+                try (InternalEngine engine = createEngine(indexSettings, store, translog, newMergePolicy())) {
                     try (Searcher searcher = engine.acquireSearcher("test")) {
                         if (i > 0) {
                             assertEquals(numDocs, searcher.reader().numDocs());
@@ -2141,7 +2146,7 @@ public class InternalEngineTests extends ESTestCase {
                 }
             }
 
-            try (InternalEngine engine = createEngine(store, translog)) {
+            try (InternalEngine engine = createEngine(indexSettings, store, translog, newMergePolicy())) {
                 if (numDocs == -1) {
                     try (Searcher searcher = engine.acquireSearcher("test")) {
                         numDocs = searcher.reader().numDocs();

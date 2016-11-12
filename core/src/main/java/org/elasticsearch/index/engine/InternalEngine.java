@@ -47,7 +47,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -531,14 +530,17 @@ public class InternalEngine extends Engine {
     private boolean assertSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
         if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // legacy support
-            return seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no." +
+                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ". seq no: " + seqNo;
         } else if (origin == Operation.Origin.PRIMARY) {
             // sequence number should not be set when operation origin is primary
-            return seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "primary ops should never an assigned seq no. got: " + seqNo;
         } else {
             // sequence number should be set when operation origin is not primary
-            return seqNo >= 0;
+            assert seqNo >= 0 : "replica ops should an assigned seq no. origin: " + origin +
+                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated();
         }
+        return true;
     }
 
     private IndexResult innerIndex(Index index) throws IOException {

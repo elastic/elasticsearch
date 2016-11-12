@@ -1002,7 +1002,7 @@ public final class InternalTestCluster extends TestCluster {
                 wipePendingDataDirectories();
             }
             if (nodes.size() > 0 && autoManageMinMasterNodes) {
-                updateMinMasterNodes(0);
+                updateMinMasterNodes(getMasterNodesCount());
             }
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), newSize);
             return;
@@ -1351,7 +1351,7 @@ public final class InternalTestCluster extends TestCluster {
             final int currentMasters = getMasterNodesCount();
             if (autoManageMinMasterNodes && currentMasters > 1) {
                 // special case for 1 node master - we can't update the min master nodes before we update a second one
-                updateMinMasterNodes(newMasters);
+                updateMinMasterNodes(currentMasters + newMasters);
             }
             for (NodeAndClient nodeAndClient : nodeAndClients) {
                 nodeAndClient.startNode();
@@ -1360,7 +1360,7 @@ public final class InternalTestCluster extends TestCluster {
             if (autoManageMinMasterNodes && currentMasters == 1) {
                 // update once masters have joined
                 validateClusterFormed();
-                updateMinMasterNodes(newMasters);
+                updateMinMasterNodes(currentMasters + newMasters);
             }
         }
     }
@@ -1373,7 +1373,7 @@ public final class InternalTestCluster extends TestCluster {
         if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
             int masters = (int)nodeAndClients.stream().filter(NodeAndClient::isMasterNode).count();
             if (masters > 0) {
-                updateMinMasterNodes(-masters);
+                updateMinMasterNodes(getMasterNodesCount() - masters);
             }
         }
         for (NodeAndClient nodeAndClient: nodeAndClients) {
@@ -1471,12 +1471,13 @@ public final class InternalTestCluster extends TestCluster {
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
         }
+        final int masterNodesCount = getMasterNodesCount();
         // special case to allow stopping one node in a two node cluster and keep it functional
-        final boolean updateMinMaster = nodeAndClient.isMasterNode() && getMasterNodesCount() == 2 && autoManageMinMasterNodes;
+        final boolean updateMinMaster = nodeAndClient.isMasterNode() && masterNodesCount == 2 && autoManageMinMasterNodes;
         if (updateMinMaster) {
-            updateMinMasterNodes(-1);
+            updateMinMasterNodes(masterNodesCount - 1);
         }
-        nodeAndClient.restart(callback, true, getNewMinMasterNodes(0));
+        nodeAndClient.restart(callback, true, getMinMasterNodes(masterNodesCount));
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }
@@ -1486,7 +1487,7 @@ public final class InternalTestCluster extends TestCluster {
             validateClusterFormed();
         }
         if (updateMinMaster) {
-            updateMinMasterNodes(0);
+            updateMinMasterNodes(masterNodesCount);
         }
     }
 
@@ -1535,7 +1536,7 @@ public final class InternalTestCluster extends TestCluster {
         for (NodeAndClient nodeAndClient : startUpOrder) {
             logger.info("resetting node [{}] ", nodeAndClient.name);
             // we already cleared data folders, before starting nodes up
-            nodeAndClient.recreateNodeOnRestart(callback, false, getNewMinMasterNodes(0));
+            nodeAndClient.recreateNodeOnRestart(callback, false, getMinMasterNodes(getMasterNodesCount()));
         }
 
         for (NodeAndClient nodeAndClient : startUpOrder) {
@@ -1632,7 +1633,7 @@ public final class InternalTestCluster extends TestCluster {
      * Starts a node with the given settings and returns it's name.
      */
     public synchronized String startNode(Settings settings) {
-        final int defaultMinMasterNodes = getNewMinMasterNodes(Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0);
+        final int defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + (Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0));
         NodeAndClient buildNode = buildNode(settings, defaultMinMasterNodes);
         startAndPublishNodesAndClients(Collections.singletonList(buildNode));
         return buildNode.name;
@@ -1641,33 +1642,32 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * updates the min master nodes setting in the current running cluster.
      *
-     * @param masterNodesDelta how many masters nodes are being added to the cluster
+     * @param eligableMasterNodeCount the number of master eligable nodes to use as basis for the min master node setting
      */
-    private void updateMinMasterNodes(int masterNodesDelta) {
+    private int updateMinMasterNodes(int eligableMasterNodeCount) {
         assert autoManageMinMasterNodes;
         final int currentMasters = getMasterNodesCount();
-        final int minMasterNodes = getNewMinMasterNodes(masterNodesDelta);
+        final int minMasterNodes = getMinMasterNodes(eligableMasterNodeCount);
         if (currentMasters == 0) {
             // there is no one to update
-        } else if (currentMasters == 1 && minMasterNodes > 1) {
-            // TODO: this can be removed if we remove async node starting
-
-            // we cant really update min master node as it will cause the master to reject it (there is only one)
-            // so instead ensure there is a master
-            client().admin().cluster().prepareHealth().get();
         } else {
             // auto management
             logger.debug("updating min_master_nodes to [{}]", minMasterNodes);
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
-            ));
+            try {
+                assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                    Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
+                ));
+            } catch (Exception e) {
+                throw new ElasticsearchException("failed to update minimum master node to [{}] (current masters [{}])", e,
+                    minMasterNodes, currentMasters);
+            }
         }
+        return minMasterNodes;
     }
 
-    /** calculates a new min master nodes value based on the given change to the number of master nodes */
-    private int getNewMinMasterNodes(int masterNodesDelta) {
-        int mastersAfterState = getMasterNodesCount() + masterNodesDelta;
-        return mastersAfterState / 2 + 1;
+    /** calculates a min master nodes value based on the given number of master nodes */
+    private int getMinMasterNodes(int eligibleMasterNodes) {
+        return eligibleMasterNodes / 2 + 1;
     }
 
     private int getMasterNodesCount() {
@@ -1734,8 +1734,7 @@ public final class InternalTestCluster extends TestCluster {
         final int defaultMinMasterNodes;
         if (autoManageMinMasterNodes) {
             int mastersDelta = Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0;
-            defaultMinMasterNodes = getNewMinMasterNodes(mastersDelta);
-            updateMinMasterNodes(mastersDelta);
+            defaultMinMasterNodes = updateMinMasterNodes(getMasterNodesCount() + mastersDelta);
         } else {
             defaultMinMasterNodes = -1;
         }
@@ -1767,8 +1766,7 @@ public final class InternalTestCluster extends TestCluster {
         final int defaultMinMasterNodes;
         if (autoManageMinMasterNodes) {
            int mastersDelta = Node.NODE_MASTER_SETTING.get(settings) ? numNodes : 0;
-            defaultMinMasterNodes = getNewMinMasterNodes(mastersDelta);
-            updateMinMasterNodes(mastersDelta);
+            defaultMinMasterNodes = updateMinMasterNodes(getMasterNodesCount() + mastersDelta);
         } else {
             defaultMinMasterNodes = -1;
         }
@@ -1794,8 +1792,7 @@ public final class InternalTestCluster extends TestCluster {
         final int defaultMinMasterNodes;
         if (autoManageMinMasterNodes) {
             int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
-            defaultMinMasterNodes = getNewMinMasterNodes(mastersDelta);
-            updateMinMasterNodes(mastersDelta);
+            defaultMinMasterNodes = updateMinMasterNodes(getMasterNodesCount() + mastersDelta);
         } else {
             defaultMinMasterNodes = -1;
         }

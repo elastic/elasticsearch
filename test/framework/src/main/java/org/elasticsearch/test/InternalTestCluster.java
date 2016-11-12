@@ -136,7 +136,6 @@ import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOU
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -506,30 +505,20 @@ public final class InternalTestCluster extends TestCluster {
      * if more nodes than <code>n</code> are present this method will not
      * stop any of the running nodes.
      */
-    public void ensureAtLeastNumDataNodes(int n) {
-        final List<Async<String>> asyncs = new ArrayList<>();
-        synchronized (this) {
-            int size = numDataNodes();
-            for (int i = size; i < n; i++) {
-                logger.info("increasing cluster size from {} to {}", size, n);
-                if (numSharedDedicatedMasterNodes > 0) {
-                    asyncs.add(startDataOnlyNodeAsync());
-                } else {
-                    asyncs.add(startNodeAsync());
-                }
+    public synchronized void ensureAtLeastNumDataNodes(int n) {
+        boolean added = false;
+        int size = numDataNodes();
+        for (int i = size; i < n; i++) {
+            logger.info("increasing cluster size from {} to {}", size, n);
+            added = true;
+            if (numSharedDedicatedMasterNodes > 0) {
+                startDataOnlyNode(Settings.EMPTY);
+            } else {
+                startNode(Settings.EMPTY);
             }
         }
-        try {
-            for (Async<String> async : asyncs) {
-                async.get();
-            }
-        } catch (Exception e) {
-            throw new ElasticsearchException("failed to start nodes", e);
-        }
-        if (!asyncs.isEmpty()) {
-            synchronized (this) {
-                assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodes.size())).get());
-            }
+        if (added) {
+            validateClusterFormed();
         }
     }
 

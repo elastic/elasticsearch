@@ -36,6 +36,7 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportSettings;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,10 +56,12 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
+import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -126,6 +129,38 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
+    private void assertMMNinNodeSetting(InternalTestCluster cluster, int masterNodes) {
+        final int minMasterNodes = masterNodes / 2 + 1;
+        Matcher<Map<? extends String, ? extends String>> minMasterMatcher =
+            hasEntry(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes));
+        Matcher<Map<? extends String, ?>> noMinMasterNodesMatcher = not(hasKey(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
+
+        for (final String node : cluster.getNodeNames()) {
+            Settings nodeSettings = cluster.client(node).admin().cluster().prepareNodesInfo(node).get().getNodes().get(0).getSettings();
+            assertThat("node setting of node [" + node + "] has the wrong min_master_node setting: ["
+                + nodeSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
+                nodeSettings.getAsMap(),
+                cluster.getAutoManageMinMasterNode() ? minMasterMatcher: noMinMasterNodesMatcher);
+        }
+    }
+
+    private void assertMMNinClusterSetting(InternalTestCluster cluster, int masterNodes) {
+        final int minMasterNodes = masterNodes / 2 + 1;
+        Matcher<Map<? extends String, ? extends String>> minMasterMatcher =
+            hasEntry(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes));
+        Matcher<Map<? extends String, ?>> noMinMasterNodesMatcher = not(hasKey(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
+
+        for (final String node : cluster.getNodeNames()) {
+            Settings stateSettings = cluster.client(node).admin().cluster().prepareState().setLocal(true)
+                .get().getState().getMetaData().settings();
+
+            assertThat("dynamic setting for node [" + node + "] has the wrong min_master_node setting : ["
+                    + stateSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
+                stateSettings.getAsMap(),
+                cluster.getAutoManageMinMasterNode() ? minMasterMatcher: noMinMasterNodesMatcher);
+        }
+    }
+
     public void testBeforeTest() throws Exception {
         long clusterSeed = randomLong();
         boolean masterNodes = randomBoolean();
@@ -184,6 +219,8 @@ public class InternalTestClusterTests extends ESTestCase {
                 assertSettings(client.settings(), other.settings(), false);
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
+            assertMMNinNodeSetting(cluster0, cluster0.numMasterNodes());
+            assertMMNinNodeSetting(cluster1, cluster0.numMasterNodes());
             cluster0.afterTest();
             cluster1.afterTest();
         } finally {
@@ -218,12 +255,15 @@ public class InternalTestClusterTests extends ESTestCase {
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
+        final boolean autoManageMinMasterNodes = randomBoolean();
         InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
+            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class),
             Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
+            final int masterCount = cluster.numMasterNodes();
+            assertMMNinNodeSetting(cluster, masterCount);
             final Map<String,Path[]> shardNodePaths = new HashMap<>();
             for (String name: cluster.getNodeNames()) {
                 shardNodePaths.put(name, getNodePaths(cluster, name));
@@ -233,6 +273,7 @@ public class InternalTestClusterTests extends ESTestCase {
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);
             cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
+            assertMMNinClusterSetting(cluster, masterCount - 1);
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
             final String stableNode = randomFrom(cluster.getNodeNames());
@@ -244,8 +285,11 @@ public class InternalTestClusterTests extends ESTestCase {
             final String newNode1 =  cluster.startNode();
             assertThat(getNodePaths(cluster, newNode1)[0], equalTo(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
+            assertMMNinClusterSetting(cluster, masterCount);
+            assertMMNinNodeSetting(cluster, masterCount);
 
             final String newNode2 =  cluster.startNode();
+            assertMMNinClusterSetting(cluster, masterCount + 1);
             final Path newDataPath = getNodePaths(cluster, newNode2)[0];
             final Path newTestMarker = newDataPath.resolve("newTestMarker");
             assertThat(newDataPath, not(dataPath));
@@ -264,6 +308,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
                     equalTo(shardNodePaths.get(name)));
             }
+            assertMMNinNodeSetting(cluster, masterCount);
 
         } finally {
             cluster.close();
@@ -345,6 +390,59 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+    }
 
+    public void testTwoNodeCluster() throws Exception {
+        final boolean autoManageMinMasterNodes = randomBoolean();
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                    .build();
+            }
+
+            @Override
+            public Settings transportClientSettings() {
+                return Settings.builder()
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+            }
+        };
+        boolean enableHttpPipelining = randomBoolean();
+        String nodePrefix = "test";
+        Path baseDir = createTempDir();
+        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, autoManageMinMasterNodes, 2, 2,
+            "test", nodeConfigurationSource, 0, enableHttpPipelining, nodePrefix,
+            Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class), Function.identity());
+        try {
+            cluster.beforeTest(random(), 0.0);
+            assertMMNinNodeSetting(cluster, 2);
+            switch (1) {//randomInt(2)) {
+                case 0:
+                    cluster.stopRandomDataNode();
+                    assertMMNinClusterSetting(cluster, 1);
+                    cluster.startNode();
+                    assertMMNinClusterSetting(cluster, 2);
+                    assertMMNinNodeSetting(cluster, 2);
+                    break;
+                case 1:
+                    cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
+                        @Override
+                        public Settings onNodeStopped(String nodeName) throws Exception {
+                            assertMMNinClusterSetting(cluster, 1);
+                            return super.onNodeStopped(nodeName);
+                        }
+                    });
+                    assertMMNinClusterSetting(cluster, 2);
+                    break;
+                case 2:
+                    cluster.fullRestart();
+                    break;
+            }
+            assertMMNinNodeSetting(cluster, 2);
+        } finally {
+            cluster.close();
+        }
     }
 }

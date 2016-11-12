@@ -66,6 +66,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -132,8 +133,8 @@ import java.util.stream.Stream;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
-import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
@@ -347,6 +348,11 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public String getClusterName() {
         return clusterName;
+    }
+
+    /** returns true if the {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} setting is auto managed by this cluster */
+    public boolean getAutoManageMinMasterNode() {
+        return autoManageMinMasterNodes;
     }
 
     public String[] getNodeNames() {
@@ -607,12 +613,12 @@ public final class InternalTestCluster extends TestCluster {
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
 
         if (autoManageMinMasterNodes) {
-            assert finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
+            assert finalSettings.get(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
                 "min master nodes may not be set when auto managed";
             finalSettings
                 // don't wait too long not to slow down tests
                 .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
-                .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
         }
         MockNode node = new MockNode(finalSettings.build(), plugins);
         return new NodeAndClient(name, node, nodeId);
@@ -895,15 +901,14 @@ public final class InternalTestCluster extends TestCluster {
          */
         void recreateNodeOnRestart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes) throws Exception {
             assert callback != null;
-            resetClient();
             Settings callbackSettings = callback.onNodeStopped(name);
             Settings.Builder newSettings = Settings.builder();
             if (callbackSettings != null) {
                 newSettings.put(callbackSettings);
             }
             if (minMasterNodes >= 0) {
-                assert DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
-                newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes).build();
+                assert ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
+                newSettings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes).build();
             }
 
             // validation is (optionally) done in fullRestart/rollingRestart
@@ -912,6 +917,8 @@ public final class InternalTestCluster extends TestCluster {
                 clearDataIfNeeded(callback);
             }
             createNewNode(newSettings.build());
+            // make sure cashed client points to new node
+            resetClient();
         }
 
         private void clearDataIfNeeded(RestartCallback callback) throws IOException {
@@ -1034,7 +1041,9 @@ public final class InternalTestCluster extends TestCluster {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
             settings.put(Node.NODE_DATA_SETTING.getKey(), false);
-            settings.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s"); // we wait at the end
+            if (autoManageMinMasterNodes) {
+                settings.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s"); // we wait at the end
+            }
 
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes);
             toStartAndPublish.add(nodeAndClient);
@@ -1046,7 +1055,9 @@ public final class InternalTestCluster extends TestCluster {
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
             }
-            settings.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s"); // we wait at the end
+            if (autoManageMinMasterNodes) {
+                settings.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s"); // we wait at the end
+            }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes);
             toStartAndPublish.add(nodeAndClient);
         }
@@ -1071,7 +1082,10 @@ public final class InternalTestCluster extends TestCluster {
     /** ensure a cluster is form with {@link #nodes}.size() nodes. */
     private void validateClusterFormed() {
         final int size = nodes.size();
-        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size)).get();
+        String name = randomFrom(random, getNodeNames());
+        logger.trace("validating cluster formed via [{}], expecting [{}]", name, size);
+        final Client client = client(name);
+        ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size)).get();
         if (response.isTimedOut()) {
             logger.warn("failed to wait for a cluster of size [{}], got [{}]", size, response);
             throw new IllegalStateException("cluster failed to reach the expected size of [" + size + "]");
@@ -1477,7 +1491,7 @@ public final class InternalTestCluster extends TestCluster {
         if (updateMinMaster) {
             updateMinMasterNodes(masterNodesCount - 1);
         }
-        nodeAndClient.restart(callback, true, getMinMasterNodes(masterNodesCount));
+        nodeAndClient.restart(callback, true, autoManageMinMasterNodes ? getMinMasterNodes(masterNodesCount) : -1);
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }
@@ -1536,7 +1550,7 @@ public final class InternalTestCluster extends TestCluster {
         for (NodeAndClient nodeAndClient : startUpOrder) {
             logger.info("resetting node [{}] ", nodeAndClient.name);
             // we already cleared data folders, before starting nodes up
-            nodeAndClient.recreateNodeOnRestart(callback, false, getMinMasterNodes(getMasterNodesCount()));
+            nodeAndClient.recreateNodeOnRestart(callback, false, autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1);
         }
 
         for (NodeAndClient nodeAndClient : startUpOrder) {
@@ -1655,7 +1669,7 @@ public final class InternalTestCluster extends TestCluster {
             logger.debug("updating min_master_nodes to [{}]", minMasterNodes);
             try {
                 assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
+                    Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
                 ));
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to update minimum master node to [{}] (current masters [{}])", e,
@@ -1828,6 +1842,11 @@ public final class InternalTestCluster extends TestCluster {
     public int numDataAndMasterNodes() {
         return dataAndMasterNodes().size();
     }
+
+    public synchronized int numMasterNodes() {
+      return filterNodes(nodes, NodeAndClient::isMasterNode).size();
+    }
+
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         clearDisruptionScheme();

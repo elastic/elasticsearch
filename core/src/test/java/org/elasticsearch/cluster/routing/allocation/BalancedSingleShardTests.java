@@ -120,7 +120,6 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
         assertNotNull(rebalanceDecision.getFinalExplanation());
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
-        assertNotNull(rebalanceDecision.getAssignedNodeId());
     }
 
     public void testRebalancingNotAllowedDueToCanAllocate() {

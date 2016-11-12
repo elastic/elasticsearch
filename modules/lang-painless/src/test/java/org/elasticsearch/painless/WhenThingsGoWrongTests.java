@@ -245,4 +245,20 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                 () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), null, false));
         assertEquals("[painless.regex.enabled] can only be set on node startup.", e.getMessage());
     }
+
+    public void testInvalidIntConstantSuggestsLong() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 864000000000"));
+        assertEquals("Invalid int constant [864000000000]. If you want a long constant then change it to [864000000000L].", e.getMessage());
+        assertEquals(864000000000L, exec("return 864000000000L"));
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -864000000000"));
+        assertEquals("Invalid int constant [-864000000000]. If you want a long constant then change it to [-864000000000L].",
+                e.getMessage());
+        assertEquals(-864000000000L, exec("return -864000000000L"));
+
+        // If it isn't a valid long we don't give any suggestions
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 92233720368547758070"));
+        assertEquals("Invalid int constant [92233720368547758070].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -92233720368547758070"));
+        assertEquals("Invalid int constant [-92233720368547758070].", e.getMessage());
+    }
 }

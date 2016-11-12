@@ -123,7 +123,11 @@ verify_package_installation() {
         assert_file "/usr/lib/systemd/system/elasticsearch.service" f root root 644
         assert_file "/usr/lib/tmpfiles.d/elasticsearch.conf" f root root 644
         assert_file "/usr/lib/sysctl.d/elasticsearch.conf" f root root 644
-        [[ $(sysctl vm.max_map_count) =~ "vm.max_map_count = 262144" ]]
+        if is_rpm; then
+            [[ $(/usr/sbin/sysctl vm.max_map_count) =~ "vm.max_map_count = 262144" ]]
+        else
+            [[ $(/sbin/sysctl vm.max_map_count) =~ "vm.max_map_count = 262144" ]]
+        fi
     fi
 
     if is_sysvinit; then

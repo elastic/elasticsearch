@@ -297,7 +297,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
         }
 
         /**
-         * Finish parsing the object. 
+         * Finish parsing the object.
          */
         private Value finish() {
             if (targetObject != null) {

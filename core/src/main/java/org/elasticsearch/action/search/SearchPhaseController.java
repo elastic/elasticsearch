@@ -30,10 +30,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -72,7 +70,7 @@ import java.util.stream.StreamSupport;
 
 public class SearchPhaseController extends AbstractComponent {
 
-    public static final Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>> QUERY_RESULT_ORDERING = (o1, o2) -> {
+    private static final Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>> QUERY_RESULT_ORDERING = (o1, o2) -> {
         int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
         if (i == 0) {
             i = o1.value.shardTarget().shardId().id() - o2.value.shardTarget().shardId().id();
@@ -80,17 +78,15 @@ public class SearchPhaseController extends AbstractComponent {
         return i;
     };
 
-    public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
+    private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
-    private final ClusterService clusterService;
 
-    SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService) {
+    SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
-        this.clusterService = clusterService;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
@@ -486,7 +482,7 @@ public class SearchPhaseController extends AbstractComponent {
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                 aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
             }
-            ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, clusterService.state());
+            ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService);
             aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
             List<SiblingPipelineAggregator> pipelineAggregators = firstResult.pipelineAggregators();
             if (pipelineAggregators != null) {

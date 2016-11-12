@@ -27,16 +27,24 @@ public class BasicExpressionTests extends ScriptTestCase {
 
     /** simple tests returning a constant value */
     public void testReturnConstant() {
-        assertEquals(5, exec("return 5;"));
-        assertEquals(7L, exec("return 7L;"));
-        assertEquals(7.0, exec("return 7.0;"));
-        assertEquals(32.0F, exec("return 32.0F;"));
-        assertEquals((byte)255, exec("return (byte)255;"));
-        assertEquals((short)5, exec("return (short)5;"));
-        assertEquals("string", exec("return \"string\";"));
-        assertEquals(true, exec("return true;"));
-        assertEquals(false, exec("return false;"));
-        assertNull(exec("return null;"));
+        assertEquals(5, exec("return 5"));
+        assertEquals(6L, exec("return 6l"));
+        assertEquals(7L, exec("return 7L"));
+        assertEquals(7.0d, exec("return 7.0"));
+        assertEquals(18.0d, exec("return 18d"));
+        assertEquals(19.0d, exec("return 19.0d"));
+        assertEquals(20.0d, exec("return 20D"));
+        assertEquals(21.0d, exec("return 21.0D"));
+        assertEquals(32.0F, exec("return 32.0f"));
+        assertEquals(33.0F, exec("return 33f"));
+        assertEquals(34.0F, exec("return 34.0F"));
+        assertEquals(35.0F, exec("return 35F"));
+        assertEquals((byte)255, exec("return (byte)255"));
+        assertEquals((short)5, exec("return (short)5"));
+        assertEquals("string", exec("return \"string\""));
+        assertEquals(true, exec("return true"));
+        assertEquals(false, exec("return false"));
+        assertNull(exec("return null"));
     }
 
     public void testReturnConstantChar() {

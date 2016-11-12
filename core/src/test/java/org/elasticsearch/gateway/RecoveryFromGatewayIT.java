@@ -53,6 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -359,9 +360,13 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 .endObject().endObject().endObject())
             .execute().actionGet();
         client().admin().indices().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute().actionGet();
-        logger.info("--> starting second node back, verifying we got the latest version");
 
-        internalCluster().startNode();
+        logger.info("--> stopping the second node");
+        internalCluster().stopRandomDataNode();
+
+        logger.info("--> starting the two nodes back");
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
@@ -374,7 +379,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metaData().index("test").mapping("type2"), notNullValue());
-        assertThat(state.metaData().templates().get("template_1").template(), equalTo("te*"));
+        assertThat(state.metaData().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
         assertThat(state.metaData().index("test").getAliases().get("test_alias"), notNullValue());
         assertThat(state.metaData().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }

@@ -84,7 +84,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
         Script script = Script.parse(parser, new ParseFieldMatcher(false));
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
-                qe.compile(null, script.getScript(), Collections.emptyMap()));
+                qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
         assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{\"match_all\":{}}"));
     }
@@ -95,7 +95,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
         Script script = Script.parse(parser, new ParseFieldMatcher(false));
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
-                qe.compile(null, script.getScript(), Collections.emptyMap()));
+                qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
         assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{ \"match_all\":{} }"));
     }

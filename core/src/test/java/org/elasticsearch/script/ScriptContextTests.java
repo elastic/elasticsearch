@@ -58,7 +58,7 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptType scriptType : ScriptType.values()) {
             try {
-                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
+                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), Collections.emptyMap());
                 fail("script compilation should have been rejected");
             } catch (IllegalStateException e) {
@@ -69,7 +69,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public void testCustomScriptContextSettings() throws Exception {
         ScriptService scriptService = makeScriptService();
-        Script script = new Script("1", ScriptType.INLINE, MockScriptEngine.NAME, null);
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
         try {
             scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), Collections.emptyMap());
             fail("script compilation should have been rejected");
@@ -87,7 +87,7 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptType scriptType : ScriptType.values()) {
             try {
-                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
+                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), Collections.emptyMap());
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
@@ -106,7 +106,7 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptType scriptType : ScriptType.values()) {
             try {
-                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
+                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
                 scriptService.compile(script, context, Collections.emptyMap());
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {

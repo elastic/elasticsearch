@@ -40,6 +40,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.junit.Before;
 
+import java.util.Collections;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,7 +94,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     public void testIndexTemplates() throws Exception {
         client().admin().indices().preparePutTemplate("foo_template")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
@@ -101,7 +103,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .get();
 
         client().admin().indices().preparePutTemplate("fuu_template")
-                .setTemplate("test*")
+                .setPatterns(Collections.singletonList("test*"))
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field2").field("type", "text").field("store", "no").endObject()

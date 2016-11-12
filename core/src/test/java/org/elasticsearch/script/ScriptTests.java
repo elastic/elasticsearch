@@ -65,7 +65,7 @@ public class ScriptTests extends ESTestCase {
     }
 
     private Script createScript(XContent xContent) throws IOException {
-        final Map<String, Object> params = randomBoolean() ? null : Collections.singletonMap("key", "value");
+        final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         if (scriptType == ScriptType.INLINE) {
@@ -79,11 +79,12 @@ public class ScriptTests extends ESTestCase {
             script = randomAsciiOfLengthBetween(1, 5);
         }
         return new Script(
-                script,
-                scriptType,
-                randomFrom("_lang1", "_lang2", null),
-                params,
-                scriptType == ScriptType.INLINE ? xContent.type() : null
+            scriptType,
+            randomFrom("_lang1", "_lang2", "_lang3"),
+            script,
+            scriptType == ScriptType.INLINE ?
+                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType()) : Collections.emptyMap(),
+            params
         );
     }
 

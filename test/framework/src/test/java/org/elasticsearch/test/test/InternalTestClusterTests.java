@@ -359,7 +359,9 @@ public class InternalTestClusterTests extends ESTestCase {
         try {
             Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
             for (int i = 0; i < numNodes; i++) {
-                final DiscoveryNode.Role role = randomFrom(MASTER, DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST);
+                final DiscoveryNode.Role role = i == numNodes -1 && pathsPerRole.containsKey(MASTER) == false ?
+                    MASTER : // last noe and still no master ofr the cluster
+                    randomFrom(MASTER, DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST);
                 final String node;
                 switch (role) {
                     case MASTER:

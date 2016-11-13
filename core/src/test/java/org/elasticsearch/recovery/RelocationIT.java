@@ -351,7 +351,8 @@ public class RelocationIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
 
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNode();
+        internalCluster().startNode();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);

@@ -21,17 +21,15 @@ package org.elasticsearch.test.discovery;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.PingContextProvider;
 import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,7 +44,11 @@ public final class MockZenPing extends AbstractComponent implements ZenPing {
     /** A marker plugin used by {@link org.elasticsearch.node.MockNode} to indicate this mock zen ping should be used. */
     public static class TestPlugin extends Plugin {}
 
-    static final Map<ClusterName, Set<MockZenPing>> activeNodesPerCluster = ConcurrentCollections.newConcurrentMap();
+    static final Map<ClusterName, Set<MockZenPing>> activeNodesPerCluster = new HashMap<>();
+
+    /** a set of the last discovered pings. used to throttle busy spinning where MockZenPing will keep returning the same results */
+    private Set<MockZenPing> lastDiscoveredPings = null;
+
 
     private volatile PingContextProvider contextProvider;
 
@@ -59,18 +61,34 @@ public final class MockZenPing extends AbstractComponent implements ZenPing {
     public void start(PingContextProvider contextProvider) {
         this.contextProvider = contextProvider;
         assert contextProvider != null;
-        boolean added = getActiveNodesForCurrentCluster().add(this);
-        assert added;
+        synchronized (activeNodesPerCluster) {
+            boolean added = getActiveNodesForCurrentCluster().add(this);
+            assert added;
+            activeNodesPerCluster.notifyAll();
+        }
     }
 
     @Override
     public void ping(PingListener listener, TimeValue timeout) {
         logger.info("pinging using mock zen ping");
-        List<PingResponse> responseList = getActiveNodesForCurrentCluster().stream()
-            .filter(p -> p != this) // remove this as pings are not expected to return the local node
-            .map(MockZenPing::getPingResponse)
-            .collect(Collectors.toList());
-        listener.onPing(responseList);
+        synchronized (activeNodesPerCluster) {
+            Set<MockZenPing> activeNodes = getActiveNodesForCurrentCluster();
+            if (activeNodes.equals(lastDiscoveredPings)) {
+                try {
+                    logger.trace("nothing has changed since the last ping. waiting for a change");
+                    activeNodesPerCluster.wait(timeout.millis());
+                } catch (InterruptedException e) {
+
+                }
+                activeNodes = getActiveNodesForCurrentCluster();
+            }
+            lastDiscoveredPings = activeNodes;
+            List<PingResponse> responseList = activeNodes.stream()
+                .filter(p -> p != this) // remove this as pings are not expected to return the local node
+                .map(MockZenPing::getPingResponse)
+                .collect(Collectors.toList());
+            listener.onPing(responseList);
+        }
     }
 
     private ClusterName getClusterName() {
@@ -83,13 +101,17 @@ public final class MockZenPing extends AbstractComponent implements ZenPing {
     }
 
     private Set<MockZenPing> getActiveNodesForCurrentCluster() {
+        assert Thread.holdsLock(activeNodesPerCluster);
         return activeNodesPerCluster.computeIfAbsent(getClusterName(),
             clusterName -> ConcurrentCollections.newConcurrentSet());
     }
 
     @Override
     public void close() {
-        boolean found = getActiveNodesForCurrentCluster().remove(this);
-        assert found;
+        synchronized (activeNodesPerCluster) {
+            boolean found = getActiveNodesForCurrentCluster().remove(this);
+            assert found;
+            activeNodesPerCluster.notifyAll();
+        }
     }
 }

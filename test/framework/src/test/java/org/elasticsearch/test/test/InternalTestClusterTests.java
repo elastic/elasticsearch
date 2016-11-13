@@ -293,7 +293,9 @@ public class InternalTestClusterTests extends ESTestCase {
             expectedMasterCount++;
             assertThat(getNodePaths(cluster, newNode1)[0], equalTo(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
-            assertMMNinClusterSetting(cluster, expectedMasterCount);
+            if (expectedMasterCount > 1) { // this is the first master, it's in cluster state settings won't be updated
+                assertMMNinClusterSetting(cluster, expectedMasterCount);
+            }
             assertMMNinNodeSetting(cluster, expectedMasterCount);
 
             final String newNode2 =  cluster.startNode();

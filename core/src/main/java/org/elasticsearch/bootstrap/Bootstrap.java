@@ -19,9 +19,12 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
@@ -167,6 +170,8 @@ final class Bootstrap {
                 public void run() {
                     try {
                         IOUtils.close(node);
+                        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+                        Configurator.shutdown(context);
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to stop node", ex);
                     }

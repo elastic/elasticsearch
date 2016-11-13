@@ -19,10 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
@@ -579,7 +576,6 @@ public class Node implements Closeable {
         // start nodes now, after the http server, because it may take some time
         tribeService.startNodes();
 
-
         if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
@@ -720,24 +716,6 @@ public class Node implements Closeable {
         }
         IOUtils.close(toClose);
         logger.info("closed");
-
-        final String log4jShutdownEnabled = System.getProperty("es.log4j.shutdownEnabled", "true");
-        final boolean shutdownEnabled;
-        switch (log4jShutdownEnabled) {
-            case "true":
-                shutdownEnabled = true;
-                break;
-            case "false":
-                shutdownEnabled = false;
-                break;
-            default:
-                throw new IllegalArgumentException(
-                        "invalid value for [es.log4j.shutdownEnabled], was [" + log4jShutdownEnabled + "] but must be [true] or [false]");
-        }
-        if (shutdownEnabled) {
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-        }
     }
 
 

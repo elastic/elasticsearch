@@ -81,12 +81,6 @@ the previous major version to be upgraded to the current major version.  By
 moving directly from Elasticsearch 1.x to 5.x, you will have to solve any
 backwards compatibility issues yourself.
 
-Reindex-from-remote in Elasticsearch 5.0.0 will not preserve `_parent`,
-`_routing`, or `_ttl` fields from a 1.x cluster. Re-indexing documents
-whose mappings require any of these fields, such as child documents, will
-fail. To re-index documents requiring these fields, use Elasticsearch 5.0.1
-or later.
-
 =============================================
 
 You will need to set up a 5.x cluster alongside your existing 1.x cluster.

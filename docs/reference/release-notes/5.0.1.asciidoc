@@ -1,0 +1,124 @@
+[[release-notes-5.0.1]]
+== 5.0.1 Release Notes
+
+Also see <<breaking-changes-5.0>>.
+
+[[deprecation-5.0.1]]
+[float]
+=== Deprecations
+
+CRUD::
+* Deprecate VersionType.FORCE {pull}21078[#21078] (issue: {issue}20995[#20995])
+
+
+
+[[enhancement-5.0.1]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Rescorer should be applied in the TopHits aggregation {pull}20978[#20978] (issue: {issue}19317[#19317])
+
+Internal::
+* ShardActiveResponseHandler shouldn't hold to an entire cluster state {pull}21470[#21470] (issue: {issue}21394[#21394])
+
+Network::
+* Fix handler name on message not fully read {pull}21478[#21478]
+
+Packaging::
+* Add empty plugins dir for archive distributions {pull}21204[#21204] (issue: {issue}20342[#20342])
+* Make explicit missing settings for Windows service {pull}21200[#21200] (issue: {issue}18317[#18317])
+* Change permissions on config files {pull}20966[#20966]
+
+Search::
+* Optimize query with types filter in the URL (t/t/_search) {pull}20979[#20979]
+
+
+
+[[bug-5.0.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Rewrite Queries/Filter in FilterAggregationBuilder and ensure client usage marks query as non-cachable {pull}21303[#21303] (issue: {issue}21301[#21301])
+* Thread safety for scripted significance heuristics {pull}21113[#21113] (issue: {issue}18120[#18120])
+* `ip_range` aggregation should accept null bounds. {pull}21043[#21043] (issue: {issue}21006[#21006])
+
+CAT API::
+* Consume `full_id` request parameter early {pull}21270[#21270] (issue: {issue}21266[#21266])
+
+Cache::
+* Fix the request cache keys to not hold references to the SearchContext. {pull}21284[#21284]
+
+Circuit Breakers::
+* ClusterState publishing shouldn't trigger circuit breakers {pull}20986[#20986] (issues: {issue}20827[#20827], {issue}20960[#20960])
+
+Core::
+* Fix ShardInfo#toString {pull}21319[#21319]
+* Protect BytesStreamOutput against overflows of the current number of written bytes. {pull}21174[#21174] (issue: {issue}21159[#21159])
+* Return target index name even if _rollover conditions are not met {pull}21138[#21138]
+
+Engine::
+* Retrying replication requests on replica doesn't call `onRetry` {pull}21189[#21189] (issue: {issue}20211[#20211])
+
+Index APIs::
+* Validate the `_rollover` target index name early to also fail if dry_run=true {pull}21330[#21330] (issue: {issue}21149[#21149])
+
+Ingest::
+* Stored scripts and ingest node configurations should be included into a snapshot {pull}21227[#21227] (issue: {issue}21184[#21184])
+
+Internal::
+* Restore thread's original context before returning to the ThreadPool {pull}21411[#21411]
+
+Java API::
+* Fix InternalSearchHit#hasSource to return the proper boolean value {pull}21441[#21441] (issue: {issue}21419[#21419])
+* Null checked for source when calling sourceRef {pull}21431[#21431] (issue: {issue}19279[#19279])
+* ClusterAdminClient.prepareDeletePipeline method should accept pipeline id to delete {pull}21228[#21228]
+
+Java REST Client::
+* Rest client: don't reuse the same HttpAsyncResponseConsumer across multiple retries {pull}21378[#21378]
+
+Logging::
+* Assert status logger does not warn on Log4j usage {pull}21339[#21339]
+* Fix logger names for Netty {pull}21223[#21223] (issue: {issue}20457[#20457])
+
+Packaging::
+* Set vm.max_map_count on systemd package install {pull}21507[#21507]
+* Export ES_JVM_OPTIONS for SysV init {pull}21445[#21445] (issue: {issue}21255[#21255])
+* Debian: configure start-stop-daemon to not go into background {pull}21343[#21343] (issues: {issue}12716[#12716], {issue}21300[#21300])
+* Generate POM files with non-wildcard excludes {pull}21234[#21234] (issue: {issue}21170[#21170])
+
+Query DSL::
+* Max score should be updated when a rescorer is used {pull}20977[#20977] (issue: {issue}20651[#20651])
+
+REST::
+* The routing query string param is supported by mget but was missing from the rest spec {pull}21357[#21357]
+* fix thread_pool_patterns path variable definition {pull}21332[#21332]
+* ensure the XContentBuilder is always closed in RestBuilderListener {pull}21124[#21124]
+
+Reindex API::
+* Bump reindex-from-remote's buffer to 200mb {pull}21222[#21222] (issue: {issue}21185[#21185])
+* Fix reindex-from-remote for parent/child from <2.0 {pull}21070[#21070] (issue: {issue}21044[#21044])
+
+Search::
+* Fixes cachability problems with fetching TTL values when searching {pull}21493[#21493] (issue: {issue}21457[#21457])
+* Remove LateParsingQuery to prevent timestamp access after context is frozen {pull}21328[#21328] (issue: {issue}21295[#21295])
+
+Snapshot/Restore::
+* Ensures cleanup of temporary index-* generational blobs during snapshotting {pull}21469[#21469] (issue: {issue}21462[#21462])
+* Fixes get snapshot duplicates when asking for _all {pull}21340[#21340] (issue: {issue}21335[#21335])
+
+
+
+[[upgrade-5.0.1]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to Lucene 6.2.1 {pull}21207[#21207]
+
+Dates::
+* Update Joda Time to version 2.9.5 {pull}21468[#21468] (issue: {issue}20911[#20911])
+
+
+

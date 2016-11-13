@@ -418,17 +418,6 @@ you are likely to find. This should allow you to upgrade from any version of
 Elasticsearch to the current version by reindexing from a cluster of the old
 version.
 
-[WARNING]
-=============================================
-
-Reindex-from-remote in Elasticsearch 5.0.0 will not preserve `_parent`,
-`_routing`, or `_ttl` fields from a 1.x cluster. Re-indexing documents
-whose mappings require any of these fields, such as child documents, will
-fail. To re-index documents requiring these fields, use Elasticsearch 5.0.1
-or later.
-
-=============================================
-
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 

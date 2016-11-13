@@ -102,3 +102,56 @@
   - match: { dry_run: false }
   - match: { conditions: { "[max_docs: 1]": false } }
 
+---
+"Rollover with dry-run but target index exists":
+
+  - skip:
+        version: " - 5.0.0"
+        reason:  bug fixed in 5.0.1 - dry run was returning just fine even if the index exists
+
+  # create index with alias
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_index: {}
+            logs_search: {}
+
+  - do:
+      indices.create:
+        index: logs-000002
+
+  - do:
+      catch: /index_already_exists_exception/
+      indices.rollover:
+        dry_run: true
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  # also do it without dry_run
+  - do:
+      catch: /index_already_exists_exception/
+      indices.rollover:
+        dry_run: false
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  - do:
+      catch: /invalid_index_name_exception/
+      indices.rollover:
+        new_index: invalid|index|name
+        dry_run: true
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+

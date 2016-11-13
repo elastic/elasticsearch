@@ -36,6 +36,12 @@ export_elasticsearch_paths() {
     export ESDATA="/var/lib/elasticsearch"
     export ESLOG="/var/log/elasticsearch"
     export ESPIDDIR="/var/run/elasticsearch"
+    if is_dpkg; then
+        export ESENVFILE="/etc/default/elasticsearch"
+    fi
+    if is_rpm; then
+        export ESENVFILE="/etc/sysconfig/elasticsearch"
+    fi
 }
 
 # Install the rpm or deb package.
@@ -117,6 +123,11 @@ verify_package_installation() {
         assert_file "/usr/lib/systemd/system/elasticsearch.service" f root root 644
         assert_file "/usr/lib/tmpfiles.d/elasticsearch.conf" f root root 644
         assert_file "/usr/lib/sysctl.d/elasticsearch.conf" f root root 644
+        if is_rpm; then
+            [[ $(/usr/sbin/sysctl vm.max_map_count) =~ "vm.max_map_count = 262144" ]]
+        else
+            [[ $(/sbin/sysctl vm.max_map_count) =~ "vm.max_map_count = 262144" ]]
+        fi
     fi
 
     if is_sysvinit; then

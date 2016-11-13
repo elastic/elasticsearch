@@ -1904,7 +1904,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
     }
 
-    @AwaitsFix(bugUrl = "NOCOMMIT")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21501")
     public void testRangeQueryWithTimeZone() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "date", "type=date", "num", "type=integer"));

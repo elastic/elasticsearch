@@ -562,7 +562,7 @@ public class HistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field(SINGLE_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -639,7 +639,7 @@ public class HistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field(MULTI_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -675,7 +675,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
-                            .script(new Script("doc['l_value'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                            .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_value'].value", emptyMap()))
                             .interval(interval))
                 .execute().actionGet();
 
@@ -699,7 +699,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
-                                .script(new Script("doc['l_values']", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_values']", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -1016,7 +1016,7 @@ public class HistogramIT extends ESIntegTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(histogram("histo").field("d")
-                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())).interval(0.7).offset(0.05)).get();
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap())).interval(0.7).offset(0.05)).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

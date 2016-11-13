@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -89,7 +90,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         ensureGreen();
         client().prepareIndex("index", "type", "1")
             .setSource(jsonBuilder().startObject().field("query", QueryBuilders.scriptQuery(
-                new Script("1==1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))).endObject())
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1==1", Collections.emptyMap()))).endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute().actionGet();
         PercolateResponse response = preparePercolate(client())

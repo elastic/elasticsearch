@@ -170,7 +170,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             sizeInBytes += request.upsertRequest().source().length();
         }
         if (request.script() != null) {
-            sizeInBytes += request.script().getScript().length() * 2;
+            sizeInBytes += request.script().getIdOrCode().length() * 2;
         }
         return this;
     }

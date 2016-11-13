@@ -117,9 +117,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         super.afterIfFailed(errors);
     }
 
-    public static Iterable<Object[]> createParameters(int id, int count) throws IOException, ClientYamlTestParseException {
+    public static Iterable<Object[]> createParameters() throws IOException, ClientYamlTestParseException {
         //parse tests only if rest test group is enabled, otherwise rest tests might not even be available on file system
-        List<ClientYamlTestCandidate> restTestCandidates = collectTestCandidates(id, count);
+        List<ClientYamlTestCandidate> restTestCandidates = collectTestCandidates();
         List<Object[]> objects = new ArrayList<>();
         for (ClientYamlTestCandidate restTestCandidate : restTestCandidates) {
             objects.add(new Object[]{restTestCandidate});
@@ -127,7 +127,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return objects;
     }
 
-    private static List<ClientYamlTestCandidate> collectTestCandidates(int id, int count) throws ClientYamlTestParseException, IOException {
+    private static List<ClientYamlTestCandidate> collectTestCandidates() throws ClientYamlTestParseException, IOException {
         List<ClientYamlTestCandidate> testCandidates = new ArrayList<>();
         FileSystem fileSystem = getFileSystem();
         // don't make a try-with, getFileSystem returns null
@@ -140,12 +140,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             for (String api : yamlSuites.keySet()) {
                 List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
                 for (Path yamlFile : yamlFiles) {
-                    String key = api + yamlFile.getFileName().toString();
-                    if (mustExecute(key, id, count)) {
-                        ClientYamlTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
-                        for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
-                            testCandidates.add(new ClientYamlTestCandidate(restTestSuite, testSection));
-                        }
+                    ClientYamlTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
+                    for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
+                        testCandidates.add(new ClientYamlTestCandidate(restTestSuite, testSection));
                     }
                 }
             }
@@ -162,11 +159,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         });
 
         return testCandidates;
-    }
-
-    private static boolean mustExecute(String test, int id, int count) {
-        int hash = (int) (Math.abs((long)test.hashCode()) % count);
-        return hash == id;
     }
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {

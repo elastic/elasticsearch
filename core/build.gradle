@@ -62,10 +62,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.9.4'
-  // joda 2.0 moved to using volatile fields for datetime
-  // When updating to a new version, make sure to update our copy of BaseDateTime
-  compile 'org.joda:joda-convert:1.2'
+  compile 'joda-time:joda-time:2.9.5'
 
   // json and yaml
   compile "org.yaml:snakeyaml:${versions.snakeyaml}"
@@ -257,8 +254,10 @@ thirdPartyAudit.excludes = [
   'org.noggit.JSONParser', 
 ]
 
-// dependency license are currently checked in distribution
-dependencyLicenses.enabled = false
+dependencyLicenses {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
 
 if (isEclipse == false || project.path == ":core-tests") {
   task integTest(type: RandomizedTestingTask,

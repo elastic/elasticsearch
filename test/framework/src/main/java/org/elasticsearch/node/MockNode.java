@@ -19,11 +19,16 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -33,6 +38,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -97,9 +103,34 @@ public class MockNode extends Node {
     }
 
     @Override
+    protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                 UnicastHostsProvider hostsProvider) {
+        if (getPluginsService().filterPlugins(MockZenPing.TestPlugin.class).isEmpty()) {
+            return super.newZenPing(settings, threadPool, transportService, hostsProvider);
+        } else {
+            return new MockZenPing(settings);
+        }
+    }
+
+    @Override
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        return new MockNode(settings, classpathPlugins);
+    }
+
+    @Override
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
         if (false == getPluginsService().filterPlugins(RecoverySettingsChunkSizePlugin.class).isEmpty()) {
             clusterSettings.addSettingsUpdateConsumer(RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING, recoverySettings::setChunkSize);
+        }
+    }
+
+    @Override
+    protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
+                                                       ThreadPool threadPool, NodeClient client) {
+        if (getPluginsService().filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
+            return super.newClusterInfoService(settings, clusterService, threadPool, client);
+        } else {
+            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
         }
     }
 }

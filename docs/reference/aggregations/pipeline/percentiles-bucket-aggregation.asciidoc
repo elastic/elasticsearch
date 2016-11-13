@@ -65,7 +65,7 @@ POST /sales/_search
 
 <1> `buckets_path` instructs this percentiles_bucket aggregation that we want to calculate percentiles for
 the `sales` aggregation in the `sales_per_month` date histogram.
-<2> `percents` specifies which percentiles we wish to calculate, in this case, the 25th, 50th and 75th percentil
+<2> `percents` specifies which percentiles we wish to calculate, in this case, the 25th, 50th and 75th percentiles.
 
 And the following may be the response:
 
@@ -107,7 +107,7 @@ And the following may be the response:
       },
       "percentiles_monthly_sales": {
         "values" : {
-            "25.0": 60.0,
+            "25.0": 375.0,
             "50.0": 375.0,
             "75.0": 550.0
          }

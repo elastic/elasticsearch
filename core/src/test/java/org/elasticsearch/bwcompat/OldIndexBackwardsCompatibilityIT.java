@@ -23,6 +23,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.VersionTests;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -84,6 +85,7 @@ import java.util.TreeSet;
 import static org.elasticsearch.test.OldIndexUtils.assertUpgradeWorks;
 import static org.elasticsearch.test.OldIndexUtils.getIndexDir;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // needs at least 2 nodes since it bumps replicas to 1
@@ -244,6 +246,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertUpgradeWorks(client(), indexName, version);
         assertDeleteByQueryWorked(indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
+        assertAliasWithBadName(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -427,6 +430,31 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         } else {
             StringFieldMapperPositionIncrementGapTests.assertGapIsOneHundred(client(), indexName, "doc");
         }
+    }
+
+    private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
+
+    public void testUnreleasedVersion() {
+        VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
+    }
+
+    /**
+     * Search on an alias that contains illegal characters that would prevent it from being created after 5.1.0. It should still be
+     * search-able though.
+     */
+    void assertAliasWithBadName(String indexName, Version version) throws Exception {
+        if (version.onOrAfter(VERSION_5_1_0_UNRELEASED)) {
+            return;
+        }
+        // We can read from the alias just like we can read from the index.
+        String aliasName = "#" + indexName;
+        long totalDocs = client().prepareSearch(indexName).setSize(0).get().getHits().totalHits();
+        assertHitCount(client().prepareSearch(aliasName).setSize(0).get(), totalDocs);
+        assertThat(totalDocs, greaterThanOrEqualTo(2000L));
+
+        // We can remove the alias.
+        assertAcked(client().admin().indices().prepareAliases().removeAlias(indexName, aliasName).get());
+        assertFalse(client().admin().indices().prepareAliasesExist(aliasName).get().exists());
     }
 
     private Path getNodeDir(String indexFile) throws IOException {

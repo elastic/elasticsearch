@@ -58,7 +58,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  */
 public class ClusterRerouteRequestTests extends ESTestCase {
     private static final int ROUNDS = 30;
-    private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = unmodifiableList(Arrays.asList(
+    private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = unmodifiableList(
+            Arrays.<Supplier<AllocationCommand>> asList(
             () -> new AllocateReplicaAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
                     randomAsciiOfLengthBetween(2, 10)),
             () -> new AllocateEmptyPrimaryAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),

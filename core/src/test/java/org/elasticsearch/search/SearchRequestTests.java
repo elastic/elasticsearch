@@ -97,13 +97,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation
                 .scroll(randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomPositiveLong() % 100000)))));
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(), () -> randomFrom(SearchType.values()))));
-        mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), () -> {
-            try {
-                return createSearchSourceBuilder();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        })));
+        mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         randomFrom(mutators).run();
         return mutation;
     }

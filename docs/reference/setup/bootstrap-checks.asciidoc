@@ -56,7 +56,7 @@ File descriptors are a Unix construct for tracking open "files". In Unix
 though, https://en.wikipedia.org/wiki/Everything_is_a_file[everything is
 a file]. For example, "files" could be a physical file, a virtual file
 (e.g., `/proc/loadavg`), or network sockets. Elasticsearch requires
-lots file descriptors (e.g., every shard is composed of multiple
+lots of file descriptors (e.g., every shard is composed of multiple
 segments and other files, plus connections to other nodes, etc.). This
 bootstrap check is enforced on OS X and Linux. To pass the file
 descriptor check, you might have to configure <<file-descriptors,file
@@ -161,3 +161,11 @@ enabled. This check is always enforced. To pass this check do not enable
 use the JVM flag `ExitOnOutOfMemoryError`. While this does not have the
 full capabilities of `OnError` nor `OnOutOfMemoryError`, arbitrary
 forking will not be supported with seccomp enabled.
+
+=== G1GC check
+
+Early versions of the HotSpot JVM that shipped with JDK 8 are known to have
+issues that can lead to index corruption when the G1GC collector is enabled.
+The versions impacted are those earlier than the version of HotSpot that
+shipped with JDK 8u40. The G1GC check detects these early versions of the
+HotSpot JVM.

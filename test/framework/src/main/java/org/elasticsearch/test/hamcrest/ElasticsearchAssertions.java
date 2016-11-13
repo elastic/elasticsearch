@@ -655,7 +655,13 @@ public class ElasticsearchAssertions {
             if (streamable instanceof ActionRequest) {
                 ((ActionRequest<?>) streamable).validate();
             }
-            BytesReference orig = serialize(version, streamable);
+            BytesReference orig;
+            try {
+                orig = serialize(version, streamable);
+            } catch (IllegalArgumentException e) {
+                // Can't serialize with this version so skip this test.
+                return;
+            }
             StreamInput input = orig.streamInput();
             if (namedWriteableRegistry != null) {
                 input = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);

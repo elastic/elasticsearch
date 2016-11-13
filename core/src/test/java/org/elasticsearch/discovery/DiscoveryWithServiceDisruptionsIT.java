@@ -43,6 +43,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateStatus;
+import org.elasticsearch.cluster.service.ClusterServiceState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -56,7 +58,6 @@ import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.discovery.zen.ZenPingService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -174,7 +175,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected void beforeIndexDeletion() {
+    protected void beforeIndexDeletion() throws Exception {
         if (disableBeforeIndexDeletion == false) {
             super.beforeIndexDeletion();
         }
@@ -195,12 +196,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                if (zenPing instanceof UnicastZenPing) {
-                    ((UnicastZenPing) zenPing).clearTemporalResponses();
-                }
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
         return nodes;
     }
@@ -858,10 +856,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing) zenPing).clearTemporalResponses();
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
@@ -896,10 +893,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing) zenPing).clearTemporalResponses();
-            }
+        ZenPing zenPing = internalCluster().getInstance(ZenPing.class);
+        if (zenPing instanceof UnicastZenPing) {
+            ((UnicastZenPing) zenPing).clearTemporalResponses();
         }
 
         // Simulate a network issue between the unicast target node and the rest of the cluster
@@ -1207,9 +1203,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // Don't restart the master node until we know the index deletion has taken effect on master and the master eligible node.
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {
-                final ClusterState masterState = internalCluster().clusterService(masterNode).state();
-                assertTrue("index not deleted on " + masterNode, masterState.metaData().hasIndex(idxName) == false &&
-                                                                 masterState.status() == ClusterState.ClusterStateStatus.APPLIED);
+                final ClusterServiceState masterState = internalCluster().clusterService(masterNode).clusterServiceState();
+                assertTrue("index not deleted on " + masterNode, masterState.getClusterState().metaData().hasIndex(idxName) == false &&
+                                                                 masterState.getClusterStateStatus() == ClusterStateStatus.APPLIED);
             }
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);

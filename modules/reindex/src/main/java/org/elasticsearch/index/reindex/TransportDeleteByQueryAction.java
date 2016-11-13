@@ -53,9 +53,15 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
     @Override
     protected void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
-        ClusterState state = clusterService.state();
-        ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-        new AsyncDeleteBySearchAction((BulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService, state).start();
+        if (request.getSlices() > 1) {
+            ReindexParallelizationHelper.startSlices(client, taskManager, DeleteByQueryAction.INSTANCE, clusterService.localNode().getId(),
+                    (ParentBulkByScrollTask) task, request, listener);
+        } else {
+            ClusterState state = clusterService.state();
+            ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
+            new AsyncDeleteBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService,
+                    state).start();
+        }
     }
 
     @Override
@@ -68,9 +74,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
      */
     static class AsyncDeleteBySearchAction extends AbstractAsyncBulkIndexByScrollAction<DeleteByQueryRequest> {
 
-        public AsyncDeleteBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
-                                         DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                                         ScriptService scriptService, ClusterState clusterState) {
+        public AsyncDeleteBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                ThreadPool threadPool, DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
+                ScriptService scriptService, ClusterState clusterState) {
             super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 

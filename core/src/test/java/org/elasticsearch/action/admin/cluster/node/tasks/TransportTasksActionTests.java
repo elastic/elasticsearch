@@ -70,6 +70,7 @@ import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
@@ -625,13 +626,34 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
-                protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
+                protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
                     logger.info("Task action on node {}", node);
                     if (failTaskOnNode == node && task.getParentTaskId().isSet()) {
                         logger.info("Failing on node {}", node);
-                        throw new RuntimeException("Task level failure");
+                        // Fail in a random way to make sure we can handle all these ways
+                        Runnable failureMode = randomFrom(
+                                () -> {
+                                    logger.info("Throwing exception from taskOperation");
+                                    throw new RuntimeException("Task level failure (direct)");
+                                },
+                                () -> {
+                                    logger.info("Calling listener synchronously with exception from taskOperation");
+                                    listener.onFailure(new RuntimeException("Task level failure (sync listener)"));
+                                },
+                                () -> {
+                                    logger.info("Calling listener asynchronously with exception from taskOperation");
+                                    threadPool.generic()
+                                            .execute(() -> listener.onFailure(new RuntimeException("Task level failure (async listener)")));
+                                }
+                                );
+                        failureMode.run();
+                    } else {
+                        if (randomBoolean()) {
+                            listener.onResponse(new TestTaskResponse("Success on node (sync)" + node));
+                        } else {
+                            threadPool.generic().execute(() -> listener.onResponse(new TestTaskResponse("Success on node (async)" + node)));
+                        }
                     }
-                    return new TestTaskResponse("Success on node " + node);
                 }
             };
         }
@@ -641,10 +663,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksRequest testTasksRequest = new TestTasksRequest();
         testTasksRequest.setActions("testAction[n]"); // pick all test actions
         TestTasksResponse response = tasksActions[0].execute(testTasksRequest).get();
+        assertThat(response.getTaskFailures(), hasSize(1)); // one task failed
+        assertThat(response.getTaskFailures().get(0).getReason(), containsString("Task level failure"));
         // Get successful responses from all nodes except one
         assertEquals(testNodes.length - 1, response.tasks.size());
-        assertEquals(1, response.getTaskFailures().size()); // one task failed
-        assertThat(response.getTaskFailures().get(0).getReason(), containsString("Task level failure"));
         assertEquals(0, response.getNodeFailures().size()); // no nodes failed
 
         // Release all node tasks and wait for response
@@ -696,8 +718,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 }
 
                 @Override
-                protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
-                    return new TestTaskResponse(testNodes[node].getNodeId());
+                protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
+                    if (randomBoolean()) {
+                        listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId()));
+                    } else {
+                        threadPool.generic().execute(() -> listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId())));
+                    }
                 }
             };
         }

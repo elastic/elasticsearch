@@ -29,21 +29,19 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
     public static final String NAME = "script_heuristic";
 
     private final Script script;
-    
+
     // This class holds an executable form of the script with private variables ready for execution
     // on a single search thread.
     static class ExecutableScriptHeuristic extends ScriptHeuristic {
@@ -72,7 +70,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             supersetSizeHolder.value = supersetSize;
             subsetDfHolder.value = subsetFreq;
             supersetDfHolder.value = supersetFreq;
-            return ((Number) executableScript.run()).doubleValue();        
+            return ((Number) executableScript.run()).doubleValue();
        }
     }
 
@@ -94,12 +92,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        return new ExecutableScriptHeuristic(script, context.scriptService().executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
+        return new ExecutableScriptHeuristic(script, context.scriptService().executable(script, ScriptContext.Standard.AGGS));
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
-        return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
+        return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS));
     }
 
 
@@ -125,7 +123,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject(NAME);
-        builder.field(ScriptField.SCRIPT.getPreferredName());
+        builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName());
         script.toXContent(builder, builderParams);
         builder.endObject();
         return builder;
@@ -159,7 +157,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             if (token.equals(XContentParser.Token.FIELD_NAME)) {
                 currentFieldName = parser.currentName();
             } else {
-                if (context.matchField(currentFieldName, ScriptField.SCRIPT)) {
+                if (context.matchField(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
                     script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else {
                     throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);

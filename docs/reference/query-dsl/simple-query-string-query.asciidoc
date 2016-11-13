@@ -61,6 +61,10 @@ based just on the prefix of a term. Defaults to `false`.
 the query string. This allows to use a field that has a different analysis chain
 for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
 comprehensive example.
+
+|`all_fields` | Perform the query on all fields detected in the mapping that can
+be queried. Will be used by default when the `_all` field is disabled and no
+`default_field` is specified index settings, and no `fields` are specified.
 |=======================================================================
 
 [float]
@@ -85,8 +89,10 @@ When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
 which field to search on. It defaults to `_all` field.
 
-So, if `_all` field is disabled, it might make sense to change it to set
-a different default field.
+If the `_all` field is disabled and no `fields` are specified in the request`,
+the `simple_query_string` query will automatically attempt to determine the
+existing fields in the index's mapping that are queryable, and perform the
+search on those fields.
 
 [float]
 ==== Multi Field

@@ -51,7 +51,9 @@ public class RestIndicesExistsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        indicesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesExistsRequest.indicesOptions()));
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, indicesExistsRequest.indicesOptions());
+        indicesExistsRequest.expandWilcardsOpen(indicesOptions.expandWildcardsOpen());
+        indicesExistsRequest.expandWilcardsClosed(indicesOptions.expandWildcardsClosed());
         indicesExistsRequest.local(request.paramAsBoolean("local", indicesExistsRequest.local()));
         return channel -> client.admin().indices().exists(indicesExistsRequest, new RestResponseListener<IndicesExistsResponse>(channel) {
             @Override

@@ -231,7 +231,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static RecordingTaskManagerListener[] setupListeners(TestNode[] nodes, String... actionMasks) {
         RecordingTaskManagerListener[] listeners = new RecordingTaskManagerListener[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
-            listeners[i] = new RecordingTaskManagerListener(nodes[i].discoveryNode, actionMasks);
+            listeners[i] = new RecordingTaskManagerListener(nodes[i].discoveryNode.getId(), actionMasks);
             ((MockTaskManager) (nodes[i].transportService.getTaskManager())).addListener(listeners[i]);
         }
         return listeners;

@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-diversified-sampler-aggregation]]
-=== Sampler Aggregation
+=== Diversified Sampler Aggregation
 
 experimental[]
 
@@ -24,7 +24,7 @@ Example:
     },
     "aggs": {
         "sample": {
-            "sampler": {
+            "diversified_sampler": {
                 "shard_size": 200,
                 "field" : "user.id"   
             },

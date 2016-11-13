@@ -112,6 +112,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile FieldTypeLookup fieldTypes;
     private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
+    private boolean allEnabled = false; // updated dynamically to true when _all is enabled
 
     private final DocumentMapperParser documentParser;
 
@@ -149,6 +150,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public boolean hasNested() {
         return this.hasNested;
+    }
+
+    /**
+     * Returns true if the "_all" field is enabled for the type
+     */
+    public boolean allEnabled() {
+        return this.allEnabled;
     }
 
     /**
@@ -369,6 +377,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
         this.parentTypes = parentTypes;
+        this.allEnabled = mapper.allFieldMapper().enabled();
 
         assert assertSerialization(newMapper);
         assert assertMappersShareSameFieldType();

@@ -11,3 +11,9 @@ has been removed in Elasticsearch 6.0.0.
 ==== Analyze API changes
 
 The deprecated request parameters and plain text in request body has been removed. Define parameters in request body.
+
+==== Indices exists API
+
+The `ignore_unavailable` and `allow_no_indices` options are no longer accepted
+as they could cause undesired results when their values differed from their
+defaults.

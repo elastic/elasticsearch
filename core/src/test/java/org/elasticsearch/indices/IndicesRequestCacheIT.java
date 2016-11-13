@@ -362,7 +362,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCanCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
-                        5, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        2, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .get());
         indexRandom(true, client().prepareIndex("index", "type", "1").setRouting("1").setSource("s", "2016-03-19"),
                 client().prepareIndex("index", "type", "2").setRouting("1").setSource("s", "2016-03-20"),
@@ -411,7 +411,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(0L));
 
-        // If the request has an aggregation containng now we should not cache
+        // If the request has an aggregation containing now we should not cache
         final SearchResponse r4 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
                 .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-10y").to("now"))).get();
@@ -441,7 +441,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(5L));
+                equalTo(2L));
     }
 
     public void testCacheWithFilteredAlias() {

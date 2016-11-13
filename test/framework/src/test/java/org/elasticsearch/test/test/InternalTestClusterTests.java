@@ -262,8 +262,8 @@ public class InternalTestClusterTests extends ESTestCase {
             Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
-            final int masterCount = cluster.numMasterNodes();
-            assertMMNinNodeSetting(cluster, masterCount);
+            final int originalMasterCount = cluster.numMasterNodes();
+            assertMMNinNodeSetting(cluster, originalMasterCount);
             final Map<String,Path[]> shardNodePaths = new HashMap<>();
             for (String name: cluster.getNodeNames()) {
                 shardNodePaths.put(name, getNodePaths(cluster, name));
@@ -272,8 +272,15 @@ public class InternalTestClusterTests extends ESTestCase {
             Path dataPath = getNodePaths(cluster, poorNode)[0];
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);
+            int expectedMasterCount = originalMasterCount;
+            if (cluster.getInstance(ClusterService.class, poorNode).localNode().isMasterNode()) {
+                expectedMasterCount--;
+            }
             cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
-            assertMMNinClusterSetting(cluster, masterCount - 1);
+            if (expectedMasterCount != originalMasterCount) {
+                // check for updated
+                assertMMNinClusterSetting(cluster, expectedMasterCount);
+            }
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
             final String stableNode = randomFrom(cluster.getNodeNames());
@@ -283,13 +290,15 @@ public class InternalTestClusterTests extends ESTestCase {
             Files.createDirectories(stableTestMarker);
 
             final String newNode1 =  cluster.startNode();
+            expectedMasterCount++;
             assertThat(getNodePaths(cluster, newNode1)[0], equalTo(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
-            assertMMNinClusterSetting(cluster, masterCount);
-            assertMMNinNodeSetting(cluster, masterCount);
+            assertMMNinClusterSetting(cluster, expectedMasterCount);
+            assertMMNinNodeSetting(cluster, expectedMasterCount);
 
             final String newNode2 =  cluster.startNode();
-            assertMMNinClusterSetting(cluster, masterCount + 1);
+            expectedMasterCount++;
+            assertMMNinClusterSetting(cluster, expectedMasterCount);
             final Path newDataPath = getNodePaths(cluster, newNode2)[0];
             final Path newTestMarker = newDataPath.resolve("newTestMarker");
             assertThat(newDataPath, not(dataPath));
@@ -308,7 +317,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
                     equalTo(shardNodePaths.get(name)));
             }
-            assertMMNinNodeSetting(cluster, masterCount);
+            assertMMNinNodeSetting(cluster, originalMasterCount);
 
         } finally {
             cluster.close();

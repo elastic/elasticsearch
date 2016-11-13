@@ -366,7 +366,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         logger.info("--> starting the two nodes back");
 
-        internalCluster().ensureAtLeastNumDataNodes(2);
+        internalCluster().startNodesAsync(2, Settings.builder().put("gateway.recover_after_nodes", 2).build()).get();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();

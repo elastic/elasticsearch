@@ -418,7 +418,7 @@ public class InternalTestClusterTests extends ESTestCase {
         try {
             cluster.beforeTest(random(), 0.0);
             assertMMNinNodeSetting(cluster, 2);
-            switch (1) {//randomInt(2)) {
+            switch (randomInt(2)) {
                 case 0:
                     cluster.stopRandomDataNode();
                     assertMMNinClusterSetting(cluster, 1);

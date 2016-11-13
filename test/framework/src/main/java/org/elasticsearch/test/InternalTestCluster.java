@@ -874,7 +874,7 @@ public final class InternalTestCluster extends TestCluster {
             node.close();
         }
 
-        /***
+        /**
          * closes the current node if not already closed, builds a new node object using the current node settings and starts it
          */
         void restart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes) throws Exception {
@@ -885,7 +885,7 @@ public final class InternalTestCluster extends TestCluster {
             startNode();
         }
 
-        /***
+        /**
          * rebuilds a new node object using the current node settings and starts it
          */
         void recreateNodeOnRestart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes) throws Exception {
@@ -1265,9 +1265,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
-        if (randomNodeAndClient == null) {
-            assert randomNodeAndClient != null;
-        }
+        assert randomNodeAndClient != null;
         return getInstanceFromNode(clazz, randomNodeAndClient.node);
     }
 
@@ -1352,15 +1350,15 @@ public final class InternalTestCluster extends TestCluster {
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
             final int currentMasters = getMasterNodesCount();
-            if (autoManageMinMasterNodes && currentMasters > 1) {
-                // special case for 1 node master - we can't update the min master nodes before we update a second one
+            if (autoManageMinMasterNodes && currentMasters > 1 && newMasters > 0) {
+                // special case for 1 node master - we can't update the min master nodes before we add more nodes.
                 updateMinMasterNodes(currentMasters + newMasters);
             }
             for (NodeAndClient nodeAndClient : nodeAndClients) {
                 nodeAndClient.startNode();
                 publishNode(nodeAndClient);
             }
-            if (autoManageMinMasterNodes && currentMasters == 1) {
+            if (autoManageMinMasterNodes && currentMasters == 1 && newMasters > 0) {
                 // update once masters have joined
                 validateClusterFormed();
                 updateMinMasterNodes(currentMasters + newMasters);

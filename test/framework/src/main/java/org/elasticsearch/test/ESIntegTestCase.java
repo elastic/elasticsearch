@@ -179,6 +179,7 @@ import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgno
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -533,7 +534,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         final Map<String, String> transientSettings =  new HashMap<>(metaData.transientSettings().getAsMap());
                         // this is set by the test infra
                         transientSettings.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
-                        assertThat("test leaves transient cluster metadata behind: " + transientSettings, transientSettings.size(), equalTo(0));
+                        assertThat("test leaves transient cluster metadata behind: " + transientSettings,
+                            transientSettings.keySet(), empty());
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
@@ -1521,6 +1523,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
          */
         boolean supportsDedicatedMasters() default true;
 
+        /**
+         * Normally the cluster will auto manage the {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} automatically
+         * as nodes are started and stopped. Set this to false if you want to manage the setting yourself.
+         */
         boolean autoMinMasterNodes() default true;
 
         /**

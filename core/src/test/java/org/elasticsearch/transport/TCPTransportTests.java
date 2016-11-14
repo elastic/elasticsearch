@@ -26,6 +26,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
@@ -216,7 +217,7 @@ public class TCPTransportTests extends ESTestCase {
                     return new NodeChannels(new Object[0], new Object[0], new Object[0], new Object[0], new Object[0]);
                 }
             };
-            DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("1"), Version.CURRENT);
             transport.sendRequest(node, 42, "foobar", request, TransportRequestOptions.EMPTY);
             assertTrue(called.get());
         } finally {

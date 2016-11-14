@@ -26,8 +26,9 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 /**
- *
+ * @deprecated use {@link IllegalArgumentException} instead
  */
+@Deprecated
 public class IndexTemplateAlreadyExistsException extends ElasticsearchException {
 
     private final String name;

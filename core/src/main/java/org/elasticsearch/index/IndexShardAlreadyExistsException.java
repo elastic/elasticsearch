@@ -26,7 +26,9 @@ import java.io.IOException;
 
 /**
  *
+ * @deprecated use {@link IllegalStateException} instead
  */
+@Deprecated
 public class IndexShardAlreadyExistsException extends ElasticsearchException {
 
     public IndexShardAlreadyExistsException(String message) {

@@ -22,7 +22,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
         assertTemplate(source, equalTo("{\n" +
-                "  \"template\": \".monitoring-data-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "\",\n" +
+                "  \"index_patterns\": \".monitoring-data-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "\",\n" +
                 "  \"mappings\": {\n" +
                 "    \"type_1\": {\n" +
                 "      \"_meta\": {\n" +
@@ -30,6 +30,6 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +
-                "}"));
+                "}\n"));
     }
 }

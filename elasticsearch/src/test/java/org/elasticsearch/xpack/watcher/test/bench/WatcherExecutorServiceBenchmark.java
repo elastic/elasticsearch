@@ -6,28 +6,26 @@
 package org.elasticsearch.xpack.watcher.test.bench;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
-import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.time.Clock;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
@@ -215,33 +213,11 @@ public class WatcherExecutorServiceBenchmark {
             }
 
             @Override
-            public Collection<Module> nodeModules() {
-                List<Module> modules = new ArrayList<>(super.nodeModules());
-                for (int i = 0; i < modules.size(); ++i) {
-                    Module module = modules.get(i);
-                    if (module instanceof TriggerModule) {
-                        // replacing scheduler module so we'll
-                        // have control on when it fires a job
-                        modules.set(i, new MockTriggerModule(settings));
-                    }
-                }
-                return modules;
+            protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
+                return new ScheduleTriggerEngineMock(settings, scheduleRegistry, clock);
             }
 
-            public static class MockTriggerModule extends TriggerModule {
-
-                public MockTriggerModule(Settings settings) {
-                    super(settings);
-                }
-
-                @Override
-                protected void registerStandardEngines() {
-                    registerEngine(ScheduleTriggerEngineMock.class);
-                }
-
-            }
 
         }
     }
-
 }

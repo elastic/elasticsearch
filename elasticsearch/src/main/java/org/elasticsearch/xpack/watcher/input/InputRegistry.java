@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.input;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
@@ -21,7 +20,6 @@ public class InputRegistry {
 
     private final Map<String, InputFactory> factories;
 
-    @Inject
     public InputRegistry(Settings settings, Map<String, InputFactory> factories) {
         Map<String, InputFactory> map = new HashMap<>(factories);
         map.put(ChainInput.TYPE, new ChainInputFactory(settings, this));

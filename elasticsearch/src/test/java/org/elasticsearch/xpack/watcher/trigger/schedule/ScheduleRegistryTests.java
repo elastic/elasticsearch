@@ -12,8 +12,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Before;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -26,13 +26,13 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     @Before
     public void init() throws Exception {
-        Map<String, Schedule.Parser> parsers = new HashMap<>();
-        parsers.put(IntervalSchedule.TYPE, new IntervalSchedule.Parser());
-        parsers.put(CronSchedule.TYPE, new CronSchedule.Parser());
-        parsers.put(HourlySchedule.TYPE, new HourlySchedule.Parser());
-        parsers.put(DailySchedule.TYPE, new DailySchedule.Parser());
-        parsers.put(WeeklySchedule.TYPE, new WeeklySchedule.Parser());
-        parsers.put(MonthlySchedule.TYPE, new MonthlySchedule.Parser());
+        Set<Schedule.Parser> parsers = new HashSet<>();
+        parsers.add(new IntervalSchedule.Parser());
+        parsers.add(new CronSchedule.Parser());
+        parsers.add(new HourlySchedule.Parser());
+        parsers.add(new DailySchedule.Parser());
+        parsers.add(new WeeklySchedule.Parser());
+        parsers.add(new MonthlySchedule.Parser());
         registry = new ScheduleRegistry(parsers);
     }
 

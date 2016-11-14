@@ -203,8 +203,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         ArrayList<Module> modules = new ArrayList<>();
         modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
         modules.addAll(security.nodeModules());
-        modules.addAll(watcher.nodeModules());
         modules.addAll(monitoring.nodeModules());
+        modules.addAll(watcher.nodeModules());
         modules.addAll(graph.createGuiceModules());
 
         if (transportClientMode) {
@@ -232,7 +232,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                                                     extensionsService.getExtensions()));
         components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
 
-
         // watcher http stuff
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
         httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(security.getCryptoService()));
@@ -248,7 +247,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(notificationComponents);
 
         components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, searchRequestParsers, licenseState,
-                httpClient, components));
+                httpClient, httpTemplateParser, threadPool, clusterService, security.getCryptoService(), components));
 
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
@@ -411,8 +410,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public void onIndexModule(IndexModule module) {
         security.onIndexModule(module);
     }
-
-
 
     public static void bindFeatureSet(Binder binder, Class<? extends XPackFeatureSet> featureSet) {
         binder.bind(featureSet).asEagerSingleton();

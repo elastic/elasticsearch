@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import static java.util.stream.StreamSupport.stream;
 
@@ -22,11 +20,9 @@ public class SyncTriggerListener implements TriggerEngine.Listener {
     private final ExecutionService executionService;
     private final Logger logger;
 
-    @Inject
-    public SyncTriggerListener(Settings settings, ExecutionService executionService, TriggerService triggerService) {
+    public SyncTriggerListener(Settings settings, ExecutionService executionService) {
         this.logger = Loggers.getLogger(SyncTriggerListener.class, settings);
         this.executionService = executionService;
-        triggerService.register(this);
     }
 
     @Override

@@ -15,11 +15,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
-import org.elasticsearch.xpack.watcher.support.validation.Validation;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -185,18 +186,19 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (id == null && watchSource == null){
-            validationException = ValidateActions.addValidationError("watch id is missing", validationException);
+            validationException = ValidateActions.addValidationError("a watch execution request must either have a watch id or an inline " +
+                    "watch source, but both are missing", validationException);
         }
-        if (id != null) {
-            Validation.Error error = Validation.watchId(id);
-            if (error != null) {
-                validationException = ValidateActions.addValidationError(error.message(), validationException);
-            }
+        if (id != null && Watch.isValidId(id) == false) {
+            validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
-        for (Map.Entry<String, ActionExecutionMode> modes : actionModes.entrySet()) {
-            Validation.Error error = Validation.actionId(modes.getKey());
-            if (error != null) {
-                validationException = ValidateActions.addValidationError(error.message(), validationException);
+        for (String actionId : actionModes.keySet()) {
+            if (actionId == null) {
+                validationException = ValidateActions.addValidationError(
+                        String.format(Locale.ROOT, "action id may not be null"), validationException);
+            } else if (Watch.isValidId(actionId) == false) {
+                validationException = ValidateActions.addValidationError(
+                        String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId), validationException);
             }
         }
         if (watchSource != null && id != null) {

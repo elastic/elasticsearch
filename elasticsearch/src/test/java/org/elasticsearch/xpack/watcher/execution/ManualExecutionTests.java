@@ -348,7 +348,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testWatchExecutionDuration() throws Exception {
-        Script script = new Script("sleep", ScriptType.INLINE, null, singletonMap("millis", 100L));
+        Script script = new Script(ScriptType.INLINE, WATCHER_LANG, "sleep", singletonMap("millis", 100L));
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
@@ -364,7 +364,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testForceDeletionOfLongRunningWatch() throws Exception {
-        Script script = new Script("sleep", ScriptType.INLINE,  null, singletonMap("millis", 10000L));
+        Script script = new Script(ScriptType.INLINE, WATCHER_LANG, "sleep", singletonMap("millis", 10000L));
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))

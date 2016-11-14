@@ -9,7 +9,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,7 +36,6 @@ public class WatcherSearchTemplateService extends AbstractComponent {
     private final ParseFieldMatcher parseFieldMatcher;
     private final SearchRequestParsers searchRequestParsers;
 
-    @Inject
     public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, SearchRequestParsers searchRequestParsers) {
         super(settings);
         this.scriptService = scriptService;
@@ -57,8 +55,8 @@ public class WatcherSearchTemplateService extends AbstractComponent {
             watcherContextParams.putAll(source.getParams());
         }
         // Templates are always of lang mustache:
-        Script template = new Script(source.getScript(), source.getType(), "mustache", watcherContextParams,
-                source.getContentType());
+        Script template = new Script(source.getType(), "mustache", source.getIdOrCode(), source.getOptions(), watcherContextParams
+        );
         CompiledScript compiledScript = scriptService.compile(template, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
         return (BytesReference) scriptService.executable(compiledScript, template.getParams()).run();
     }

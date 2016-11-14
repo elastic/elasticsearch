@@ -15,6 +15,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -27,8 +28,6 @@ import java.util.Objects;
  */
 public class TextTemplate implements ToXContent {
 
-    public static final String DEFAULT_TEMPLATE_LANG = "mustache";
-
     private final Script script;
     private final String inlineTemplate;
 
@@ -39,7 +38,14 @@ public class TextTemplate implements ToXContent {
 
     public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type,
                         @Nullable Map<String, Object> params) {
-        this.script = new Script(template, type, DEFAULT_TEMPLATE_LANG, params, contentType);
+        Map<String, String> options = new HashMap<>();
+        if (contentType != null) {
+            options.put(Script.CONTENT_TYPE_OPTION, contentType.mediaType());
+        }
+        if (params == null) {
+            params = new HashMap<>();
+        }
+        this.script = new Script(type, Script.DEFAULT_TEMPLATE_LANG, template, options, params);
         this.inlineTemplate = null;
     }
 
@@ -53,11 +59,21 @@ public class TextTemplate implements ToXContent {
     }
 
     public String getTemplate() {
-        return script != null ? script.getScript() : inlineTemplate;
+        return script != null ? script.getIdOrCode() : inlineTemplate;
     }
 
     public XContentType getContentType() {
-        return script != null ? script.getContentType() : null;
+        if (script == null) {
+            return null;
+        }
+
+        String mediaType = script.getOptions().get(Script.CONTENT_TYPE_OPTION);
+
+        if (mediaType == null) {
+            return null;
+        }
+
+        return XContentType.fromMediaTypeOrFormat(mediaType);
     }
 
     public ScriptType getType() {
@@ -97,7 +113,7 @@ public class TextTemplate implements ToXContent {
         if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return new TextTemplate(parser.text());
         } else {
-            return new TextTemplate(Script.parse(parser, ParseFieldMatcher.STRICT, DEFAULT_TEMPLATE_LANG));
+            return new TextTemplate(Script.parse(parser, ParseFieldMatcher.STRICT, Script.DEFAULT_TEMPLATE_LANG));
         }
     }
 }

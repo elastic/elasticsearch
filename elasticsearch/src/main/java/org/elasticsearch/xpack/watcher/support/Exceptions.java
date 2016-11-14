@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.script.GeneralScriptException;
-
 import java.io.IOException;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -39,16 +36,5 @@ public class Exceptions {
 
     public static IOException ioException(String msg, Throwable cause, Object... args) {
         return new IOException(format(msg, args), cause);
-    }
-
-
-    //todo remove once GeneralScriptException supports varargs
-    public static GeneralScriptException invalidScript(String msg, Object... args) {
-        throw new GeneralScriptException(format(msg, args));
-    }
-
-    //todo remove once SettingsException supports varargs
-    public static SettingsException invalidSettings(String msg, Object... args) {
-        throw new SettingsException(format(msg, args));
     }
 }

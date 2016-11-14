@@ -211,8 +211,8 @@ public class GraphTests extends ESSingleNodeTestCase {
         //00s friends of beatles
         grb.createNextHop(QueryBuilders.termQuery("decade", "00s")).addVertexRequest("people").size(100).minDocCount(1); 
         // A query that should cause a timeout
-        ScriptQueryBuilder timeoutQuery = QueryBuilders.scriptQuery(new Script(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT,
-                ScriptType.INLINE, "native", null));
+        ScriptQueryBuilder timeoutQuery = QueryBuilders.scriptQuery(new Script(ScriptType.INLINE, "native",
+                NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, Collections.emptyMap()));
         grb.createNextHop(timeoutQuery).addVertexRequest("people").size(100).minDocCount(1);
 
         GraphExploreResponse response = grb.get();

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -35,7 +34,6 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
     private volatile WatcherMetaData watcherMetaData;
 
-    @Inject
     public WatcherLifeCycleService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                    WatcherService watcherService) {
         super(settings);

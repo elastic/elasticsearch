@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -44,7 +43,6 @@ import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequ
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -240,26 +238,6 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         // There shouldn't be more actions in the index after we ack the watch, even though the watch was triggered
         long countAfterPostAckFires = docCount("actions", "action", matchAllQuery());
         assertThat(countAfterPostAckFires, equalTo(countAfterAck));
-    }
-
-    public void testAckInvalidWatchId() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-        try {
-            watcherClient.prepareAckWatch("id with whitespaces").get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
-        }
-    }
-
-    public void testAckInvalidActionId() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-        try {
-            watcherClient.prepareAckWatch("_id").setActionIds("id with whitespaces").get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("Action id cannot have white spaces"));
-        }
     }
 
     private void restartWatcherRandomly() throws Exception {

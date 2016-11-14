@@ -1,5 +1,5 @@
 {
-  "template": ".watches",
+  "index_patterns": ".watches",
   "order": 2147483647,
   "settings": {
     "index.number_of_shards": 1,

@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
 import static org.elasticsearch.xpack.watcher.support.Variables.createCtxModel;
 import static org.elasticsearch.xpack.watcher.transform.script.ScriptTransform.TYPE;
 
@@ -35,11 +34,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         super(transform, logger);
         this.scriptService = scriptService;
         Script script = transform.getScript();
-        try {
-            compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
-        } catch (Exception e) {
-            throw invalidScript("failed to compile script [{}]", e, script, e);
-        }
+        compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
     }
 
     @Override

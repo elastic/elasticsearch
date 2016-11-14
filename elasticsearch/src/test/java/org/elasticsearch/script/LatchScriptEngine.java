@@ -86,7 +86,7 @@ public class LatchScriptEngine implements ScriptEngineService {
     }
 
     public static Script latchScript() {
-        return new Script("", ScriptType.INLINE, NAME, Collections.emptyMap());
+        return new Script(ScriptType.INLINE, NAME, "", Collections.emptyMap());
     }
 
     @Override

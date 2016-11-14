@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.input.search;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,7 +30,6 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
     private final ParseFieldMatcher parseFieldMatcher;
     private final WatcherSearchTemplateService searchTemplateService;
 
-    @Inject
     public SearchInputFactory(Settings settings, InternalClient client,
                               SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
         this(settings, new WatcherClientProxy(settings, client), searchRequestParsers, scriptService);

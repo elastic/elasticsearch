@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.trigger;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -27,7 +26,6 @@ public class TriggerService extends AbstractComponent {
     private final Listeners listeners;
     private final Map<String, TriggerEngine> engines;
 
-    @Inject
     public TriggerService(Settings settings, Set<TriggerEngine> engines) {
         super(settings);
         listeners = new Listeners();

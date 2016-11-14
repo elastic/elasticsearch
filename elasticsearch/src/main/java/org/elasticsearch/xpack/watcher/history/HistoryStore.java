@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
@@ -42,11 +40,6 @@ public class HistoryStore extends AbstractComponent {
     private final Lock putUpdateLock = readWriteLock.readLock();
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
-
-    @Inject
-    public HistoryStore(Settings settings, InternalClient client) {
-        this(settings, new WatcherClientProxy(settings, client));
-    }
 
     public HistoryStore(Settings settings, WatcherClientProxy client) {
         super(settings);

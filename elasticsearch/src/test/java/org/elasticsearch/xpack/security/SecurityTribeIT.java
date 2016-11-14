@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterServiceState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -172,7 +173,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         final int cluster2Nodes = cluster2.size();
         logger.info("waiting for [{}] nodes to be added to the tribe cluster state", cluster1Nodes + cluster2Nodes + 2);
         final Predicate<ClusterState> nodeCountPredicate = state -> state.nodes().getSize() == cluster1Nodes + cluster2Nodes + 3;
-        if (nodeCountPredicate.test(observer.observedState()) == false) {
+        if (nodeCountPredicate.test(observer.observedState().getClusterState()) == false) {
             CountDownLatch latch = new CountDownLatch(1);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
@@ -193,8 +194,8 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                 }
             }, new ClusterStateObserver.ValidationPredicate() {
                 @Override
-                protected boolean validate(ClusterState newState) {
-                    return nodeCountPredicate.test(newState);
+                protected boolean validate(ClusterServiceState newState) {
+                    return nodeCountPredicate.test(newState.getClusterState());
                 }
             });
             latch.await();

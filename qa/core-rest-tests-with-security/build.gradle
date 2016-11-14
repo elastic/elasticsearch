@@ -11,7 +11,8 @@ integTest {
      'index/10_with_id/Index with ID',
      'indices.get_alias/10_basic/Get alias against closed indices',
      'cat.templates/10_basic/No templates',
-     'cat.templates/10_basic/Sort templates'
+     'cat.templates/10_basic/Sort templates',
+     'cat.templates/10_basic/Multiple template',
     ].join(',')
 
   cluster {

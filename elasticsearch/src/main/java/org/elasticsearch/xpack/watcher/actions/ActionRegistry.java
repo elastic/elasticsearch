@@ -9,8 +9,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
-import org.elasticsearch.xpack.watcher.support.validation.Validation;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -53,9 +53,9 @@ public class ActionRegistry {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 id = parser.currentName();
-                Validation.Error error = Validation.actionId(id);
-                if (error != null) {
-                    throw new ElasticsearchParseException("could not parse action [{}] for watch [{}]. {}", id, watchId, error);
+                if (Watch.isValidId(id) == false) {
+                    throw new ElasticsearchParseException("could not parse action [{}] for watch [{}]. id contains whitespace", id,
+                            watchId);
                 }
             } else if (token == XContentParser.Token.START_OBJECT && id != null) {
                 actions.add(ActionWrapper.parse(watchId, id, parser, this, clock, licenseState, upgradeActionSource));

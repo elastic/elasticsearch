@@ -110,6 +110,16 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
+    public Map<String, String> mapStrings() throws IOException {
+        return parser.mapStrings();
+    }
+
+    @Override
+    public Map<String, String> mapStringsOrdered() throws IOException {
+        return parser.mapStringsOrdered();
+    }
+
+    @Override
     public List<Object> list() throws IOException {
         return parser.list();
     }

@@ -9,9 +9,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -217,7 +218,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         private final List<ActionWrapper> defaultActions;
         private final Clock clock;
 
-        @Inject
         public Parser(Settings settings, TriggerService triggerService, ActionRegistry actionRegistry, InputRegistry inputRegistry,
                       @Nullable CryptoService cryptoService, Clock clock) {
 
@@ -368,4 +368,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         ParseField METADATA = new ParseField("metadata");
         ParseField STATUS = new ParseField("_status");
     }
+
+    private static final Pattern NO_WS_PATTERN = Pattern.compile("\\S+");
+
+    public static boolean isValidId(String id) {
+        return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();
+    }
+
 }

@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 /**
  * This class executes a script against the ctx payload and returns a boolean
@@ -84,7 +84,7 @@ public final class ScriptCondition extends Condition {
         if (value instanceof Boolean) {
             return (Boolean) value ? MET : UNMET;
         }
-        throw invalidScript("condition [{}] must return a boolean value (true|false) but instead returned [{}]", type(), ctx.watch().id(),
+        throw illegalState("condition [{}] must return a boolean value (true|false) but instead returned [{}]", type(), ctx.watch().id(),
                 script, value);
     }
 

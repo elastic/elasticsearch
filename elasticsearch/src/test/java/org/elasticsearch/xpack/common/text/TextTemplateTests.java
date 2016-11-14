@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.common.text;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,6 +27,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -58,7 +59,7 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(templateText, type, lang, merged), Watcher.SCRIPT_CONTEXT,
+        when(service.compile(new Script(type, lang, templateText, merged), Watcher.SCRIPT_CONTEXT,
             Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
@@ -74,7 +75,7 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(templateText, scriptType, lang, model), Watcher.SCRIPT_CONTEXT,
+        when(service.compile(new Script(scriptType, lang, templateText, model), Watcher.SCRIPT_CONTEXT,
             Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
@@ -88,7 +89,7 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(templateText, ScriptType.INLINE, lang, model), Watcher.SCRIPT_CONTEXT,
+        when(service.compile(new Script(ScriptType.INLINE, lang, templateText, model), Watcher.SCRIPT_CONTEXT,
             Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
@@ -143,8 +144,8 @@ public class TextTemplateTests extends ESTestCase {
         try {
             TextTemplate.parse(parser);
             fail("expected parse exception when encountering an unknown field");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("unexpected field [unknown_field]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[script] unknown field [unknown_field], parser not found"));
         }
     }
 
@@ -160,8 +161,8 @@ public class TextTemplateTests extends ESTestCase {
         try {
             TextTemplate.parse(parser);
             fail("expected parse exception when script type is unknown");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("unexpected field [template]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("[script] unknown field [template], parser not found"));
         }
     }
 
@@ -176,8 +177,8 @@ public class TextTemplateTests extends ESTestCase {
         try {
             TextTemplate.parse(parser);
             fail("expected parse exception when template text is missing");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("unexpected field [type]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[script] unknown field [type], parser not found"));
         }
     }
 

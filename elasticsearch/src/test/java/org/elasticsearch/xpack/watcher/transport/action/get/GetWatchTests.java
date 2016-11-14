@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.get;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -20,7 +19,6 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -51,15 +49,6 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(source, hasKey("condition"));
         assertThat(source, hasKey("actions"));
         assertThat(source, not(hasKey("status")));
-    }
-
-    public void testGetInvalidWatchId() throws Exception {
-        try {
-            watcherClient().prepareGetWatch("id with whitespaces").get();
-            fail("Expected ActionRequestValidationException");
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
-        }
     }
 
     public void testGetNotFound() throws Exception {

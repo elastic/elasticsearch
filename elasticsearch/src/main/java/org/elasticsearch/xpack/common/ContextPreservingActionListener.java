@@ -16,21 +16,27 @@ public final class ContextPreservingActionListener<R> implements ActionListener<
 
     private final ActionListener<R> delegate;
     private final ThreadContext.StoredContext context;
+    private final ThreadContext threadContext;
 
-    public ContextPreservingActionListener(ThreadContext.StoredContext context, ActionListener<R> delegate) {
+    public ContextPreservingActionListener(ThreadContext threadContext, ThreadContext.StoredContext context, ActionListener<R> delegate) {
         this.delegate = delegate;
         this.context = context;
+        this.threadContext = threadContext;
     }
 
     @Override
     public void onResponse(R r) {
-        context.restore();
-        delegate.onResponse(r);
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+            context.restore();
+            delegate.onResponse(r);
+        }
     }
 
     @Override
     public void onFailure(Exception e) {
-        context.restore();
-        delegate.onFailure(e);
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+            context.restore();
+            delegate.onFailure(e);
+        }
     }
 }

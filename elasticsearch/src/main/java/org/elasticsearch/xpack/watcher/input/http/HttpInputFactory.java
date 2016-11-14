@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.input.InputFactory;
 
 import java.io.IOException;
 
@@ -22,7 +21,6 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
     private final TextTemplateEngine templateEngine;
     private final HttpRequestTemplate.Parser requestTemplateParser;
 
-    @Inject
     public HttpInputFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine,
                             HttpRequestTemplate.Parser requestTemplateParser) {
         super(Loggers.getLogger(ExecutableHttpInput.class, settings));

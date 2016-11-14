@@ -32,6 +32,8 @@ import org.joda.time.DateTime;
 
 import java.time.Clock;
 
+import java.util.Collections;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -258,7 +260,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
                 .get());
 
-        Script template = new Script("my-template", ScriptType.STORED, "mustache", null);
+        Script template = new Script(ScriptType.STORED, "mustache", "my-template", Collections.emptyMap());
         WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"}, new String[0],
                 SearchType.DEFAULT, WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, template);
         testConditionSearch(searchRequest);

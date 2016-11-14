@@ -1,5 +1,5 @@
 {
-  "template" : ".security",
+  "index_patterns" : ".security",
   "order" : 1000,
   "settings" : {
     "number_of_shards" : 1,

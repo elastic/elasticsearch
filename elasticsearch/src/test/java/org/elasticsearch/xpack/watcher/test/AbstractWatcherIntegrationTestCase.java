@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.hamcrest.Matcher;
@@ -89,7 +88,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,7 +119,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     private static Boolean securityEnabled;
 
-    private static ScheduleModule.Engine scheduleEngine;
+    private static String scheduleEngineName;
 
     private boolean useSecurity3;
 
@@ -134,15 +132,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (securityEnabled == null) {
             securityEnabled = enableSecurity();
-            scheduleEngine = randomFrom(ScheduleModule.Engine.values());
+            scheduleEngineName = randomFrom("ticker", "scheduler");
         }
         return super.buildTestCluster(scope, seed);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        String scheduleImplName = scheduleEngine().name().toLowerCase(Locale.ROOT);
-        logger.info("using schedule engine [{}]", scheduleImplName);
+        logger.info("using schedule engine [{}]", scheduleEngineName);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 //TODO: for now lets isolate watcher tests from monitoring (randomize this later)
@@ -152,7 +149,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put(SecuritySettings.settings(securityEnabled, useSecurity3))
-                .put("xpack.watcher.trigger.schedule.engine", scheduleImplName)
+                .put("xpack.watcher.trigger.schedule.engine", scheduleEngineName)
                 .put("script.inline", "true")
                 .build();
     }
@@ -233,13 +230,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     /**
-     * @return The schedule trigger engine that will be used for the nodes.
-     */
-    protected final ScheduleModule.Engine scheduleEngine() {
-        return scheduleEngine;
-    }
-
-    /**
      * Override and returns {@code false} to force running without security
      */
     protected boolean enableSecurity() {
@@ -270,7 +260,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @AfterClass
     public static void _cleanupClass() {
         securityEnabled = null;
-        scheduleEngine = null;
+        scheduleEngineName = null;
     }
 
     @Override

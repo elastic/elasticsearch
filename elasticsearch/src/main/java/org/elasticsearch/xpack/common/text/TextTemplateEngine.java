@@ -44,7 +44,11 @@ public class TextTemplateEngine extends AbstractComponent {
         }
         mergedModel.putAll(model);
 
-        Script script = new Script(template, textTemplate.getType(), "mustache", mergedModel, textTemplate.getContentType());
+        Map<String, String> options = new HashMap<>();
+        if (textTemplate.getContentType() != null) {
+            options.put(Script.CONTENT_TYPE_OPTION, textTemplate.getContentType().mediaType());
+        }
+        Script script = new Script(textTemplate.getType(), "mustache", template, options, mergedModel);
         CompiledScript compiledScript = service.compile(script, Watcher.SCRIPT_CONTEXT, compileParams);
         ExecutableScript executable = service.executable(compiledScript, model);
         Object result = executable.run();

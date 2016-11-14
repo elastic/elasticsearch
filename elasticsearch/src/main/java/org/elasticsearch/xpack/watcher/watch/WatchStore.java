@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,7 +35,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.common.stats.Counters;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -65,11 +63,6 @@ public class WatchStore extends AbstractComponent {
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
-
-    @Inject
-    public WatchStore(Settings settings, InternalClient client, Watch.Parser watchParser) {
-        this(settings, new WatcherClientProxy(settings, client), watchParser);
-    }
 
     public WatchStore(Settings settings, WatcherClientProxy client, Watch.Parser watchParser) {
         super(settings);

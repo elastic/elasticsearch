@@ -12,7 +12,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -47,7 +46,6 @@ public class WatcherService extends AbstractComponent {
     // package-private for testing
     final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
 
-    @Inject
     public WatcherService(Settings settings, Clock clock, TriggerService triggerService, WatchStore watchStore,
                           Watch.Parser watchParser, ExecutionService executionService, WatchLockService watchLockService,
                           WatcherIndexTemplateRegistry watcherIndexTemplateRegistry) {

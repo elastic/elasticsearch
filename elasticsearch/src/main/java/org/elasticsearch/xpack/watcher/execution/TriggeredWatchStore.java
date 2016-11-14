@@ -21,7 +21,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
@@ -60,11 +58,6 @@ public class TriggeredWatchStore extends AbstractComponent {
     private final Lock accessLock = readWriteLock.readLock();
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
-
-    @Inject
-    public TriggeredWatchStore(Settings settings, InternalClient client, TriggeredWatch.Parser triggeredWatchParser) {
-        this(settings, new WatcherClientProxy(settings, client), triggeredWatchParser);
-    }
 
     public TriggeredWatchStore(Settings settings, WatcherClientProxy client, TriggeredWatch.Parser triggeredWatchParser) {
         super(settings);

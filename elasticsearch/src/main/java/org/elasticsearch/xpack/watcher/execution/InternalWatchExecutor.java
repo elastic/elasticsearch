@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.stream.Stream;
-
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackPlugin;
+
+import java.util.concurrent.BlockingQueue;
+import java.util.stream.Stream;
 
 public class InternalWatchExecutor implements WatchExecutor {
 
@@ -19,7 +18,6 @@ public class InternalWatchExecutor implements WatchExecutor {
 
     private final ThreadPool threadPool;
 
-    @Inject
     public InternalWatchExecutor(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }

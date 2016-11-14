@@ -1,5 +1,5 @@
 {
-  "template": ".monitoring-data-${monitoring.template.version}",
+  "index_patterns": ".monitoring-data-${monitoring.template.version}",
   "mappings": {
     "type_1": {
       "_meta": {

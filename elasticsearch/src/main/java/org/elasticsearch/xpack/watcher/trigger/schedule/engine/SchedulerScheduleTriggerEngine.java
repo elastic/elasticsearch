@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
@@ -27,7 +26,6 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     private final SchedulerEngine schedulerEngine;
 
-    @Inject
     public SchedulerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings, scheduleRegistry, clock);
         this.schedulerEngine = new SchedulerEngine(clock);

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.common.text.TextTemplate;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -54,13 +55,13 @@ public class WatcherSearchTemplateRequest implements ToXContent {
         this.indicesOptions = indicesOptions;
         // Here we convert a watch search request body into an inline search template,
         // this way if any Watcher related context variables are used, they will get resolved.
-        this.template = new Script(searchSource.utf8ToString(), ScriptType.INLINE, TextTemplate.DEFAULT_TEMPLATE_LANG, null);
+        this.template = new Script(ScriptType.INLINE, Script.DEFAULT_TEMPLATE_LANG, searchSource.utf8ToString(), Collections.emptyMap());
         this.searchSource = null;
     }
 
     public WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,
                                         Script template) {
-        assert template == null || TextTemplate.DEFAULT_TEMPLATE_LANG.equals(template.getLang());
+        assert template == null || Script.DEFAULT_TEMPLATE_LANG.equals(template.getLang());
         this.indices = indices;
         this.types = types;
         this.searchType = searchType;
@@ -118,7 +119,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
         if (template != null) {
             return template;
         } else {
-            return new Script(searchSource.utf8ToString(), ScriptType.INLINE, TextTemplate.DEFAULT_TEMPLATE_LANG, null);
+            return new Script(ScriptType.INLINE, Script.DEFAULT_TEMPLATE_LANG, searchSource.utf8ToString(), Collections.emptyMap());
         }
     }
 
@@ -271,7 +272,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
                             DEFAULT_INDICES_OPTIONS);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TEMPLATE_FIELD)) {
-                    template = Script.parse(parser, ParseFieldMatcher.STRICT, TextTemplate.DEFAULT_TEMPLATE_LANG);
+                    template = Script.parse(parser, ParseFieldMatcher.STRICT, Script.DEFAULT_TEMPLATE_LANG);
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
                             currentFieldName + "]");

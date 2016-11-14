@@ -104,6 +104,14 @@ public final class ENumeric extends AExpression {
                     actual = Definition.INT_TYPE;
                 }
             } catch (NumberFormatException exception) {
+                try {
+                    // Check if we can parse as a long. If so then hint that the user might prefer that.
+                    Long.parseLong(value, radix);
+                    throw createError(new IllegalArgumentException("Invalid int constant [" + value + "]. If you want a long constant "
+                            + "then change it to [" + value + "L]."));
+                } catch (NumberFormatException longNoGood) {
+                    // Ignored
+                }
                 throw createError(new IllegalArgumentException("Invalid int constant [" + value + "]."));
             }
         }

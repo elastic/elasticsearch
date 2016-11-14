@@ -54,6 +54,8 @@ esac
 # to pick up /usr/lib/sysctl.d/elasticsearch.conf
 if command -v /usr/lib/systemd/systemd-sysctl > /dev/null; then
     /usr/lib/systemd/systemd-sysctl
+elif command -v /lib/systemd/systemd-sysctl > /dev/null; then
+    /lib/systemd/systemd-sysctl
 fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then

@@ -14,8 +14,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -267,7 +269,12 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         when(localNode.getHostAddress()).thenReturn(remoteAddress.getAddress());
         when(localNode.getHostName()).thenReturn(remoteAddress.getAddress());
         ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(clusterService.localNode()).thenReturn(localNode);
+        when(clusterService.state()).thenReturn(state);
+        when(state.getNodes()).thenReturn(nodes);
+        when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
         threadPool = new TestThreadPool("index audit trail tests");
         enqueuedMessage = new SetOnce<>();
         auditor = new IndexAuditTrail(settings, internalClient(), threadPool, clusterService) {

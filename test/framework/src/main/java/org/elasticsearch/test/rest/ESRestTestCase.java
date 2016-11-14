@@ -150,6 +150,16 @@ public class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Controls whether or not to preserve templates upon completion of this test. The default implementation is to delete not preserve
+     * templates.
+     *
+     * @return whether or not to preserve templates
+     */
+    protected boolean preserveTemplatesUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws IOException {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -164,7 +174,9 @@ public class ESRestTestCase extends ESTestCase {
         }
 
         // wipe index templates
-        adminClient().performRequest("DELETE", "_template/*");
+        if (preserveTemplatesUponCompletion() == false) {
+            adminClient().performRequest("DELETE", "_template/*");
+        }
 
         wipeSnapshots();
     }

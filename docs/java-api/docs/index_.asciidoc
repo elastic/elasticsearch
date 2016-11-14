@@ -60,8 +60,9 @@ json.put("message","trying out Elasticsearch");
 [[java-docs-index-generate-beans]]
 ===== Serialize your beans
 
-Elasticsearch already uses http://wiki.fasterxml.com/JacksonHome[Jackson].
-So you can use it to serialize your beans to JSON:
+You can use http://wiki.fasterxml.com/JacksonHome[Jackson] to serialize
+your beans to JSON. Please add https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind/[Jackson Databind]
+ to your project. Then you can use `ObjectMapper` to serialize your beans:
 
 [source,java]
 --------------------------------------------------

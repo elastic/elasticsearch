@@ -523,16 +523,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.IndexShardRelocatedException::new, 45),
         NODE_SHOULD_NOT_CONNECT_EXCEPTION(org.elasticsearch.transport.NodeShouldNotConnectException.class,
                 org.elasticsearch.transport.NodeShouldNotConnectException::new, 46),
-        INDEX_TEMPLATE_ALREADY_EXISTS_EXCEPTION(org.elasticsearch.indices.IndexTemplateAlreadyExistsException.class,
-                org.elasticsearch.indices.IndexTemplateAlreadyExistsException::new, 47),
+        // 47 used to be for IndexTemplateAlreadyExistsException which was deprecated in 5.1 removed in 6.0
         TRANSLOG_CORRUPTED_EXCEPTION(org.elasticsearch.index.translog.TranslogCorruptedException.class,
                 org.elasticsearch.index.translog.TranslogCorruptedException::new, 48),
         CLUSTER_BLOCK_EXCEPTION(org.elasticsearch.cluster.block.ClusterBlockException.class,
                 org.elasticsearch.cluster.block.ClusterBlockException::new, 49),
         FETCH_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.fetch.FetchPhaseExecutionException.class,
                 org.elasticsearch.search.fetch.FetchPhaseExecutionException::new, 50),
-        INDEX_SHARD_ALREADY_EXISTS_EXCEPTION(org.elasticsearch.index.IndexShardAlreadyExistsException.class,
-                org.elasticsearch.index.IndexShardAlreadyExistsException::new, 51),
+        // 51 used to be for IndexShardAlreadyExistsException which was deprecated in 5.1 removed in 6.0
         VERSION_CONFLICT_ENGINE_EXCEPTION(org.elasticsearch.index.engine.VersionConflictEngineException.class,
                 org.elasticsearch.index.engine.VersionConflictEngineException::new, 52),
         ENGINE_EXCEPTION(org.elasticsearch.index.engine.EngineException.class, org.elasticsearch.index.engine.EngineException::new, 53),
@@ -553,7 +551,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper::new, 62),
         ALIAS_FILTER_PARSING_EXCEPTION(org.elasticsearch.indices.AliasFilterParsingException.class,
                 org.elasticsearch.indices.AliasFilterParsingException::new, 63),
-        // 64 was DeleteByQueryFailedEngineException, which was removed in 3.0
+        // 64 was DeleteByQueryFailedEngineException, which was removed in 5.0
         GATEWAY_EXCEPTION(org.elasticsearch.gateway.GatewayException.class, org.elasticsearch.gateway.GatewayException::new, 65),
         INDEX_SHARD_NOT_RECOVERING_EXCEPTION(org.elasticsearch.index.shard.IndexShardNotRecoveringException.class,
                 org.elasticsearch.index.shard.IndexShardNotRecoveringException::new, 66),

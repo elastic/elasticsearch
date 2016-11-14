@@ -61,7 +61,7 @@ json.put("message","trying out Elasticsearch");
 ===== Serialize your beans
 
 You can use http://wiki.fasterxml.com/JacksonHome[Jackson] to serialize
-your beans to JSON. Please add https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind/[Jackson Databind]
+your beans to JSON. Please add http://search.maven.org/#search%7Cga%7C1%7Cjackson-databind[Jackson Databind]
  to your project. Then you can use `ObjectMapper` to serialize your beans:
 
 [source,java]

@@ -290,7 +290,7 @@ final class Security {
             // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
             boolean valid = TransportSettings.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
             if (valid) {
-                addSocketPermissionForTransport(policy, profileSettings);
+                addSocketPermissionForTransportProfile(policy, profileSettings, settings);
             }
         }
 
@@ -308,7 +308,7 @@ final class Security {
      * Add dynamic {@link SocketPermission} based on HTTP settings.
      *
      * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
-     * @param settings the {@link Settings} instance to read the HTTP from
+     * @param settings the {@link Settings} instance to read the HTTP settingsfrom
      */
     private static void addSocketPermissionForHttp(final Permissions policy, final Settings settings) {
         // http is simple
@@ -317,13 +317,33 @@ final class Security {
     }
 
     /**
+     * Add dynamic {@link SocketPermission} based on transport settings. This method will first check if there is a port range specified in
+     * the transport profile specified by {@code profileSettings} and will fall back to {@code settings}.
+     *
+     * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
+     * @param profileSettings the {@link Settings} to read the transport profile from
+     * @param settings        the {@link Settings} instance to read the transport settings from
+     */
+    private static void addSocketPermissionForTransportProfile(
+        final Permissions policy,
+        final Settings profileSettings,
+        final Settings settings) {
+        final String transportRange = profileSettings.get("port");
+        if (transportRange != null) {
+            addSocketPermissionForPortRange(policy, transportRange);
+        } else {
+            addSocketPermissionForTransport(policy, settings);
+        }
+    }
+
+    /**
      * Add dynamic {@link SocketPermission} based on transport settings.
      *
-     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
-     * @param settings the {@link Settings} instance to read the HTTP from
+     * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
+     * @param settings        the {@link Settings} instance to read the transport settings from
      */
     private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
-        final String transportRange = settings.get("port", TransportSettings.PORT.get(settings));
+        final String transportRange = TransportSettings.PORT.get(settings);
         addSocketPermissionForPortRange(policy, transportRange);
     }
 

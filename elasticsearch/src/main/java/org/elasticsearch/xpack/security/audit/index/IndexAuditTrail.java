@@ -220,7 +220,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
      */
     public synchronized boolean canStart(ClusterChangedEvent event, boolean master) {
         if (indexToRemoteCluster) {
-            // do not block here!
+            // just return true as we do not determine whether we can start or not based on the local cluster state, but must base it off
+            // of the remote cluster state and this method is called on the cluster state update thread, so we do not really want to
+            // execute remote calls on this thread
             return true;
         }
         return canStart(event.state(), master);

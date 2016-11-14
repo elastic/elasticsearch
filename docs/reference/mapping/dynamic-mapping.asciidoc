@@ -41,8 +41,7 @@ automatically or explicitly.
 === Disabling automatic type creation
 
 Automatic type creation can be disabled by setting the `index.mapper.dynamic`
-setting to `false`, either by setting the default value in the
-`config/elasticsearch.yml` file, or per-index as an index setting:
+setting to `false` per-index as an index setting:
 
 [source,js]
 --------------------------------------------------

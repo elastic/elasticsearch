@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to change a user's password.
  */
-public class ChangePasswordRequest extends ActionRequest<ChangePasswordRequest>
+public class ChangePasswordRequest extends ActionRequest
         implements UserRequest, WriteRequest<ChangePasswordRequest> {
 
     private String username;

@@ -24,7 +24,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a native user.
  */
-public class PutUserRequest extends ActionRequest<PutUserRequest> implements UserRequest, WriteRequest<PutUserRequest> {
+public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest> {
 
     private String username;
     private String[] roles;

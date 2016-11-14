@@ -43,7 +43,7 @@ public class InternalClientTests extends ESTestCase {
     public void testContextIsPreserved() throws IOException, InterruptedException {
         FilterClient dummy = new FilterClient(Settings.EMPTY, threadPool, null) {
             @Override
-            protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends
+            protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
                     ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder>
                                                                                                     action, Request request,
                                                                                             ActionListener<Response> listener) {
@@ -96,7 +96,7 @@ public class InternalClientTests extends ESTestCase {
     public void testContextIsPreservedOnError() throws IOException, InterruptedException {
         FilterClient dummy = new FilterClient(Settings.EMPTY, threadPool, null) {
             @Override
-            protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends
+            protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
                     ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder>
                                                                                                     action, Request request,
                                                                                             ActionListener<Response> listener) {

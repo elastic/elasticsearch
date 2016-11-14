@@ -28,7 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object for adding a role to the security index
  */
-public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements WriteRequest<PutRoleRequest> {
+public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRoleRequest> {
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;

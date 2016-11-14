@@ -48,7 +48,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
-import org.elasticsearch.test.discovery.MockZenDiscovery;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -155,7 +155,7 @@ public class InternalTestClusterTests extends ESTestCase {
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, MockZenDiscovery.TestPlugin.class);
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class);
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, mockPlugins, Function.identity());
@@ -218,7 +218,7 @@ public class InternalTestClusterTests extends ESTestCase {
         Path baseDir = createTempDir();
         InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, Arrays.asList(MockTcpTransportPlugin.class, MockZenDiscovery.TestPlugin.class),
+            enableHttpPipelining, nodePrefix, Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class),
             Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
@@ -296,7 +296,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     return Settings.builder()
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
                 }
-            }, 0, randomBoolean(), "", Arrays.asList(MockTcpTransportPlugin.class, MockZenDiscovery.TestPlugin.class), Function.identity());
+            }, 0, randomBoolean(), "", Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class), Function.identity());
         cluster.beforeTest(random(), 0.0);
         try {
             Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();

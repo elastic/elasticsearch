@@ -107,7 +107,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private AllocationService allocationService;
     private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
-    private final ZenPing zenPing;
+    protected final ZenPing zenPing; // protected to allow tests access
     private final MasterFaultDetection masterFD;
     private final NodesFaultDetection nodesFD;
     private final PublishClusterStateAction publishClusterState;
@@ -195,11 +195,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
         return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
-    }
-
-    // TODO: this shoudln't be public, clean up the zen ping interface somehow to better allow clearing for testing?
-    public ZenPing getZenPing() {
-        return zenPing;
     }
 
     @Override

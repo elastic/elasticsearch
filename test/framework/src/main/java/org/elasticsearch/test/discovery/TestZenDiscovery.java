@@ -20,11 +20,12 @@
 package org.elasticsearch.test.discovery;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -37,9 +38,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * A mock version of zen discovery for tests which uses
+ * A alternative zen discovery which allows using mocks for things like pings, as well as
+ * giving access to internals.
  */
-public class MockZenDiscovery extends ZenDiscovery {
+public class TestZenDiscovery extends ZenDiscovery {
+
+    public static final Setting<Boolean> USE_MOCK_PINGS =
+        Setting.boolSetting("discovery.zen.use_mock_pings", true, Setting.Property.NodeScope);
 
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
@@ -50,24 +55,37 @@ public class MockZenDiscovery extends ZenDiscovery {
         @Override
         public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                                   ClusterService clusterService, UnicastHostsProvider hostsProvider) {
-            return Collections.singletonMap("mock-zen",
-                () -> new MockZenDiscovery(settings, threadPool, transportService, clusterService, hostsProvider));
+            return Collections.singletonMap("test-zen",
+                () -> new TestZenDiscovery(settings, threadPool, transportService, clusterService, hostsProvider));
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(USE_MOCK_PINGS);
         }
 
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "mock-zen").build();
+            return Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen").build();
         }
     }
 
-    private MockZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
-                            ClusterService clusterService, UnicastHostsProvider hostsProvider) {
+    private TestZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
+                             ClusterService clusterService, UnicastHostsProvider hostsProvider) {
         super(settings, threadPool, transportService, clusterService, hostsProvider);
     }
 
     @Override
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
-        return new MockZenPing(settings);
+        if (USE_MOCK_PINGS.get(settings)) {
+            return new MockZenPing(settings);
+        } else {
+            return super.newZenPing(settings, threadPool, transportService, hostsProvider);
+        }
+    }
+
+    public ZenPing getZenPing() {
+        return zenPing;
     }
 }

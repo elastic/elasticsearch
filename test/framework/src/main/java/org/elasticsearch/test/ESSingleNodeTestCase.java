@@ -52,7 +52,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.discovery.MockZenDiscovery;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.junit.After;
@@ -191,9 +191,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins = new ArrayList<>(plugins);
             plugins.add(MockTcpTransportPlugin.class);
         }
-        if (plugins.contains(MockZenDiscovery.TestPlugin.class) == false) {
+        if (plugins.contains(TestZenDiscovery.TestPlugin.class) == false) {
             plugins = new ArrayList<>(plugins);
-            plugins.add(MockZenDiscovery.TestPlugin.class);
+            plugins.add(TestZenDiscovery.TestPlugin.class);
         }
         Node build = new MockNode(settings, plugins);
         try {

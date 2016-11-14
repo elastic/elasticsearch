@@ -81,4 +81,9 @@ final class PSubCallInvoke extends AExpression {
 
         method.write(writer);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, method.name);
+    }
 }

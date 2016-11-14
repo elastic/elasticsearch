@@ -64,4 +64,9 @@ public final class SThrow extends AStatement {
         expression.write(writer, globals);
         writer.throwException();
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(expression);
+    }
 }

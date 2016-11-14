@@ -74,4 +74,9 @@ public final class EExplicit extends AExpression {
 
         return child.cast(locals);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, child);
+    }
 }

@@ -1,18 +1,11 @@
 package org.elasticsearch.gradle.vagrant
 
 import org.elasticsearch.gradle.FileContentsTask
-import org.elasticsearch.gradle.VersionProperties
 import org.gradle.BuildAdapter
 import org.gradle.BuildResult
-import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.Plugin
-import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.artifacts.SelfResolvingDependency
+import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
-import org.gradle.api.internal.artifacts.dependencies.DefaultSelfResolvingDependency
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
@@ -308,7 +301,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static void createCheckVersionTask(Project project) {
+    private static void createCheckVagrantVersionTask(Project project) {
         project.tasks.create('vagrantCheckVersion', Exec) {
             description 'Check the Vagrant version'
             group 'Verification'
@@ -316,8 +309,30 @@ class VagrantTestPlugin implements Plugin<Project> {
             standardOutput = new ByteArrayOutputStream()
             doLast {
                 String version = standardOutput.toString().trim()
-                if ((version ==~ /Vagrant 1\.[789]\..+/) == false) {
-                    throw new InvalidUserDataException("Illegal version of vagrant [${version}]. Need [Vagrant 1.7+]")
+                if ((version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) == false) {
+                    throw new InvalidUserDataException("Illegal version of vagrant [${version}]. Need [Vagrant 1.8.6+]")
+                }
+            }
+        }
+    }
+
+    private static void createCheckVirtualBoxVersionTask(Project project) {
+        project.tasks.create('virtualboxCheckVersion', Exec) {
+            description 'Check the Virtualbox version'
+            group 'Verification'
+            commandLine 'vboxmanage', '--version'
+            standardOutput = new ByteArrayOutputStream()
+            doLast {
+                String version = standardOutput.toString().trim()
+                try {
+                    String[] versions = version.split('\\.')
+                    int major = Integer.parseInt(versions[0])
+                    int minor = Integer.parseInt(versions[1])
+                    if ((major < 5) || (major == 5 && minor < 1)) {
+                        throw new InvalidUserDataException("Illegal version of virtualbox [${version}]. Need [5.1+]")
+                    }
+                } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+                    throw new InvalidUserDataException("Unable to parse version of virtualbox [${version}]. Required [5.1+]", e)
                 }
             }
         }
@@ -341,7 +356,8 @@ class VagrantTestPlugin implements Plugin<Project> {
         createSmokeTestTask(project)
         createUpdateVersionsTask(project)
         createVerifyVersionsTask(project)
-        createCheckVersionTask(project)
+        createCheckVagrantVersionTask(project)
+        createCheckVirtualBoxVersionTask(project)
         createPrepareVagrantTestEnvTask(project)
         createPackagingTestTask(project)
     }
@@ -357,6 +373,9 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         assert project.tasks.vagrantCheckVersion != null
         Task vagrantCheckVersion = project.tasks.vagrantCheckVersion
+
+        assert project.tasks.virtualboxCheckVersion != null
+        Task virtualboxCheckVersion = project.tasks.virtualboxCheckVersion
 
         assert project.tasks.vagrantSetUp != null
         Task vagrantSetUp = project.tasks.vagrantSetUp
@@ -394,7 +413,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 boxName box
                 environmentVars vagrantEnvVars
                 args 'box', 'update', box
-                dependsOn vagrantCheckVersion, vagrantSetUp
+                dependsOn vagrantCheckVersion, virtualboxCheckVersion, vagrantSetUp
             }
 
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {

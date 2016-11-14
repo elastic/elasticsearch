@@ -59,6 +59,9 @@
 # use our provided JNA always versus the system one
 -Djna.nosys=true
 
+# use old-style file permissions on JDK9
+-Djdk.io.permissionsUseCanonicalPath=true
+
 # flags to keep Netty from being unsafe
 -Dio.netty.noUnsafe=true
 -Dio.netty.noKeySetOptimization=true

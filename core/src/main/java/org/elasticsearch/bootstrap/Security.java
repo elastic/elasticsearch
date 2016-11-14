@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;

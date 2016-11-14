@@ -123,7 +123,7 @@ class ClusterConfiguration {
 
     Map<String, String> systemProperties = new HashMap<>()
 
-    Map<String, String> settings = new HashMap<>()
+    Map<String, Object> settings = new HashMap<>()
 
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
@@ -140,7 +140,7 @@ class ClusterConfiguration {
     }
 
     @Input
-    void setting(String name, String value) {
+    void setting(String name, Object value) {
         settings.put(name, value)
     }
 

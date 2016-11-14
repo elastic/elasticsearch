@@ -676,17 +676,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public IndexingStats indexingStats(String... types) {
-        Engine engine = getEngineOrNull();
-        final boolean throttled;
-        final long throttleTimeInMillis;
-        if (engine == null) {
-            throttled = false;
-            throttleTimeInMillis = 0;
-        } else {
-            throttled = engine.isThrottled();
-            throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
-        }
-        return internalIndexingStats.stats(throttled, throttleTimeInMillis, types);
+        return internalIndexingStats.stats(types);
     }
 
     public SearchStats searchStats(String... groups) {

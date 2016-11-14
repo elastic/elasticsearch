@@ -44,12 +44,10 @@ public class IndexingStats implements Streamable, ToXContent {
         private long deleteTimeInMillis;
         private long deleteCurrent;
         private long noopUpdateCount;
-        private long throttleTimeInMillis;
-        private boolean isThrottled;
 
         Stats() {}
 
-        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexFailedCount, long deleteCount, long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount, boolean isThrottled, long throttleTimeInMillis) {
+        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexFailedCount, long deleteCount, long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
@@ -58,8 +56,6 @@ public class IndexingStats implements Streamable, ToXContent {
             this.deleteTimeInMillis = deleteTimeInMillis;
             this.deleteCurrent = deleteCurrent;
             this.noopUpdateCount = noopUpdateCount;
-            this.isThrottled = isThrottled;
-            this.throttleTimeInMillis = throttleTimeInMillis;
         }
 
         public void add(Stats stats) {
@@ -73,10 +69,6 @@ public class IndexingStats implements Streamable, ToXContent {
             deleteCurrent += stats.deleteCurrent;
 
             noopUpdateCount += stats.noopUpdateCount;
-            throttleTimeInMillis += stats.throttleTimeInMillis;
-            if (isThrottled != stats.isThrottled) {
-                isThrottled = true; //When combining if one is throttled set result to throttled.
-            }
         }
 
         /**
@@ -105,16 +97,6 @@ public class IndexingStats implements Streamable, ToXContent {
         public long getDeleteCount() {
             return deleteCount;
         }
-
-        /**
-         * Returns if the index is under merge throttling control
-         */
-        public boolean isThrottled() { return isThrottled; }
-
-        /**
-         * Gets the amount of time in a TimeValue that the index has been under merge throttling control
-         */
-        public TimeValue getThrottleTime() { return new TimeValue(throttleTimeInMillis); }
 
         /**
          * The total amount of time spend on executing delete operations.
@@ -152,8 +134,10 @@ public class IndexingStats implements Streamable, ToXContent {
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
             noopUpdateCount = in.readVLong();
-            isThrottled = in.readBoolean();
-            throttleTimeInMillis = in.readLong();
+            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+                in.readBoolean(); // isThrottled
+                in.readLong(); // throttleTimeInMillis
+            }
         }
 
         @Override
@@ -170,9 +154,10 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
             out.writeVLong(noopUpdateCount);
-            out.writeBoolean(isThrottled);
-            out.writeLong(throttleTimeInMillis);
-
+            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+                out.writeBoolean(false); // isThrottled
+                out.writeLong(0L); // throttleTimeInMillis
+            }
         }
 
         @Override
@@ -188,8 +173,6 @@ public class IndexingStats implements Streamable, ToXContent {
 
             builder.field(Fields.NOOP_UPDATE_TOTAL, noopUpdateCount);
 
-            builder.field(Fields.IS_THROTTLED, isThrottled);
-            builder.timeValueField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, throttleTimeInMillis);
             return builder;
         }
     }
@@ -278,9 +261,6 @@ public class IndexingStats implements Streamable, ToXContent {
         static final String DELETE_TIME_IN_MILLIS = "delete_time_in_millis";
         static final String DELETE_CURRENT = "delete_current";
         static final String NOOP_UPDATE_TOTAL = "noop_update_total";
-        static final String IS_THROTTLED = "is_throttled";
-        static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
-        static final String THROTTLED_TIME = "throttle_time";
     }
 
     public static IndexingStats readIndexingStats(StreamInput in) throws IOException {

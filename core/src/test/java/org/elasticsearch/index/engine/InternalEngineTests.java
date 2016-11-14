@@ -260,11 +260,6 @@ public class InternalEngineTests extends ESTestCase {
             public Directory newDirectory() throws IOException {
                 return directory;
             }
-
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
         };
         return new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
     }

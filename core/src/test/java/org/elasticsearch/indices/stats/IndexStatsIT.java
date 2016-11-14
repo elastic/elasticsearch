@@ -32,20 +32,14 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
@@ -287,85 +281,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0L));
     }
 
-    public void testNonThrottleStats() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
-                                .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
-                                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000")
-                ));
-        ensureGreen();
-        long termUpto = 0;
-        IndicesStatsResponse stats;
-        // Provoke slowish merging by making many unique terms:
-        for(int i=0; i<100; i++) {
-            StringBuilder sb = new StringBuilder();
-            for(int j=0; j<100; j++) {
-                sb.append(' ');
-                sb.append(termUpto++);
-                sb.append(" some random text that keeps repeating over and over again hambone");
-            }
-            client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
-        }
-        refresh();
-        stats = client().admin().indices().prepareStats().execute().actionGet();
-        //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
-
-        stats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
-    }
-
-    public void testThrottleStats() throws Exception {
-        assertAcked(prepareCreate("test")
-                    .setSettings(settingsBuilder()
-                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
-                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
-                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
-                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name())
-                                 ));
-        ensureGreen();
-        long termUpto = 0;
-        IndicesStatsResponse stats;
-        // make sure we see throttling kicking in:
-        boolean done = false;
-        long start = System.currentTimeMillis();
-        while (!done) {
-            for(int i=0; i<100; i++) {
-                // Provoke slowish merging by making many unique terms:
-                StringBuilder sb = new StringBuilder();
-                for(int j=0; j<100; j++) {
-                    sb.append(' ');
-                    sb.append(termUpto++);
-                }
-                client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
-                if (i % 2 == 0) {
-                    refresh();
-                }
-            }
-            refresh();
-            stats = client().admin().indices().prepareStats().execute().actionGet();
-            //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
-            if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
-                fail("index throttling didn't kick in after 5 minutes of intense merging");
-            }
-        }
-
-        // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
-        // when ESIntegTestCase.after tries to remove indices created by the test:
-        logger.info("test: now optimize");
-        client().admin().indices().prepareForceMerge("test").get();
-        flush();
-        logger.info("test: test done");
-    }
 
     public void testSimpleStats() throws Exception {
         createIndex("test1", "test2");
@@ -387,8 +302,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().getDocs().getCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3L));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(0L));
-        assertThat(stats.getPrimaries().getIndexing().getTotal().isThrottled(), equalTo(false));
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getTotal().getStore(), notNullValue());
         assertThat(stats.getTotal().getMerge(), notNullValue());

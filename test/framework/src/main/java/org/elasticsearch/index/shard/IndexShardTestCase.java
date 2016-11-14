@@ -126,11 +126,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
             public Directory newDirectory() throws IOException {
                 return newFSDirectory(shardPath.resolveIndex());
             }
-
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
         };
         return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
     }

@@ -294,8 +294,7 @@ final class Security {
             }
         }
 
-        final Map<String, Settings> tribeNodesSettings = new HashMap<>(settings.getGroups("tribe", true));
-        for (final Settings tribeNodeSettings : tribeNodesSettings.values()) {
+        for (final Settings tribeNodeSettings : settings.getGroups("tribe", true).values()) {
             // tribe nodes have HTTP disabled by default, so we check if HTTP is enabled before granting
             if (NetworkModule.HTTP_ENABLED.exists(tribeNodeSettings) && NetworkModule.HTTP_ENABLED.get(tribeNodeSettings)) {
                 addSocketPermissionForHttp(policy, tribeNodeSettings);

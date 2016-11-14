@@ -867,15 +867,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void writeAtomic(final String blobName, final BytesReference bytesRef) throws IOException {
-        final String tempBlobName = "pending-" + blobName;
+        final String tempBlobName = "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
         try (InputStream stream = bytesRef.streamInput()) {
             snapshotsBlobContainer.writeBlob(tempBlobName, stream, bytesRef.length());
-        }
-        try {
             snapshotsBlobContainer.move(tempBlobName, blobName);
         } catch (IOException ex) {
-            // Move failed - try cleaning up
-            snapshotsBlobContainer.deleteBlob(tempBlobName);
+            // temporary blob creation or move failed - try cleaning up
+            try {
+                snapshotsBlobContainer.deleteBlob(tempBlobName);
+            } catch (IOException e) {
+                ex.addSuppressed(e);
+            }
             throw ex;
         }
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -201,33 +203,36 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "2", "3");
         assertHitCount(resp, 2L);
 
-        // Will be fixed once https://github.com/elastic/elasticsearch/pull/20965 is in
-        // resp = client().prepareSearch("test")
-        //         .setQuery(queryStringQuery("Foo Bar").splitOnWhitespcae(false))
-        //         .get();
-        // assertHits(resp.getHits(), "1", "2", "3");
-        // assertHitCount(resp, 3L);
+        resp = client().prepareSearch("test")
+                .setQuery(queryStringQuery("Foo Bar").splitOnWhitespace(false))
+                .get();
+        assertHits(resp.getHits(), "1", "2", "3");
+        assertHitCount(resp, 3L);
     }
 
     public void testExplicitAllFieldsRequested() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
+        prepareCreate("test2").setSource(indexBody).get();
+        ensureGreen("test2");
+
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo",
-                        "f_date", "2015/09/02",
-                        "f_float", "1.7",
-                        "f_ip", "127.0.0.1"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar",
-                        "f_date", "2015/09/01",
-                        "f_float", "1.8",
-                        "f_ip", "127.0.0.2"));
+        reqs.add(client().prepareIndex("test2", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(
-                queryStringQuery("127.0.0.2 \"2015/09/02\"")
-                .field("f_ip") // Usually this would mean we wouldn't search "all" fields
-                .useAllFields(true)) // ... unless explicitly requested
-                .get();
-        assertHits(resp.getHits(), "1", "2");
-        assertHitCount(resp, 2L);
+        SearchResponse resp = client().prepareSearch("test2").setQuery(
+                queryStringQuery("foo eggplent").defaultOperator(Operator.AND)).get();
+        assertHitCount(resp, 0L);
+
+        resp = client().prepareSearch("test2").setQuery(
+                queryStringQuery("foo eggplent").defaultOperator(Operator.AND).useAllFields(true)).get();
+        assertHits(resp.getHits(), "1");
+        assertHitCount(resp, 1L);
+
+        Exception e = expectThrows(Exception.class, () ->
+                client().prepareSearch("test2").setQuery(
+                        queryStringQuery("blah").field("f1").useAllFields(true)).get());
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]"));
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl="currently can't perform phrase queries on fields that don't support positions")

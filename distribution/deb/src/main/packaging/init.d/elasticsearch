@@ -84,6 +84,7 @@ DAEMON_OPTS="-d -p $PID_FILE -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$D
 export ES_JAVA_OPTS
 export JAVA_HOME
 export ES_INCLUDE
+export ES_JVM_OPTIONS
 
 if [ ! -x "$DAEMON" ]; then
 	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"

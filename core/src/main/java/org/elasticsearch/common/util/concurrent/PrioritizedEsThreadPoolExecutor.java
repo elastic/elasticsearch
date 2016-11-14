@@ -107,6 +107,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
+        super.afterExecute(r, t);
         current.remove(r);
     }
 

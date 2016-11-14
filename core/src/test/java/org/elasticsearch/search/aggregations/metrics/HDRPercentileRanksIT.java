@@ -260,7 +260,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("value")
-                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -284,7 +284,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("value")
-                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -324,7 +324,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
-                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -345,7 +345,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
-                                .script(new Script("20 - _value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "20 - _value", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -369,7 +369,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
-                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -390,7 +390,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks")
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
-                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -406,7 +406,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("doc['value'].value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value - dec", params);
 
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
         SearchResponse searchResponse = client()
@@ -431,7 +431,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
 
-        Script script = new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
 
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
@@ -553,7 +553,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         // Test that a request using a script does not get cached
         SearchResponse r = client()
                 .prepareSearch("cache_test_idx").setSize(0).addAggregation(percentileRanks("foo").method(PercentilesMethod.HDR).field("d")
-                        .values(50.0).script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                        .values(50.0).script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap())))
                 .get();
         assertSearchResponse(r);
 

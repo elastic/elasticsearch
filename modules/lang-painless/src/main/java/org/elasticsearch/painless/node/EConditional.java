@@ -34,7 +34,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
 /**
- * Respresents a conditional expression.
+ * Represents a conditional expression.
  */
 public final class EConditional extends AExpression {
 

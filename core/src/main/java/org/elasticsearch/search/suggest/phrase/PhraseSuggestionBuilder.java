@@ -393,7 +393,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * Sets a query used for filtering out suggested phrases (collation).
      */
     public PhraseSuggestionBuilder collateQuery(String collateQuery) {
-        this.collateQuery = new Script(collateQuery, ScriptType.INLINE, "mustache", Collections.emptyMap());
+        this.collateQuery = new Script(ScriptType.INLINE, "mustache", collateQuery, Collections.emptyMap());
         return this;
     }
 
@@ -635,7 +635,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
         if (this.collateQuery != null) {
             Function<Map<String, Object>, ExecutableScript> compiledScript = context.getLazyExecutableScript(this.collateQuery,
-                ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                ScriptContext.Standard.SEARCH);
             suggestionContext.setCollateQueryScript(compiledScript);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);

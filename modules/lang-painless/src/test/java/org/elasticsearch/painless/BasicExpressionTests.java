@@ -2,6 +2,8 @@ package org.elasticsearch.painless;
 
 import java.util.Collections;
 
+import static java.util.Collections.singletonMap;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -25,16 +27,24 @@ public class BasicExpressionTests extends ScriptTestCase {
 
     /** simple tests returning a constant value */
     public void testReturnConstant() {
-        assertEquals(5, exec("return 5;"));
-        assertEquals(7L, exec("return 7L;"));
-        assertEquals(7.0, exec("return 7.0;"));
-        assertEquals(32.0F, exec("return 32.0F;"));
-        assertEquals((byte)255, exec("return (byte)255;"));
-        assertEquals((short)5, exec("return (short)5;"));
-        assertEquals("string", exec("return \"string\";"));
-        assertEquals(true, exec("return true;"));
-        assertEquals(false, exec("return false;"));
-        assertNull(exec("return null;"));
+        assertEquals(5, exec("return 5"));
+        assertEquals(6L, exec("return 6l"));
+        assertEquals(7L, exec("return 7L"));
+        assertEquals(7.0d, exec("return 7.0"));
+        assertEquals(18.0d, exec("return 18d"));
+        assertEquals(19.0d, exec("return 19.0d"));
+        assertEquals(20.0d, exec("return 20D"));
+        assertEquals(21.0d, exec("return 21.0D"));
+        assertEquals(32.0F, exec("return 32.0f"));
+        assertEquals(33.0F, exec("return 33f"));
+        assertEquals(34.0F, exec("return 34.0F"));
+        assertEquals(35.0F, exec("return 35F"));
+        assertEquals((byte)255, exec("return (byte)255"));
+        assertEquals((short)5, exec("return (short)5"));
+        assertEquals("string", exec("return \"string\""));
+        assertEquals(true, exec("return true"));
+        assertEquals(false, exec("return false"));
+        assertNull(exec("return null"));
     }
 
     public void testReturnConstantChar() {
@@ -134,5 +144,74 @@ public class BasicExpressionTests extends ScriptTestCase {
     public void testPrecedence() {
         assertEquals(2, exec("int x = 5; return (x+x)/x;"));
         assertEquals(true, exec("boolean t = true, f = false; return t && (f || t);"));
+    }
+
+    public void testNullSafeDeref() {
+        // Objects in general
+        assertNull(                      exec("String a = null; return a?.toString()"));   // Call
+        assertNull(                      exec("String a = null; return a?.length()"));     // Call and box
+        assertEquals("foo",              exec("String a = 'foo'; return a?.toString()"));  // Call
+        assertEquals(Integer.valueOf(3), exec("String a = 'foo'; return a?.length()"));    // Call and box
+
+        // Maps
+        assertNull(        exec("Map a = null;        return a?.toString()"));  // Call
+        assertNull(        exec("Map a = null;        return a?.size()"));      // Call and box
+        assertNull(        exec("Map a = null;        return a?.other"));       // Read shortcut
+        assertEquals("{}", exec("Map a = [:];         return a?.toString()"));  // Call
+        assertEquals(0,    exec("Map a = [:];         return a?.size()"));      // Call and box
+        assertEquals(1,    exec("Map a = ['other':1]; return a?.other"));       // Read shortcut
+
+        // Array
+        // Since you can't invoke methods on arrays we skip the toString and hashCode tests
+        assertNull(     exec("int[] a = null;             return a?.length"));  // Length (boxed)
+        assertEquals(2, exec("int[] a = new int[] {2, 3}; return a?.length"));  // Length (boxed)
+
+        // Def
+        assertNull(     exec("def a = null;                                         return a?.getX()"));  // Invoke
+        assertNull(     exec("def a = null;                                         return a?.x"));       // Read shortcut
+        assertEquals(0, exec("def a = new org.elasticsearch.painless.FeatureTest(); return a?.getX()"));  // Invoke
+        assertEquals(0, exec("def a = new org.elasticsearch.painless.FeatureTest(); return a?.x"));       // Read shortcut
+
+        // Results from maps (should just work but let's test anyway)
+        FeatureTest t = new FeatureTest();
+        assertNull(     exec("Map a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
+        assertNull(     exec("Map a = ['thing': params.t]; return a.other?.x",      singletonMap("t", t), true));
+        assertNull(     exec("def a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
+        assertNull(     exec("def a = ['thing': params.t]; return a.other?.x",      singletonMap("t", t), true));
+        assertEquals(0, exec("Map a = ['other': params.t]; return a.other?.getX()", singletonMap("t", t), true));
+        assertEquals(0, exec("Map a = ['other': params.t]; return a.other?.x",      singletonMap("t", t), true));
+        assertEquals(0, exec("def a = ['other': params.t]; return a.other?.getX()", singletonMap("t", t), true));
+        assertEquals(0, exec("def a = ['other': params.t]; return a.other?.x",      singletonMap("t", t), true));
+
+        // Chains
+        assertNull(     exec("Map a = ['thing': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
+        assertNull(     exec("Map a = ['thing': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
+        assertNull(     exec("def a = ['thing': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
+        assertNull(     exec("def a = ['thing': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
+        assertEquals(0, exec("Map a = ['other': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
+        assertEquals(0, exec("Map a = ['other': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
+        assertEquals(0, exec("def a = ['other': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
+        assertEquals(0, exec("def a = ['other': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
+
+        // Check that we don't try to cast when the LHS doesn't provide an "expected" value
+        assertNull(exec(
+                    "def a = [:];\n"
+                  + "a.missing_length = a.missing?.length();\n"
+                  + "return a.missing_length", true));
+        assertEquals(3, exec(
+                    "def a = [:];\n"
+                  + "a.missing = 'foo';\n"
+                  + "a.missing_length = a.missing?.length();\n"
+                  + "return a.missing_length", true));
+
+        // Writes, all unsupported at this point
+//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTest a = null; return a?.x"));            // Read field
+//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTest a = null; a?.x = 7; return a?.x"));  // Write field
+//        assertEquals(null, exec("Map a = null; a?.other = 'wow'; return a?.other")); // Write shortcut
+//        assertEquals(null, exec("def a = null; a?.other = 'cat'; return a?.other")); // Write shortcut
+//        assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
+//        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
+//        assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
+//        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
     }
 }

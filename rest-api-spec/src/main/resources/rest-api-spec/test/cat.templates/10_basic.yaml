@@ -1,8 +1,8 @@
 ---
 "Help":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         cat.templates:
           help: true
@@ -10,7 +10,7 @@
     - match:
         $body: |
                    /^  name             .+   \n
-                       template         .+   \n
+                       index_patterns   .+   \n
                        order            .+   \n
                        version          .+   \n
                    $/
@@ -30,16 +30,18 @@
 
 ---
 "Normal templates":
+
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
+
     - do:
         indices.put_template:
           name: test
           body:
             order: 0
             version: 1
-            template: test-*
+            index_patterns: test-*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -50,7 +52,7 @@
           body:
             order: 1
             version: 2
-            template: test-2*
+            index_patterns: test-2*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -61,7 +63,7 @@
     - match:
         $body: /
                  (^|\n)test     \s+
-                 test-\*        \s+
+                 \[test-\*\]    \s+
                  0              \s+
                  1
                  (\n|$)
@@ -70,7 +72,7 @@
     - match:
         $body: /
                 (^|\n)test_2    \s+
-                test-2\*        \s+
+                \[test-2\*\]    \s+
                 1               \s+
                 2
                 (\n|$)
@@ -78,16 +80,18 @@
 
 ---
 "Filtered templates":
+
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
+
     - do:
         indices.put_template:
           name: test
           body:
             order: 0
             version: 1
-            template: t*
+            index_patterns: t*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -98,7 +102,7 @@
           body:
             order: 2
             version: 1
-            template: tea*
+            index_patterns: tea*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -111,7 +115,7 @@
         $body: |
                 /^
                     test    \s+
-                    t\*     \s+
+                    \[t\*\] \s+
                     0       \s+
                     1
                     \n
@@ -120,15 +124,15 @@
 ---
 "Column headers":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
           body:
             order: 0
             version: 1
-            template: t*
+            index_patterns: t*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -141,14 +145,14 @@
     - match:
         $body: |
                  /^
-                    name        \s+
-                    template    \s+
-                    order       \s+
+                    name            \s+
+                    index_patterns  \s+
+                    order           \s+
                     version
                     \n
-                    test        \s+
-                    t\*         \s+
-                    0           \s+
+                    test            \s+
+                    \[t\*\]         \s+
+                    0               \s+
                     1
                     \n
                  $/
@@ -156,22 +160,22 @@
 ---
 "Select columns":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
           body:
             order: 0
             version: 1
-            template: t*
+            index_patterns: t*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
 
     - do:
         cat.templates:
-            h:  [name, template]
+            h:  [name, index_patterns]
             v:  true
             name: test*
 
@@ -179,24 +183,24 @@
         $body: |
                 /^
                     name        \s+
-                    template
+                    index_patterns
                     \n
                     test        \s+
-                    t\*
+                    \[t\*\]
                     \n
                 $/
 
 ---
 "Sort templates":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
           body:
             order: 0
-            template: t*
+            index_patterns: t*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -207,31 +211,65 @@
           body:
             order: 0
             version: 1
-            template: te*
+            index_patterns: te*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
 
     - do:
         cat.templates:
-            h: [name, template, version]
+            h: [name, index_patterns, version]
             s: [version]
 
     - match:
         $body: |
               /^
-                  test \s+ t\* \s+\n
-                  test_1 \s+ te\* \s+ 1\n
+                  test   \s+ \[t\*\]  \s+   \n
+                  test_1 \s+ \[te\*\] \s+ 1 \n
               $/
 
     - do:
         cat.templates:
-            h: [name, template, version]
+            h: [name, index_patterns, version]
             s: ["version:desc"]
 
     - match:
         $body: |
               /^
-                  test_1 \s+ te\* \s+ 1\n
-                  test \s+ t\* \s+\n
+                  test_1 \s+ \[te\*\]   \s+ 1\n
+                  test   \s+ \[t\*\]    \s+  \n
+
+              $/
+
+---
+"Multiple template":
+    - skip:
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
+    - do:
+        indices.put_template:
+          name: test_1
+          body:
+            order: 0
+            version: 1
+            index_patterns: [t*, te*]
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+    - do:
+        cat.templates:
+            h: [name, index_patterns]
+            v: true
+
+
+    - match:
+       $body: |
+              /^
+                 name         \s+
+                 index_patterns
+                 \n
+                 test_1       \s+
+                 \[t\*,\ te\*\]
+                 \n
               $/

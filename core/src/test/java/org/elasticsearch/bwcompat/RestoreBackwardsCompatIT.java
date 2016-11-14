@@ -46,6 +46,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
@@ -224,7 +225,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check templates");
         IndexTemplateMetaData template = clusterState.getMetaData().templates().get("template_" + version.toLowerCase(Locale.ROOT));
         assertThat(template, notNullValue());
-        assertThat(template.template(), equalTo("te*"));
+        assertThat(template.patterns(), equalTo(Collections.singletonList("te*")));
         assertThat(template.settings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(1));
         assertThat(template.mappings().size(), equalTo(1));
         assertThat(template.mappings().get("type1").string(), equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"));

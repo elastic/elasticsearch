@@ -124,8 +124,16 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     @Override
     protected WritePrimaryResult shardOperationOnPrimary(DeleteRequest request, IndexShard primary) throws Exception {
         final Engine.DeleteResult result = executeDeleteRequestOnPrimary(request, primary);
-        final DeleteResponse response = result.hasFailure() ? null :
-                new DeleteResponse(primary.shardId(), request.type(), request.id(), result.getVersion(), result.isFound());
+        final DeleteResponse response;
+        if (result.hasFailure() == false) {
+            // update the request with the version so it will go to the replicas
+            request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+            request.version(result.getVersion());
+            assert request.versionType().validateVersionForWrites(request.version());
+            response = new DeleteResponse(primary.shardId(), request.type(), request.id(), result.getVersion(), result.isFound());
+        } else {
+            response = null;
+        }
         return new WritePrimaryResult(request, response, result.getTranslogLocation(), result.getFailure(), primary);
     }
 
@@ -136,19 +144,12 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     }
 
     public static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) {
-        Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
-        Engine.DeleteResult result = primary.delete(delete);
-        if (result.hasFailure() == false) {
-            // update the request with the version so it will go to the replicas
-            request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
-            request.version(result.getVersion());
-            assert request.versionType().validateVersionForWrites(request.version());
-        }
-        return result;
+        final Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
+        return primary.delete(delete);
     }
 
     public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
-        Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType());
+        final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType());
         return replica.delete(delete);
     }
 }

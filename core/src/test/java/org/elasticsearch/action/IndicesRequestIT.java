@@ -259,7 +259,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
-                .script(new Script("ctx.op='delete'", ScriptType.INLINE, CustomScriptPlugin.NAME, Collections.emptyMap()));
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='delete'", Collections.emptyMap()));
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
 

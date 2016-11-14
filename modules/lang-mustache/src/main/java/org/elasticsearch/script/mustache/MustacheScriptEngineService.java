@@ -83,8 +83,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
      * Compile a template string to (in this case) a Mustache object than can
      * later be re-used for execution to fill in missing parameter values.
      *
-     * @param templateSource
-     *            a string representing the template to compile.
+     * @param templateSource a string representing the template to compile.
      * @return a compiled template object for later execution.
      * */
     @Override

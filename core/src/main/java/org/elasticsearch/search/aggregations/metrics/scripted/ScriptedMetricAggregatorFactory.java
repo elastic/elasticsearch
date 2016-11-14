@@ -91,7 +91,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             if (params != null) {
                 params = deepCopyParams(params, context);
             }
-            return new Script(script.getScript(), script.getType(), script.getLang(), params);
+            return new Script(script.getType(), script.getLang(), script.getIdOrCode(), params);
         } else {
             return null;
         }

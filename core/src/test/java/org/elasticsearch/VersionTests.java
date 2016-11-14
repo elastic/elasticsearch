@@ -20,12 +20,15 @@
 package org.elasticsearch;
 
 import org.elasticsearch.action.ShardValidateQueryRequestTests;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -131,6 +134,10 @@ public class VersionTests extends ESTestCase {
         assertThat(Version.V_2_2_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
         assertThat(Version.V_2_3_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
         assertThat(Version.V_5_0_0_alpha1.minimumCompatibilityVersion(), equalTo(Version.V_5_0_0_alpha1));
+        // from 6.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
+        // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
+        assertThat("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
+            Version.V_6_0_0_alpha1.minimumCompatibilityVersion(), equalTo(VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha1)));
     }
 
     public void testToString() {
@@ -219,7 +226,7 @@ public class VersionTests extends ESTestCase {
                 assertTrue(constantName + " should be final", Modifier.isFinal(versionConstant.getModifiers()));
 
                 Version v = (Version) versionConstant.get(Version.class);
-                logger.info("Checking {}", v);
+                logger.debug("Checking {}", v);
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 if (v.major >= 2) {
@@ -275,8 +282,10 @@ public class VersionTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
         assertUnknownVersion(AliasFilter.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
         assertUnknownVersion(OsStats.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
-        assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
         assertUnknownVersion(QueryStringQueryBuilder.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
+        // once we released 5.0.0 and it's added to Version.java we need to remove this constant
+        assertUnknownVersion(Script.V_5_1_0_UNRELEASED);
         // once we released 5.0.0 and it's added to Version.java we need to remove this constant
     }
 
@@ -284,4 +293,18 @@ public class VersionTests extends ESTestCase {
         assertFalse("Version " + version + " has been releaed don't use a new instance of this version",
             VersionUtils.allVersions().contains(version));
     }
+
+    public void testIsCompatible() {
+        assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
+        assertTrue(isCompatible(Version.V_5_0_0, Version.V_6_0_0_alpha1));
+        assertFalse(isCompatible(Version.V_2_0_0, Version.V_6_0_0_alpha1));
+        assertFalse(isCompatible(Version.V_2_0_0, Version.V_5_0_0));
+    }
+
+    public boolean isCompatible(Version left, Version right) {
+        boolean result = left.isCompatible(right);
+        assert result == right.isCompatible(left);
+        return result;
+    }
+
 }

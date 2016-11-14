@@ -325,7 +325,7 @@ vagrant plugin install vagrant-cachier
 . Validate your installed dependencies:
 
 -------------------------------------
-gradle :qa:vagrant:checkVagrantVersion
+gradle :qa:vagrant:vagrantCheckVersion
 -------------------------------------
 
 . Download and smoke test the VMs with `gradle vagrantSmokeTest` or
@@ -417,17 +417,26 @@ and in another window:
 
 ----------------------------------------------------
 vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
-cd $TESTROOT
-sudo bats $BATS/*rpm*.bats
+cd $BATS_ARCHIVES
+sudo -E bats $BATS_TESTS/*rpm*.bats
 ----------------------------------------------------
 
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-gradle prepareTestRoot
+gradle vagrantSetUp
 vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
-cd $TESTROOT
-sudo bats $BATS/*.bats
+cd $BATS_ARCHIVES
+sudo -E bats $BATS_TESTS/*.bats
+-------------------------------------------------
+
+Note: Starting vagrant VM outside of the elasticsearch folder requires to
+indicates the folder that contains the Vagrantfile using the VAGRANT_CWD
+environment variable:
+
+-------------------------------------------------
+gradle vagrantSetUp
+VAGRANT_CWD=/path/to/elasticsearch vagrant up centos-7 --provider virtualbox
 -------------------------------------------------
 
 == Coverage analysis

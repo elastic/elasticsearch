@@ -371,16 +371,11 @@ public class TransportService extends AbstractLifecycleComponent {
 
         if (checkClusterName && !Objects.equals(clusterName, response.clusterName)) {
             throw new IllegalStateException("handshake failed, mismatched cluster name [" + response.clusterName + "] - " + node);
-        } else if (!isVersionCompatible(response.version)) {
+        } else if (response.version.isCompatible((localNode != null ? localNode.getVersion() : Version.CURRENT)) == false) {
             throw new IllegalStateException("handshake failed, incompatible version [" + response.version + "] - " + node);
         }
 
         return response.discoveryNode;
-    }
-
-    private boolean isVersionCompatible(Version version) {
-        return version.minimumCompatibilityVersion().equals(
-                localNode != null ? localNode.getVersion().minimumCompatibilityVersion() : Version.CURRENT.minimumCompatibilityVersion());
     }
 
     static class HandshakeRequest extends TransportRequest {
@@ -955,6 +950,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * are invoked we restore the context.
      */
     private static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+
         private final TransportResponseHandler<T> delegate;
         private final ThreadContext.StoredContext threadContext;
 
@@ -984,6 +980,12 @@ public class TransportService extends AbstractLifecycleComponent {
         public String executor() {
             return delegate.executor();
         }
+
+        @Override
+        public String toString() {
+            return getClass().getName() + "/" + delegate.toString();
+        }
+
     }
 
     static class DirectResponseChannel implements TransportChannel {

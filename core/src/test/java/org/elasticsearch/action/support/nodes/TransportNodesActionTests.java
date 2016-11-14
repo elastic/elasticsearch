@@ -106,12 +106,17 @@ public class TransportNodesActionTests extends ESTestCase {
     public void testNewResponse() {
         TestTransportNodesAction action = getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
-        List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse.class, randomIntBetween(0, 2));
+        List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse::new, randomIntBetween(0, 2));
         expectedNodeResponses.add(new TestNodeResponse());
         List<BaseNodeResponse> nodeResponses = new ArrayList<>(expectedNodeResponses);
         // This should be ignored:
         nodeResponses.add(new OtherNodeResponse());
-        List<FailedNodeException> failures = mockList(FailedNodeException.class, randomIntBetween(0, 2));
+        List<FailedNodeException> failures = mockList(
+            () -> new FailedNodeException(
+                randomAsciiOfLength(8),
+                randomAsciiOfLength(8),
+                new IllegalStateException(randomAsciiOfLength(8))),
+            randomIntBetween(0, 2));
 
         List<Object> allResponses = new ArrayList<>(expectedNodeResponses);
         allResponses.addAll(failures);
@@ -141,10 +146,10 @@ public class TransportNodesActionTests extends ESTestCase {
         assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
     }
 
-    private <T> List<T> mockList(Class<T> clazz, int size) {
+    private <T> List<T> mockList(Supplier<T> supplier, int size) {
         List<T> failures = new ArrayList<>(size);
         for (int i = 0; i < size; ++i) {
-            failures.add(mock(clazz));
+            failures.add(supplier.get());
         }
         return failures;
     }

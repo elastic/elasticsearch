@@ -464,21 +464,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
-        List<IndexTemplateMetaData> templates = new ArrayList<>();
+        List<IndexTemplateMetaData> templateMetadata = new ArrayList<>();
         for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
-            IndexTemplateMetaData template = cursor.value;
-            if (Regex.simpleMatch(template.template(), request.index())) {
-                templates.add(template);
+            IndexTemplateMetaData metadata = cursor.value;
+            for (String template: metadata.patterns()) {
+                if (Regex.simpleMatch(template, request.index())) {
+                    templateMetadata.add(metadata);
+                    break;
+                }
             }
         }
 
-        CollectionUtil.timSort(templates, new Comparator<IndexTemplateMetaData>() {
+        CollectionUtil.timSort(templateMetadata, new Comparator<IndexTemplateMetaData>() {
             @Override
             public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
                 return o2.order() - o1.order();
             }
         });
-        return templates;
+        return templateMetadata;
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {

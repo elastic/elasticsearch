@@ -40,7 +40,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static java.util.Collections.emptyMap;
+import java.util.Collections;
+
 import static org.elasticsearch.script.ScriptContext.Standard.SEARCH;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
@@ -66,8 +67,9 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            Script script = new Script(request.getScript(), request.getScriptType(), TEMPLATE_LANG, request.getScriptParams());
-            ExecutableScript executable = scriptService.executable(script, SEARCH, emptyMap());
+            Script script = new Script(request.getScriptType(), TEMPLATE_LANG, request.getScript(),
+                request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
+            ExecutableScript executable = scriptService.executable(script, SEARCH);
 
             BytesReference source = (BytesReference) executable.run();
             response.setSource(source);

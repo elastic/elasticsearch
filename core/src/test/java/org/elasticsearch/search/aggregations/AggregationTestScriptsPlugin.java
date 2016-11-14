@@ -44,7 +44,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
     //      res[i] = values.get(i) - dec;
     // };
     // return res;
-    public static final Script DECREMENT_ALL_VALUES = new Script("decrement all values", ScriptType.INLINE, NAME, singletonMap("dec", 1));
+    public static final Script DECREMENT_ALL_VALUES = new Script(ScriptType.INLINE, NAME, "decrement all values", singletonMap("dec", 1));
 
     @Override
     protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -91,7 +91,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             return doc.get("values");
         });
 
-        scripts.put(DECREMENT_ALL_VALUES.getScript(), vars -> {
+        scripts.put(DECREMENT_ALL_VALUES.getIdOrCode(), vars -> {
             int dec = (int) vars.get("dec");
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues.Longs values = (ScriptDocValues.Longs) doc.get("values");

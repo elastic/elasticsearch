@@ -270,15 +270,19 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 client.admin().cluster().prepareState().execute(new ActionListener<ClusterStateResponse>() {
                     @Override
                     public void onResponse(ClusterStateResponse clusterStateResponse) {
-                        if (canStart(clusterStateResponse.getState(), master)) {
-                            if (master) {
+                        final boolean currentMaster = clusterService.state().getNodes().isLocalNodeElectedMaster();
+                        if (canStart(clusterStateResponse.getState(), currentMaster)) {
+                            if (currentMaster) {
                                 putTemplate(customAuditIndexSettings(settings), ActionListener.wrap((v) -> innerStart(),
                                         (e) -> state.set(State.FAILED)));
                             } else {
                                 innerStart();
                             }
                         } else {
-                            state.compareAndSet(State.STARTING, State.INITIALIZED);
+                            if (state.compareAndSet(State.STARTING, State.INITIALIZED) == false) {
+                                throw new IllegalStateException("state transition from starting to initialized failed, current value: " +
+                                        state.get());
+                            }
                         }
                     }
 
@@ -287,13 +291,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                         logger.error("failed to get remote cluster state", e);
                     }
                 });
+            } else if (master) {
+                putTemplate(customAuditIndexSettings(settings), ActionListener.wrap((v) -> innerStart(),
+                        (e) -> state.set(State.FAILED)));
             } else {
-                if (master) {
-                    putTemplate(customAuditIndexSettings(settings), ActionListener.wrap((v) -> innerStart(),
-                            (e) -> state.set(State.FAILED)));
-                } else {
-                    innerStart();
-                }
+                innerStart();
             }
         }
     }

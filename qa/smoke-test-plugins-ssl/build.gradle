@@ -41,7 +41,7 @@ task createNodeKeyStore(type: LoggedExec) {
       delete nodeKeystore
     }
   }
-  executable = 'keytool'
+  executable = new File(project.javaHome, 'bin/keytool')
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
           '-alias', 'test-node',
@@ -66,7 +66,7 @@ task createClientKeyStore(type: LoggedExec) {
       delete clientKeyStore
     }
   }
-  executable = 'keytool'
+  executable = new File(project.javaHome, 'bin/keytool')
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
           '-alias', 'test-client',
@@ -91,7 +91,7 @@ task exportNodeCertificate(type: LoggedExec) {
       delete nodeCertificate
     }
   }
-  executable = 'keytool'
+  executable = new File(project.javaHome, 'bin/keytool')
   args '-export',
           '-alias', 'test-node',
           '-keystore', nodeKeystore,
@@ -102,7 +102,7 @@ task exportNodeCertificate(type: LoggedExec) {
 // Import the node certificate in the client's keystore
 task importNodeCertificateInClientKeyStore(type: LoggedExec) {
   dependsOn exportNodeCertificate
-  executable = 'keytool'
+  executable = new File(project.javaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-node',
           '-keystore', clientKeyStore,
@@ -122,7 +122,7 @@ task exportClientCertificate(type: LoggedExec) {
       delete clientCertificate
     }
   }
-  executable = 'keytool'
+  executable = new File(project.javaHome, 'bin/keytool')
   args '-export',
           '-alias', 'test-client',
           '-keystore', clientKeyStore,
@@ -133,7 +133,7 @@ task exportClientCertificate(type: LoggedExec) {
 // Import the client certificate in the node's keystore
 task importClientCertificateInNodeKeyStore(type: LoggedExec) {
   dependsOn exportClientCertificate
-  executable = 'keytool'
+  executable = new File(project.javaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-client',
           '-keystore', nodeKeystore,

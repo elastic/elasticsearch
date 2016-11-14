@@ -81,13 +81,6 @@ The following parameters can be configured like that
 * `tcp_receive_buffer_size`: Configures the receive buffer size of the socket
 
 [float]
-=== Local Transport
-
-This is a handy transport to use when running integration tests within
-the JVM. It is automatically enabled when using
-`NodeBuilder#local(true)`.
-
-[float]
 === Transport Tracer
 
 The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated

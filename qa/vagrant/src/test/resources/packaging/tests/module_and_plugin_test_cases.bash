@@ -39,9 +39,9 @@
 # system uses.
 
 # Load test utilities
-load packaging_test_utils
-load modules
-load plugins
+load $BATS_UTILS/utils.bash
+load $BATS_UTILS/modules.bash
+load $BATS_UTILS/plugins.bash
 
 setup() {
     # The rules on when we should clean an reinstall are complex - all the
@@ -60,7 +60,7 @@ setup() {
 }
 
 if [[ "$BATS_TEST_FILENAME" =~ 25_tar_plugins.bats$ ]]; then
-    load tar
+    load $BATS_UTILS/tar.bash
     GROUP='TAR PLUGINS'
     install() {
         install_archive
@@ -70,7 +70,7 @@ if [[ "$BATS_TEST_FILENAME" =~ 25_tar_plugins.bats$ ]]; then
     export_elasticsearch_paths
     export ESPLUGIN_COMMAND_USER=elasticsearch
 else
-    load os_package
+    load $BATS_UTILS/packages.bash
     if is_rpm; then
         GROUP='RPM PLUGINS'
     elif is_dpkg; then

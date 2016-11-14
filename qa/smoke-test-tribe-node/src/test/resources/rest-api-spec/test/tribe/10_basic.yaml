@@ -1,0 +1,11 @@
+---
+"Tribe node test":
+  - do:
+      cat.nodes:
+          h: name
+          v: true
+
+  - match:
+      $body: |
+          /^ name\n
+             ((one|quest|quest/one|quest/two|two)\n){5} $/

@@ -103,6 +103,7 @@ public class EvilSpawnerTests extends LuceneTestCase {
             Loggers.getLogger(EvilSpawnerTests.class).warn("Could not compile native controller program for testing");
             return;
         }
+        Loggers.getLogger(EvilSpawnerTests.class).info("Successfully compiled native controller program for testing");
 
         // This plugin will NOT have a controller daemon
         Path otherPlugin = environment.pluginsFile().resolve("other_plugin");
@@ -130,7 +131,7 @@ public class EvilSpawnerTests extends LuceneTestCase {
             assertFalse(lines.isEmpty());
             assertEquals("Hello, world!", lines.get(0));
             // This should cause the native controller to receive an end-of-file on its stdin and hence exit
-            stdinReferences.get(0).close();
+            spawner.close();
             // Give the program time to exit
             Thread.sleep(250);
             assertTrue(Files.isRegularFile(goodbyeFile));

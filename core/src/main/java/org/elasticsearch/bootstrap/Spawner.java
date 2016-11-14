@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.env.Environment;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
@@ -34,7 +35,7 @@ import java.util.Locale;
 /**
  * Spawns native plugin controller processes if present.  Will only work prior to seccomp being set up.
  */
-final class Spawner {
+final class Spawner implements Closeable {
 
     private static final String PROGRAM_NAME = Constants.WINDOWS ? "controller.exe" : "controller";
     private static final String PLATFORM_NAME = makePlatformName(Constants.OS_NAME, Constants.OS_ARCH);
@@ -43,9 +44,17 @@ final class Spawner {
     /**
      * On Windows we have to retain a reference to the OutputStream that corresponds to each
      * process's stdin, otherwise the pipe will be closed and the spawned process will receive
-     * an EOF on its stdin.  This isn't necessary on *nix but doesn't do any harm.
+     * an EOF on its stdin.  This isn't necessary on *nix for daemons that only need to shut
+     * down when the JVM exits, but storing these references improves testability by making this
+     * class Closeable.
      */
     private final List<OutputStream> stdinReferences = new ArrayList<>();
+
+    public void close() throws IOException {
+        for (OutputStream stream : stdinReferences) {
+            stream.close();
+        }
+    }
 
     /**
      * For each plugin, attempt to spawn the controller daemon.  Silently ignore any plugins

@@ -70,7 +70,7 @@ import static org.elasticsearch.test.ESTestCase.awaitBusy;
 public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
                 new ActionHandler<>(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class));
     }

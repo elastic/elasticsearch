@@ -296,8 +296,9 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         Settings settings = IndexAuditTrailTests.levelSettings(null, excludes);
         auditTrail = new IndexAuditTrail(settings, client, threadPool, clusterService) {
             @Override
-            void putTemplate(Settings settings) {
+            void putTemplate(Settings settings, ActionListener<Void> listener) {
                 // make this a no-op so we don't have to stub out unnecessary client activities
+                listener.onResponse(null);
             }
 
             @Override

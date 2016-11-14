@@ -187,7 +187,8 @@ public class TCPTransportTests extends ESTestCase {
                     called.compareAndSet(false, true);
                     if (compressed) {
                         final int bytesConsumed = TcpHeader.HEADER_SIZE;
-                        streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed)).streamInput(streamIn);
+                        streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
+                            .streamInput(streamIn);
                     }
                     threadPool.getThreadContext().readHeaders(streamIn);
                     assertEquals("foobar", streamIn.readString());

@@ -86,7 +86,7 @@ public class EvilSpawnerTests extends LuceneTestCase {
         + "    return EXIT_SUCCESS;\n"
         + "}\n";
 
-    public void testControllerSpawn() throws IOException {
+    public void testControllerSpawn() throws IOException, InterruptedException {
         Path esHome = createTempDir().resolve("esHome");
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
@@ -94,13 +94,19 @@ public class EvilSpawnerTests extends LuceneTestCase {
 
         Environment environment = new Environment(settings);
 
+        // This plugin will have a controller daemon built for it
         Path plugin = environment.pluginsFile().resolve("test_plugin");
+        Files.createDirectories(plugin);
         Path controllerProgram = Spawner.makeSpawnPath(plugin);
         if (compileControllerProgram(environment, controllerProgram) == false) {
             // Don't fail the test if there's an error compiling the plugin - the build machine probably doesn't have g++ installed
             Loggers.getLogger(EvilSpawnerTests.class).warn("Could not compile native controller program for testing");
             return;
         }
+
+        // This plugin will NOT have a controller daemon
+        Path otherPlugin = environment.pluginsFile().resolve("other_plugin");
+        Files.createDirectories(otherPlugin);
 
         Path helloFile = environment.tmpFile().resolve(HELLO_FILE_NAME);
         Path goodbyeFile = environment.tmpFile().resolve(GOODBYE_FILE_NAME);
@@ -116,6 +122,7 @@ public class EvilSpawnerTests extends LuceneTestCase {
             // Give the program time to start up
             Thread.sleep(500);
             List<OutputStream> stdinReferences = spawner.getStdinReferences();
+            // 1 because there should only be a reference in the list for the plugin that had the controller daemon, not the other plugin
             assertEquals(1, stdinReferences.size());
             assertTrue(Files.isRegularFile(helloFile));
             assertFalse(Files.exists(goodbyeFile));
@@ -130,9 +137,9 @@ public class EvilSpawnerTests extends LuceneTestCase {
             lines = Files.readAllLines(goodbyeFile, StandardCharsets.UTF_8);
             assertFalse(lines.isEmpty());
             assertEquals("Goodbye, world!", lines.get(0));
-        } catch (InterruptedException e) {
-            // Shouldn't happen, but if it does it's not a problem related to this test
         } finally {
+            // These have to go in java.io.tmpdir rather than a LuceneTestCase managed temporary directory
+            // because the Spawner class only tells the spawned program about java.io.tmpdir
             Files.deleteIfExists(helloFile);
             Files.deleteIfExists(goodbyeFile);
         }

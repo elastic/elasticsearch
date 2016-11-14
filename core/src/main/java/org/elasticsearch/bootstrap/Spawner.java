@@ -45,37 +45,31 @@ final class Spawner {
      * process's stdin, otherwise the pipe will be closed and the spawned process will receive
      * an EOF on its stdin.  This isn't necessary on *nix but doesn't do any harm.
      */
-    private final List<OutputStream> stdinReferences;
-
-    Spawner() {
-        stdinReferences = new ArrayList<>();
-    }
+    private final List<OutputStream> stdinReferences = new ArrayList<>();
 
     /**
-     * For each plugin, attempt to spawn the controller daemon.
+     * For each plugin, attempt to spawn the controller daemon.  Silently ignore any plugins
+     * that don't include a version of the program for the correct platform.
      */
     void spawnNativePluginControllers(Environment environment) throws IOException {
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    spawnNativePluginController(environment, plugin);
+                    Path spawnPath = makeSpawnPath(plugin);
+                    if (Files.isRegularFile(spawnPath)) {
+                        spawnNativePluginController(environment, spawnPath);
+                    }
                 }
             }
         }
     }
 
     /**
-     * Attempt to spawn the controller daemon for a given plugin.  Silently ignore any plugins
-     * that don't include a version of the program for the correct platform.  The spawned
-     * process will remain connected to this JVM via its stdin, stdout and stderr, but the
+     * Attempt to spawn the controller daemon for a given plugin.  The spawned process
+     * will remain connected to this JVM via its stdin, stdout and stderr, but the
      * references to these streams are not available to code outside this class.
      */
-    private void spawnNativePluginController(Environment environment, Path plugin) throws IOException {
-        Path spawnPath = makeSpawnPath(plugin);
-        if (Files.exists(spawnPath) == false) {
-            return;
-        }
-
+    private void spawnNativePluginController(Environment environment, Path spawnPath) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(spawnPath.toString());
 
         // The only environment variable passes on the path to the temporary directory

@@ -255,7 +255,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         realmFactories.put(LdapRealm.TYPE, config -> new LdapRealm(config, resourceWatcherService, sslService));
         realmFactories.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService, sslService));
         for (XPackExtension extension : extensions) {
-            Map<String, Realm.Factory> newRealms = extension.getRealms();
+            Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
                 if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Realm type [" + entry.getKey() + "] is already registered");

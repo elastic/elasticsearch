@@ -50,6 +50,7 @@ final class Spawner implements Closeable {
      */
     private final List<OutputStream> stdinReferences = new ArrayList<>();
 
+    @Override
     public void close() throws IOException {
         for (OutputStream stream : stdinReferences) {
             stream.close();

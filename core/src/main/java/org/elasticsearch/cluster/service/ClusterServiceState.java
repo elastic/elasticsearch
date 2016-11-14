@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -33,16 +34,16 @@ public final class ClusterServiceState {
     private final ClusterStateStatus clusterStateStatus;
     private final ClusterState localClusterState;
 
-    public ClusterServiceState(ClusterState clusterState, ClusterStateStatus clusterStateStatus, boolean hasNoMaster,
-                               DiscoverySettings discoverySettings) {
+    public ClusterServiceState(ClusterState clusterState, ClusterStateStatus clusterStateStatus, ClusterBlock noMasterBlock) {
         this.clusterState = clusterState;
         this.clusterStateStatus = clusterStateStatus;
-        if (hasNoMaster) {
+        if (noMasterBlock != null) {
+            assert noMasterBlock.id() == DiscoverySettings.NO_MASTER_BLOCK_ID : "block must have NO_MASTER block id";
             // There is no master currently, so add the appropriate blocks to the returned
             // cluster state and set the masterNodeId to null.
             ClusterBlocks clusterBlocks =
                 ClusterBlocks.builder().blocks(clusterState.blocks())
-                    .addGlobalBlock(discoverySettings.getNoMasterBlock())
+                    .addGlobalBlock(noMasterBlock)
                     .build();
 
             DiscoveryNodes discoveryNodes =
@@ -57,12 +58,6 @@ public final class ClusterServiceState {
         } else {
             localClusterState = clusterState;
         }
-    }
-
-    public ClusterServiceState(ClusterState clusterState, ClusterStateStatus clusterStateStatus, ClusterState localClusterState) {
-        this.clusterState = clusterState;
-        this.clusterStateStatus = clusterStateStatus;
-        this.localClusterState = localClusterState;
     }
 
     public ClusterState getClusterState() {

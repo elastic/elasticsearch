@@ -182,8 +182,7 @@ public class ClusterStateObserver {
             if (context.changePredicate.apply(previousState, currentState)) {
                 if (observingContext.compareAndSet(context, null)) {
                     clusterService.remove(this);
-                    ClusterServiceState state = new ClusterServiceState(currentState.getClusterState(), ClusterStateStatus.APPLIED,
-                                                                           currentState.getLocalClusterState());
+                    ClusterServiceState state = new ClusterServiceState(currentState.getClusterState(), ClusterStateStatus.APPLIED, null);
                     logger.trace("observer: accepting cluster state change ({})", state);
                     lastObservedState.set(state);
                     context.listener.onNewClusterState(state.getClusterState());

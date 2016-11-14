@@ -170,7 +170,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             ClusterState clusterState = css.getClusterState();
             DiscoveryNodes nodes = DiscoveryNodes.builder(clusterState.nodes()).add(localNode).localNodeId(localNode.getId()).build();
             return new ClusterServiceState(ClusterState.builder(clusterState).nodes(nodes).build(),
-                                              css.getClusterStateStatus(), true, discoverySettings);
+                                              css.getClusterStateStatus(), discoverySettings.getNoMasterBlock());
         });
     }
 
@@ -253,7 +253,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         add(localNodeMasterListeners);
         updateState(css -> new ClusterServiceState(
             ClusterState.builder(css.getClusterState()).blocks(initialBlocks).build(),
-            css.getClusterStateStatus(), initialNoMaster, discoverySettings));
+            css.getClusterStateStatus(), initialNoMaster ? discoverySettings.getNoMasterBlock() : null));
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),
                 threadPool.getThreadContext());
     }
@@ -714,9 +714,8 @@ public class ClusterService extends AbstractLifecycleComponent {
                         logger.warn("failed to notify LocalNodeMasterListeners", ex);
                     }
                 }
-                final boolean hasNoMaster = batchResult.hasNoMaster;
                 state.getAndUpdate(css -> new ClusterServiceState(css.getClusterState(), css.getClusterStateStatus(),
-                                                                     hasNoMaster, discoverySettings));
+                                                                     discoverySettings.getNoMasterBlock()));
                 for (ClusterServiceStateListener listener : postAppliedListeners) {
                     try {
                         listener.clusterServiceStateChanged(previousClusterServiceState, state.get());

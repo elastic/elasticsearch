@@ -371,16 +371,11 @@ public class TransportService extends AbstractLifecycleComponent {
 
         if (checkClusterName && !Objects.equals(clusterName, response.clusterName)) {
             throw new IllegalStateException("handshake failed, mismatched cluster name [" + response.clusterName + "] - " + node);
-        } else if (!isVersionCompatible(response.version)) {
+        } else if (response.version.isCompatible((localNode != null ? localNode.getVersion() : Version.CURRENT)) == false) {
             throw new IllegalStateException("handshake failed, incompatible version [" + response.version + "] - " + node);
         }
 
         return response.discoveryNode;
-    }
-
-    private boolean isVersionCompatible(Version version) {
-        return version.minimumCompatibilityVersion().equals(
-                localNode != null ? localNode.getVersion().minimumCompatibilityVersion() : Version.CURRENT.minimumCompatibilityVersion());
     }
 
     static class HandshakeRequest extends TransportRequest {

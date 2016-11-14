@@ -100,7 +100,7 @@ public class ClientYamlTestClient {
             Version version = null;
             Version masterVersion = null;
             for (String perNode : split) {
-                final String[] versionAndMaster = perNode.split(" ");
+                final String[] versionAndMaster = perNode.split("\\s+");
                 assert versionAndMaster.length == 2 : "invalid line: " + perNode + " length: " + versionAndMaster.length;
                 final Version currentVersion = Version.fromString(versionAndMaster[0]);
                 final boolean master = versionAndMaster[1].trim().equals("*");

@@ -1,5 +1,10 @@
 ---
 "Put template":
+
+  - skip:
+    version: " - 5.99.99"
+    reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: test
@@ -19,6 +24,11 @@
 
 ---
 "Put multiple template":
+
+  - skip:
+    version: " - 5.99.99"
+    reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: test
@@ -38,6 +48,11 @@
 
 ---
 "Put template with aliases":
+
+  - skip:
+    version: " - 5.99.99"
+    reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: test
@@ -61,6 +76,11 @@
 
 ---
 "Put template create":
+
+  - skip:
+    version: " - 5.99.99"
+    reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: test
@@ -92,6 +112,11 @@
 
 ---
 "Test Put Versioned Template":
+
+  - skip:
+    version: " - 5.99.99"
+    reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: "my_template"

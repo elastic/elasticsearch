@@ -18,7 +18,13 @@ integTest {
   cluster {
     numNodes = 2
     numBwcNodes = 1
-    bwcVersion = "6.0.0-alpha1-SNAPSHOT" // this is the same as the current version until we released the first RC
+    bwcVersion = "5.1.0-SNAPSHOT"
     setting 'logger.org.elasticsearch', 'DEBUG'
+  }
+}
+
+repositories {
+  maven {
+    url "https://oss.sonatype.org/content/repositories/snapshots/"
   }
 }

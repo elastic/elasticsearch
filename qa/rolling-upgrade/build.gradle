@@ -25,12 +25,8 @@ task oldClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   cluster {
     distribution = 'zip'
-    // TODO: Right now, this just forms a cluster with the current version of ES,
-    // because we don't support clusters with nodes on different alpha/beta releases of ES.
-    // When the GA is released, we should change the bwcVersion to 5.0.0 and uncomment
-    // numBwcNodes = 2
-    //bwcVersion = '5.0.0-alpha5' // TODO: either randomize, or make this settable with sysprop
-    //numBwcNodes = 2
+    bwcVersion = '5.1.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
+    numBwcNodes = 1
     numNodes = 2
     clusterName = 'rolling-upgrade'
   }
@@ -69,3 +65,9 @@ task integTest {
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 check.dependsOn(integTest)
+
+repositories {
+  maven {
+    url "https://oss.sonatype.org/content/repositories/snapshots/"
+  }
+}

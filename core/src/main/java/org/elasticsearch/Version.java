@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.util.MathUtil;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -298,7 +299,27 @@ public class Version {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
-        return Version.smallest(this, fromId(major * 1000000 + 99));
+        final int bwcMajor;
+        final int bwcMinor;
+        if (this.onOrAfter(Version.V_6_0_0_alpha1)) {
+            bwcMajor = major-1;
+            bwcMinor = 0; // TODO we have to move this to the latest released minor of the last major but for now we just keep
+        } else {
+            bwcMajor = major;
+            bwcMinor = 0;
+        }
+        return Version.smallest(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+    }
+
+    /**
+     * Returns <code>true</code> iff both version are compatible. Otherwise <code>false</code>
+     */
+    public boolean isCompatible(Version version) {
+        boolean compatible = onOrAfter(version.minimumCompatibilityVersion())
+            && version.onOrAfter(minimumCompatibilityVersion());
+
+        assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
+        return compatible;
     }
 
     @SuppressForbidden(reason = "System.out.*")

@@ -1,8 +1,8 @@
 ---
 "Help":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         cat.templates:
           help: true
@@ -30,9 +30,11 @@
 
 ---
 "Normal templates":
+
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
+
     - do:
         indices.put_template:
           name: test
@@ -78,9 +80,11 @@
 
 ---
 "Filtered templates":
+
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
+
     - do:
         indices.put_template:
           name: test
@@ -120,8 +124,8 @@
 ---
 "Column headers":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
@@ -156,8 +160,8 @@
 ---
 "Select columns":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
@@ -189,8 +193,8 @@
 ---
 "Sort templates":
     - skip:
-        version: " - 5.0.99"
-        reason:  templates were introduced in 5.1.0
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test
@@ -239,6 +243,9 @@
 
 ---
 "Multiple template":
+    - skip:
+        version: " - 5.99.99"
+        reason:  this uses a new API that has been added in 6.0
     - do:
         indices.put_template:
           name: test_1

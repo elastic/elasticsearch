@@ -40,7 +40,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -161,7 +160,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 if (request.create && currentState.metaData().templates().containsKey(request.name)) {
-                    throw new IndexTemplateAlreadyExistsException(request.name);
+                    throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
                 }
 
                 validateAndAddTemplate(request, templateBuilder, indicesService);

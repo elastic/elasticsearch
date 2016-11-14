@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -109,7 +108,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field2").field("type", "text").field("store", false).endObject()
                         .endObject().endObject().endObject())
-                , IndexTemplateAlreadyExistsException.class
+                , IllegalArgumentException.class
         );
 
         response = client().admin().indices().prepareGetTemplates().get();

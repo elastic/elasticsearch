@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.util.MathUtil;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -316,7 +317,8 @@ public class Version {
     public boolean isCompatible(Version version) {
         boolean compatible = onOrAfter(version.minimumCompatibilityVersion())
             && version.onOrAfter(minimumCompatibilityVersion());
-        assert compatible == false || Math.abs(major - version.major) <= 1;
+
+        assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
         return compatible;
     }
 

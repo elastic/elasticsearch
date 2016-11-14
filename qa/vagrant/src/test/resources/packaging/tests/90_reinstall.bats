@@ -31,8 +31,8 @@
 # under the License.
 
 # Load test utilities
-load packaging_test_utils
-load os_package
+load $BATS_UTILS/utils.bash
+load $BATS_UTILS/packages.bash
 
 # Cleans everything for the 1st execution
 setup() {

@@ -29,9 +29,9 @@
 # under the License.
 
 # Load test utilities
-load packaging_test_utils
-load tar
-load plugins
+load $BATS_UTILS/utils.bash
+load $BATS_UTILS/tar.bash
+load $BATS_UTILS/plugins.bash
 
 setup() {
     skip_not_tar_gz

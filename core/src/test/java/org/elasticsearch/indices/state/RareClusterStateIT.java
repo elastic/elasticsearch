@@ -212,7 +212,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // but the change might not be on the node that performed the indexing
         // operation yet
 
-        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0ms").build();
+        Settings settings = Settings.builder()
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+            .build();
         final List<String> nodeNames = internalCluster().startNodesAsync(2, settings).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
@@ -328,7 +331,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Here we want to test that everything goes well if the mappings that
         // are needed for a document are not available on the replica at the
         // time of indexing it
-        final List<String> nodeNames = internalCluster().startNodesAsync(2).get();
+        final List<String> nodeNames = internalCluster().startNodesAsync(2,
+            Settings.builder()
+                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+                .build()).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();

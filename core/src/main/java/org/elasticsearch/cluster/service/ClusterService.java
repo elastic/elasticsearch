@@ -479,7 +479,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                         }
                     }
                     if (toRemove.isEmpty() == false) {
-                        ClusterStateTaskExecutor<T> clusterStateTaskExecutor = toRemove.iterator().next().executor;
+                        ClusterStateTaskExecutor<T> clusterStateTaskExecutor = toRemove.get(0).executor;
                         synchronized (updateTasksPerExecutor) {
                             LinkedHashSet<UpdateTask> existingTasks = updateTasksPerExecutor.get(clusterStateTaskExecutor);
                             if (existingTasks != null) {

@@ -113,6 +113,12 @@ public class RestIndicesStatsAction extends BaseRestHandler {
                 }
             }
 
+            if (invalidMetrics.contains("percolate")) {
+                deprecationLogger.deprecated(
+                    "percolate stats are no longer available and requests for percolate stats will fail starting in 6.0.0");
+                invalidMetrics.remove("percolate");
+            }
+
             if (!invalidMetrics.isEmpty()) {
                 throw new IllegalArgumentException(unrecognized(request, invalidMetrics, METRICS.keySet(), "metric"));
             }

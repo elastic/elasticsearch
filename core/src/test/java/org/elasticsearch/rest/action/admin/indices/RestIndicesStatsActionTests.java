@@ -80,4 +80,11 @@ public class RestIndicesStatsActionTests extends ESTestCase {
         assertThat(e, hasToString(containsString("request [/_stats] contains _all and individual metrics [_all," + metric + "]")));
     }
 
+    public void testIndexMetricsWithPercolate() throws IOException {
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("metric", "percolate");
+        final RestRequest request = new FakeRestRequest.Builder().withPath("/_stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+    }
+
 }

@@ -451,7 +451,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         } finally {
             Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);
-            mockAppender.stop();
+            // don't call stop here some node might still use this reference at this point causing tests to fail.
+            // this is only relevant in integ tests, unittest can control what uses a logger and what doesn't
+            // mockAppender.stop();
         }
     }
 
@@ -551,7 +553,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         } finally {
             Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);
-            mockAppender.stop();
+            // don't call stop here some node might still use this reference at this point causing tests to fail.
+            // this is only relevant in integ tests, unittest can control what uses a logger and what doesn't
+            // mockAppender.stop();
         }
     }
 

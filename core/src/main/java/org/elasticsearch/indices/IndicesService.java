@@ -20,7 +20,6 @@
 package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
@@ -462,6 +461,21 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             globalCheckpointSyncer,
             indicesFieldDataCache);
+    }
+
+    /**
+     * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
+     * This *should not* be used for document parsing. Doing so will result in an exception.
+     *
+     * Note: the returned {@link MapperService} should be closed when unneeded.
+     */
+    public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
+        final Index index = indexMetaData.getIndex();
+        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
+        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
+        pluginsService.onIndexModule(indexModule);
+        return indexModule.newIndexMapperService(mapperRegistry);
     }
 
     /**

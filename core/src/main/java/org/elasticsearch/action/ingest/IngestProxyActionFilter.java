@@ -54,7 +54,7 @@ public final class IngestProxyActionFilter implements ActionFilter {
     }
 
     @Override
-    public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
         Action ingestAction;
         switch (action) {
             case IndexAction.NAME:

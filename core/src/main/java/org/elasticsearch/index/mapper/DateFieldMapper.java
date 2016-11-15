@@ -23,7 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.XPointValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BoostQuery;
@@ -300,13 +300,13 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public FieldStats.Date stats(IndexReader reader) throws IOException {
             String field = name();
-            long size = XPointValues.size(reader, field);
+            long size = PointValues.size(reader, field);
             if (size == 0) {
                 return null;
             }
-            int docCount = XPointValues.getDocCount(reader, field);
-            byte[] min = XPointValues.getMinPackedValue(reader, field);
-            byte[] max = XPointValues.getMaxPackedValue(reader, field);
+            int docCount = PointValues.getDocCount(reader, field);
+            byte[] min = PointValues.getMinPackedValue(reader, field);
+            byte[] max = PointValues.getMaxPackedValue(reader, field);
             return new FieldStats.Date(reader.maxDoc(),docCount, -1L, size,
                 isSearchable(), isAggregatable(),
                 dateTimeFormatter(), LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
@@ -321,13 +321,13 @@ public class DateFieldMapper extends FieldMapper {
                 dateParser = this.dateMathParser;
             }
 
-            if (XPointValues.size(reader, name()) == 0) {
+            if (PointValues.size(reader, name()) == 0) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
             }
 
-            long minValue = LongPoint.decodeDimension(XPointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(XPointValues.getMaxPackedValue(reader, name()), 0);
+            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {

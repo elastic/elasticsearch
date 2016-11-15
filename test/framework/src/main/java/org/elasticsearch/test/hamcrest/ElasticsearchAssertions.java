@@ -653,7 +653,7 @@ public class ElasticsearchAssertions {
                 // streamable that comes in.
             }
             if (streamable instanceof ActionRequest) {
-                ((ActionRequest<?>) streamable).validate();
+                ((ActionRequest) streamable).validate();
             }
             BytesReference orig;
             try {

@@ -83,6 +83,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -123,7 +124,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
 
-    private final AtomicReference<ClusterServiceState> state = new AtomicReference<>();
+    private final AtomicReference<ClusterServiceState> state;
 
     private final ClusterBlocks.Builder initialBlocks;
 
@@ -137,7 +138,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // will be replaced on doStart.
-        this.state.set(new ClusterServiceState(ClusterState.builder(clusterName).build(), ClusterStateStatus.UNKNOWN));
+        this.state = new AtomicReference<>(new ClusterServiceState(ClusterState.builder(clusterName).build(), ClusterStateStatus.UNKNOWN));
 
         this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 this::setSlowTaskLoggingThreshold);
@@ -158,12 +159,43 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     public synchronized void setLocalNode(DiscoveryNode localNode) {
-        assert state.get().getClusterState().nodes().getLocalNodeId() == null : "local node is already set";
-        this.state.getAndUpdate(css -> {
+        assert clusterServiceState().getClusterState().nodes().getLocalNodeId() == null : "local node is already set";
+        updateState(css -> {
             ClusterState clusterState = css.getClusterState();
             DiscoveryNodes nodes = DiscoveryNodes.builder(clusterState.nodes()).add(localNode).localNodeId(localNode.getId()).build();
             return new ClusterServiceState(ClusterState.builder(clusterState).nodes(nodes).build(), css.getClusterStateStatus());
         });
+    }
+
+    private void updateState(UnaryOperator<ClusterServiceState> updateFunction) {
+        this.state.getAndUpdate(oldClusterServiceState -> {
+            ClusterServiceState newClusterServiceState = updateFunction.apply(oldClusterServiceState);
+            assert validStateTransition(oldClusterServiceState, newClusterServiceState) :
+                "Invalid cluster service state transition from " + oldClusterServiceState + " to " + newClusterServiceState;
+            return newClusterServiceState;
+        });
+    }
+
+    private static boolean validStateTransition(ClusterServiceState oldClusterServiceState, ClusterServiceState newClusterServiceState) {
+        if (oldClusterServiceState == null || newClusterServiceState == null) {
+            return false;
+        }
+        ClusterStateStatus oldStatus = oldClusterServiceState.getClusterStateStatus();
+        ClusterStateStatus newStatus = newClusterServiceState.getClusterStateStatus();
+        // only go from UNKNOWN to UNKNOWN or BEING_APPLIED
+        if (oldStatus == ClusterStateStatus.UNKNOWN && newStatus == ClusterStateStatus.APPLIED) {
+            return false;
+        }
+        // only go from BEING_APPLIED to APPLIED
+        if (oldStatus == ClusterStateStatus.BEING_APPLIED && newStatus != ClusterStateStatus.APPLIED) {
+            return false;
+        }
+        // only go from APPLIED to BEING_APPLIED
+        if (oldStatus == ClusterStateStatus.APPLIED && newStatus != ClusterStateStatus.BEING_APPLIED) {
+            return false;
+        }
+        boolean identicalClusterState = oldClusterServiceState.getClusterState() == newClusterServiceState.getClusterState();
+        return identicalClusterState == (oldStatus == ClusterStateStatus.BEING_APPLIED && newStatus == ClusterStateStatus.APPLIED);
     }
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
@@ -201,10 +233,10 @@ public class ClusterService extends AbstractLifecycleComponent {
     @Override
     protected synchronized void doStart() {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
-        Objects.requireNonNull(state.get().getClusterState().nodes().getLocalNode(), "please set the local node before starting");
+        Objects.requireNonNull(clusterServiceState().getClusterState().nodes().getLocalNode(), "please set the local node before starting");
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         add(localNodeMasterListeners);
-        this.state.getAndUpdate(css -> new ClusterServiceState(
+        updateState(css -> new ClusterServiceState(
             ClusterState.builder(css.getClusterState()).blocks(initialBlocks).build(),
             css.getClusterStateStatus()));
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),
@@ -240,7 +272,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * The local node.
      */
     public DiscoveryNode localNode() {
-        DiscoveryNode localNode = state.get().getClusterState().getNodes().getLocalNode();
+        DiscoveryNode localNode = state().getNodes().getLocalNode();
         if (localNode == null) {
             throw new IllegalStateException("No local node found. Is the node started?");
         }
@@ -255,7 +287,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * The current cluster state.
      */
     public ClusterState state() {
-        return this.state.get().getClusterState();
+        return clusterServiceState().getClusterState();
     }
 
     /**
@@ -507,6 +539,13 @@ public class ClusterService extends AbstractLifecycleComponent {
         return true;
     }
 
+    /** asserts that the current thread is <b>NOT</b> the cluster state update thread */
+    public static boolean assertNotClusterStateUpdateThread(String reason) {
+        assert Thread.currentThread().getName().contains(UPDATE_THREAD_NAME) == false :
+            "Expected current thread [" + Thread.currentThread() + "] to not be the cluster state update thread. Reason: [" + reason + "]";
+        return true;
+    }
+
     public ClusterName getClusterName() {
         return clusterName;
     }
@@ -554,7 +593,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             return;
         }
         logger.debug("processing [{}]: execute", tasksSummary);
-        ClusterState previousClusterState = state.get().getClusterState();
+        ClusterState previousClusterState = clusterServiceState().getClusterState();
         if (!previousClusterState.nodes().isLocalNodeElectedMaster() && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", tasksSummary);
             toExecute.stream().forEach(task -> task.listener.onNoLongerMaster(task.source));
@@ -704,7 +743,8 @@ public class ClusterService extends AbstractLifecycleComponent {
             }
 
             // update the current cluster state
-            state.set(new ClusterServiceState(newClusterState, ClusterStateStatus.BEING_APPLIED));
+            ClusterState finalNewClusterState = newClusterState;
+            updateState(css -> new ClusterServiceState(finalNewClusterState, ClusterStateStatus.BEING_APPLIED));
             logger.debug("set local cluster state to version {}", newClusterState.version());
             try {
                 // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
@@ -726,7 +766,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
             nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().removedNodes());
 
-            state.getAndUpdate(css -> new ClusterServiceState(css.getClusterState(), ClusterStateStatus.APPLIED));
+            updateState(css -> new ClusterServiceState(css.getClusterState(), ClusterStateStatus.APPLIED));
 
             for (ClusterStateListener listener : postAppliedListeners) {
                 try {

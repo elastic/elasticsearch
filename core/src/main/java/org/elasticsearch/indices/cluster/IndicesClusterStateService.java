@@ -51,7 +51,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.seqno.GlobalCheckpointService;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -539,10 +538,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(shardRouting, recoveryState, recoveryTargetService, new RecoveryListener(shardRouting),
                 repositoriesService, failedShardHandler);
-        } catch (IndexShardAlreadyExistsException e) {
-            // ignore this, the method call can happen several times
-            logger.debug("Trying to create shard that already exists", e);
-            assert false;
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e);
         }

@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -44,6 +46,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DiscoveryModuleTests extends ESTestCase {
 
@@ -64,55 +71,52 @@ public class DiscoveryModuleTests extends ESTestCase {
         Map<String, Supplier<Discovery>> impl();
         @Override
         default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
-                                                                   ClusterService clusterService, ZenPing zenPing) {
+                                                                   ClusterService clusterService, UnicastHostsProvider hostsProvider) {
             return impl();
         }
     }
 
     @Before
     public void setupDummyServices() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        threadPool = new TestThreadPool("dummy");
+        threadPool = mock(ThreadPool.class);
         transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool, null);
-        clusterService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool);
+        clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
     }
 
     @After
-    public void clearDummyServices() throws IOException, InterruptedException {
-        terminate(threadPool);
-        IOUtils.close(transportService, clusterService, threadPool);
-        transportService = null;
-        clusterService = null;
-        threadPool = null;
+    public void clearDummyServices() throws IOException {
+        IOUtils.close(transportService);
     }
 
-    private DiscoveryModule newModule(Settings settings, Function<UnicastHostsProvider, ZenPing> createZenPing,
-                                      List<DiscoveryPlugin> plugins) {
-        return new DiscoveryModule(settings, null, transportService, null, clusterService, createZenPing, plugins);
+    private DiscoveryModule newModule(Settings settings, List<DiscoveryPlugin> plugins) {
+        return new DiscoveryModule(settings, threadPool, transportService, null, clusterService, plugins);
     }
 
     public void testDefaults() {
-        DiscoveryModule module = newModule(Settings.EMPTY, hostsProvider -> null, Collections.emptyList());
+        DiscoveryModule module = newModule(Settings.EMPTY, Collections.emptyList());
         assertTrue(module.getDiscovery() instanceof ZenDiscovery);
     }
 
     public void testLazyConstructionDiscovery() {
         DummyDiscoveryPlugin plugin = () -> Collections.singletonMap("custom",
             () -> { throw new AssertionError("created discovery type which was not selected"); });
-        newModule(Settings.EMPTY, hostsProvider -> null, Collections.singletonList(plugin));
+        newModule(Settings.EMPTY, Collections.singletonList(plugin));
     }
 
     public void testRegisterDiscovery() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
         DummyDiscoveryPlugin plugin = () -> Collections.singletonMap("custom", NoopDiscovery::new);
-        DiscoveryModule module = newModule(settings, hostsProvider -> null, Collections.singletonList(plugin));
+        DiscoveryModule module = newModule(settings, Collections.singletonList(plugin));
         assertTrue(module.getDiscovery() instanceof NoopDiscovery);
     }
 
     public void testUnknownDiscovery() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(settings, hostsProvider -> null, Collections.emptyList()));
+            newModule(settings, Collections.emptyList()));
         assertEquals("Unknown discovery type [dne]", e.getMessage());
     }
 
@@ -120,24 +124,26 @@ public class DiscoveryModuleTests extends ESTestCase {
         DummyDiscoveryPlugin plugin1 = () -> Collections.singletonMap("dup", () -> null);
         DummyDiscoveryPlugin plugin2 = () -> Collections.singletonMap("dup", () -> null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(Settings.EMPTY, hostsProvider -> null, Arrays.asList(plugin1, plugin2)));
+            newModule(Settings.EMPTY, Arrays.asList(plugin1, plugin2)));
         assertEquals("Cannot register discovery type [dup] twice", e.getMessage());
     }
 
     public void testHostsProvider() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
         final UnicastHostsProvider provider = Collections::emptyList;
-        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> provider);
-        newModule(settings, hostsProvider -> {
-            assertEquals(provider, hostsProvider);
-            return null;
-        }, Collections.singletonList(plugin));
+        AtomicBoolean created = new AtomicBoolean(false);
+        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
+            created.set(true);
+            return Collections::emptyList;
+        });
+        newModule(settings, Collections.singletonList(plugin));
+        assertTrue(created.get());
     }
 
     public void testUnknownHostsProvider() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(settings, hostsProvider -> null, Collections.emptyList()));
+            newModule(settings, Collections.emptyList()));
         assertEquals("Unknown zen hosts provider [dne]", e.getMessage());
     }
 
@@ -145,13 +151,13 @@ public class DiscoveryModuleTests extends ESTestCase {
         DummyHostsProviderPlugin plugin1 = () -> Collections.singletonMap("dup", () -> null);
         DummyHostsProviderPlugin plugin2 = () -> Collections.singletonMap("dup", () -> null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(Settings.EMPTY, hostsProvider -> null, Arrays.asList(plugin1, plugin2)));
+            newModule(Settings.EMPTY, Arrays.asList(plugin1, plugin2)));
         assertEquals("Cannot register zen hosts provider [dup] twice", e.getMessage());
     }
 
     public void testLazyConstructionHostsProvider() {
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom",
             () -> { throw new AssertionError("created hosts provider which was not selected"); });
-        newModule(Settings.EMPTY, hostsProvider -> null, Collections.singletonList(plugin));
+        newModule(Settings.EMPTY, Collections.singletonList(plugin));
     }
 }

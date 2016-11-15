@@ -1,0 +1,12 @@
+apply plugin: 'elasticsearch.vagrant'
+
+esvagrant {
+    inheritTestUtils true
+}
+
+dependencies {
+    bats project(path: ':x-plugins:elasticsearch', configuration: 'zip')
+
+    // Inherit Bats test utils from :qa:vagrant project
+    bats project(path: ':qa:vagrant', configuration: 'bats')
+}

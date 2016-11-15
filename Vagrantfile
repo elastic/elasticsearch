@@ -290,5 +290,6 @@ Defaults   env_keep += "BATS_UTILS"
 Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "BATS_ARCHIVES"
 SUDOERS_VARS
+    chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
 end

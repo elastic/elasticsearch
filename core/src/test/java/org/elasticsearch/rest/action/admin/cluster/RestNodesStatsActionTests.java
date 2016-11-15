@@ -109,6 +109,14 @@ public class RestNodesStatsActionTests extends ESTestCase {
                     "request [/_nodes/stats] contains unrecognized index metrics: [stroe] -> did you mean [store]?, [unrecognized]")));
     }
 
+    public void testIndexMetricsWithPercolate() throws IOException {
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("metric", "indices");
+        params.put("index_metric", "percolate");
+        final RestRequest request = new FakeRestRequest.Builder().withPath("/_nodes/stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+    }
+
     public void testIndexMetricsRequestWithoutIndicesMetric() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
         final Set<String> metrics = new HashSet<>(RestNodesStatsAction.METRICS.keySet());

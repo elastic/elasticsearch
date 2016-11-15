@@ -110,3 +110,11 @@ setup:
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "request [/_stats/fieldata] contains unrecognized metric: [fieldata] -> did you mean [fielddata]?" }
+
+---
+"Indices stats warns on percolate":
+  - do:
+      warnings:
+          - 'percolate stats are no longer available and requests for percolate stats will fail starting in 6.0.0'
+      indices.stats:
+        metric: [ percolate ]

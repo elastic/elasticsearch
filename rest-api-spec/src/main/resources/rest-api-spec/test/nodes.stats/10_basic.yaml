@@ -31,3 +31,12 @@
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "request [/_nodes/stats/transprot] contains unrecognized metric: [transprot] -> did you mean [transport]?" }
+
+---
+"Node stats warns on percolate":
+  - do:
+      warnings:
+          - 'percolate stats are no longer available and requests for percolate stats will fail starting in 6.0.0'
+      nodes.stats:
+        metric: [ indices ]
+        index_metric: [ percolate ]

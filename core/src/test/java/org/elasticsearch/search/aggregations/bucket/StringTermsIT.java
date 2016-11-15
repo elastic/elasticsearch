@@ -575,7 +575,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("'foo_' + _value", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "'foo_' + _value", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -602,7 +602,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(MULTI_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("_value.substring(0,3)", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(
+                                    ScriptType.INLINE, CustomScriptPlugin.NAME, "_value.substring(0,3)", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -652,7 +653,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms")
                             .executionHint(randomExecutionHint())
-                            .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                            .script(new Script(ScriptType.INLINE,
+                                CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap()))
                             .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .get();
 
@@ -684,7 +686,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(MULTI_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("'foo_' + _value", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "'foo_' + _value", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -719,7 +721,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
      */
 
     public void testScriptSingleValue() throws Exception {
-        Script script = new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -747,7 +750,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
     }
 
     public void testScriptSingleValueExplicitSingleValue() throws Exception {
-        Script script = new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -782,7 +786,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
                         terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .executionHint(randomExecutionHint())
-                            .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                            .script(new Script(ScriptType.INLINE,
+                                CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -1533,7 +1538,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(
-                        terms("terms").field("d").script(new Script("'foo_' + _value", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                        terms("terms").field("d").script(
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "'foo_' + _value", Collections.emptyMap())))
                 .get();
         assertSearchResponse(r);
 

@@ -40,7 +40,7 @@ public interface ActionFilter {
      * Enables filtering the execution of an action on the request side, either by sending a response through the
      * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
      */
-    <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+    <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
             ActionListener<Response> listener, ActionFilterChain<Request, Response> chain);
 
     /**
@@ -62,7 +62,7 @@ public interface ActionFilter {
         }
 
         @Override
-        public final <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+        public final <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
                 ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             if (apply(action, request, listener)) {
                 chain.proceed(task, action, request, listener);
@@ -73,7 +73,7 @@ public interface ActionFilter {
          * Applies this filter and returns {@code true} if the execution chain should proceed, or {@code false}
          * if it should be aborted since the filter already handled the request and called the given listener.
          */
-        protected abstract boolean apply(String action, ActionRequest<?> request, ActionListener<?> listener);
+        protected abstract boolean apply(String action, ActionRequest request, ActionListener<?> listener);
 
         @Override
         public final <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,

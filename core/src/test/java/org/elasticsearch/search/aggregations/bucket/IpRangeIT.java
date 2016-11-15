@@ -208,7 +208,7 @@ public class IpRangeIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> client().prepareSearch("idx").addAggregation(
                         AggregationBuilders.ipRange("my_range")
-                        .script(new Script(DummyScript.NAME, ScriptType.INLINE, "native", Collections.emptyMap())) ).get());
+                        .script(new Script(ScriptType.INLINE, "native", DummyScript.NAME, Collections.emptyMap())) ).get());
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 
@@ -217,7 +217,7 @@ public class IpRangeIT extends ESIntegTestCase {
                 () -> client().prepareSearch("idx").addAggregation(
                         AggregationBuilders.ipRange("my_range")
                         .field("ip")
-                        .script(new Script(DummyScript.NAME, ScriptType.INLINE, "native", Collections.emptyMap())) ).get());
+                        .script(new Script(ScriptType.INLINE, "native", DummyScript.NAME, Collections.emptyMap())) ).get());
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 

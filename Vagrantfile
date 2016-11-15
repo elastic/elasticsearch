@@ -77,6 +77,9 @@ Vagrant.configure(2) do |config|
   # the elasticsearch project called vagrant....
   config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.synced_folder ".", "/elasticsearch"
+  # Expose project directory
+  PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
+  config.vm.synced_folder PROJECT_DIR, "/project"
   config.vm.provider "virtualbox" do |v|
     # Give the boxes 3GB because Elasticsearch defaults to using 2GB
     v.memory = 3072
@@ -272,8 +275,10 @@ export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
 export RPM=/elasticsearch/distribution/rpm/build/distributions
 export DEB=/elasticsearch/distribution/deb/build/distributions
-export TESTROOT=/elasticsearch/qa/vagrant/build/testroot
-export BATS=/elasticsearch/qa/vagrant/src/test/resources/packaging/scripts
+export BATS=/project/build/bats
+export BATS_UTILS=/project/build/bats/utils
+export BATS_TESTS=/project/build/bats/tests
+export BATS_ARCHIVES=/project/build/bats/archives
 VARS
   SHELL
 end

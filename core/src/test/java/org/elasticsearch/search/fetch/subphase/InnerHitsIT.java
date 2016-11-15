@@ -167,7 +167,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                                 .setExplain(true)
                                 .addDocValueField("comments.message")
                                 .addScriptField("script",
-                                        new Script("5", ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
+                                        new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                 .setSize(1)
                 )).get();
         assertNoFailures(response);
@@ -301,8 +301,8 @@ public class InnerHitsIT extends ESIntegTestCase {
                                         .addDocValueField("message")
                                         .setHighlightBuilder(new HighlightBuilder().field("message"))
                                         .setExplain(true).setSize(1)
-                                        .addScriptField("script", new Script("5", ScriptType.INLINE,
-                                                MockScriptEngine.NAME, Collections.emptyMap()))
+                                        .addScriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5",
+                                            Collections.emptyMap()))
                         )
                 ).get();
         assertNoFailures(response);
@@ -993,6 +993,23 @@ public class InnerHitsIT extends ESIntegTestCase {
                 equalTo("fox eat quick"));
         assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).sourceAsMap()),
                 equalTo("fox ate rabbit x y z"));
+    }
+
+    public void testNestedInnerHitWrappedInParentChildInnerhit() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("child_type", "_parent", "type=parent_type", "nested_type", "type=nested"));
+        client().prepareIndex("test", "parent_type", "1").setSource("key", "value").get();
+        client().prepareIndex("test", "child_type", "2").setParent("1").setSource("nested_type", Collections.singletonMap("key", "value"))
+            .get();
+        refresh();
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(boolQuery().must(matchQuery("key", "value"))
+                .should(hasChildQuery("child_type", nestedQuery("nested_type", matchAllQuery(), ScoreMode.None)
+                    .innerHit(new InnerHitBuilder()), ScoreMode.None).innerHit(new InnerHitBuilder())))
+            .get();
+        assertHitCount(response, 1);
+        SearchHit hit = response.getHits().getAt(0);
+        assertThat(hit.getInnerHits().get("child_type").getAt(0).field("_parent").getValue(), equalTo("1"));
+        assertThat(hit.getInnerHits().get("child_type").getAt(0).getInnerHits().get("nested_type").getAt(0).field("_parent"), nullValue());
     }
 
 }

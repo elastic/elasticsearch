@@ -57,7 +57,6 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
-import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
@@ -334,16 +333,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(ex.totalFilesSize(), bytes);
         assertEquals(ex.getMessage(), "Failed to transfer [10] files with total size of [" + bytes + "]");
         assertTrue(ex.getCause() instanceof NullPointerException);
-    }
-
-    public void testIndexTemplateAlreadyExistsException() throws IOException {
-        IndexTemplateAlreadyExistsException ex = serialize(new IndexTemplateAlreadyExistsException("the dude abides!"));
-        assertEquals("the dude abides!", ex.name());
-        assertEquals("index_template [the dude abides!] already exists", ex.getMessage());
-
-        ex = serialize(new IndexTemplateAlreadyExistsException((String) null));
-        assertNull(ex.name());
-        assertEquals("index_template [null] already exists", ex.getMessage());
     }
 
     public void testBatchOperationException() throws IOException {
@@ -683,11 +672,11 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(44, org.elasticsearch.indices.recovery.RecoveryFailedException.class);
         ids.put(45, org.elasticsearch.index.shard.IndexShardRelocatedException.class);
         ids.put(46, org.elasticsearch.transport.NodeShouldNotConnectException.class);
-        ids.put(47, org.elasticsearch.indices.IndexTemplateAlreadyExistsException.class);
+        ids.put(47, null);
         ids.put(48, org.elasticsearch.index.translog.TranslogCorruptedException.class);
         ids.put(49, org.elasticsearch.cluster.block.ClusterBlockException.class);
         ids.put(50, org.elasticsearch.search.fetch.FetchPhaseExecutionException.class);
-        ids.put(51, org.elasticsearch.index.IndexShardAlreadyExistsException.class);
+        ids.put(51, null);
         ids.put(52, org.elasticsearch.index.engine.VersionConflictEngineException.class);
         ids.put(53, org.elasticsearch.index.engine.EngineException.class);
         ids.put(54, null); // was DocumentAlreadyExistsException, which is superseded with VersionConflictEngineException

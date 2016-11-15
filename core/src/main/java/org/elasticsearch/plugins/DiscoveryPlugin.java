@@ -57,10 +57,10 @@ public interface DiscoveryPlugin {
      * @param threadPool Use to schedule ping actions
      * @param transportService Use to communicate with other nodes
      * @param clusterService Use to find current nodes in the cluster
-     * @param zenPing Use to ping other nodes with zen unicast host list
+     * @param hostsProvider Use to find configured hosts which should be pinged for initial discovery
      */
     default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
-                                                               ClusterService clusterService, ZenPing zenPing) {
+                                                               ClusterService clusterService, UnicastHostsProvider hostsProvider) {
         return Collections.emptyMap();
     }
 

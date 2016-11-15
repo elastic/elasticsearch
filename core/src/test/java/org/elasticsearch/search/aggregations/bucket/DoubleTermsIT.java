@@ -452,7 +452,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -505,7 +505,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -534,7 +534,8 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script(new Script("(long) (_value / 1000 + 1)", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                        .script(
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "(long) (_value / 1000 + 1)", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -576,8 +577,8 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE,
-                                        CustomScriptPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE,
+                                    CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].value", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -603,8 +604,8 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']", ScriptType.INLINE,
-                                        CustomScriptPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']",
+                                    Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -1078,10 +1079,11 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testScriptScore() {
-        Script scoringScript =
-                new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin .NAME, null);
+        Script scoringScript = new Script(
+            ScriptType.INLINE, CustomScriptPlugin .NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
-        Script aggregationScript = new Script("ceil(_score.doubleValue()/3)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script aggregationScript = new Script(
+            ScriptType.INLINE, CustomScriptPlugin.NAME, "ceil(_score.doubleValue()/3)", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1200,7 +1202,8 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
-                terms("terms").field("d").script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))).get();
+                terms("terms").field("d").script(
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

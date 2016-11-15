@@ -119,7 +119,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields");
 
     // Mapping types the "all-ish" query can be executed against
-    private static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
+    public static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
 
     static {
         ALLOWED_QUERY_MAPPER_TYPES = new HashSet<>();
@@ -908,7 +908,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, splitOnWhitespace, useAllFields);
     }
 
-    private Map<String, Float> allQueryableDefaultFields(QueryShardContext context) {
+    /**
+     * Given a shard context, return a map of all fields in the mappings that
+     * can be queried. The map will be field name to a float of 1.0f.
+     */
+    public static Map<String, Float> allQueryableDefaultFields(QueryShardContext context) {
         Collection<String> allFields = context.simpleMatchToIndexNames("*");
         Map<String, Float> fields = new HashMap<>();
         for (String fieldName : allFields) {
@@ -942,6 +946,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
 
         Map<String, Float> resolvedFields = new TreeMap<>();
+
+        if ((useAllFields != null && useAllFields) && (fieldsAndWeights.size() != 0 || this.defaultField != null)) {
+            throw addValidationError("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]", null);
+        }
 
         // If explicitly required to use all fields, use all fields, OR:
         // Automatically determine the fields (to replace the _all field) if all of the following are true:

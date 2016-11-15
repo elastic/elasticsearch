@@ -19,23 +19,33 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
@@ -43,6 +53,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -351,5 +363,213 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .setQuery(simpleQueryStringQuery("the*").field("body")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 0L);
+    }
+
+    public void testBasicAllQuery() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        prepareCreate("test").setSource(indexBody).get();
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar baz"));
+        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f2", "Bar"));
+        reqs.add(client().prepareIndex("test", "doc", "3").setSource("f3", "foo bar baz"));
+        indexRandom(true, false, reqs);
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
+        assertHitCount(resp, 2L);
+        assertHits(resp.getHits(), "1", "3");
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("bar")).get();
+        assertHitCount(resp, 2L);
+        assertHits(resp.getHits(), "1", "3");
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")).get();
+        assertHitCount(resp, 3L);
+        assertHits(resp.getHits(), "1", "2", "3");
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foa")).get();
+        assertHitCount(resp, 1L);
+        assertHits(resp.getHits(), "3");
+    }
+
+    public void testWithDate() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        prepareCreate("test").setSource(indexBody).get();
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo", "f_date", "2015/09/02"));
+        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar", "f_date", "2015/09/01"));
+        indexRandom(true, false, reqs);
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")).get();
+        assertHits(resp.getHits(), "1", "2");
+        assertHitCount(resp, 2L);
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("\"2015/09/02\"")).get();
+        assertHits(resp.getHits(), "1");
+        assertHitCount(resp, 1L);
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("bar \"2015/09/02\"")).get();
+        assertHits(resp.getHits(), "1", "2");
+        assertHitCount(resp, 2L);
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("\"2015/09/02\" \"2015/09/01\"")).get();
+        assertHits(resp.getHits(), "1", "2");
+        assertHitCount(resp, 2L);
+    }
+
+    public void testWithLotsOfTypes() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        prepareCreate("test").setSource(indexBody).get();
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo",
+                        "f_date", "2015/09/02",
+                        "f_float", "1.7",
+                        "f_ip", "127.0.0.1"));
+        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar",
+                        "f_date", "2015/09/01",
+                        "f_float", "1.8",
+                        "f_ip", "127.0.0.2"));
+        indexRandom(true, false, reqs);
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")).get();
+        assertHits(resp.getHits(), "1", "2");
+        assertHitCount(resp, 2L);
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("\"2015/09/02\"")).get();
+        assertHits(resp.getHits(), "1");
+        assertHitCount(resp, 1L);
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.2 \"2015/09/02\"")).get();
+        assertHits(resp.getHits(), "1", "2");
+        assertHitCount(resp, 2L);
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1 1.8")).get();
+        assertHits(resp.getHits(), "1", "2");
+        assertHitCount(resp, 2L);
+    }
+
+    public void testDocWithAllTypes() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        prepareCreate("test").setSource(indexBody).get();
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource(docBody));
+        indexRandom(true, false, reqs);
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("Baz")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("sbaz")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("19")).get();
+        assertHits(resp.getHits(), "1");
+        // nested doesn't match because it's hidden
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("1476383971")).get();
+        assertHits(resp.getHits(), "1");
+        // bool doesn't match
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("7")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("23")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("1293")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("42")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("1.7")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("1.5")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("12.23")).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1")).get();
+        assertHits(resp.getHits(), "1");
+        // binary doesn't match
+        // suggest doesn't match
+        // geo_point doesn't match
+        // geo_shape doesn't match
+
+        resp = client().prepareSearch("test").setQuery(
+                simpleQueryStringQuery("foo Bar 19 127.0.0.1").defaultOperator(Operator.AND)).get();
+        assertHits(resp.getHits(), "1");
+    }
+
+    public void testKeywordWithWhitespace() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        prepareCreate("test").setSource(indexBody).get();
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f2", "Foo Bar"));
+        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "bar"));
+        reqs.add(client().prepareIndex("test", "doc", "3").setSource("f1", "foo bar"));
+        indexRandom(true, false, reqs);
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
+        assertHits(resp.getHits(), "3");
+        assertHitCount(resp, 1L);
+
+        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("bar")).get();
+        assertHits(resp.getHits(), "2", "3");
+        assertHitCount(resp, 2L);
+    }
+
+    public void testExplicitAllFieldsRequested() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
+        prepareCreate("test").setSource(indexBody).get();
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
+        indexRandom(true, false, reqs);
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(
+                simpleQueryStringQuery("foo eggplent").defaultOperator(Operator.AND)).get();
+        assertHitCount(resp, 0L);
+
+        resp = client().prepareSearch("test").setQuery(
+                simpleQueryStringQuery("foo eggplent").defaultOperator(Operator.AND).useAllFields(true)).get();
+        assertHits(resp.getHits(), "1");
+        assertHitCount(resp, 1L);
+
+        Exception e = expectThrows(Exception.class, () ->
+                client().prepareSearch("test").setQuery(
+                        simpleQueryStringQuery("blah").field("f1").useAllFields(true)).get());
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("cannot use [all_fields] parameter in conjunction with [fields]"));
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl="currently can't perform phrase queries on fields that don't support positions")
+    public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        prepareCreate("test").setSource(indexBody).get();
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
+        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
+        indexRandom(true, false, reqs);
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("\"eggplant parmesan\"")).get();
+        assertHits(resp.getHits(), "1");
+        assertHitCount(resp, 1L);
+    }
+
+    private void assertHits(SearchHits hits, String... ids) {
+        assertThat(hits.totalHits(), equalTo((long) ids.length));
+        Set<String> hitIds = new HashSet<>();
+        for (SearchHit hit : hits.getHits()) {
+            hitIds.add(hit.id());
+        }
+        assertThat(hitIds, containsInAnyOrder(ids));
     }
 }

@@ -246,6 +246,13 @@ public final class ThreadContext implements Closeable, Writeable {
         return command;
     }
 
+    /**
+     * Returns true if the current context is the default context.
+     */
+    boolean isDefaultContext() {
+        return threadLocal.get() == DEFAULT_CONTEXT;
+    }
+
     @FunctionalInterface
     public interface StoredContext extends AutoCloseable {
         @Override
@@ -468,10 +475,12 @@ public final class ThreadContext implements Closeable, Writeable {
      */
     private class ContextPreservingAbstractRunnable extends AbstractRunnable {
         private final AbstractRunnable in;
-        private final ThreadContext.StoredContext ctx;
+        private final ThreadContext.StoredContext creatorsContext;
+
+        private ThreadContext.StoredContext threadsOriginalContext = null;
 
         private ContextPreservingAbstractRunnable(AbstractRunnable in) {
-            ctx = newStoredContext();
+            creatorsContext = newStoredContext();
             this.in = in;
         }
 
@@ -482,7 +491,13 @@ public final class ThreadContext implements Closeable, Writeable {
 
         @Override
         public void onAfter() {
-            in.onAfter();
+            try {
+                in.onAfter();
+            } finally {
+                if (threadsOriginalContext != null) {
+                    threadsOriginalContext.restore();
+                }
+            }
         }
 
         @Override
@@ -498,8 +513,9 @@ public final class ThreadContext implements Closeable, Writeable {
         @Override
         protected void doRun() throws Exception {
             boolean whileRunning = false;
-            try (ThreadContext.StoredContext ignore = stashContext()){
-                ctx.restore();
+            threadsOriginalContext = stashContext();
+            try {
+                creatorsContext.restore();
                 whileRunning = true;
                 in.doRun();
                 whileRunning = false;

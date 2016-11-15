@@ -330,7 +330,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             if (shards.containsKey(shardId.id())) {
-                throw new IndexShardAlreadyExistsException(shardId + " already exists");
+                throw new IllegalStateException(shardId + " already exists");
             }
 
             logger.debug("creating shard_id {}", shardId);

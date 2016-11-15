@@ -55,8 +55,7 @@ public class DiscoveryModule {
     private final Discovery discovery;
 
     public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService, NetworkService networkService,
-                           ClusterService clusterService, Function<UnicastHostsProvider, ZenPing> createZenPing,
-                           List<DiscoveryPlugin> plugins) {
+                           ClusterService clusterService, List<DiscoveryPlugin> plugins) {
         final UnicastHostsProvider hostsProvider;
 
         Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
@@ -78,14 +77,11 @@ public class DiscoveryModule {
             hostsProvider = Collections::emptyList;
         }
 
-        final ZenPing zenPing = createZenPing.apply(hostsProvider);
-
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
-        discoveryTypes.put("zen",
-            () -> new ZenDiscovery(settings, threadPool, transportService, clusterService, clusterService.getClusterSettings(), zenPing));
+        discoveryTypes.put("zen", () -> new ZenDiscovery(settings, threadPool, transportService, clusterService, hostsProvider));
         discoveryTypes.put("none", () -> new NoneDiscovery(settings, clusterService, clusterService.getClusterSettings()));
         for (DiscoveryPlugin plugin : plugins) {
-            plugin.getDiscoveryTypes(threadPool, transportService, clusterService, zenPing).entrySet().forEach(entry -> {
+            plugin.getDiscoveryTypes(threadPool, transportService, clusterService, hostsProvider).entrySet().forEach(entry -> {
                 if (discoveryTypes.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Cannot register discovery type [" + entry.getKey() + "] twice");
                 }

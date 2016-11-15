@@ -109,6 +109,13 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         }
     }
 
+    @Override
+    protected void afterExecute(Runnable r, Throwable t) {
+        super.afterExecute(r, t);
+        assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
+            Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
+    }
+
     /**
      * Returns a stream of all pending tasks. This is similar to {@link #getQueue()} but will expose the originally submitted
      * {@link Runnable} instances rather than potentially wrapped ones.

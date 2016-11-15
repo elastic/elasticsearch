@@ -376,7 +376,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         if (script == null) {
             return null;
         } else {
-            return context.getQueryShardContext().getSearchScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+            return context.getQueryShardContext().getSearchScript(script, ScriptContext.Standard.AGGS);
         }
     }
 

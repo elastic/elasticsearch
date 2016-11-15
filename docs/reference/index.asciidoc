@@ -1,7 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:        5.0.2
+:version:        5.0.1
 :major-version:  5.x
 
 //////////

@@ -33,7 +33,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class MultiSearchTemplateRequest extends ActionRequest<MultiSearchTemplateRequest> implements CompositeIndicesRequest {
+public class MultiSearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 

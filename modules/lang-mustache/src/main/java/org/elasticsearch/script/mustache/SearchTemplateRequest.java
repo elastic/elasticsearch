@@ -37,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> implements IndicesRequest {
+public class SearchTemplateRequest extends ActionRequest implements IndicesRequest {
 
     private SearchRequest request;
     private boolean simulate = false;

@@ -37,7 +37,7 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocument.MetaData;
 
-public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineRequest> {
+public class SimulatePipelineRequest extends ActionRequest {
 
     private String id;
     private boolean verbose;

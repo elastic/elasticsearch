@@ -726,7 +726,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest<Request>, Response extends ActionResponse,
+        protected <Request extends ActionRequest, Response extends ActionResponse,
                 RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
                 Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             lastHeaders.set(threadPool.getThreadContext().getHeaders());
@@ -823,7 +823,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
-    private static class RequestAndListener<Request extends ActionRequest<Request>, Response> {
+    private static class RequestAndListener<Request extends ActionRequest, Response> {
         private final Request request;
         private final ActionListener<Response> listener;
 

@@ -159,6 +159,16 @@ final class Bootstrap {
 
         try {
             spawner.spawnNativePluginControllers(environment);
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        spawner.close();
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("Failed to destroy spawned controllers", e);
+                    }
+                }
+            });
         } catch (IOException e) {
             throw new BootstrapException(e);
         }

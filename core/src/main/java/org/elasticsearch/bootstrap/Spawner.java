@@ -24,7 +24,6 @@ import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,24 +41,21 @@ final class Spawner implements Closeable {
     private static final String TMP_ENVVAR = "TMPDIR";
 
     /**
-     * On Windows we have to retain a reference to the OutputStream that corresponds to each
-     * process's stdin, otherwise the pipe will be closed and the spawned process will receive
-     * an EOF on its stdin.  This isn't necessary on *nix for daemons that only need to shut
-     * down when the JVM exits, but storing these references improves testability by making this
-     * class Closeable.
+     * References to the processes that have been spawned, so that we can destroy them.
      */
-    private final List<OutputStream> stdinReferences = new ArrayList<>();
+    private final List<Process> processes = new ArrayList<>();
 
     @Override
     public void close() throws IOException {
-        for (OutputStream stream : stdinReferences) {
-            stream.close();
+        for (Process process : processes) {
+            process.destroy();
         }
+        processes.clear();
     }
 
     /**
      * For each plugin, attempt to spawn the controller daemon.  Silently ignore any plugins
-     * that don't include a version of the program for the correct platform.
+     * that don't include a controller for the correct platform.
      */
     void spawnNativePluginControllers(Environment environment) throws IOException {
         if (Files.exists(environment.pluginsFile())) {
@@ -67,7 +63,7 @@ final class Spawner implements Closeable {
                 for (Path plugin : stream) {
                     Path spawnPath = makeSpawnPath(plugin);
                     if (Files.isRegularFile(spawnPath)) {
-                        spawnNativePluginController(environment, spawnPath);
+                        spawnNativePluginController(spawnPath, environment.tmpFile());
                     }
                 }
             }
@@ -77,21 +73,21 @@ final class Spawner implements Closeable {
     /**
      * Attempt to spawn the controller daemon for a given plugin.  The spawned process
      * will remain connected to this JVM via its stdin, stdout and stderr, but the
-     * references to these streams are not available to code outside this class.
+     * references to these streams are not available to code outside this package.
      */
-    private void spawnNativePluginController(Environment environment, Path spawnPath) throws IOException {
+    private void spawnNativePluginController(Path spawnPath, Path tmpPath) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(spawnPath.toString());
 
         // The only environment variable passes on the path to the temporary directory
         pb.environment().clear();
-        pb.environment().put(TMP_ENVVAR, environment.tmpFile().toString());
+        pb.environment().put(TMP_ENVVAR, tmpPath.toString());
 
         // The output stream of the Process object corresponds to the daemon's stdin
-        stdinReferences.add(pb.start().getOutputStream());
+        processes.add(pb.start());
     }
 
-    List<OutputStream> getStdinReferences() {
-        return stdinReferences;
+    List<Process> getProcesses() {
+        return processes;
     }
 
     /**

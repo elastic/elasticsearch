@@ -19,23 +19,27 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Compile a simple daemon controller, put it in the right place and check that it runs.
- * Ignore the problem of g++ not being installed to avoid making g++ a pre-requisite for
- * building Elasticsearch.
+ * Create a simple "daemon controller", put it in the right place and check that it runs.
+ *
+ * Does nothing on Windows, as it's too hard to simulate a native program using a script.
  *
  * Extends LuceneTestCase rather than ESTestCase as ESTestCase installs seccomp, and that
  * prevents the Spawner class doing its job.  Also needs to run in a separate JVM to other
@@ -43,47 +47,19 @@ import java.util.List;
  */
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
-    private static final String CPP_COMPILER = "/usr/bin/g++";
-
-    private static final String HELLO_FILE_NAME = JvmInfo.jvmInfo().pid() + "hello.txt";
-    private static final String GOODBYE_FILE_NAME = JvmInfo.jvmInfo().pid() + "goodbye.txt";
-
-    private static final String CONTROLLER_SOURCE = "\n"
-        + "#include <fstream>\n"
-        + "#include <iostream>\n"
-        + "#include <string>\n"
-        + "\n"
-        + "#include <stdlib.h>\n"
-        + "\n"
-        + "int main(int, char **) {\n"
-        + "    const char *tmpDir = ::getenv(\"TMPDIR\");\n"
-        + "    if (tmpDir == 0) {\n"
-        + "        return EXIT_FAILURE;\n"
-        + "    }\n"
-        + "\n"
-        + "    std::string helloFile(tmpDir);\n"
-        + "    helloFile += '/';\n"
-        + "    helloFile += \"" + HELLO_FILE_NAME + "\";\n"
-        + "    std::string goodbyeFile(tmpDir);\n"
-        + "    goodbyeFile += '/';\n"
-        + "    goodbyeFile += \"" + GOODBYE_FILE_NAME + "\";\n"
-        + "\n"
-        + "    std::ofstream helloStrm(helloFile.c_str());\n"
-        + "    helloStrm << \"Hello, world!\\n\";\n"
-        + "    helloStrm.close();\n"
-        + "\n"
-        + "    // Assuming no input on stdin, this will pause the program until end-of-file on stdin\n"
-        + "    char c;\n"
-        + "    std::cin >> c;\n"
-        + "\n"
-        + "    std::ofstream goodbyeStrm(goodbyeFile.c_str());\n"
-        + "    goodbyeStrm << \"Goodbye, world!\\n\";\n"
-        + "    goodbyeStrm.close();\n"
-        + "\n"
-        + "    return EXIT_SUCCESS;\n"
-        + "}\n";
+    private static final String CONTROLLER_SOURCE = "#!/bin/bash\n"
+            + "\n"
+            + "echo I am alive\n"
+            + "\n"
+            + "read SOMETHING\n";
 
     public void testControllerSpawn() throws IOException, InterruptedException {
+        if (Constants.WINDOWS) {
+            // On Windows you cannot directly run a batch file - you have to run cmd.exe with the batch file
+            // as an argument and that's out of the remit of the controller daemon process spawner
+            return;
+        }
+
         Path esHome = createTempDir().resolve("esHome");
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
@@ -91,71 +67,44 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         Environment environment = new Environment(settings);
 
-        // This plugin will have a controller daemon built for it
+        // This plugin WILL have a controller daemon
         Path plugin = environment.pluginsFile().resolve("test_plugin");
         Files.createDirectories(plugin);
         Path controllerProgram = Spawner.makeSpawnPath(plugin);
-        if (compileControllerProgram(environment, controllerProgram) == false) {
-            // Don't fail the test if there's an error compiling the plugin - the build machine probably doesn't have g++ installed
-            Loggers.getLogger(SpawnerNoBootstrapTests.class).warn("Could not compile native controller program for testing");
-            return;
-        }
-        Loggers.getLogger(SpawnerNoBootstrapTests.class).info("Successfully compiled native controller program for testing");
+        createControllerProgram(controllerProgram);
 
         // This plugin will NOT have a controller daemon
         Path otherPlugin = environment.pluginsFile().resolve("other_plugin");
         Files.createDirectories(otherPlugin);
 
-        Path helloFile = environment.tmpFile().resolve(HELLO_FILE_NAME);
-        Path goodbyeFile = environment.tmpFile().resolve(GOODBYE_FILE_NAME);
-
-        // Clean up any files left behind by previous debugging
-        Files.deleteIfExists(helloFile);
-        Files.deleteIfExists(goodbyeFile);
-
         Spawner spawner = new Spawner();
         spawner.spawnNativePluginControllers(environment);
 
-        try {
-            // Give the program time to start up
-            Thread.sleep(500);
-            List<OutputStream> stdinReferences = spawner.getStdinReferences();
-            // 1 because there should only be a reference in the list for the plugin that had the controller daemon, not the other plugin
-            assertEquals(1, stdinReferences.size());
-            assertTrue(Files.isRegularFile(helloFile));
-            assertFalse(Files.exists(goodbyeFile));
-            List<String> lines = Files.readAllLines(helloFile, StandardCharsets.UTF_8);
-            assertFalse(lines.isEmpty());
-            assertEquals("Hello, world!", lines.get(0));
-            // This should cause the native controller to receive an end-of-file on its stdin and hence exit
+        List<Process> processes = spawner.getProcesses();
+        // 1 because there should only be a reference in the list for the plugin that had the controller daemon, not the other plugin
+        assertEquals(1, processes.size());
+        Process process = processes.get(0);
+        try (BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            String line = stdoutReader.readLine();
+            assertEquals("I am alive", line);
             spawner.close();
-            // Give the program time to exit
-            Thread.sleep(250);
-            assertTrue(Files.isRegularFile(goodbyeFile));
-            lines = Files.readAllLines(goodbyeFile, StandardCharsets.UTF_8);
-            assertFalse(lines.isEmpty());
-            assertEquals("Goodbye, world!", lines.get(0));
-        } finally {
-            // These have to go in java.io.tmpdir rather than a LuceneTestCase managed temporary directory
-            // because the Spawner class only tells the spawned program about java.io.tmpdir
-            Files.deleteIfExists(helloFile);
-            Files.deleteIfExists(goodbyeFile);
+            // Fail if the process doesn't die within 1 second - usually it will be even quicker but it depends on OS scheduling
+            assertTrue(process.waitFor(1, TimeUnit.SECONDS));
         }
     }
 
-    private boolean compileControllerProgram(Environment environment, Path outputFile) {
-        boolean compileSucceeded = false;
-        try {
-            Path sourceFile = Files.write(Files.createTempFile(environment.tmpFile(), "controller", ".cc"),
-                    CONTROLLER_SOURCE.getBytes(StandardCharsets.UTF_8));
-            Path outputDir = outputFile.getParent();
-            Files.createDirectories(outputDir);
-            Process proc = Runtime.getRuntime().exec(new String[] { CPP_COMPILER, "-o", outputFile.toString(), sourceFile.toString() });
-            compileSucceeded = proc.waitFor() == 0;
-            Files.delete(sourceFile);
-        } catch (IOException | InterruptedException e) {
-            return false;
-        }
-        return compileSucceeded;
+    private void createControllerProgram(Path outputFile) throws IOException {
+        Path outputDir = outputFile.getParent();
+        Files.createDirectories(outputDir);
+        Files.write(outputFile, CONTROLLER_SOURCE.getBytes(StandardCharsets.UTF_8));
+        Set<PosixFilePermission> perms = new HashSet<>();
+        perms.add(PosixFilePermission.OWNER_READ);
+        perms.add(PosixFilePermission.OWNER_WRITE);
+        perms.add(PosixFilePermission.OWNER_EXECUTE);
+        perms.add(PosixFilePermission.GROUP_READ);
+        perms.add(PosixFilePermission.GROUP_EXECUTE);
+        perms.add(PosixFilePermission.OTHERS_READ);
+        perms.add(PosixFilePermission.OTHERS_EXECUTE);
+        Files.setPosixFilePermissions(outputFile, perms);
     }
 }

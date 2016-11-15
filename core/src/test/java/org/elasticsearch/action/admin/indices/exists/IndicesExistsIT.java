@@ -31,7 +31,8 @@ import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0,
+    autoMinMasterNodes = false)
 public class IndicesExistsIT extends ESIntegTestCase {
 
     public void testIndexExistsWithBlocksInPlace() throws IOException {

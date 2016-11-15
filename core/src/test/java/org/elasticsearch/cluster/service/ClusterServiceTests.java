@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -1095,6 +1097,48 @@ public class ClusterServiceTests extends ESTestCase {
 
         latch.await();
         assertThat(currentNodes, equalTo(Sets.newHashSet(timedClusterService.state().getNodes())));
+        timedClusterService.close();
+    }
+
+    public void testLocalNodeMasterListenerCallbacks() throws Exception {
+        TimedClusterService timedClusterService = createTimedClusterService(false);
+
+        AtomicBoolean isMaster = new AtomicBoolean();
+        timedClusterService.add(new LocalNodeMasterListener() {
+            @Override
+            public void onMaster() {
+                isMaster.set(true);
+            }
+
+            @Override
+            public void offMaster() {
+                isMaster.set(false);
+            }
+
+            @Override
+            public String executorName() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        ClusterState state = timedClusterService.state();
+        DiscoveryNodes nodes = state.nodes();
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
+        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        setState(timedClusterService, state);
+        assertThat(isMaster.get(), is(true));
+
+        nodes = state.nodes();
+        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
+        state = ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES))
+            .nodes(nodesBuilder).build();
+        setState(timedClusterService, state);
+        assertThat(isMaster.get(), is(false));
+        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
+        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        setState(timedClusterService, state);
+        assertThat(isMaster.get(), is(true));
+
         timedClusterService.close();
     }
 

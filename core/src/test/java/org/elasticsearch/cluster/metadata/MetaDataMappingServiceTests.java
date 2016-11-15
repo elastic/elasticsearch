@@ -97,7 +97,6 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         ClusterState result2 = mappingService.putMappingExecutor.execute(result, Collections.singletonList(request))
             .resultingState;
 
-        assertTrue(result == result2);
+        assertSame(result, result2);
     }
-
 }

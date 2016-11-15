@@ -33,6 +33,7 @@ import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -357,6 +358,16 @@ public final class IndexModule {
                 analysisRegistry, engineFactory.get(), circuitBreakerService, bigArrays, threadPool, scriptService, indicesQueriesRegistry,
                 clusterService, client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry, indicesFieldDataCache,
                 searchOperationListeners, indexOperationListeners);
+    }
+
+    /**
+     * creates a new mapper service to do administrative work like mapping updates. This *should not* be used for document parsing.
+     * doing so will result in an exception.
+     */
+    public MapperService newIndexMapperService(MapperRegistry mapperRegistry) throws IOException {
+        return new MapperService(indexSettings, analysisRegistry.build(indexSettings),
+            new SimilarityService(indexSettings, similarities), mapperRegistry,
+            () -> { throw new UnsupportedOperationException("no index query shard context available"); });
     }
 
     /**

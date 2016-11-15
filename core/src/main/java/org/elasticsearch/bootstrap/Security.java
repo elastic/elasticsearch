@@ -274,33 +274,8 @@ final class Security {
      */
     static void addBindPermissions(Permissions policy, Settings settings) {
         addSocketPermissionForHttp(policy, settings);
-        // transport is waaaay overengineered
-        Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups();
-        if (!profiles.containsKey(TransportSettings.DEFAULT_PROFILE)) {
-            profiles = new HashMap<>(profiles);
-            profiles.put(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
-        }
-
-        // loop through all profiles and add permissions for each one, if its valid.
-        // (otherwise Netty transports are lenient and ignores it)
-        for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
-            Settings profileSettings = entry.getValue();
-            String name = entry.getKey();
-
-            // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
-            boolean valid = TransportSettings.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
-            if (valid) {
-                addSocketPermissionForTransportProfile(policy, profileSettings, settings);
-            }
-        }
-
-        for (final Settings tribeNodeSettings : settings.getGroups("tribe", true).values()) {
-            // tribe nodes have HTTP disabled by default, so we check if HTTP is enabled before granting
-            if (NetworkModule.HTTP_ENABLED.exists(tribeNodeSettings) && NetworkModule.HTTP_ENABLED.get(tribeNodeSettings)) {
-                addSocketPermissionForHttp(policy, tribeNodeSettings);
-            }
-            addSocketPermissionForTransport(policy, tribeNodeSettings);
-        }
+        addSocketPermissionForTransportProfiles(policy, settings);
+        addSocketPermissionForTribeNodes(policy, settings);
     }
 
     /**
@@ -320,18 +295,33 @@ final class Security {
      * the transport profile specified by {@code profileSettings} and will fall back to {@code settings}.
      *
      * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
-     * @param profileSettings the {@link Settings} to read the transport profile from
      * @param settings        the {@link Settings} instance to read the transport settings from
      */
-    private static void addSocketPermissionForTransportProfile(
+    private static void addSocketPermissionForTransportProfiles(
         final Permissions policy,
-        final Settings profileSettings,
         final Settings settings) {
-        final String transportRange = profileSettings.get("port");
-        if (transportRange != null) {
-            addSocketPermissionForPortRange(policy, transportRange);
-        } else {
-            addSocketPermissionForTransport(policy, settings);
+        // transport is way over-engineered
+        final Map<String, Settings> profiles = new HashMap<>(TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups());
+        profiles.putIfAbsent(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
+
+        // loop through all profiles and add permissions for each one, if it's valid; otherwise Netty transports are lenient and ignores it
+        for (final Map.Entry<String, Settings> entry : profiles.entrySet()) {
+            final Settings profileSettings = entry.getValue();
+            final String name = entry.getKey();
+
+            // a profile is only valid if it's the default profile, or if it has an actual name and specifies a port
+            // TODO: can this leniency be removed?
+            final boolean valid =
+                TransportSettings.DEFAULT_PROFILE.equals(name) ||
+                    (name != null && name.length() > 0 && profileSettings.get("port") != null);
+            if (valid) {
+                final String transportRange = profileSettings.get("port");
+                if (transportRange != null) {
+                    addSocketPermissionForPortRange(policy, transportRange);
+                } else {
+                    addSocketPermissionForTransport(policy, settings);
+                }
+            }
         }
     }
 
@@ -344,6 +334,16 @@ final class Security {
     private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
         final String transportRange = TransportSettings.PORT.get(settings);
         addSocketPermissionForPortRange(policy, transportRange);
+    }
+
+    private static void addSocketPermissionForTribeNodes(final Permissions policy, final Settings settings) {
+        for (final Settings tribeNodeSettings : settings.getGroups("tribe", true).values()) {
+            // tribe nodes have HTTP disabled by default, so we check if HTTP is enabled before granting
+            if (NetworkModule.HTTP_ENABLED.exists(tribeNodeSettings) && NetworkModule.HTTP_ENABLED.get(tribeNodeSettings)) {
+                addSocketPermissionForHttp(policy, tribeNodeSettings);
+            }
+            addSocketPermissionForTransport(policy, tribeNodeSettings);
+        }
     }
 
     /**

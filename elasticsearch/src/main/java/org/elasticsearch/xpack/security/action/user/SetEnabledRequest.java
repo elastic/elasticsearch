@@ -21,7 +21,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * The request that allows to set a user as enabled or disabled
  */
-public class SetEnabledRequest extends ActionRequest<SetEnabledRequest> implements UserRequest, WriteRequest<SetEnabledRequest> {
+public class SetEnabledRequest extends ActionRequest implements UserRequest, WriteRequest<SetEnabledRequest> {
 
     private Boolean enabled;
     private String username;

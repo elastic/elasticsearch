@@ -39,7 +39,7 @@ public class Licensing implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (isTribeNode) {
             return emptyList();
         }

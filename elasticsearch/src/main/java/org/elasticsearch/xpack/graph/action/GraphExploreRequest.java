@@ -29,7 +29,7 @@ import java.util.List;
  * Holds the criteria required to guide the exploration of connected terms which
  * can be returned as a graph.
  */
-public class GraphExploreRequest extends ActionRequest<GraphExploreRequest> implements IndicesRequest.Replaceable {
+public class GraphExploreRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     public static final String NO_HOPS_ERROR_MESSAGE = "Graph explore request must have at least one hop";
     public static final String NO_VERTICES_ERROR_MESSAGE = "Graph explore hop must have at least one VertexRequest";

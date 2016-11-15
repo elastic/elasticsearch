@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * type and id of the final document to be indexed. A {@link MonitoringBulkDoc} can also hold its own index/type/id values but there's no
  * guarantee that these information will be effectively used.
  */
-public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> {
+public class MonitoringBulkRequest extends ActionRequest {
 
     final List<MonitoringBulkDoc> docs = new ArrayList<>();
 

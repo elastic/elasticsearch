@@ -18,7 +18,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to retrieve a native user.
  */
-public class GetUsersRequest extends ActionRequest<GetUsersRequest> implements UserRequest {
+public class GetUsersRequest extends ActionRequest implements UserRequest {
 
     private String[] usernames;
 

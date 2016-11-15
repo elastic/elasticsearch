@@ -395,7 +395,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (false == enabled) {
             return emptyList();
         }

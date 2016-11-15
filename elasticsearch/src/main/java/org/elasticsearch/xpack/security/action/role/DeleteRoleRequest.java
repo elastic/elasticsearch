@@ -18,7 +18,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request delete a role from the security index
  */
-public class DeleteRoleRequest extends ActionRequest<DeleteRoleRequest> implements WriteRequest<DeleteRoleRequest> {
+public class DeleteRoleRequest extends ActionRequest implements WriteRequest<DeleteRoleRequest> {
 
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;

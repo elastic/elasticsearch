@@ -7,7 +7,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
 
-public class MockIndicesRequest extends ActionRequest<MockIndicesRequest> implements IndicesRequest {
+public class MockIndicesRequest extends ActionRequest implements IndicesRequest {
 
     private final String[] indices;
     private final IndicesOptions indicesOptions;

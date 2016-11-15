@@ -18,7 +18,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete a native user.
  */
-public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> implements UserRequest, WriteRequest<DeleteUserRequest> {
+public class DeleteUserRequest extends ActionRequest implements UserRequest, WriteRequest<DeleteUserRequest> {
 
     private String username;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;

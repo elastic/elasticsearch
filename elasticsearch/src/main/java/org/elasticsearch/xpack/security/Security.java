@@ -469,7 +469,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
             return emptyList();
         }

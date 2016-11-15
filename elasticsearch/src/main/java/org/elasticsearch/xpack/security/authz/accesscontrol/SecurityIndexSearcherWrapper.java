@@ -395,7 +395,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             throws IOException {
         Client client = new FilterClient(original.getClient()) {
             @Override
-            protected <Request extends ActionRequest<Request>, Response extends ActionResponse,
+            protected <Request extends ActionRequest, Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
             void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
                 throw new IllegalStateException("role queries are not allowed to execute additional requests");

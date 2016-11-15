@@ -125,7 +125,7 @@ public class Monitoring implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (false == enabled || tribeNode) {
             return emptyList();
         }

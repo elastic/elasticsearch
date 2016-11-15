@@ -73,7 +73,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
             }
 
             @Override
-            protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends
+            protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
                     ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
                     Action<Request, Response, RequestBuilder> action, Request request
                     , ActionListener<Response> listener) {

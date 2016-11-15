@@ -18,7 +18,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to retrieve roles from the security index
  */
-public class GetRolesRequest extends ActionRequest<GetRolesRequest> {
+public class GetRolesRequest extends ActionRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
 

@@ -65,12 +65,11 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 
 [source,js]
 --------------------------------------------------
-# return indices and os
-curl -XGET 'http://localhost:9200/_nodes/stats/os'
+# return just indices
+curl -XGET 'http://localhost:9200/_nodes/stats/indices'
 # return just os and process
 curl -XGET 'http://localhost:9200/_nodes/stats/os,process'
-# specific type endpoint
-curl -XGET 'http://localhost:9200/_nodes/stats/process'
+# return just process for node with IP address 10.0.0.1
 curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
 --------------------------------------------------
 
@@ -280,26 +279,44 @@ the current running process:
 `process.mem.total_virtual_in_bytes`::
 	Size in bytes of virtual memory that is guaranteed to be available to the running process
 
-
 [float]
-[[field-data]]
-=== Field data statistics
+[[indices-stats]]
+=== Indices statistics
 
-You can get information about field data memory usage on node
-level or on index level.
+You can get information about indices stats on node level or on index level.
 
 [source,js]
 --------------------------------------------------
-# Node Stats
-curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field1,field2&pretty'
+# Node level
+curl -XGET 'http://localhost:9200/_nodes/stats/indices/fielddata?fields=field1,field2&pretty'
 
-# Indices Stat
+# Index level
 curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field1,field2&pretty'
 
 # You can use wildcards for field names
+curl -XGET 'http://localhost:9200/_nodes/stats/indices/fielddata?fields=field*&pretty'
 curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field*&pretty'
-curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field*&pretty'
 --------------------------------------------------
+
+Supported metrics are:
+
+* `completion`
+* `docs`
+* `fielddata`
+* `flush`
+* `get`
+* `indexing`
+* `merge`
+* `query_cache`
+* `recovery`
+* `refresh`
+* `request_cache`
+* `search`
+* `segments`
+* `store`
+* `suggest`
+* `translog`
+* `warmer`
 
 [float]
 [[search-groups]]

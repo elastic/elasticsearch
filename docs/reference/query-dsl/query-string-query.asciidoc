@@ -109,7 +109,8 @@ which field to search on. It defaults to `_all` field.
 
 If the `_all` field is disabled, the `query_string` query will automatically
 attempt to determine the existing fields in the index's mapping that are
-queryable, and perform the search on those fields.
+queryable, and perform the search on those fields. Note that this will not
+include nested documents, use a nested query to search those documents.
 
 [float]
 ==== Multi Field

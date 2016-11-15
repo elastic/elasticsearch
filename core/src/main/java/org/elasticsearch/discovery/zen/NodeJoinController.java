@@ -467,8 +467,6 @@ public class NodeJoinController extends AbstractComponent {
             assert currentState.nodes().getMasterNodeId() == null : currentState;
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
-            ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
             for (final DiscoveryNode joiningNode : joiningNodes) {
                 final DiscoveryNode existingNode = nodesBuilder.get(joiningNode.getId());
                 if (existingNode != null && existingNode.equals(joiningNode) == false) {
@@ -479,7 +477,7 @@ public class NodeJoinController extends AbstractComponent {
 
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above
-            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
+            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
             return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
                 "removed dead nodes on election"));
         }

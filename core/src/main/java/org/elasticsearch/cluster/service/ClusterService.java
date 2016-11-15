@@ -737,6 +737,13 @@ public class ClusterService extends AbstractLifecycleComponent {
             return;
         }
 
+        // remove the no master block, if it exists
+        if (newClusterState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+            ClusterBlocks.Builder clusterBlocks = ClusterBlocks.builder().blocks(newClusterState.blocks())
+                                                      .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+            newClusterState = ClusterState.builder(newClusterState).blocks(clusterBlocks).build();
+        }
+
         try {
             ArrayList<Discovery.AckListener> ackListeners = new ArrayList<>();
             if (newClusterState.nodes().isLocalNodeElectedMaster()) {

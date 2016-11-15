@@ -69,6 +69,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
@@ -89,9 +90,9 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
-        private final QueryShardContext queryShardContext;
+        private final Supplier<QueryShardContext> queryShardContext;
 
-        public Builder(String fieldName, QueryShardContext queryShardContext) {
+        public Builder(String fieldName, Supplier<QueryShardContext> queryShardContext) {
             super(fieldName, FIELD_TYPE, FIELD_TYPE);
             this.queryShardContext = queryShardContext;
         }
@@ -136,7 +137,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(name, parserContext.queryShardContext());
+            return new Builder(name, parserContext.queryShardContextSupplier());
         }
     }
 
@@ -222,21 +223,42 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     private final boolean mapUnmappedFieldAsString;
-    private final QueryShardContext queryShardContext;
+    private final Supplier<QueryShardContext> queryShardContext;
     private KeywordFieldMapper queryTermsField;
     private KeywordFieldMapper extractionResultField;
     private BinaryFieldMapper queryBuilderField;
 
     public PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo, QueryShardContext queryShardContext,
+                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
+                                 Supplier<QueryShardContext> queryShardContext,
                                  KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
                                  BinaryFieldMapper queryBuilderField) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        this.queryShardContext = queryShardContext;
+        this.queryShardContext = new QueryShardContextSupplierCache(queryShardContext);
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;
         this.queryBuilderField = queryBuilderField;
         this.mapUnmappedFieldAsString = INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
+    }
+
+    private static class QueryShardContextSupplierCache implements Supplier<QueryShardContext> {
+        private final Supplier<QueryShardContext> supplier;
+        private volatile QueryShardContext context;
+
+        QueryShardContextSupplierCache(Supplier<QueryShardContext> supplier) {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public QueryShardContext get() {
+            QueryShardContext context = this.context;
+            if (context == null) {
+                context = this.context = supplier.get();
+            }
+            // return a copy
+            return new QueryShardContext(context);
+        }
+
     }
 
     @Override
@@ -261,7 +283,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
-        QueryShardContext queryShardContext = new QueryShardContext(this.queryShardContext);
+        QueryShardContext queryShardContext = this.queryShardContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query

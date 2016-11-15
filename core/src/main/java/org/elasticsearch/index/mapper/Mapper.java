@@ -94,7 +94,6 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             private final ParseFieldMatcher parseFieldMatcher;
 
             private final Supplier<QueryShardContext> queryShardContextSupplier;
-            private QueryShardContext queryShardContext;
 
             public ParserContext(String type, IndexAnalyzers indexAnalyzers, Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
@@ -138,12 +137,8 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
                 return parseFieldMatcher;
             }
 
-            public QueryShardContext queryShardContext() {
-                // No need for synchronization, this class must be used in a single thread
-                if (queryShardContext == null) {
-                    queryShardContext = queryShardContextSupplier.get();
-                }
-                return queryShardContext;
+            public Supplier<QueryShardContext> queryShardContextSupplier() {
+                return queryShardContextSupplier;
             }
 
             public boolean isWithinMultiField() { return false; }
@@ -161,7 +156,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher(), in::queryShardContext);
+                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher(), in.queryShardContextSupplier());
                 }
             }
 

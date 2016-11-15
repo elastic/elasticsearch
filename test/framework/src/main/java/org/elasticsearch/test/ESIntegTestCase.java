@@ -532,8 +532,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         final Map<String, String> persistent = metaData.persistentSettings().getAsMap();
                         assertThat("test leaves persistent cluster metadata behind: " + persistent, persistent.size(), equalTo(0));
                         final Map<String, String> transientSettings =  new HashMap<>(metaData.transientSettings().getAsMap());
-                        // this is set by the test infra
-                        transientSettings.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
+                        if (isInternalCluster() && internalCluster().getAutoManageMinMasterNode()) {
+                            // this is set by the test infra
+                            transientSettings.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
+                        }
                         assertThat("test leaves transient cluster metadata behind: " + transientSettings,
                             transientSettings.keySet(), empty());
                     }
@@ -1524,8 +1526,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         boolean supportsDedicatedMasters() default true;
 
         /**
-         * Normally the cluster will auto manage the {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} automatically
-         * as nodes are started and stopped. Set this to false if you want to manage the setting yourself.
+         * The cluster automatically manages the {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} by default
+         * as nodes are started and stopped. Set this to false to manage the setting manually.
          */
         boolean autoMinMasterNodes() default true;
 

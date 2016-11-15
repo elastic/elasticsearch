@@ -803,7 +803,7 @@ public final class InternalTestCluster extends TestCluster {
             return nodeAndClientId;
         }
 
-        public boolean isMasterNode() {
+        public boolean isMasterEligible() {
             return Node.NODE_MASTER_SETTING.get(node.settings());
         }
 
@@ -906,7 +906,7 @@ public final class InternalTestCluster extends TestCluster {
                 clearDataIfNeeded(callback);
             }
             createNewNode(newSettings.build());
-            // make sure cashed client points to new node
+            // make sure cached client points to new node
             resetClient();
         }
 
@@ -1346,7 +1346,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
         if (nodeAndClients.size() > 0) {
-            final int newMasters = (int) nodeAndClients.stream().filter(NodeAndClient::isMasterNode)
+            final int newMasters = (int) nodeAndClients.stream().filter(NodeAndClient::isMasterEligible)
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
             final int currentMasters = getMasterNodesCount();
@@ -1372,7 +1372,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
         if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
-            int masters = (int)nodeAndClients.stream().filter(NodeAndClient::isMasterNode).count();
+            int masters = (int)nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
             if (masters > 0) {
                 updateMinMasterNodes(getMasterNodesCount() - masters);
             }
@@ -1474,7 +1474,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         final int masterNodesCount = getMasterNodesCount();
         // special case to allow stopping one node in a two node cluster and keep it functional
-        final boolean updateMinMaster = nodeAndClient.isMasterNode() && masterNodesCount == 2 && autoManageMinMasterNodes;
+        final boolean updateMinMaster = nodeAndClient.isMasterEligible() && masterNodesCount == 2 && autoManageMinMasterNodes;
         if (updateMinMaster) {
             updateMinMasterNodes(masterNodesCount - 1);
         }
@@ -1643,16 +1643,13 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * updates the min master nodes setting in the current running cluster.
      *
-     * @param eligableMasterNodeCount the number of master eligable nodes to use as basis for the min master node setting
+     * @param eligibleMasterNodeCount the number of master eligible nodes to use as basis for the min master node setting
      */
-    private int updateMinMasterNodes(int eligableMasterNodeCount) {
+    private int updateMinMasterNodes(int eligibleMasterNodeCount) {
         assert autoManageMinMasterNodes;
-        final int currentMasters = getMasterNodesCount();
-        final int minMasterNodes = getMinMasterNodes(eligableMasterNodeCount);
-        if (currentMasters == 0) {
-            // there is no one to update
-        } else {
-            // auto management
+        final int minMasterNodes = getMinMasterNodes(eligibleMasterNodeCount);
+        if (getMasterNodesCount() > 0) {
+            // there should be at least one master to update
             logger.debug("updating min_master_nodes to [{}]", minMasterNodes);
             try {
                 assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
@@ -1660,7 +1657,7 @@ public final class InternalTestCluster extends TestCluster {
                 ));
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to update minimum master node to [{}] (current masters [{}])", e,
-                    minMasterNodes, currentMasters);
+                    minMasterNodes, getMasterNodesCount());
             }
         }
         return minMasterNodes;
@@ -1831,7 +1828,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized int numMasterNodes() {
-      return filterNodes(nodes, NodeAndClient::isMasterNode).size();
+      return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
     }
 
 

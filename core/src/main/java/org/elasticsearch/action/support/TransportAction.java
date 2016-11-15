@@ -41,7 +41,7 @@ import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 /**
  *
  */
-public abstract class TransportAction<Request extends ActionRequest<Request>, Response extends ActionResponse> extends AbstractComponent {
+public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
 
     protected final ThreadPool threadPool;
     protected final String actionName;
@@ -151,7 +151,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
 
     protected abstract void doExecute(Request request, ActionListener<Response> listener);
 
-    private static class RequestFilterChain<Request extends ActionRequest<Request>, Response extends ActionResponse>
+    private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse>
             implements ActionFilterChain<Request, Response> {
 
         private final TransportAction<Request, Response> action;
@@ -187,7 +187,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         }
     }
 
-    private static class ResponseFilterChain<Request extends ActionRequest<Request>, Response extends ActionResponse>
+    private static class ResponseFilterChain<Request extends ActionRequest, Response extends ActionResponse>
             implements ActionFilterChain<Request, Response> {
 
         private final ActionFilter[] filters;

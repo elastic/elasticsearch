@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class ClearScrollRequest extends ActionRequest<ClearScrollRequest> {
+public class ClearScrollRequest extends ActionRequest {
 
     private List<String> scrollIds;
 

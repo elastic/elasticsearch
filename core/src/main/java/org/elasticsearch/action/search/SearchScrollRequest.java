@@ -36,7 +36,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
+public class SearchScrollRequest extends ActionRequest {
 
     private String scrollId;
     private Scroll scroll;

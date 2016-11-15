@@ -724,7 +724,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest<Request>, Response extends ActionResponse,
+        protected <Request extends ActionRequest, Response extends ActionResponse,
                 RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
                 Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             lastHeaders.set(threadPool.getThreadContext().getHeaders());
@@ -770,7 +770,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 }
                 BulkItemResponse[] responses = new BulkItemResponse[bulk.requests().size()];
                 for (int i = 0; i < bulk.requests().size(); i++) {
-                    ActionRequest<?> item = bulk.requests().get(i);
+                    ActionRequest item = bulk.requests().get(i);
                     String opType;
                     DocWriteResponse response;
                     ShardId shardId = new ShardId(new Index(((ReplicationRequest<?>) item).index(), "uuid"), 0);
@@ -825,7 +825,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
-    private static class RequestAndListener<Request extends ActionRequest<Request>, Response> {
+    private static class RequestAndListener<Request extends ActionRequest, Response> {
         private final Request request;
         private final ActionListener<Response> listener;
 

@@ -68,7 +68,7 @@ public class PipelineExecutionService implements ClusterStateListener {
         });
     }
 
-    public void executeBulkRequest(Iterable<ActionRequest<?>> actionRequests,
+    public void executeBulkRequest(Iterable<ActionRequest> actionRequests,
                                    BiConsumer<IndexRequest, Exception> itemFailureHandler,
                                    Consumer<Exception> completionHandler) {
         threadPool.executor(ThreadPool.Names.BULK).execute(new AbstractRunnable() {

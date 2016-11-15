@@ -156,7 +156,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
     /**
      * Wrapper for the {@link ActionRequest} that are used in this action class.
      */
-    interface RequestWrapper<Self extends ActionRequest<Self>> {
+    interface RequestWrapper<Self extends ActionRequest> {
 
         void setIndex(String index);
 

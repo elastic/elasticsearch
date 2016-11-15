@@ -44,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @deprecated Instead use search API with {@link PercolateQueryBuilder}
  */
 @Deprecated
-public class PercolateRequest extends ActionRequest<PercolateRequest> implements IndicesRequest.Replaceable {
+public class PercolateRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();

@@ -49,7 +49,7 @@ public interface ActionPlugin {
     /**
      * Actions added by this plugin.
      */
-    default List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    default List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Collections.emptyList();
     }
     /**
@@ -72,7 +72,7 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
-    final class ActionHandler<Request extends ActionRequest<Request>, Response extends ActionResponse> {
+    final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
         private final GenericAction<Request, Response> action;
         private final Class<? extends TransportAction<Request, Response>> transportAction;
         private final Class<?>[] supportTransportActions;

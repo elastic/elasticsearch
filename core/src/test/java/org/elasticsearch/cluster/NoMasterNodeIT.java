@@ -26,11 +26,11 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.rest.RestStatus;
@@ -69,7 +69,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all")
+                .put(ClusterService.NO_MASTER_BLOCK_SETTING.getKey(), "all")
                 .build();
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
@@ -84,7 +84,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             @Override
             public void run() {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                assertTrue(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
+                assertTrue(state.blocks().hasGlobalBlock(ClusterService.NO_MASTER_BLOCK_ID));
             }
         });
 
@@ -207,7 +207,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "write")
+                .put(ClusterService.NO_MASTER_BLOCK_SETTING.getKey(), "write")
                 .build();
 
         internalCluster().startNode(settings);
@@ -228,7 +228,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         assertTrue(awaitBusy(() -> {
                     ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
-                    return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+                    return state.blocks().hasGlobalBlock(ClusterService.NO_MASTER_BLOCK_ID);
                 }
         ));
 

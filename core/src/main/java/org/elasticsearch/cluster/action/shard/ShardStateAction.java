@@ -27,7 +27,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -200,7 +200,7 @@ public class ShardStateAction extends AbstractComponent {
             clusterService.submitStateUpdateTask(
                 "shard-failed",
                 request,
-                ClusterStateTaskConfig.build(Priority.HIGH),
+                ClusterTaskConfig.build(Priority.HIGH),
                 shardFailedClusterStateTaskExecutor,
                 new ClusterStateTaskListener() {
                     @Override
@@ -364,7 +364,7 @@ public class ShardStateAction extends AbstractComponent {
             clusterService.submitStateUpdateTask(
                 "shard-started",
                 request,
-                ClusterStateTaskConfig.build(Priority.URGENT),
+                ClusterTaskConfig.build(Priority.URGENT),
                 shardStartedClusterStateTaskExecutor,
                 shardStartedClusterStateTaskExecutor);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);

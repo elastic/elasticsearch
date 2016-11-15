@@ -27,7 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -202,7 +202,7 @@ public class MetaDataMappingService extends AbstractComponent {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
         clusterService.submitStateUpdateTask("refresh-mapping",
             refreshTask,
-            ClusterStateTaskConfig.build(Priority.HIGH),
+            ClusterTaskConfig.build(Priority.HIGH),
             refreshExecutor,
                 (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failure during [{}]", source), e)
         );
@@ -359,7 +359,7 @@ public class MetaDataMappingService extends AbstractComponent {
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("put-mapping",
                 request,
-                ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
+                ClusterTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
                 putMappingExecutor,
                 new AckedClusterStateTaskListener() {
 

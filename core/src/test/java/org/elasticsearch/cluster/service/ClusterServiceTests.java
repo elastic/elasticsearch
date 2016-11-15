@@ -26,13 +26,15 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterServiceTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,8 +48,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.ZenDiscovery.ClusterServiceStateUpdateTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -320,7 +320,7 @@ public class ClusterServiceTests extends ESTestCase {
         clusterService.submitStateUpdateTask(
             "testClusterStateTaskListenerThrowingExceptionIsOkay",
             new Object(),
-            ClusterStateTaskConfig.build(Priority.NORMAL),
+            ClusterTaskConfig.build(Priority.NORMAL),
             new ClusterStateTaskExecutor<Object>() {
                 @Override
                 public boolean runOnlyOnMaster() {
@@ -363,7 +363,7 @@ public class ClusterServiceTests extends ESTestCase {
         clusterService.submitStateUpdateTask(
             "testBlockingCallInClusterStateTaskListenerFails",
             new Object(),
-            ClusterStateTaskConfig.build(Priority.NORMAL),
+            ClusterTaskConfig.build(Priority.NORMAL),
             new ClusterStateTaskExecutor<Object>() {
                 @Override
                 public boolean runOnlyOnMaster() {
@@ -434,7 +434,7 @@ public class ClusterServiceTests extends ESTestCase {
         TaskExecutor executorA = new TaskExecutor();
         TaskExecutor executorB = new TaskExecutor();
 
-        final ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL);
+        final ClusterTaskConfig config = ClusterTaskConfig.build(Priority.NORMAL);
         final ClusterStateTaskListener noopListener = (source, e) -> { throw new AssertionError(source, e); };
         // this blocks the cluster state queue, so we can set it up right
         clusterService.submitStateUpdateTask("0", "A0", config, executorA, noopListener);
@@ -522,7 +522,7 @@ public class ClusterServiceTests extends ESTestCase {
                     barrier.await();
                     for (int j = 0; j < tasksSubmittedPerThread; j++) {
                         clusterService.submitStateUpdateTask("[" + index + "][" + j + "]", j,
-                            ClusterStateTaskConfig.build(randomFrom(Priority.values())), executors[index], listener);
+                            ClusterTaskConfig.build(randomFrom(Priority.values())), executors[index], listener);
                     }
                     barrier.await();
                 } catch (InterruptedException | BrokenBarrierException e) {
@@ -568,7 +568,7 @@ public class ClusterServiceTests extends ESTestCase {
             })) ;
         }
 
-        clusterService.submitStateUpdateTasks("test", tasks, ClusterStateTaskConfig.build(Priority.LANGUID),
+        clusterService.submitStateUpdateTasks("test", tasks, ClusterTaskConfig.build(Priority.LANGUID),
             (currentState, taskList) -> {
                 assertThat(taskList.size(), equalTo(tasks.size()));
                 assertThat(taskList.stream().collect(Collectors.toSet()), equalTo(tasks.keySet()));
@@ -726,7 +726,7 @@ public class ClusterServiceTests extends ESTestCase {
                             clusterService.submitStateUpdateTask(
                                 threadName,
                                 tasks.stream().findFirst().get(),
-                                ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                                ClusterTaskConfig.build(randomFrom(Priority.values())),
                                 executor,
                                 listener);
                         } else {
@@ -734,7 +734,7 @@ public class ClusterServiceTests extends ESTestCase {
                             tasks.stream().forEach(t -> taskListeners.put(t, listener));
                             clusterService.submitStateUpdateTasks(
                                 threadName,
-                                taskListeners, ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                                taskListeners, ClusterTaskConfig.build(randomFrom(Priority.values())),
                                 executor
                             );
                         }
@@ -826,7 +826,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
             };
 
-            clusterService.submitStateUpdateTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            clusterService.submitStateUpdateTask("first time", task, ClusterTaskConfig.build(Priority.NORMAL), executor, listener);
 
             final IllegalStateException e =
                     expectThrows(
@@ -834,12 +834,12 @@ public class ClusterServiceTests extends ESTestCase {
                             () -> clusterService.submitStateUpdateTask(
                                     "second time",
                                     task,
-                                    ClusterStateTaskConfig.build(Priority.NORMAL),
+                                    ClusterTaskConfig.build(Priority.NORMAL),
                                     executor, listener));
             assertThat(e, hasToString(containsString("task [1] with source [second time] is already queued")));
 
             clusterService.submitStateUpdateTask("third time a charm", new SimpleTask(1),
-                ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+                ClusterTaskConfig.build(Priority.NORMAL), executor, listener);
 
             assertThat(latch.getCount(), equalTo(2L));
         }
@@ -1177,7 +1177,7 @@ public class ClusterServiceTests extends ESTestCase {
 
         nodes = state.nodes();
         nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
-        state = ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES))
+        state = ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(ClusterService.NO_MASTER_BLOCK_WRITES))
                     .nodes(nodesBuilder).build();
         setState(timedClusterService, state);
         assertThat(isMaster.get(), is(false));
@@ -1201,27 +1201,22 @@ public class ClusterServiceTests extends ESTestCase {
         // set the noMaster flag on the cluster service and ensure the cluster state returned
         // has the NO_MASTER block
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("set no master", new ClusterServiceStateUpdateTask() {
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
-            }
-
-            @Override
-            public boolean clusterHasNoMaster() {
-                return true;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return currentState;
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        clusterService.add(TimeValue.timeValueSeconds(30), new TimeoutClusterStateListener() {
+            @Override public void postAdded() { }
+            @Override public void onClose() { }
+            @Override public void onTimeout(TimeValue timeout) {
                 latch.countDown();
             }
-
+            @Override
+            public void clusterServiceStateChanged(ClusterServiceState previousState, ClusterServiceState currentState) {
+                latch.countDown();
+            }
+        });
+        clusterService.submitClusterServiceTask("set no master", new ClusterServiceTask() {
+            @Override
+            public ClusterServiceTaskResult execute(ClusterState currentState) {
+                return NO_MASTER_RESULT;
+            }
             @Override
             public void onFailure(String source, Exception e) {
                 latch.countDown();
@@ -1229,13 +1224,13 @@ public class ClusterServiceTests extends ESTestCase {
         });
         latch.await();
         ClusterState clusterState = clusterService.state();
-        assertTrue(clusterState.blocks().hasGlobalBlock(clusterService.getDiscoverySettings().getNoMasterBlock()));
+        assertTrue(clusterState.blocks().hasGlobalBlock(clusterService.getNoMasterBlock()));
         assertNull(clusterState.nodes().getMasterNodeId());
         // submit a new cluster state update with the master set, and make sure the cluster state
         // returned does not have any blocks
         setState(clusterService, initialState);
         clusterState = clusterService.state();
-        assertFalse(clusterState.blocks().hasGlobalBlock(clusterService.getDiscoverySettings().getNoMasterBlock()));
+        assertFalse(clusterState.blocks().hasGlobalBlock(clusterService.getNoMasterBlock()));
         assertNotNull(clusterState.nodes().getMasterNodeId());
         clusterService.close();
     }

@@ -31,7 +31,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -682,7 +682,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     clusterService.submitStateUpdateTask(
                         "clean up snapshot restore state",
                         new CleanRestoreStateTaskExecutor.Task(entry.snapshot()),
-                        ClusterStateTaskConfig.build(Priority.URGENT),
+                        ClusterTaskConfig.build(Priority.URGENT),
                         cleanRestoreStateTaskExecutor,
                         cleanRestoreStateTaskExecutor);
                 }

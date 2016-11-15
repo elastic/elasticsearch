@@ -27,7 +27,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -58,12 +58,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -323,7 +321,7 @@ public class TribeService extends AbstractLifecycleComponent {
             clusterService.submitStateUpdateTask(
                     "cluster event from " + tribeName,
                     event,
-                    ClusterStateTaskConfig.build(Priority.NORMAL),
+                    ClusterTaskConfig.build(Priority.NORMAL),
                     executor,
                     (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to process [{}]", source), e));
         }

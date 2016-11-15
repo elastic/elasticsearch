@@ -27,12 +27,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterServiceTask;
+import org.elasticsearch.cluster.ClusterServiceTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -308,12 +311,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } catch (FailedToCommitClusterStateException t) {
             // cluster service logs a WARN message
             logger.debug("failed to publish cluster state version [{}] (not enough nodes acknowledged, min master nodes [{}])", clusterChangedEvent.state().version(), electMaster.minimumMasterNodes());
-            clusterService.submitStateUpdateTask("zen-disco-failed-to-publish", new ClusterServiceStateUpdateTask(Priority.IMMEDIATE) {
+            clusterService.submitClusterServiceTask("zen-disco-failed-to-publish", new ClusterServiceTask(Priority.IMMEDIATE) {
                 @Override
-                public ClusterState execute(ClusterState currentState) {
-                    setHasNoMaster(true);
+                public boolean runOnlyOnMaster() {
+                    return true;
+                }
+
+                @Override
+                public ClusterServiceTaskResult execute(ClusterState currentState) {
                     rejoin(currentState.nodes(), "failed to publish to min_master_nodes");
-                    return currentState;
+                    return ClusterServiceTaskExecutor.NO_MASTER_RESULT;
                 }
 
                 @Override
@@ -422,18 +429,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
             // finalize join through the cluster state update thread
             final DiscoveryNode finalMasterNode = masterNode;
-            clusterService.submitStateUpdateTask("finalize_join (" + masterNode + ")", new ClusterServiceStateUpdateTask() {
+            clusterService.submitClusterServiceTask("finalize_join (" + masterNode + ")", new ClusterServiceTask() {
                 @Override
-                public boolean runOnlyOnMaster() {
-                    return false;
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
+                public ClusterServiceTaskResult execute(ClusterState currentState) throws Exception {
                     if (!success) {
                         // failed to join. Try again...
                         joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
-                        return currentState;
+                        return ClusterServiceTaskExecutor.HAS_MASTER_RESULT;
                     }
 
                     if (currentState.getNodes().getMasterNode() == null) {
@@ -441,19 +443,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         // a valid master.
                         logger.debug("no master node is set, despite of join request completing. retrying pings.");
                         joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
-                        return currentState;
+                        return ClusterServiceTaskExecutor.HAS_MASTER_RESULT;
                     }
 
                     if (!currentState.getNodes().getMasterNode().equals(finalMasterNode)) {
                         joinThreadControl.stopRunningThreadAndRejoin(currentState, "master_switched_while_finalizing_join");
-                        setHasNoMaster(true);
-                        return currentState;
+                        return ClusterServiceTaskExecutor.NO_MASTER_RESULT;
                     }
 
                     // Note: we do not have to start master fault detection here because it's set at {@link #processNextPendingClusterState }
                     // when the first cluster state arrives.
                     joinThreadControl.markThreadAsDone(currentThread);
-                    return currentState;
+                    return ClusterServiceTaskExecutor.HAS_MASTER_RESULT;
                 }
 
                 @Override
@@ -577,7 +578,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             final BatchResult.Builder<Task> resultBuilder = BatchResult.<Task>builder().successes(tasks);
             if (!electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes())) {
                 rejoin.accept(remainingNodesClusterState.nodes(), "not enough master nodes");
-                return resultBuilder.build(remainingNodesClusterState, true);
+                return resultBuilder.build(remainingNodesClusterState);
             } else {
                 return resultBuilder.build(allocationService.deassociateDeadNodes(remainingNodesClusterState, true, describeTasks(tasks)));
             }
@@ -606,7 +607,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         clusterService.submitStateUpdateTask(
                 source + "(" + node + "), reason(" + reason + ")",
                 new NodeRemovalClusterStateTaskExecutor.Task(node, reason),
-                ClusterStateTaskConfig.build(Priority.IMMEDIATE),
+                ClusterTaskConfig.build(Priority.IMMEDIATE),
                 nodeRemovalExecutor,
                 nodeRemovalExecutor);
     }
@@ -646,18 +647,23 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // We only set the new value. If the master doesn't see enough nodes it will revoke it's mastership.
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-mini-master-nodes-changed", new ClusterServiceStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitClusterServiceTask("zen-disco-min-master-nodes-changed", new ClusterServiceTask(Priority.IMMEDIATE) {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public boolean runOnlyOnMaster() {
+                return true;
+            }
+
+            @Override
+            public ClusterServiceTaskResult execute(ClusterState currentState) {
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     rejoin(currentState.nodes(), "not enough master nodes on change of minimum_master_nodes from [" +
                                                      prevMinimumMasterNode + "] to [" + minimumMasterNodes + "]");
-                    setHasNoMaster(true);
+                    return NO_MASTER_RESULT;
                 }
-                return currentState;
+                electMaster.logMinimumMasterNodesWarningIfNecessary(currentState, currentState);
+                return HAS_MASTER_RESULT;
             }
-
 
             @Override
             public void onNoLongerMaster(String source) {
@@ -667,11 +673,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             @Override
             public void onFailure(String source, Exception e) {
                 logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                electMaster.logMinimumMasterNodesWarningIfNecessary(oldState, newState);
             }
         });
     }
@@ -688,40 +689,29 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         logger.info((Supplier<?>) () -> new ParameterizedMessage("master_left [{}], reason [{}]", masterNode, reason), cause);
 
-        clusterService.submitStateUpdateTask("master_failed (" + masterNode + ")", new ClusterServiceStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitClusterServiceTask("master_failed (" + masterNode + ")", new ClusterServiceTask(Priority.IMMEDIATE) {
             @Override
-            public boolean runOnlyOnMaster() {
-                return false;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterServiceTaskResult execute(ClusterState currentState) {
                 if (!masterNode.equals(currentState.nodes().getMasterNode())) {
                     // master got switched on us, no need to send anything
-                    return currentState;
+                    return HAS_MASTER_RESULT;
                 }
 
                 // flush any pending cluster states from old master, so it will not be set as master again
                 publishClusterState.pendingStatesQueue().failAllStatesAndClear(new ElasticsearchException("master left [{}]", reason));
                 rejoin(currentState.nodes(), "master left (reason = " + reason + ")");
-                setHasNoMaster(true);
-                return currentState;
+                return NO_MASTER_RESULT;
             }
 
             @Override
             public void onFailure(String source, Exception e) {
                 logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
             }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            }
-
         });
     }
 
     void processNextPendingClusterState(String reason) {
-        clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + reason + "])", new ClusterServiceStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + reason + "])", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public boolean runOnlyOnMaster() {
                 return false;
@@ -739,10 +729,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 assert newClusterState.nodes().getMasterNode() != null : "received a cluster state without a master";
-                assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
+                assert !newClusterState.blocks().hasGlobalBlock(clusterService.getNoMasterBlock()) : "received a cluster state with a master block";
 
                 if (currentState.nodes().isLocalNodeElectedMaster()) {
-                    setHasNoMaster(handleAnotherMaster(currentState, newClusterState.nodes().getMasterNode(), newClusterState.version(), "via a new cluster state"));
+                    if (handleAnotherMaster(currentState, newClusterState.nodes().getMasterNode(), newClusterState.version(), "via a new cluster state")) {
+                        ClusterBlocks.Builder clusterBlocks = ClusterBlocks.builder().blocks(newClusterState.blocks())
+                                                                  .addGlobalBlock(clusterService.getNoMasterBlock());
+                        currentState = ClusterState.builder(currentState).blocks(clusterBlocks).build();
+                    }
                     return currentState;
                 }
 
@@ -755,7 +749,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     masterFD.restart(newClusterState.nodes().getMasterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
                 }
 
-                if (currentState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+                if (currentState.blocks().hasGlobalBlock(ClusterService.NO_MASTER_BLOCK_ID)) {
                     // its a fresh update from the master as we transition from a start of not having a master to having one
                     logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
                     return newClusterState;
@@ -1078,12 +1072,21 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 return;
             }
             logger.debug("got a ping from another master {}. resolving who should rejoin. current ping count: [{}]", pingRequest.masterNode(), pingsWhileMaster.get());
-            clusterService.submitStateUpdateTask("ping from another master", new ClusterServiceStateUpdateTask(Priority.IMMEDIATE) {
+            clusterService.submitClusterServiceTask("ping from another master", new ClusterServiceTask(Priority.IMMEDIATE) {
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
+                public boolean runOnlyOnMaster() {
+                    return true;
+                }
+
+                @Override
+                public ClusterServiceTaskResult execute(ClusterState currentState) throws Exception {
                     pingsWhileMaster.set(0);
-                    setHasNoMaster(handleAnotherMaster(currentState, pingRequest.masterNode(), pingRequest.clusterStateVersion(), "node fd ping"));
-                    return currentState;
+                    boolean noMaster = handleAnotherMaster(currentState, pingRequest.masterNode(), pingRequest.clusterStateVersion(), "node fd ping");
+                    if (noMaster) {
+                        return NO_MASTER_RESULT;
+                    } else {
+                        return HAS_MASTER_RESULT;
+                    }
                 }
 
                 @Override
@@ -1129,23 +1132,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     class RejoinClusterRequestHandler implements TransportRequestHandler<RejoinClusterRequest> {
         @Override
         public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel) throws Exception {
-            clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", new ClusterServiceStateUpdateTask(Priority.IMMEDIATE) {
-
+            clusterService.submitClusterServiceTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", new ClusterServiceTask(Priority.IMMEDIATE) {
                 @Override
-                public boolean runOnlyOnMaster() {
-                    return false;
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
+                public ClusterServiceTaskResult execute(ClusterState currentState) {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (Exception e) {
                         logger.warn("failed to send response on rejoin cluster request handling", e);
                     }
                     rejoin(currentState.nodes(), "received a request to rejoin the cluster from [" + request.fromNodeId + "]");
-                    setHasNoMaster(true);
-                    return currentState;
+                    return NO_MASTER_RESULT;
                 }
 
                 @Override
@@ -1249,31 +1245,5 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             running.set(true);
         }
 
-    }
-
-    /**
-     * An implementation of {@link ClusterStateUpdateTask} that enables setting the no master flag
-     * on the cluster service by overriding {@link ClusterStateUpdateTask#clusterHasNoMaster()}.
-     * Call {@link #setHasNoMaster(boolean)} to set the value of the master flag that should be
-     * reflected on the {@link ClusterService}.
-     */
-    public abstract static class ClusterServiceStateUpdateTask extends ClusterStateUpdateTask {
-        private boolean hasNoMaster;
-
-        public ClusterServiceStateUpdateTask() {
-        }
-
-        public ClusterServiceStateUpdateTask(Priority priority) {
-            super(priority);
-        }
-
-        @Override
-        public boolean clusterHasNoMaster() {
-            return hasNoMaster;
-        }
-
-        public void setHasNoMaster(boolean hasNoMaster) {
-            this.hasNoMaster = hasNoMaster;
-        }
     }
 }

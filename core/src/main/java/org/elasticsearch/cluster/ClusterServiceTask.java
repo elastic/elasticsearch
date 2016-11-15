@@ -23,44 +23,20 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.List;
-
 /**
- * A task that can update the cluster state.
+ * A task to execute for the cluster service.
  */
-public abstract class ClusterStateUpdateTask implements ClusterTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+public abstract class ClusterServiceTask implements ClusterServiceTaskExecutor, ClusterTaskConfig, ClusterTaskListener {
 
     private final Priority priority;
 
-    public ClusterStateUpdateTask() {
+    public ClusterServiceTask() {
         this(Priority.NORMAL);
     }
 
-    public ClusterStateUpdateTask(Priority priority) {
+    public ClusterServiceTask(Priority priority) {
         this.priority = priority;
     }
-
-    @Override
-    public final BatchResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
-        ClusterState result = execute(currentState);
-        return BatchResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
-    }
-
-    @Override
-    public String describeTasks(List<ClusterStateUpdateTask> tasks) {
-        return ""; // one of task, source is enough
-    }
-
-    /**
-     * Update the cluster state based on the current state. Return the *same instance* if no state
-     * should be changed.
-     */
-    public abstract ClusterState execute(ClusterState currentState) throws Exception;
-
-    /**
-     * A callback called when execute fails.
-     */
-    public abstract void onFailure(String source, Exception e);
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call

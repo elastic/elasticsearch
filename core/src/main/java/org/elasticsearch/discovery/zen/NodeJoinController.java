@@ -25,11 +25,10 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -180,7 +179,7 @@ public class NodeJoinController extends AbstractComponent {
             checkPendingJoinsAndElectIfNeeded();
         } else {
             clusterService.submitStateUpdateTask("zen-disco-node-join",
-                node, ClusterStateTaskConfig.build(Priority.URGENT),
+                node, ClusterTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }
     }
@@ -282,7 +281,7 @@ public class NodeJoinController extends AbstractComponent {
 
             tasks.put(BECOME_MASTER_TASK, (source1, e) -> {}); // noop listener, the election finished listener determines result
             tasks.put(FINISH_ELECTION_TASK, electionFinishedListener);
-            clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            clusterService.submitStateUpdateTasks(source, tasks, ClusterTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         public synchronized void closeAndProcessPending(String reason) {
@@ -290,7 +289,7 @@ public class NodeJoinController extends AbstractComponent {
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
             final String source = "zen-disco-election-stop [" + reason + "]";
             tasks.put(FINISH_ELECTION_TASK, electionFinishedListener);
-            clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            clusterService.submitStateUpdateTasks(source, tasks, ClusterTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         private void innerClose() {

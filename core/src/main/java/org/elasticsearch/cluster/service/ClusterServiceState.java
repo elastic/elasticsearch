@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.discovery.DiscoverySettings;
 
 /**
  * A simple immutable container class that comprises a cluster state and cluster state status. Used by {@link ClusterService}
@@ -38,11 +37,12 @@ public final class ClusterServiceState {
         this.clusterState = clusterState;
         this.clusterStateStatus = clusterStateStatus;
         if (noMasterBlock != null) {
-            assert noMasterBlock.id() == DiscoverySettings.NO_MASTER_BLOCK_ID : "block must have NO_MASTER block id";
+            assert noMasterBlock.id() == ClusterService.NO_MASTER_BLOCK_ID : "block must have NO_MASTER block id";
             // There is no master currently, so add the appropriate blocks to the returned
             // cluster state and set the masterNodeId to null.
             ClusterBlocks clusterBlocks =
                 ClusterBlocks.builder().blocks(clusterState.blocks())
+                    .removeGlobalBlock(ClusterService.NO_MASTER_BLOCK_ID) // remove block if it already exists before adding new one
                     .addGlobalBlock(noMasterBlock)
                     .build();
 
@@ -84,7 +84,7 @@ public final class ClusterServiceState {
      * returns {@code false} otherwise.
      */
     public boolean hasNoMaster() {
-        return localClusterState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+        return localClusterState.blocks().hasGlobalBlock(ClusterService.NO_MASTER_BLOCK_ID);
     }
 
     @Override

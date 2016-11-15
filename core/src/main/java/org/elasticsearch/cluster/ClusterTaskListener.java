@@ -16,15 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.cluster;
 
-import java.util.List;
-
-public interface ClusterStateTaskListener extends ClusterTaskListener {
+/**
+ * An interface for responding to failures when executing cluster service tasks.
+ */
+public interface ClusterTaskListener {
     /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
+     * A callback called when execute fails.
      */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    void onFailure(String source, Exception e);
+
+    /**
+     * A callback for when the task was rejected because the local node is no longer master
+     */
+    default void onNoLongerMaster(String source) {
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
     }
 }

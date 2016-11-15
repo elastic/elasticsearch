@@ -19,21 +19,6 @@
  */
 package org.elasticsearch.test.test;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
@@ -52,6 +37,21 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportSettings;
 import org.hamcrest.Matcher;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
@@ -130,18 +130,21 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     private void assertMMNinNodeSetting(InternalTestCluster cluster, int masterNodes) {
-        final int minMasterNodes = masterNodes / 2 + 1;
-        Matcher<Map<? extends String, ? extends String>> minMasterMatcher =
-            hasEntry(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes));
-        Matcher<Map<? extends String, ?>> noMinMasterNodesMatcher = not(hasKey(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
-
         for (final String node : cluster.getNodeNames()) {
-            Settings nodeSettings = cluster.client(node).admin().cluster().prepareNodesInfo(node).get().getNodes().get(0).getSettings();
-            assertThat("node setting of node [" + node + "] has the wrong min_master_node setting: ["
-                + nodeSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
-                nodeSettings.getAsMap(),
-                cluster.getAutoManageMinMasterNode() ? minMasterMatcher: noMinMasterNodesMatcher);
+            assertMMNinNodeSetting(node, cluster, masterNodes);
         }
+    }
+
+    private void assertMMNinNodeSetting(String node, InternalTestCluster cluster, int masterNodes) {
+        final int minMasterNodes = masterNodes / 2 + 1;
+        final Matcher<Map<? extends String, ? extends String>> minMasterMatcher =
+            hasEntry(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes));
+        final Matcher<Map<? extends String, ?>> noMinMasterNodesMatcher = not(hasKey(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
+        Settings nodeSettings = cluster.client(node).admin().cluster().prepareNodesInfo(node).get().getNodes().get(0).getSettings();
+        assertThat("node setting of node [" + node + "] has the wrong min_master_node setting: ["
+            + nodeSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
+            nodeSettings.getAsMap(),
+            cluster.getAutoManageMinMasterNode() ? minMasterMatcher: noMinMasterNodesMatcher);
     }
 
     private void assertMMNinClusterSetting(InternalTestCluster cluster, int masterNodes) {
@@ -296,7 +299,7 @@ public class InternalTestClusterTests extends ESTestCase {
             if (expectedMasterCount > 1) { // this is the first master, it's in cluster state settings won't be updated
                 assertMMNinClusterSetting(cluster, expectedMasterCount);
             }
-            assertMMNinNodeSetting(cluster, expectedMasterCount);
+            assertMMNinNodeSetting(newNode1, cluster, expectedMasterCount);
 
             final String newNode2 =  cluster.startNode();
             expectedMasterCount++;

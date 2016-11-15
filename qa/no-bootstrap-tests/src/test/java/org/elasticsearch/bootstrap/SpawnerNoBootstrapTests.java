@@ -38,13 +38,10 @@ import java.util.List;
  * building Elasticsearch.
  *
  * Extends LuceneTestCase rather than ESTestCase as ESTestCase installs seccomp, and that
- * prevents compilation of the dummy controller program.  Even then it will fail to compile
- * the controller if a previous test in the same JVM has installed seccomp.  It works well
- * on old versions of Linux where seccomp is not available, from an IDE, and also should
- * work from a full gradle build once the TODO in qa/evil-tests/build.gradle to run each
- * evil test in a separate JVM is implemented.
+ * prevents the Spawner class doing its job.  Also needs to run in a separate JVM to other
+ * tests that extend ESTestCase for the same reason.
  */
-public class EvilSpawnerTests extends LuceneTestCase {
+public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
     private static final String CPP_COMPILER = "/usr/bin/g++";
 
@@ -100,10 +97,10 @@ public class EvilSpawnerTests extends LuceneTestCase {
         Path controllerProgram = Spawner.makeSpawnPath(plugin);
         if (compileControllerProgram(environment, controllerProgram) == false) {
             // Don't fail the test if there's an error compiling the plugin - the build machine probably doesn't have g++ installed
-            Loggers.getLogger(EvilSpawnerTests.class).warn("Could not compile native controller program for testing");
+            Loggers.getLogger(SpawnerNoBootstrapTests.class).warn("Could not compile native controller program for testing");
             return;
         }
-        Loggers.getLogger(EvilSpawnerTests.class).info("Successfully compiled native controller program for testing");
+        Loggers.getLogger(SpawnerNoBootstrapTests.class).info("Successfully compiled native controller program for testing");
 
         // This plugin will NOT have a controller daemon
         Path otherPlugin = environment.pluginsFile().resolve("other_plugin");

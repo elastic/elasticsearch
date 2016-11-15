@@ -148,6 +148,51 @@ public class ClusterServiceTests extends ESTestCase {
         return timedClusterService;
     }
 
+    public void testTimedOutUpdateTaskCleanedUp() throws Exception {
+        final CountDownLatch block = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("block-task", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                try {
+                    block.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        final CountDownLatch block2 = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                block2.countDown();
+                return currentState;
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.ZERO;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                block2.countDown();
+            }
+        });
+        block.countDown();
+        block2.await();
+        synchronized (clusterService.updateTasksPerExecutor) {
+            assertTrue("expected empty map but was " + clusterService.updateTasksPerExecutor,
+                clusterService.updateTasksPerExecutor.isEmpty());
+        }
+    }
+
     public void testTimeoutUpdateTask() throws Exception {
         final CountDownLatch block = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {

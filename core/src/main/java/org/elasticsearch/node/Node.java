@@ -75,9 +75,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -655,11 +652,13 @@ public class Node implements Closeable {
         injector.getInstance(SnapshotShardsService.class).stop();
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
+        // close discovery early to not react to pings anymore.
+        // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
+        injector.getInstance(Discovery.class).stop();
         // we close indices first, so operations won't be allowed on it
         injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
-        injector.getInstance(Discovery.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();

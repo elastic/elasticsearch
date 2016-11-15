@@ -44,8 +44,8 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -53,7 +53,6 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -77,6 +76,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -351,7 +351,8 @@ public class RelocationIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
 
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNode();
+        internalCluster().startNode();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
@@ -424,14 +425,15 @@ public class RelocationIT extends ESIntegTestCase {
 
     public void testIndexAndRelocateConcurrently() throws ExecutionException, InterruptedException {
         int halfNodes = randomIntBetween(1, 3);
-        Settings blueSetting = Settings.builder().put("node.attr.color", "blue").build();
-        InternalTestCluster.Async<List<String>> blueFuture = internalCluster().startNodesAsync(halfNodes, blueSetting);
-        Settings redSetting = Settings.builder().put("node.attr.color", "red").build();
-        InternalTestCluster.Async<java.util.List<String>> redFuture = internalCluster().startNodesAsync(halfNodes, redSetting);
-        blueFuture.get();
-        redFuture.get();
-        logger.info("blue nodes: {}", blueFuture.get());
-        logger.info("red nodes: {}", redFuture.get());
+        Settings[] nodeSettings = Stream.concat(
+            Stream.generate(() -> Settings.builder().put("node.attr.color", "blue").build()).limit(halfNodes),
+            Stream.generate(() -> Settings.builder().put("node.attr.color", "red").build()).limit(halfNodes)
+            ).toArray(Settings[]::new);
+        List<String> nodes = internalCluster().startNodesAsync(nodeSettings).get();
+        String[] blueNodes = nodes.subList(0, halfNodes).stream().toArray(String[]::new);
+        String[] redNodes = nodes.subList(halfNodes, nodes.size()).stream().toArray(String[]::new);
+        logger.info("blue nodes: {}", (Object)blueNodes);
+        logger.info("red nodes: {}", (Object)redNodes);
         ensureStableCluster(halfNodes * 2);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -439,7 +441,7 @@ public class RelocationIT extends ESIntegTestCase {
             .put(indexSettings())
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
         ));
-        assertAllShardsOnNodes("test", redFuture.get().toArray(new String[2]));
+        assertAllShardsOnNodes("test", redNodes);
         int numDocs = randomIntBetween(100, 150);
         ArrayList<String> ids = new ArrayList<>();
         logger.info(" --> indexing [{}] docs", numDocs);

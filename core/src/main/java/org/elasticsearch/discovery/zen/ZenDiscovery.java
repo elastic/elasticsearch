@@ -47,6 +47,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -240,6 +241,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         joinThreadControl.stop();
         masterFD.stop("zen disco stop");
         nodesFD.stop();
+        Releasables.close(zenPing); // stop any ongoing pinging
         DiscoveryNodes nodes = nodes();
         if (sendLeaveRequest) {
             if (nodes.getMasterNode() == null) {
@@ -269,7 +271,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Override
     protected void doClose() throws IOException {
-        IOUtils.close(masterFD, nodesFD, zenPing);
+        IOUtils.close(masterFD, nodesFD);
     }
 
     @Override

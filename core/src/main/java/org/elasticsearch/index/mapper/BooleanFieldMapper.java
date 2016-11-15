@@ -27,6 +27,8 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,6 +54,8 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BooleanFieldMapper.class));
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new BooleanFieldType();
@@ -152,16 +156,25 @@ public class BooleanFieldMapper extends FieldMapper {
             } else {
                 sValue = value.toString();
             }
-            if (sValue.length() == 0) {
-                return Values.FALSE;
+            switch (sValue) {
+                case "true":
+                    return Values.TRUE;
+                case "false":
+                    return Values.FALSE;
+                default:
+                    deprecationLogger.deprecated("searching using boolean value [" + sValue +
+                                    "] is deprecated, please use [true] or [false]");
+                    if (sValue.length() == 0) {
+                        return Values.FALSE;
+                    }
+                    if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
+                        return Values.FALSE;
+                    }
+                    if (Booleans.parseBoolean(sValue, false)) {
+                        return Values.TRUE;
+                    }
+                    return Values.FALSE;
             }
-            if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
-                return Values.FALSE;
-            }
-            if (Booleans.parseBoolean(sValue, false)) {
-                return Values.TRUE;
-            }
-            return Values.FALSE;
         }
 
         @Override

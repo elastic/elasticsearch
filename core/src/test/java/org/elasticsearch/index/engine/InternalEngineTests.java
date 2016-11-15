@@ -1641,10 +1641,12 @@ public class InternalEngineTests extends ESTestCase {
                     final Engine.DeleteResult result = initialEngine.delete(delete);
                     if (!result.hasFailure()) {
                         assertThat(result.getSeqNo(), equalTo(primarySeqNo + 1));
+                        assertThat(initialEngine.seqNoService().getMaxSeqNo(), equalTo(primarySeqNo + 1));
                         indexedIds.remove(id);
                         primarySeqNo++;
                     } else {
-                        assertThat(result.getSeqNo(), equalTo(primarySeqNo));
+                        assertThat(result.getSeqNo(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                        assertThat(initialEngine.seqNoService().getMaxSeqNo(), equalTo(primarySeqNo));
                     }
                 } else {
                     // index a document
@@ -1657,9 +1659,12 @@ public class InternalEngineTests extends ESTestCase {
                     final Engine.IndexResult result = initialEngine.index(index);
                     if (!result.hasFailure()) {
                         assertThat(result.getSeqNo(), equalTo(primarySeqNo + 1));
+                        assertThat(initialEngine.seqNoService().getMaxSeqNo(), equalTo(primarySeqNo + 1));
                         indexedIds.add(id);
                         primarySeqNo++;
-                        assertThat(result.getSeqNo(), equalTo(primarySeqNo));
+                    } else {
+                        assertThat(result.getSeqNo(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                        assertThat(initialEngine.seqNoService().getMaxSeqNo(), equalTo(primarySeqNo));
                     }
                 }
 

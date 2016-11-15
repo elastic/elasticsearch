@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -76,8 +77,9 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RareClusterStateIT extends ESIntegTestCase {
 
     @Override
-    protected boolean addMockZenPings() {
-        return false;
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 
     @Override

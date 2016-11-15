@@ -55,7 +55,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
     }
 
     @SuppressWarnings("unchecked")
-    protected <T extends ActionRequest<?>> T applyScript(Consumer<Map<String, Object>> scriptBody) {
+    protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);

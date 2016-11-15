@@ -44,11 +44,6 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
         return discoveryConfig.nodeSettings(nodeOrdinal);
     }
 
-    @Override
-    protected boolean addMockZenPings() {
-        return false;
-    }
-
     @Before
     public void clearConfig() {
         discoveryConfig = null;

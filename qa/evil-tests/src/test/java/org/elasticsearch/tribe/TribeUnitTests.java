@@ -19,6 +19,11 @@
 
 package org.elasticsearch.tribe;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,15 +39,10 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.discovery.MockZenPing;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -68,7 +68,7 @@ public class TribeUnitTests extends ESTestCase {
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class);
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class);
         tribe1 = new MockNode(
             Settings.builder()
                 .put(baseSettings)
@@ -110,7 +110,7 @@ public class TribeUnitTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(extraSettings).build();
 
-        try (Node node = new MockNode(settings, Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class)).start()) {
+        try (Node node = new MockNode(settings, Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class)).start()) {
             try (Client client = node.client()) {
                 assertBusy(() -> {
                     ClusterState state = client.admin().cluster().prepareState().clear().setNodes(true).get().getState();

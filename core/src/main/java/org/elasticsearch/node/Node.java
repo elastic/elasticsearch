@@ -19,10 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
@@ -78,10 +75,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.NoneDiscovery;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -157,21 +152,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -410,8 +399,7 @@ public class Node implements Closeable {
             }
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
-                networkService, clusterService, hostsProvider -> newZenPing(settings, threadPool, transportService, hostsProvider),
-                pluginsService.filterPlugins(DiscoveryPlugin.class));
+                networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
             pluginsService.processModules(modules);
             modules.add(b -> {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
@@ -445,7 +433,6 @@ public class Node implements Closeable {
                         indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
-                    b.bind(ZenPing.class).toInstance(discoveryModule.getZenPing());
                     {
                         RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
@@ -637,7 +624,6 @@ public class Node implements Closeable {
         // start nodes now, after the http server, because it may take some time
         tribeService.startNodes();
 
-
         if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
@@ -778,24 +764,6 @@ public class Node implements Closeable {
         }
         IOUtils.close(toClose);
         logger.info("closed");
-
-        final String log4jShutdownEnabled = System.getProperty("es.log4j.shutdownEnabled", "true");
-        final boolean shutdownEnabled;
-        switch (log4jShutdownEnabled) {
-            case "true":
-                shutdownEnabled = true;
-                break;
-            case "false":
-                shutdownEnabled = false;
-                break;
-            default:
-                throw new IllegalArgumentException(
-                        "invalid value for [es.log4j.shutdownEnabled], was [" + log4jShutdownEnabled + "] but must be [true] or [false]");
-        }
-        if (shutdownEnabled) {
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-        }
     }
 
 
@@ -901,12 +869,6 @@ public class Node implements Closeable {
             }
         }
         return customNameResolvers;
-    }
-
-    /** Create a new ZenPing instance for use in zen discovery. */
-    protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                 UnicastHostsProvider hostsProvider) {
-        return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
     }
 
     /** Constructs an internal node used as a client into a cluster fronted by this tribe node. */

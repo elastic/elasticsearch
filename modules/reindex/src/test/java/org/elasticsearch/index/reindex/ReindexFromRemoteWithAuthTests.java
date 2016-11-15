@@ -165,7 +165,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action,
+        public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action,
                 Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             if (false == action.equals(SearchAction.NAME)) {
                 chain.proceed(task, action, request, listener);

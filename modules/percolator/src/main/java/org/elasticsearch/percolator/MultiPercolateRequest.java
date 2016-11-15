@@ -48,7 +48,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * @deprecated Instead use multi search API with {@link PercolateQueryBuilder}
  */
 @Deprecated
-public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> implements CompositeIndicesRequest {
+public class MultiPercolateRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private String[] indices;
     private String documentType;

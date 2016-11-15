@@ -353,7 +353,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                                                      final int numberOfReplicas,
                                                      final boolean withPrimaryAllocationFailures) {
         // generate random node ids
-        final List<String> nodeIds = new ArrayList<>();
+        final Set<String> nodeIds = new HashSet<>();
         final int numNodes = randomIntBetween(numberOfReplicas + 1, 10);
         for (int i = 0; i < numNodes; i++) {
             nodeIds.add(randomAsciiOfLength(8));
@@ -372,7 +372,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             for (final ShardRouting shardRouting : shardRoutingTable.getShards()) {
                 if (shardRouting.primary()) {
                     newIndexRoutingTable.addShard(
-                        shardRouting.initialize(nodeIds.get(randomIntBetween(0, numNodes - 1)), null, shardRouting.getExpectedShardSize())
+                        shardRouting.initialize(randomFrom(nodeIds), null, shardRouting.getExpectedShardSize())
                     );
                 } else {
                     newIndexRoutingTable.addShard(shardRouting);
@@ -460,17 +460,15 @@ public class ClusterStateHealthTests extends ESTestCase {
         newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
         for (final ObjectCursor<IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().values()) {
             final IndexShardRoutingTable shardRoutingTable = shardEntry.value;
+            final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
+            Set<String> allocatedNodes = new HashSet<>();
+            allocatedNodes.add(primaryNodeId);
             for (final ShardRouting shardRouting : shardRoutingTable.getShards()) {
                 if (shardRouting.primary() == false) {
                     // give the replica a different node id than the primary
-                    final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
-                    String replicaNodeId;
-                    do {
-                        replicaNodeId = nodeIds.get(randomIntBetween(0, numNodes - 1));
-                    } while (primaryNodeId.equals(replicaNodeId));
-                    newIndexRoutingTable.addShard(
-                        shardRouting.initialize(replicaNodeId, null, shardRouting.getExpectedShardSize())
-                    );
+                    String replicaNodeId = randomFrom(Sets.difference(nodeIds, allocatedNodes));
+                    newIndexRoutingTable.addShard(shardRouting.initialize(replicaNodeId, null, shardRouting.getExpectedShardSize()));
+                    allocatedNodes.add(replicaNodeId);
                 } else {
                     newIndexRoutingTable.addShard(shardRouting);
                 }

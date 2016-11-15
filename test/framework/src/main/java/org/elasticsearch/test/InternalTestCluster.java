@@ -1130,14 +1130,6 @@ public final class InternalTestCluster extends TestCluster {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
-                        // we assert busy as we can have background global checkpoint activity
-                        try {
-                            assertBusy(() -> {
-                                assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
-                            });
-                        } catch (Exception e) {
-                            throw new RuntimeException("unexpected error while checking for shard counters", e);
-                        }
                         int activeOperationsCount = indexShard.getActiveOperationsCount();
                         if (activeOperationsCount > 0) {
                             TaskManager taskManager = getInstance(TransportService.class, nodeAndClient.name).getTaskManager();

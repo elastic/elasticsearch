@@ -100,3 +100,17 @@ setup:
   - is_false: indices.test1
   - is_true: indices.test2
 
+---
+"Indices stats unrecognized parameter":
+  - skip:
+      version: " - 5.99.99"
+      reason: awaits strict stats handling to be backported to 5.x
+  - do:
+      indices.stats:
+        metric: [ fieldata ]
+        ignore: 400
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "request [/_stats/fieldata] contains unrecognized metric: [fieldata] -> did you mean [fielddata]?" }
+

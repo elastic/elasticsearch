@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
@@ -28,6 +29,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -47,10 +49,11 @@ final class Spawner implements Closeable {
 
     @Override
     public void close() throws IOException {
-        for (Process process : processes) {
-            process.destroy();
+        try {
+            IOUtils.close(() -> processes.stream().map(s -> (Closeable)s::destroy).iterator());
+        } finally {
+            processes.clear();
         }
-        processes.clear();
     }
 
     /**
@@ -87,7 +90,7 @@ final class Spawner implements Closeable {
     }
 
     List<Process> getProcesses() {
-        return processes;
+        return Collections.unmodifiableList(processes);
     }
 
     /**

@@ -39,8 +39,6 @@ import java.util.concurrent.TimeUnit;
 /**
  * Create a simple "daemon controller", put it in the right place and check that it runs.
  *
- * Does nothing on Windows, as it's too hard to simulate a native program using a script.
- *
  * Extends LuceneTestCase rather than ESTestCase as ESTestCase installs seccomp, and that
  * prevents the Spawner class doing its job.  Also needs to run in a separate JVM to other
  * tests that extend ESTestCase for the same reason.
@@ -54,11 +52,11 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             + "read SOMETHING\n";
 
     public void testControllerSpawn() throws IOException, InterruptedException {
-        if (Constants.WINDOWS) {
-            // On Windows you cannot directly run a batch file - you have to run cmd.exe with the batch file
-            // as an argument and that's out of the remit of the controller daemon process spawner
-            return;
-        }
+        // On Windows you cannot directly run a batch file - you have to run cmd.exe with the batch file
+        // as an argument and that's out of the remit of the controller daemon process spawner.  If
+        // you need to build on Windows, just don't run this test.  The process spawner itself will work
+        // with native processes.
+        assumeFalse("This test does not work on Windows", Constants.WINDOWS);
 
         Path esHome = createTempDir().resolve("esHome");
         Settings.Builder settingsBuilder = Settings.builder();

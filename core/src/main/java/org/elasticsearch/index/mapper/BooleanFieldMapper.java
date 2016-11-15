@@ -55,7 +55,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BooleanFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BooleanFieldMapper.class));
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new BooleanFieldType();

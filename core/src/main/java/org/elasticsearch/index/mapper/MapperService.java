@@ -44,6 +44,7 @@ import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -62,7 +63,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
-public class MapperService extends AbstractIndexComponent {
+public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
      * The reason why a mapping is being merged.
@@ -622,6 +623,11 @@ public class MapperService extends AbstractIndexComponent {
 
     public Set<String> getParentTypes() {
         return parentTypes;
+    }
+
+    @Override
+    public void close() throws IOException {
+        indexAnalyzers.close();
     }
 
     /**

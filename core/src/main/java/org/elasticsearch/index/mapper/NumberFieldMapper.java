@@ -29,7 +29,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.XPointValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -241,13 +241,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Double stats(IndexReader reader, String fieldName,
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
-                long size = XPointValues.size(reader, fieldName);
+                long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = XPointValues.getDocCount(reader, fieldName);
-                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
+                int docCount = PointValues.getDocCount(reader, fieldName);
+                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
                     isSearchable, isAggregatable,
                     HalfFloatPoint.decodeDimension(min, 0), HalfFloatPoint.decodeDimension(max, 0));
@@ -325,13 +325,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Double stats(IndexReader reader, String fieldName,
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
-                long size = XPointValues.size(reader, fieldName);
+                long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = XPointValues.getDocCount(reader, fieldName);
-                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
+                int docCount = PointValues.getDocCount(reader, fieldName);
+                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
                     isSearchable, isAggregatable,
                     FloatPoint.decodeDimension(min, 0), FloatPoint.decodeDimension(max, 0));
@@ -409,13 +409,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Double stats(IndexReader reader, String fieldName,
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
-                long size = XPointValues.size(reader, fieldName);
+                long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = XPointValues.getDocCount(reader, fieldName);
-                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
+                int docCount = PointValues.getDocCount(reader, fieldName);
+                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
                     isSearchable, isAggregatable,
                     DoublePoint.decodeDimension(min, 0), DoublePoint.decodeDimension(max, 0));
@@ -627,13 +627,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Long stats(IndexReader reader, String fieldName,
                                   boolean isSearchable, boolean isAggregatable) throws IOException {
-                long size = XPointValues.size(reader, fieldName);
+                long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = XPointValues.getDocCount(reader, fieldName);
-                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
+                int docCount = PointValues.getDocCount(reader, fieldName);
+                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size,
                     isSearchable, isAggregatable,
                     IntPoint.decodeDimension(min, 0), IntPoint.decodeDimension(max, 0));
@@ -723,13 +723,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Long stats(IndexReader reader, String fieldName,
                                   boolean isSearchable, boolean isAggregatable) throws IOException {
-                long size = XPointValues.size(reader, fieldName);
+                long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = XPointValues.getDocCount(reader, fieldName);
-                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
+                int docCount = PointValues.getDocCount(reader, fieldName);
+                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size,
                     isSearchable, isAggregatable,
                     LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));

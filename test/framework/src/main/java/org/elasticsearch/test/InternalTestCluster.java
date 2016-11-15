@@ -1070,10 +1070,15 @@ public final class InternalTestCluster extends TestCluster {
 
     /** ensure a cluster is form with {@link #nodes}.size() nodes. */
     private void validateClusterFormed() {
-        final int size = nodes.size();
         String name = randomFrom(random, getNodeNames());
-        logger.trace("validating cluster formed via [{}], expecting [{}]", name, size);
-        final Client client = client(name);
+        validateClusterFormed(name);
+    }
+
+    /** ensure a cluster is form with {@link #nodes}.size() nodes, but do so by using the client of the specified node */
+    private void validateClusterFormed(String viaNode) {
+        final int size = nodes.size();
+        logger.trace("validating cluster formed via [{}], expecting [{}]", viaNode, size);
+        final Client client = client(viaNode);
         ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size)).get();
         if (response.isTimedOut()) {
             logger.warn("failed to wait for a cluster of size [{}], got [{}]", size, response);
@@ -1485,7 +1490,9 @@ public final class InternalTestCluster extends TestCluster {
         if (callback.validateClusterForming() || updateMinMaster) {
             // we have to validate cluster size if updateMinMaster == true, because we need the
             // second node to join in order to increment min_master_nodes back to 2.
-            validateClusterFormed();
+            // we also have to do via the node that was just restarted as it may be that the master didn't yet process
+            // the fact it left
+            validateClusterFormed(nodeAndClient.name);
         }
         if (updateMinMaster) {
             updateMinMasterNodes(masterNodesCount);

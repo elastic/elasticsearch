@@ -29,7 +29,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.test.discovery.MockZenPing;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -141,7 +141,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .build();
 
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockZenPing.TestPlugin.class, MockTcpTransportPlugin.class);
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(TestZenDiscovery.TestPlugin.class, MockTcpTransportPlugin.class);
         final Node tribeNode = new MockNode(merged, mockPlugins).start();
         Client tribeClient = tribeNode.client();
 

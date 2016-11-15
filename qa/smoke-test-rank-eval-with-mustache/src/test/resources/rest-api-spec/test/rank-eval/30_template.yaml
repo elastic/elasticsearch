@@ -62,6 +62,6 @@
           "metric" : { "precision": { }}
         }
 
-  - match: {rank_eval.quality_level: 1}
+  - match: {rank_eval.quality_level: 0.5833333333333333}
   - match: {rank_eval.details.berlin_query.unknown_docs.0._id:  "doc4"}
   - match: {rank_eval.details.amsterdam_query.unknown_docs.0._id:  "doc4"}

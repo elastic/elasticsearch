@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -588,11 +590,32 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected void ensureLicenseEnabled() throws Exception {
+        if (timeWarped()) {
+            // the master generates a license which starts now. We have to make sure all nodes
+            // advance their time so that the license will be valid
+            progressClocksAboveMaster(internalCluster());
+        }
+
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
                 assertThat(licenseState.isWatcherAllowed(), is(true));
             }
         });
+    }
+
+    private void progressClocksAboveMaster(InternalTestCluster cluster) {
+        long minClock = Long.MAX_VALUE;
+        long maxClock = Long.MIN_VALUE;
+        for (Clock clock: cluster.getInstances(Clock.class)) {
+            final long millis = clock.millis();
+            minClock = Math.min(millis, minClock);
+            maxClock = Math.max(millis, maxClock);
+        }
+        // now move all the clocks ahead to make sure they are beyond the highest clock
+        final TimeValue delta = TimeValue.timeValueMillis(maxClock - minClock);
+        for (Clock clock: cluster.getInstances(Clock.class)) {
+            ((ClockMock)clock).fastForward(delta);
+        }
     }
 
     protected void ensureWatcherStopped() throws Exception {

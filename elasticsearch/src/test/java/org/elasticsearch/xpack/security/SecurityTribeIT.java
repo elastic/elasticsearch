@@ -75,7 +75,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         if (cluster2 == null) {
             SecuritySettingsSource cluster2SettingsSource =
                     new SecuritySettingsSource(defaultMaxNumberOfNodes(), useSSL, systemKey(), createTempDir(), Scope.SUITE);
-            cluster2 = new InternalTestCluster(randomLong(), createTempDir(), true, 1, 2,
+            cluster2 = new InternalTestCluster(randomLong(), createTempDir(), true, true, 1, 2,
                     UUIDs.randomBase64UUID(random()), cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
                     getClientWrapper());
             cluster2.beforeTest(random(), 0.1);

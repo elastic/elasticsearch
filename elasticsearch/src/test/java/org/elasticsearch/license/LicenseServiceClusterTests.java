@@ -21,12 +21,11 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
+@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
 
     @Override

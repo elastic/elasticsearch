@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = Scope.TEST, transportClientRatio = 0, numClientNodes = 1, numDataNodes = 0)
+@ClusterScope(scope = Scope.TEST, transportClientRatio = 0, numClientNodes = 1, numDataNodes = 2)
 public abstract class TribeTransportTestCase extends ESIntegTestCase {
 
     protected List<String> enabledFeatures() {
@@ -99,12 +99,11 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
             }
         };
         final InternalTestCluster cluster2 = new InternalTestCluster(
-                randomLong(), createTempDir(), true, 2, 2,
+                randomLong(), createTempDir(), true, true, 2, 2,
                 UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 1, false, "tribe_node2",
                 getMockPlugins(), getClientWrapper());
 
         cluster2.beforeTest(random(), 0.0);
-        cluster2.ensureAtLeastNumDataNodes(2);
 
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
         assertAcked(internalCluster().client().admin().indices().prepareCreate("test1").get());

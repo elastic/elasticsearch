@@ -69,8 +69,10 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
 
         n = randomIntBetween(1, 2);
         logger.debug("--> starting {} extra nodes", n);
-        InternalTestCluster.Async<List<String>> extraNodes = internalCluster().startNodesAsync(n);
-        extraNodes.get();
+        // starting one by one to allow moving , for example, from a 2 node cluster to a 4 one while updating min_master_nodes
+        for (int i=0;i<n;i++) {
+            internalCluster().startNode();
+        }
         nodes += n;
 
         final int nbNodes = nodes;

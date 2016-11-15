@@ -110,8 +110,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                 return builder.build();
             }
         };
-        remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false,
-                numNodes, numNodes,
+        remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false, true, numNodes, numNodes,
                 cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), getClientWrapper());
         remoteCluster.beforeTest(random(), 0.5);
         assertNoTimeout(remoteCluster.client().admin().cluster().prepareHealth().setWaitForGreenStatus().get());

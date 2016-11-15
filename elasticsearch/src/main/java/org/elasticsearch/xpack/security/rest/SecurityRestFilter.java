@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
@@ -21,6 +22,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestFilter;
 import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
@@ -40,6 +42,7 @@ public class SecurityRestFilter extends RestFilter {
     private final Logger logger;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
+    private final RestController restController;
     private final boolean extractClientCertificate;
 
     @Inject
@@ -53,6 +56,7 @@ public class SecurityRestFilter extends RestFilter {
         Settings httpSSLSettings = SSLService.getHttpTransportSSLSettings(settings);
         this.extractClientCertificate = ssl && sslService.isSSLClientAuthEnabled(httpSSLSettings);
         controller.registerFilter(this);
+        this.restController = controller;
     }
 
     @Override
@@ -63,19 +67,18 @@ public class SecurityRestFilter extends RestFilter {
     @Override
     public void process(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
 
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isAuthAllowed() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
-            if (request.method() != RestRequest.Method.OPTIONS) {
-                if (extractClientCertificate) {
-                    putClientCertificateInContext(request, threadContext, logger);
-                }
-                service.authenticate(request).getUser();
+            if (extractClientCertificate) {
+                putClientCertificateInContext(request, threadContext, logger);
             }
-
-            RemoteHostHeader.process(request, threadContext);
+            service.authenticate(request, ActionListener.wrap((authentication) -> {
+                    RemoteHostHeader.process(request, threadContext);
+                    filterChain.continueProcessing(request, channel, client);
+                }, (e) -> restController.sendErrorResponse(request, channel, e)));
+        } else {
+            filterChain.continueProcessing(request, channel, client);
         }
-
-        filterChain.continueProcessing(request, channel, client);
     }
 
     static void putClientCertificateInContext(RestRequest request, ThreadContext threadContext, Logger logger) throws Exception {

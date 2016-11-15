@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
-import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -33,11 +35,12 @@ public class SecurityRestFilterTests extends ESTestCase {
     private RestFilterChain chain;
     private SecurityRestFilter filter;
     private XPackLicenseState licenseState;
+    private RestController restController;
 
     @Before
     public void init() throws Exception {
         authcService = mock(AuthenticationService.class);
-        RestController restController = mock(RestController.class);
+        restController = mock(RestController.class);
         channel = mock(RestChannel.class);
         chain = mock(RestFilterChain.class);
         licenseState = mock(XPackLicenseState.class);
@@ -51,7 +54,12 @@ public class SecurityRestFilterTests extends ESTestCase {
     public void testProcess() throws Exception {
         RestRequest request = mock(RestRequest.class);
         Authentication authentication = mock(Authentication.class);
-        when(authcService.authenticate(request)).thenReturn(authentication);
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            callback.onResponse(authentication);
+            return Void.TYPE;
+        }).when(authcService).authenticate(eq(request), any(ActionListener.class));
         filter.process(request, channel, null, chain);
         verify(chain).continueProcessing(request, channel, null);
         verifyZeroInteractions(channel);
@@ -67,13 +75,15 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessAuthenticationError() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        when(authcService.authenticate(request)).thenThrow(authenticationError("failed authc"));
-        try {
-            filter.process(request, channel, null, chain);
-            fail("expected rest filter process to throw an authentication exception when authentication fails");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.getMessage(), equalTo("failed authc"));
-        }
+        Exception exception = authenticationError("failed authc");
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            callback.onFailure(exception);
+            return Void.TYPE;
+        }).when(authcService).authenticate(eq(request), any(ActionListener.class));
+        filter.process(request, channel, null, chain);
+        verify(restController).sendErrorResponse(request, channel, exception);
         verifyZeroInteractions(channel);
         verifyZeroInteractions(chain);
     }

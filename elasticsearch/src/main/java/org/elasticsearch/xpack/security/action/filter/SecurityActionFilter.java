@@ -100,55 +100,43 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             throw LicenseUtils.newComplianceException(XPackPlugin.SECURITY);
         }
 
-        if (licenseState.isAuthAllowed() == false) {
-            if (SECURITY_ACTION_MATCHER.test(action)) {
-                // TODO we should be nice and just call the listener
-                listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.SECURITY));
-            } else {
-                chain.proceed(task, action, request, listener);
+        if (licenseState.isAuthAllowed()) {
+            // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
+            // and then a cleanup action is executed (like for search without a scroll)
+            final boolean restoreOriginalContext = securityContext.getAuthentication() != null;
+            final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
+            // we should always restore the original here because we forcefully changed to the system user
+            final ThreadContext.StoredContext toRestore =
+                    restoreOriginalContext || useSystemUser ? threadContext.newStoredContext() : () -> {};
+            final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(threadContext, toRestore,
+                    ActionListener.wrap(r -> {
+                        try {
+                            listener.onResponse(sign(r));
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }, listener::onFailure));
+            ActionListener<Void> authenticatedListener =
+                    ActionListener.wrap((aVoid) -> chain.proceed(task, action, request, signingListener), signingListener::onFailure);
+            try {
+                if (useSystemUser) {
+                    securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
+                        try {
+                            applyInternal(action, request, authenticatedListener);
+                        } catch (IOException e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                } else {
+                    applyInternal(action, request, authenticatedListener);
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
-            return;
-        }
-
-        // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
-        // and then a cleanup action is executed (like for search without a scroll)
-        final ThreadContext.StoredContext originalContext = threadContext.newStoredContext();
-        final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-        // we should always restore the original here because we forcefully changed to the system user
-        final ThreadContext.StoredContext toRestore = useSystemUser ? originalContext : () -> {};
-        final ActionListener<ActionResponse> signingListener =
-                new ContextPreservingActionListener<>(threadContext, toRestore, ActionListener.wrap(r -> {
-                    try {
-                        listener.onResponse(sign(r));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }, listener::onFailure));
-        ActionListener<Void> authenticatedListener = new ContextPreservingActionListener<>(threadContext, toRestore,
-                new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                chain.proceed(task, action, request, signingListener);
-            }
-            @Override
-            public void onFailure(Exception e) {
-                signingListener.onFailure(e);
-            }
-        });
-        try {
-            if (useSystemUser) {
-                securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
-                    try {
-                        applyInternal(action, request, authenticatedListener);
-                    } catch (IOException e) {
-                        listener.onFailure(e);
-                    }
-                });
-            } else {
-                applyInternal(action, request, authenticatedListener);
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
+        } else if (SECURITY_ACTION_MATCHER.test(action)) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.SECURITY));
+        } else {
+            chain.proceed(task, action, request, listener);
         }
     }
 
@@ -162,7 +150,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         return Integer.MIN_VALUE;
     }
 
-    private void applyInternal(String action, final ActionRequest request, ActionListener listener) throws IOException {
+    private void applyInternal(String action, final ActionRequest request, ActionListener<Void> listener) throws IOException {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
@@ -171,6 +159,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                 listener.onFailure(e);
             }
         }
+
         /*
          here we fallback on the system user. Internal system requests are requests that are triggered by
          the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
@@ -182,27 +171,33 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
          here if a request is not associated with any other user.
          */
         final String securityAction = actionMapper.action(action, request);
-        Authentication authentication = authcService.authenticate(securityAction, request, SystemUser.INSTANCE);
-        assert authentication != null;
-        final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, listener,
-                (userRoles, runAsRoles) -> {
-                    authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                    final User user = authentication.getUser();
-                    unsign(user, securityAction, request);
+        authcService.authenticate(securityAction, request, SystemUser.INSTANCE,
+                ActionListener.wrap((authc) -> authorizeRequest(authc, securityAction, request, listener), listener::onFailure));
+    }
 
-                    /*
-                     * We use a separate concept for code that needs to be run after authentication and authorization that could effect the
-                     * running of the action. This is done to make it more clear of the state of the request.
-                     */
-                    for (RequestInterceptor interceptor : requestInterceptors) {
-                        if (interceptor.supports(request)) {
-                            interceptor.intercept(request, user);
+    void authorizeRequest(Authentication authentication, String securityAction, ActionRequest request, ActionListener listener) {
+        if (authentication == null) {
+            listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
+        } else {
+            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, listener,
+                    (userRoles, runAsRoles) -> {
+                        authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
+                        final User user = authentication.getUser();
+                        ActionRequest unsignedRequest = unsign(user, securityAction, request);
+
+                            /*
+                             * We use a separate concept for code that needs to be run after authentication and authorization that could
+                             * affect the running of the action. This is done to make it more clear of the state of the request.
+                             */
+                        for (RequestInterceptor interceptor : requestInterceptors) {
+                            if (interceptor.supports(unsignedRequest)) {
+                                interceptor.intercept(unsignedRequest, user);
+                            }
                         }
-                    }
-                    listener.onResponse(null);
-            });
-        asyncAuthorizer.authorize(authzService);
-
+                        listener.onResponse(null);
+                    });
+            asyncAuthorizer.authorize(authzService);
+        }
     }
 
     ActionRequest unsign(User user, String action, final ActionRequest request) {

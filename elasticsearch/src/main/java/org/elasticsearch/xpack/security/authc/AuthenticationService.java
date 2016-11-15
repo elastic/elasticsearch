@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
@@ -76,13 +78,9 @@ public class AuthenticationService extends AbstractComponent {
      * the user and that user is then "attached" to the request's context.
      *
      * @param request   The request to be authenticated
-     * @return          A object containing the authentication information (user, realm, etc)
-     * @throws ElasticsearchSecurityException   If no user was associated with the request or if the associated
-     *                                          user credentials were found to be invalid
-     * @throws IOException If an error occurs when reading or writing
      */
-    public Authentication authenticate(RestRequest request) throws IOException, ElasticsearchSecurityException {
-        return createAuthenticator(request).authenticate();
+    public void authenticate(RestRequest request, ActionListener<Authentication> authenticationListener) {
+        createAuthenticator(request, authenticationListener).authenticateAsync();
     }
 
     /**
@@ -97,15 +95,9 @@ public class AuthenticationService extends AbstractComponent {
      *                      {@code null}, in which case there will be no fallback user and the success/failure of the
      *                      authentication will be based on the whether there's an attached user to in the message and
      *                      if there is, whether its credentials are valid.
-     *
-     * @return              A object containing the authentication information (user, realm, etc)
-     *
-     * @throws ElasticsearchSecurityException   If the associated user credentials were found to be invalid or in the
-     *                                          case where there was no user associated with the request, if the defautl
-     *                                              token could not be authenticated.
      */
-    public Authentication authenticate(String action, TransportMessage message, User fallbackUser) throws IOException {
-        return createAuthenticator(action, message, fallbackUser).authenticate();
+    public void authenticate(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
+        createAuthenticator(action, message, fallbackUser, listener).authenticateAsync();
     }
 
     /**
@@ -114,340 +106,463 @@ public class AuthenticationService extends AbstractComponent {
      *
      * @param user      The user to be attached if the header is missing
      */
-    public void attachUserIfMissing(User user) throws IOException {
+    void attachUserIfMissing(User user) throws IOException {
         Authentication authentication = new Authentication(user, new RealmRef("__attach", "__attach", nodeName), null);
         authentication.writeToContextIfMissing(threadContext, cryptoService, signUserHeader);
     }
 
-    Authenticator createAuthenticator(RestRequest request) {
-        return new Authenticator(request);
+    // pkg private method for testing
+    Authenticator createAuthenticator(RestRequest request, ActionListener<Authentication> listener) {
+        return new Authenticator(request, listener);
     }
 
-    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser) {
-        return new Authenticator(action, message, fallbackUser);
+    // pkg private method for testing
+    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
+        return new Authenticator(action, message, fallbackUser, listener);
     }
 
+    /**
+     * This class is responsible for taking a request and executing the authentication. The authentication is executed in an asynchronous
+     * fashion in order to avoid blocking calls on a network thread. This class also performs the auditing necessary around authentication
+     */
     class Authenticator {
 
         private final AuditableRequest request;
         private final User fallbackUser;
+        private final ActionListener<Authentication> listener;
 
         private RealmRef authenticatedBy = null;
         private RealmRef lookedupBy = null;
+        private AuthenticationToken authenticationToken = null;
 
-        Authenticator(RestRequest request) {
-            this.request = new Rest(request);
-            this.fallbackUser = null;
+        Authenticator(RestRequest request, ActionListener<Authentication> listener) {
+            this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, listener);
         }
 
-        Authenticator(String action, TransportMessage message, User fallbackUser) {
-            this.request = new Transport(action, message);
+        Authenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
+            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message), fallbackUser, listener);
+        }
+
+        private Authenticator(AuditableRequest auditableRequest, User fallbackUser, ActionListener<Authentication> listener) {
+            this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
+            this.listener = listener;
         }
 
-        Authentication authenticate() throws IOException, IllegalArgumentException {
-            Authentication existing = getCurrentAuthentication();
-            if (existing != null) {
-                return existing;
-            }
-
-            AuthenticationToken token = extractToken();
-            if (token == null) {
-                Authentication authentication = handleNullToken();
-                request.authenticationSuccess(authentication.getAuthenticatedBy().getName(), authentication.getUser());
-                return authentication;
-            }
-
-            User user = authenticateToken(token);
-            if (user == null) {
-                throw handleNullUser(token);
-            }
-            user = lookupRunAsUserIfNecessary(user, token);
-            checkIfUserIsDisabled(user, token);
-
-            final Authentication authentication = new Authentication(user, authenticatedBy, lookedupBy);
-            authentication.writeToContext(threadContext, cryptoService, signUserHeader);
-            request.authenticationSuccess(authentication.getAuthenticatedBy().getName(), user);
-            return authentication;
+        /**
+         * This method starts the authentication process. The authentication process can be broken down into distinct operations. In order,
+         * these operations are:
+         *
+         * <ol>
+         *     <li>look for existing authentication {@link #lookForExistingAuthentication(Consumer)}</li>
+         *     <li>token extraction {@link #extractToken(Consumer)}</li>
+         *     <li>token authentication {@link #consumeToken(AuthenticationToken)}</li>
+         *     <li>user lookup for run as if necessary {@link #consumeUser(User)} and
+         *     {@link #lookupRunAsUser(User, String, Consumer)}</li>
+         *     <li>write authentication into the context {@link #finishAuthentication(User)}</li>
+         * </ol>
+         */
+        private void authenticateAsync() {
+            lookForExistingAuthentication((authentication) -> {
+                if (authentication != null) {
+                    listener.onResponse(authentication);
+                } else {
+                    extractToken(this::consumeToken);
+                }
+            });
         }
 
-        Authentication getCurrentAuthentication() {
-            Authentication authentication;
+        /**
+         * Looks to see if the request contains an existing {@link Authentication} and if so, that authentication will be used. The
+         * consumer is called if no exception was thrown while trying to read the authentication and may be called with a {@code null}
+         * value
+         */
+        private void lookForExistingAuthentication(Consumer<Authentication> authenticationConsumer) {
+            Runnable action;
             try {
-                authentication = Authentication.readFromContext(threadContext, cryptoService, signUserHeader);
+                final Authentication authentication = Authentication.readFromContext(threadContext, cryptoService, signUserHeader);
+                if (authentication != null && request instanceof AuditableRestRequest) {
+                    action = () -> listener.onFailure(request.tamperedRequest());
+                } else {
+                    action = () -> authenticationConsumer.accept(authentication);
+                }
             } catch (Exception e) {
-                throw request.tamperedRequest();
+                logger.error((Supplier<?>)
+                        () -> new ParameterizedMessage("caught exception while trying to read authentication from request [{}]", request),
+                        e);
+                action = () -> listener.onFailure(request.tamperedRequest());
             }
 
-            // make sure this isn't a rest request since we don't allow authentication to be read via a HTTP request...
-            if (authentication != null && request instanceof Rest) {
-                throw request.tamperedRequest();
-            }
-            return authentication;
+            // we use the success boolean as we need to know if the executed code block threw an exception and we already called on
+            // failure; if we did call the listener we do not need to continue. While we could place this call in the try block, the
+            // issue is that we catch all exceptions and could catch exceptions that have nothing to do with a tampered request.
+            action.run();
         }
 
-        AuthenticationToken extractToken() {
-            AuthenticationToken token = null;
+        /**
+         * Attempts to extract an {@link AuthenticationToken} from the request by iterating over the {@link Realms} and calling
+         * {@link Realm#token(ThreadContext)}. The first non-null token that is returned will be used. The consumer is only called if
+         * no exception was caught during the extraction process and may be called with a {@code null} token.
+         */
+        // pkg-private accessor testing token extraction with a consumer
+        void extractToken(Consumer<AuthenticationToken> consumer) {
+            Runnable action = () -> consumer.accept(null);
             try {
                 for (Realm realm : realms) {
-                    token = realm.token(threadContext);
+                    final AuthenticationToken token = realm.token(threadContext);
                     if (token != null) {
-                        logger.trace("realm [{}] resolved authentication token [{}] from [{}]", realm, token.principal(), request);
+                        action = () -> consumer.accept(token);
                         break;
                     }
                 }
             } catch (Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to extract token from request: [{}]", request), e);
-                } else {
-                    logger.warn("failed to extract token from request: [{}]: {}", request, e.getMessage());
-                }
-                throw request.exceptionProcessingRequest(e, null);
+                action = () -> listener.onFailure(request.exceptionProcessingRequest(e, null));
             }
-            return token;
+
+            action.run();
         }
 
-        Authentication handleNullToken() throws IOException {
-            Authentication authentication = null;
+        /**
+         * Consumes the {@link AuthenticationToken} provided by the caller. In the case of a {@code null} token, {@link #handleNullToken()}
+         * is called. In the case of a {@code non-null} token, the realms are iterated over and the first realm that returns a non-null
+         * {@link User} is the authenticating realm and iteration is stopped. This user is then passed to {@link #consumeUser(User)} if no
+         * exception was caught while trying to authenticate the token
+         */
+        private void consumeToken(AuthenticationToken token) {
+            if (token == null) {
+                handleNullToken();
+            } else {
+                authenticationToken = token;
+                Runnable action = () -> consumeUser(null);
+                try {
+                    for (Realm realm : realms) {
+                        User user = authenticateToken(realm);
+                        if (user != null) {
+                            action = () -> consumeUser(user);
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    action = () -> listener.onFailure(request.exceptionProcessingRequest(e, token));
+                }
+                action.run();
+            }
+        }
+
+        /**
+         * Handles failed extraction of an authentication token. This can happen in a few different scenarios:
+         *
+         * <ul>
+         *     <li>this is an initial request from a client without preemptive authentication, so we must return an authentication
+         *     challenge</li>
+         *     <li>this is a request made internally within a node and there is a fallback user, which is typically the
+         *     {@link org.elasticsearch.xpack.security.user.SystemUser}</li>
+         *     <li>anonymous access is enabled and this will be considered an anonymous request</li>
+         * </ul>
+         *
+         * Regardless of the scenario, this method will call the listener with either failure or success.
+         */
+        // pkg-private for tests
+        void handleNullToken() {
+            final Authentication authentication;
             if (fallbackUser != null) {
                 RealmRef authenticatedBy = new RealmRef("__fallback", "__fallback", nodeName);
                 authentication = new Authentication(fallbackUser, authenticatedBy, null);
             } else if (isAnonymousUserEnabled) {
                 RealmRef authenticatedBy = new RealmRef("__anonymous", "__anonymous", nodeName);
                 authentication = new Authentication(anonymousUser, authenticatedBy, null);
+            } else {
+                authentication = null;
             }
 
+            Runnable action;
             if (authentication != null) {
-                authentication.writeToContext(threadContext, cryptoService, signUserHeader);
-                return authentication;
+                try {
+                    authentication.writeToContext(threadContext, cryptoService, signUserHeader);
+                    request.authenticationSuccess(authentication.getAuthenticatedBy().getName(), authentication.getUser());
+                    action = () -> listener.onResponse(authentication);
+                } catch (Exception e) {
+                    action = () -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
+                }
+            } else {
+                action = () -> listener.onFailure(request.anonymousAccessDenied());
             }
-            throw request.anonymousAccessDenied();
+
+            // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing when
+            // an exception bubbles up even after successful authentication
+            action.run();
         }
 
-        User authenticateToken(AuthenticationToken token) {
+        /**
+         * Encapsulates the interaction with the realm and audit trail when attempting to authenticate a token. If the realm supports the
+         * token, authentication will be attempted. A successful authentication results in returning a non-null user in addition to setting
+         * the authenticatedBy value. A failed authentication will result in returning {@code null}
+         */
+        private User authenticateToken(Realm realm) {
             User user = null;
-            try {
-                for (Realm realm : realms) {
-                    if (realm.supports(token)) {
-                        user = realm.authenticate(token);
-                        if (user != null) {
-                            authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
-                            break;
-                        }
-                        request.realmAuthenticationFailed(token, realm.name());
-                    }
+            if (realm.supports(authenticationToken)) {
+                user = realm.authenticate(authenticationToken);
+                if (user == null) {
+                    request.realmAuthenticationFailed(authenticationToken, realm.name());
+                } else {
+                    authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
                 }
-            } catch (Exception e) {
-                logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                                "authentication failed for principal [{}], [{}] ", token.principal(), request), e);
-                throw request.exceptionProcessingRequest(e, token);
-            } finally {
-                token.clearCredentials();
             }
             return user;
         }
 
-        ElasticsearchSecurityException handleNullUser(AuthenticationToken token) {
-            throw request.authenticationFailed(token);
-        }
-
-        boolean shouldTryToRunAs(User authenticatedUser, AuthenticationToken token) {
-            if (runAsEnabled == false) {
-                return false;
-            }
-
-            String runAsUsername = threadContext.getHeader(RUN_AS_USER_HEADER);
-            if (runAsUsername == null) {
-                return false;
-            }
-
-            if (runAsUsername.isEmpty()) {
-                logger.debug("user [{}] attempted to runAs with an empty username", authenticatedUser.principal());
-                throw request.runAsDenied(new User(authenticatedUser.principal(), authenticatedUser.roles(),
-                        new User(runAsUsername, Strings.EMPTY_ARRAY)), token);
-            }
-            return true;
-        }
-
-        User lookupRunAsUserIfNecessary(User authenticatedUser, AuthenticationToken token) {
-            User user = authenticatedUser;
-            if (shouldTryToRunAs(user, token) == false) {
-                return user;
-            }
-
-            final String runAsUsername = threadContext.getHeader(RUN_AS_USER_HEADER);
-            try {
-                for (Realm realm : realms) {
-                    if (realm.userLookupSupported()) {
-                        User runAsUser = realm.lookupUser(runAsUsername);
-                        if (runAsUser != null) {
-                            lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
-                            user = new User(user, runAsUser);
-                            return user;
-                        }
+        /**
+         * Consumes the {@link User} that resulted from attempting to authenticate a token against the {@link Realms}. When the user is
+         * {@code null}, authentication fails and does not proceed. When there is a user, the request is inspected to see if the run as
+         * functionality is in use. When run as is not in use, {@link #finishAuthentication(User)} is called, otherwise we try to lookup
+         * the run as user in {@link #lookupRunAsUser(User, String, Consumer)}
+         */
+        private void consumeUser(User user) {
+            if (user == null) {
+                listener.onFailure(request.authenticationFailed(authenticationToken));
+            } else {
+                if (runAsEnabled) {
+                    final String runAsUsername = threadContext.getHeader(RUN_AS_USER_HEADER);
+                    if (runAsUsername != null && runAsUsername.isEmpty() == false) {
+                        lookupRunAsUser(user, runAsUsername, this::finishAuthentication);
+                    } else if (runAsUsername == null) {
+                        finishAuthentication(user);
+                    } else {
+                        assert runAsUsername.isEmpty() : "the run as username may not be empty";
+                        logger.debug("user [{}] attempted to runAs with an empty username", user.principal());
+                        listener.onFailure(request.runAsDenied(new User(user.principal(), user.roles(),
+                            new User(runAsUsername, Strings.EMPTY_ARRAY)), authenticationToken));
                     }
+                } else {
+                    finishAuthentication(user);
                 }
+            }
+        }
 
-                // the requested run as user does not exist, but we don't throw an error here otherwise this could let
-                // information leak about users in the system... instead we'll just let the authz service fail throw an
-                // authorization error
+        /**
+         * Iterates over the realms and attempts to lookup the run as user by the given username. The consumer will be called regardless of
+         * if the user is found or not, with a non-null user. We do not fail requests if the run as user is not found as that can leak the
+         * names of users that exist using a timing attack
+         */
+        private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
+            // FIXME there are certain actions that could be allowed now with the default role that we should probably bail on!
+            Runnable action = () -> {
                 if (lookedupBy != null) {
-                    throw new IllegalStateException("we could not lookup the user but created a realm reference");
+                    // the requested run as user does not exist, but we don't throw an error here otherwise this could let
+                    // information leak about users in the system... instead we'll just let the authz service fail throw an
+                    // authorization error
+                    if (lookedupBy != null) {
+                        throw new IllegalStateException("we could not lookup the user but created a realm reference");
+                    }
+                } else {
+                    userConsumer.accept(new User(user, new User(runAsUsername, Strings.EMPTY_ARRAY)));
                 }
-                user = new User(user.principal(), user.roles(), new User(runAsUsername, Strings.EMPTY_ARRAY));
+            };
+
+            try {
+                for (Realm realm : realms) {
+                    User runAsUser = lookupUser(realm, runAsUsername);
+                    if (runAsUser != null) {
+                        lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                        action = () -> userConsumer.accept(new User(user, runAsUser));
+                        break;
+                    }
+                }
             } catch (Exception e) {
-                logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage("run as failed for principal [{}], [{}], run as username [{}]",
-                                token.principal(),
-                                request,
-                                runAsUsername),
-                        e);
-                throw request.exceptionProcessingRequest(e, token);
+                action = () -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
             }
-            return user;
+
+            // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing when
+            // an exception bubbles up even after successful authentication
+            action.run();
         }
 
-        void checkIfUserIsDisabled(User user, AuthenticationToken token) {
-            if (user.enabled() == false || (user.runAs() != null && user.runAs().enabled() == false)) {
-                logger.debug("user [{}] is disabled. failing authentication", user);
-                throw request.authenticationFailed(token);
-            }
-        }
-
-        abstract class AuditableRequest {
-
-            abstract void realmAuthenticationFailed(AuthenticationToken token, String realm);
-
-            abstract ElasticsearchSecurityException tamperedRequest();
-
-            abstract ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token);
-
-            abstract ElasticsearchSecurityException authenticationFailed(AuthenticationToken token);
-
-            abstract ElasticsearchSecurityException anonymousAccessDenied();
-
-            abstract ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token);
-
-            abstract void authenticationSuccess(String realm, User user);
-        }
-
-        class Transport extends AuditableRequest {
-
-            private final String action;
-            private final TransportMessage message;
-
-            Transport(String action, TransportMessage message) {
-                this.action = action;
-                this.message = message;
-            }
-
-            @Override
-            void authenticationSuccess(String realm, User user) {
-                auditTrail.authenticationSuccess(realm, user, action, message);
-            }
-
-            @Override
-            void realmAuthenticationFailed(AuthenticationToken token, String realm) {
-                auditTrail.authenticationFailed(realm, token, action, message);
-            }
-
-            @Override
-            ElasticsearchSecurityException tamperedRequest() {
-                auditTrail.tamperedRequest(action, message);
-                return new ElasticsearchSecurityException("failed to verify signed authentication information");
-            }
-
-            @Override
-            ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token) {
-                if (token != null) {
-                    auditTrail.authenticationFailed(token, action, message);
-                } else {
-                    auditTrail.authenticationFailed(action, message);
+        /**
+         * Handles the interaction with the realm and trying to lookup a user. If a user is found, this method also creates the
+         * {@link RealmRef} that identifies the realm that looked up the user
+         */
+        private User lookupUser(Realm realm, String runAsUsername) {
+            User lookedUp = null;
+            if (realm.userLookupSupported()) {
+                lookedUp = realm.lookupUser(runAsUsername);
+                if (lookedUp != null) {
+                    lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
                 }
-                return failureHandler.exceptionProcessingRequest(message, action, e, threadContext);
             }
+            return lookedUp;
+        }
 
-            @Override
-            ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
+        /**
+         * Finishes the authentication process by ensuring the returned user is enabled and that the run as user is enabled if there is
+         * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
+         */
+        void finishAuthentication(User finalUser) {
+            if (finalUser.enabled() == false || (finalUser.runAs() != null && finalUser.runAs().enabled() == false)) {
+                logger.debug("user [{}] is disabled. failing authentication", finalUser);
+                listener.onFailure(request.authenticationFailed(authenticationToken));
+            } else {
+                request.authenticationSuccess(authenticatedBy.getName(), finalUser);
+                final Authentication finalAuth = new Authentication(finalUser, authenticatedBy, lookedupBy);
+                Runnable action = () -> listener.onResponse(finalAuth);
+                try {
+                    finalAuth.writeToContext(threadContext, cryptoService, signUserHeader);
+                } catch (Exception e) {
+                    action = () -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
+                }
+
+                // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing
+                // when an exception bubbles up even after successful authentication
+                action.run();
+            }
+        }
+    }
+
+    abstract static class AuditableRequest {
+
+        final AuditTrail auditTrail;
+        final AuthenticationFailureHandler failureHandler;
+        final ThreadContext threadContext;
+
+        AuditableRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext) {
+            this.auditTrail = auditTrail;
+            this.failureHandler = failureHandler;
+            this.threadContext = threadContext;
+        }
+
+        abstract void realmAuthenticationFailed(AuthenticationToken token, String realm);
+
+        abstract ElasticsearchSecurityException tamperedRequest();
+
+        abstract ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token);
+
+        abstract ElasticsearchSecurityException authenticationFailed(AuthenticationToken token);
+
+        abstract ElasticsearchSecurityException anonymousAccessDenied();
+
+        abstract ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token);
+
+        abstract void authenticationSuccess(String realm, User user);
+    }
+
+    static class AuditableTransportRequest extends AuditableRequest {
+
+        private final String action;
+        private final TransportMessage message;
+
+        AuditableTransportRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
+                                  String action, TransportMessage message) {
+            super(auditTrail, failureHandler, threadContext);
+            this.action = action;
+            this.message = message;
+        }
+
+        @Override
+        void authenticationSuccess(String realm, User user) {
+            auditTrail.authenticationSuccess(realm, user, action, message);
+        }
+
+        @Override
+        void realmAuthenticationFailed(AuthenticationToken token, String realm) {
+            auditTrail.authenticationFailed(realm, token, action, message);
+        }
+
+        @Override
+        ElasticsearchSecurityException tamperedRequest() {
+            auditTrail.tamperedRequest(action, message);
+            return new ElasticsearchSecurityException("failed to verify signed authentication information");
+        }
+
+        @Override
+        ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token) {
+            if (token != null) {
                 auditTrail.authenticationFailed(token, action, message);
-                return failureHandler.failedAuthentication(message, token, action, threadContext);
+            } else {
+                auditTrail.authenticationFailed(action, message);
             }
-
-            @Override
-            ElasticsearchSecurityException anonymousAccessDenied() {
-                auditTrail.anonymousAccessDenied(action, message);
-                return failureHandler.missingToken(message, action, threadContext);
-            }
-
-            @Override
-            ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token) {
-                auditTrail.runAsDenied(user, action, message);
-                return failureHandler.failedAuthentication(message, token, action, threadContext);
-            }
-
-            @Override
-            public String toString() {
-                return "transport request action [" + action + "]";
-            }
+            return failureHandler.exceptionProcessingRequest(message, action, e, threadContext);
         }
 
-        class Rest extends AuditableRequest {
+        @Override
+        ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
+            auditTrail.authenticationFailed(token, action, message);
+            return failureHandler.failedAuthentication(message, token, action, threadContext);
+        }
 
-            private final RestRequest request;
+        @Override
+        ElasticsearchSecurityException anonymousAccessDenied() {
+            auditTrail.anonymousAccessDenied(action, message);
+            return failureHandler.missingToken(message, action, threadContext);
+        }
 
-            Rest(RestRequest request) {
-                this.request = request;
-            }
+        @Override
+        ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token) {
+            auditTrail.runAsDenied(user, action, message);
+            return failureHandler.failedAuthentication(message, token, action, threadContext);
+        }
 
-            @Override
-            void authenticationSuccess(String realm, User user) {
-                auditTrail.authenticationSuccess(realm, user, request);
-            }
+        @Override
+        public String toString() {
+            return "transport request action [" + action + "]";
+        }
+    }
 
-            @Override
-            void realmAuthenticationFailed(AuthenticationToken token, String realm) {
-                auditTrail.authenticationFailed(realm, token, request);
-            }
+    static class AuditableRestRequest extends AuditableRequest {
 
-            @Override
-            ElasticsearchSecurityException tamperedRequest() {
-                auditTrail.tamperedRequest(request);
-                return new ElasticsearchSecurityException("rest request attempted to inject a user");
-            }
+        private final RestRequest request;
 
-            @Override
-            ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token) {
-                if (token != null) {
-                    auditTrail.authenticationFailed(token, request);
-                } else {
-                    auditTrail.authenticationFailed(request);
-                }
-                return failureHandler.exceptionProcessingRequest(request, e, threadContext);
-            }
+        AuditableRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
+                             RestRequest request) {
+            super(auditTrail, failureHandler, threadContext);
+            this.request = request;
+        }
 
-            @Override
-            ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
+        @Override
+        void authenticationSuccess(String realm, User user) {
+            auditTrail.authenticationSuccess(realm, user, request);
+        }
+
+        @Override
+        void realmAuthenticationFailed(AuthenticationToken token, String realm) {
+            auditTrail.authenticationFailed(realm, token, request);
+        }
+
+        @Override
+        ElasticsearchSecurityException tamperedRequest() {
+            auditTrail.tamperedRequest(request);
+            return new ElasticsearchSecurityException("rest request attempted to inject a user");
+        }
+
+        @Override
+        ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token) {
+            if (token != null) {
                 auditTrail.authenticationFailed(token, request);
-                return failureHandler.failedAuthentication(request, token, threadContext);
+            } else {
+                auditTrail.authenticationFailed(request);
             }
+            return failureHandler.exceptionProcessingRequest(request, e, threadContext);
+        }
 
-            @Override
-            ElasticsearchSecurityException anonymousAccessDenied() {
-                auditTrail.anonymousAccessDenied(request);
-                return failureHandler.missingToken(request, threadContext);
-            }
+        @Override
+        ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
+            auditTrail.authenticationFailed(token, request);
+            return failureHandler.failedAuthentication(request, token, threadContext);
+        }
 
-            @Override
-            ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token) {
-                auditTrail.runAsDenied(user, request);
-                return failureHandler.failedAuthentication(request, token, threadContext);
-            }
+        @Override
+        ElasticsearchSecurityException anonymousAccessDenied() {
+            auditTrail.anonymousAccessDenied(request);
+            return failureHandler.missingToken(request, threadContext);
+        }
 
-            @Override
-            public String toString() {
-                return "rest request uri [" + request.uri() + "]";
-            }
+        @Override
+        ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token) {
+            auditTrail.runAsDenied(user, request);
+            return failureHandler.failedAuthentication(request, token, threadContext);
+        }
+
+        @Override
+        public String toString() {
+            return "rest request uri [" + request.uri() + "]";
         }
     }
 

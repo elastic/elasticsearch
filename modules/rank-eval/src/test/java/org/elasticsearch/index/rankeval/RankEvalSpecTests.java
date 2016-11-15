@@ -98,7 +98,7 @@ public class RankEvalSpecTests extends ESTestCase {
         RankEvalSpec testItem = new RankEvalSpec(specs, metric);
 
         if (randomBoolean()) {
-            final Map<String, Object> params = randomBoolean() ? null : Collections.singletonMap("key", "value");
+            final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
             ScriptType scriptType = randomFrom(ScriptType.values());
             String script;
             if (scriptType == ScriptType.INLINE) {

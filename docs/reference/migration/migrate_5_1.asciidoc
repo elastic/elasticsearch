@@ -41,3 +41,15 @@ Plugging in a `UnicastHostsProvider` for zen discovery is now pull based. Implem
 ==== ZenPing and MasterElectService pluggability removed
 
 These classes are no longer pluggable. Either implement your own discovery, or extend from ZenDiscovery and customize as necessary.
+
+[[breaking_51_other_api_changes]]
+[float]
+=== Other API changes
+
+==== Indices stats and node stats API unrecognized metrics
+
+The indices stats and node stats APIs allow querying Elasticsearch for a variety of metrics. Previous versions of
+Elasticsearch would silently accept unrecognized metrics (e.g., typos like "transprot"). In 5.1.0, this is no longer
+the case; unrecognized metrics will cause the request to fail. There is one exception to this which is the percolate
+metric which was removed in 5.0.0 but requests for these will only produce a warning in the 5.x series starting with
+5.1.0 and will fail like any other unrecognized metric in 6.0.0.

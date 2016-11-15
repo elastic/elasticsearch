@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -75,6 +76,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
                 .put(settings)
                 .put(unicastSettings)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
+                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
                 .build();
     }
 
@@ -228,7 +230,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         // will elect itself as master. This is bad and should be fixed in core. What I think that should happen is that
         // if a node detects that is has lost a node, a node should clear its unicast temporal responses or at least
         // remove the node that has been removed. This is a workaround:
-        ZenPing zenPing = internalCluster().getInstance(TestZenDiscovery.class).getZenPing();
+        ZenPing zenPing = ((TestZenDiscovery)internalCluster().getInstance(Discovery.class)).getZenPing();
         if (zenPing instanceof UnicastZenPing) {
             ((UnicastZenPing) zenPing).clearTemporalResponses();
         }

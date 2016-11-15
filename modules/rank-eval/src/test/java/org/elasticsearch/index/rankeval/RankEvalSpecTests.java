@@ -112,7 +112,7 @@ public class RankEvalSpecTests extends ESTestCase {
                 script = randomAsciiOfLengthBetween(1, 5);
             }
 
-            testItem.setTemplate(new Script(scriptType, randomFrom("_lang1", "_lang2", null), script, params));
+            testItem.setTemplate(new Script(scriptType, randomFrom("_lang1", "_lang2"), script, params));
         }
 
         XContentBuilder shuffled = ESTestCase.shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));

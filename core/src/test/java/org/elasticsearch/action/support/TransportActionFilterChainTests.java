@@ -222,7 +222,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         RequestTestFilter testFilter = new RequestTestFilter(randomInt(), new RequestCallback() {
             @Override
-            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(Task task, String action, Request request,
                     ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
                 for (int i = 0; i <= additionalContinueCount; i++) {
                     actionFilterChain.proceed(task, action, request, listener);
@@ -349,7 +349,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+        public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
                 ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             this.runs.incrementAndGet();
             this.lastActionName = action;
@@ -382,7 +382,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+        public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
                 ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             chain.proceed(task, action, request, listener);
         }
@@ -400,7 +400,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
     private static enum RequestOperation implements RequestCallback {
         CONTINUE_PROCESSING {
             @Override
-            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(Task task, String action, Request request,
                     ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
                 actionFilterChain.proceed(task, action, request, listener);
             }
@@ -408,14 +408,14 @@ public class TransportActionFilterChainTests extends ESTestCase {
         LISTENER_RESPONSE {
             @Override
             @SuppressWarnings("unchecked")  // Safe because its all we test with
-            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(Task task, String action, Request request,
                     ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
                 ((ActionListener<TestResponse>) listener).onResponse(new TestResponse());
             }
         },
         LISTENER_FAILURE {
             @Override
-            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(Task task, String action, Request request,
                     ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
                 listener.onFailure(new ElasticsearchTimeoutException(""));
             }
@@ -448,7 +448,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
     }
 
     private interface RequestCallback {
-        <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+        <Request extends ActionRequest, Response extends ActionResponse> void execute(Task task, String action, Request request,
                 ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain);
     }
 
@@ -457,7 +457,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
                 ActionFilterChain<?, Response> chain);
     }
 
-    public static class TestRequest extends ActionRequest<TestRequest> {
+    public static class TestRequest extends ActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

@@ -93,7 +93,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionRequest<?> request, ActionListener<?> listener) {
+        protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
             if (blockedActions.contains(action)) {
                 throw new ElasticsearchException("force exception on [" + action + "]");
             }

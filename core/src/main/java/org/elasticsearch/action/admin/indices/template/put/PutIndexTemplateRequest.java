@@ -64,8 +64,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(PutIndexTemplateRequest.class));
 
-    public static final Version V_5_1_0 = Version.fromId(5010099);
-
     private String name;
 
     private String cause = "";
@@ -152,7 +150,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
-     * exists, it will fail with an {@link org.elasticsearch.indices.IndexTemplateAlreadyExistsException}.
+     * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateRequest create(boolean create) {
         this.create = create;
@@ -473,7 +471,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         cause = in.readString();
         name = in.readString();
 
-        if (in.getVersion().onOrAfter(V_5_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             indexPatterns = in.readList(StreamInput::readString);
         } else {
             indexPatterns = Collections.singletonList(in.readString());
@@ -503,7 +501,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(name);
-        if (out.getVersion().onOrAfter(V_5_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeStringList(indexPatterns);
         } else {
             out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");

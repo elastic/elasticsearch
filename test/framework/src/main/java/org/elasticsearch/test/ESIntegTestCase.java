@@ -119,7 +119,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.client.RandomizingClient;
-import org.elasticsearch.test.discovery.MockZenPing;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1805,10 +1805,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
-    protected boolean addMockZenPings() {
-        return true;
-    }
-
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -1846,9 +1842,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             mocks.add(MockTcpTransportPlugin.class);
         }
 
-        if (addMockZenPings()) {
-            mocks.add(MockZenPing.TestPlugin.class);
-        }
+        mocks.add(TestZenDiscovery.TestPlugin.class);
         mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
     }

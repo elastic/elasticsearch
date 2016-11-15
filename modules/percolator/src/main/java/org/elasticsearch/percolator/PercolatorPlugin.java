@@ -47,7 +47,7 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(PercolateAction.INSTANCE, TransportPercolateAction.class),
                 new ActionHandler<>(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class));
     }

@@ -49,7 +49,7 @@ import java.util.Objects;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public final class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
+public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private SearchType searchType = SearchType.DEFAULT;
 

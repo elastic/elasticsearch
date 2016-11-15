@@ -74,10 +74,10 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     @Override
     public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
-                                                              ClusterService clusterService, ZenPing zenPing) {
+                                                              ClusterService clusterService, UnicastHostsProvider hostsProvider) {
         // this is for backcompat with pre 5.1, where users would set discovery.type to use ec2 hosts provider
         return Collections.singletonMap(AZURE, () ->
-            new ZenDiscovery(settings, threadPool, transportService, clusterService, clusterService.getClusterSettings(), zenPing));
+            new ZenDiscovery(settings, threadPool, transportService, clusterService, hostsProvider));
     }
 
     @Override

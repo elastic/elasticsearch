@@ -13,7 +13,7 @@ True values::
 
     Anything that isn't false.
 
-deprecated[5.1.0 While Elasticsearch will currently accept the above values during index time. Searching a boolean field using these pseudo-boolean values is deprecated. Please use "true" or "false" instead.]
+deprecated[5.1.0,While Elasticsearch will currently accept the above values during index time. Searching a boolean field using these pseudo-boolean values is deprecated. Please use `true` or `false` instead.]
 
 For example:
 

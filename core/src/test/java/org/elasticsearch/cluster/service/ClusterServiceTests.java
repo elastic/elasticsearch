@@ -188,7 +188,8 @@ public class ClusterServiceTests extends ESTestCase {
         block.countDown();
         block2.await();
         synchronized (clusterService.updateTasksPerExecutor) {
-            assertTrue("expected empty map but was " + clusterService.updateTasksPerExecutor, clusterService.updateTasksPerExecutor.isEmpty());
+            assertTrue("expected empty map but was " + clusterService.updateTasksPerExecutor,
+                clusterService.updateTasksPerExecutor.isEmpty());
         }
     }
 

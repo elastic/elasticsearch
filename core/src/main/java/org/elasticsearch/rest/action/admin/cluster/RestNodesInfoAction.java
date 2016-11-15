@@ -55,7 +55,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
     public RestNodesInfoAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
         super(settings);
         controller.registerHandler(GET, "/_nodes", this);
-        // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
+        // this endpoint is used for metrics, not for node IDs, like /_nodes/fs
         controller.registerHandler(GET, "/_nodes/{nodeId}", this);
         controller.registerHandler(GET, "/_nodes/{nodeId}/{metrics}", this);
         // added this endpoint to be aligned with stats

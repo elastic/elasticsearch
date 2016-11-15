@@ -280,7 +280,7 @@ the current running process:
 	Size in bytes of virtual memory that is guaranteed to be available to the running process
 
 [float]
-[[indices-stats]]
+[[node-indices-stats]]
 === Indices statistics
 
 You can get information about indices stats on node level or on index level.

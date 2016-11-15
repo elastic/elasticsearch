@@ -253,6 +253,13 @@ public final class ThreadContext implements Closeable, Writeable {
         return threadLocal.get() == DEFAULT_CONTEXT;
     }
 
+    /**
+     * Returns <code>true</code> if the context is closed, otherwise <code>true</code>
+     */
+    boolean isClosed() {
+        return threadLocal.closed.get();
+    }
+
     @FunctionalInterface
     public interface StoredContext extends AutoCloseable {
         @Override

@@ -35,7 +35,7 @@ task createKey(type: LoggedExec) {
     project.delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
   }
-  executable = 'keytool'
+  executable = new File(project.javaHome, 'bin/keytool')
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
           '-alias', 'test-node',

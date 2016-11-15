@@ -23,6 +23,9 @@
 
 ---
 "Nodes stats unrecognized parameter":
+  - skip:
+      version: " - 5.0.99"
+      reason: awaits strict stats handling to be backported to 5.x
   - do:
       nodes.stats:
         metric: [ transprot ]

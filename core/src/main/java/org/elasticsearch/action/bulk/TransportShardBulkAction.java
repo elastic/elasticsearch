@@ -142,10 +142,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case INDEX:
                     final IndexRequest indexRequest = (IndexRequest) itemRequest;
                     Engine.IndexResult indexResult = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdatedAction);
-                    operationResult = indexResult;
-                    response = indexResult.hasFailure() ? null
-                            : new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(),
+                    if (indexResult.hasFailure()) {
+                        response = null;
+                    } else {
+                        // update the version on request so it will happen on the replicas
+                        final long version = indexResult.getVersion();
+                        indexRequest.version(version);
+                        indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
+                        response = new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(),
                                 indexResult.getVersion(), indexResult.isCreated());
+                    }
+                    operationResult = indexResult;
                     replicaRequest = request.items()[requestIndex];
                     break;
                 case UPDATE:
@@ -158,10 +166,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case DELETE:
                     final DeleteRequest deleteRequest = (DeleteRequest) itemRequest;
                     Engine.DeleteResult deleteResult = executeDeleteRequestOnPrimary(deleteRequest, primary);
-                    operationResult = deleteResult;
-                    response = deleteResult.hasFailure() ? null :
-                            new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(),
+                    if (deleteResult.hasFailure()) {
+                        response = null;
+                    } else {
+                        // update the request with the version so it will go to the replicas
+                        deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
+                        deleteRequest.version(deleteResult.getVersion());
+                        assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
+                        response = new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(),
                                 deleteResult.getVersion(), deleteResult.isFound());
+                    }
+                    operationResult = deleteResult;
                     replicaRequest = request.items()[requestIndex];
                     break;
                 default: throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
@@ -261,9 +276,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
                     indexRequest.process(mappingMd, allowIdGeneration, request.index());
                     updateOperationResult = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdatedAction);
+                    if (updateOperationResult.hasFailure() == false) {
+                        // update the version on request so it will happen on the replicas
+                        final long version = updateOperationResult.getVersion();
+                        indexRequest.version(version);
+                        indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
+                    }
                     break;
                 case DELETED:
-                    updateOperationResult = executeDeleteRequestOnPrimary(translate.action(), primary);
+                    DeleteRequest deleteRequest = translate.action();
+                    updateOperationResult = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                    if (updateOperationResult.hasFailure() == false) {
+                        // update the request with the version so it will go to the replicas
+                        deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
+                        deleteRequest.version(updateOperationResult.getVersion());
+                        assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
+                    }
                     break;
                 case NOOP:
                     primary.noopUpdate(updateRequest.type());

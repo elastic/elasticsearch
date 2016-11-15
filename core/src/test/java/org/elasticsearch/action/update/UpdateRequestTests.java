@@ -65,11 +65,11 @@ public class UpdateRequestTests extends ESTestCase {
                 .endObject());
         Script script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         Map<String, Object> params = script.getParams();
-        assertThat(params, nullValue());
+        assertThat(params, equalTo(Collections.emptyMap()));
 
         // simple verbose script
         request.fromXContent(XContentFactory.jsonBuilder().startObject()
@@ -77,11 +77,11 @@ public class UpdateRequestTests extends ESTestCase {
                 .endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
-        assertThat(params, nullValue());
+        assertThat(params, equalTo(Collections.emptyMap()));
 
         // script with params
         request = new UpdateRequest("test", "type", "1");
@@ -94,7 +94,7 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
@@ -108,7 +108,7 @@ public class UpdateRequestTests extends ESTestCase {
             .field("inline", "script1").endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
@@ -133,7 +133,7 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
@@ -160,7 +160,7 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getIdOrCode(), equalTo("script1"));
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
@@ -325,7 +325,7 @@ public class UpdateRequestTests extends ESTestCase {
         {
             UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
                 .upsert(indexRequest)
-                .script(new Script("ctx._source.update_timestamp = ctx._now", ScriptType.INLINE, "mock", Collections.emptyMap()))
+                .script(new Script(ScriptType.INLINE, "mock", "ctx._source.update_timestamp = ctx._now", Collections.emptyMap()))
                 .scriptedUpsert(true);
             long nowInMillis = randomPositiveLong();
             // We simulate that the document is not existing yet
@@ -339,7 +339,7 @@ public class UpdateRequestTests extends ESTestCase {
         {
             UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
                 .upsert(indexRequest)
-                .script(new Script("ctx._timestamp = ctx._now", ScriptType.INLINE, "mock", Collections.emptyMap()))
+                .script(new Script(ScriptType.INLINE, "mock", "ctx._timestamp = ctx._now", Collections.emptyMap()))
                 .scriptedUpsert(true);
             long nowInMillis = randomPositiveLong();
             // We simulate that the document is not existing yet

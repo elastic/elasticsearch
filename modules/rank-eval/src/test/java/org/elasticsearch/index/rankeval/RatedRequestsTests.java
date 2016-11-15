@@ -38,8 +38,8 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -86,7 +86,7 @@ public class RatedRequestsTests extends ESTestCase {
 
 
         if (randomBoolean()) {
-            Map<String, String> params = new HashMap<String, String>();
+            Map<String, Object> params = new HashMap<>();
             int randomSize = randomIntBetween(1, 10);
             for (int i = 0; i < randomSize; i++) {
                 params.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));

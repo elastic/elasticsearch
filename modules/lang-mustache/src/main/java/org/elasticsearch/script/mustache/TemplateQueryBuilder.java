@@ -39,6 +39,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -57,11 +58,12 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     private final Script template;
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params) {
-        this(new Script(template, scriptType, "mustache", params));
+        this(new Script(scriptType, "mustache", template, params));
     }
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        this(new Script(template, scriptType, "mustache", params, ct));
+        this(new Script(scriptType, "mustache", template,
+            ct == null ? Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()), params));
     }
 
     TemplateQueryBuilder(Script template) {

@@ -58,7 +58,8 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
-                .setQuery(scriptQuery(new Script(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, ScriptType.INLINE, "native", null)))
+                .setQuery(scriptQuery(
+                    new Script(ScriptType.INLINE, "native", NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, Collections.emptyMap())))
                 .execute().actionGet();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }

@@ -52,7 +52,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testPluginCantOverwriteBuiltinAction() {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
-            public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
                 return singletonList(new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class));
             }
         };
@@ -61,7 +61,7 @@ public class ActionModuleTests extends ESTestCase {
     }
 
     public void testPluginCanRegisterAction() {
-        class FakeRequest extends ActionRequest<FakeRequest> {
+        class FakeRequest extends ActionRequest {
             @Override
             public ActionRequestValidationException validate() {
                 return null;
@@ -90,7 +90,7 @@ public class ActionModuleTests extends ESTestCase {
         FakeAction action = new FakeAction();
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
-            public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
                 return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
             }
         };

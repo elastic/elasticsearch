@@ -93,7 +93,6 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
     private final IndexEventListener eventListener;
-    private final IndexAnalyzers indexAnalyzers;
     private final IndexFieldDataService indexFieldData;
     private final BitsetFilterCache bitsetFilterCache;
     private final NodeEnvironment nodeEnv;
@@ -142,12 +141,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         List<IndexingOperationListener> indexingOperationListeners) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
-        this.indexAnalyzers = registry.build(indexSettings);
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, indexAnalyzers, similarityService, mapperRegistry,
+        this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), similarityService, mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
             () -> newQueryShardContext(0, null, () -> {
-                throw new IllegalArgumentException("Percolator queries are not allowed to use the curent timestamp");
+                throw new IllegalArgumentException("Percolator queries are not allowed to use the current timestamp");
             }));
         this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
         this.shardStoreDeleter = shardStoreDeleter;
@@ -225,7 +223,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
-        return this.indexAnalyzers;
+        return this.mapperService.getIndexAnalyzers();
     }
 
     public MapperService mapperService() {
@@ -249,7 +247,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     }
                 }
             } finally {
-                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, indexAnalyzers, refreshTask, fsyncTask);
+                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, mapperService, refreshTask, fsyncTask);
             }
         }
     }
@@ -330,7 +328,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             if (shards.containsKey(shardId.id())) {
-                throw new IndexShardAlreadyExistsException(shardId + " already exists");
+                throw new IllegalStateException(shardId + " already exists");
             }
 
             logger.debug("creating shard_id {}", shardId);

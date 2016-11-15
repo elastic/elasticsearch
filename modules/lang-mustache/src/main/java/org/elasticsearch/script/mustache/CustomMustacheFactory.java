@@ -30,7 +30,6 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -54,6 +53,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     static final String CONTENT_TYPE_PARAM = "content_type";
 
+    static final String JSON_MIME_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MIME_TYPE = "application/json";
     static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
     static final String X_WWW_FORM_URLENCODED_MIME_TYPE = "application/x-www-form-urlencoded";
@@ -63,6 +63,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     private static final Map<String, Supplier<Encoder>> ENCODERS;
     static {
         Map<String, Supplier<Encoder>> encoders = new HashMap<>();
+        encoders.put(JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new);
         encoders.put(JSON_MIME_TYPE, JsonEscapeEncoder::new);
         encoders.put(PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new);
         encoders.put(X_WWW_FORM_URLENCODED_MIME_TYPE, UrlEncoder::new);

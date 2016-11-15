@@ -44,7 +44,7 @@ within automatically created indices:
 --------------------------------------------------
 PUT _template/logging
 {
-  "template":   "logs-*", <1>
+  "index_patterns":   ["logs-*"], <1>
   "settings": { "number_of_shards": 1 }, <2>
   "mappings": {
     "_default_": {

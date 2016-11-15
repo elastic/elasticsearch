@@ -48,7 +48,7 @@ public class ScriptProcessorTests extends ESTestCase {
         ScriptService scriptService = mock(ScriptService.class);
         Script script = new Script("_script");
         ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.executable(any(), any(), any())).thenReturn(executableScript);
+        when(scriptService.executable(any(Script.class), any())).thenReturn(executableScript);
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());

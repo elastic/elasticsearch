@@ -20,17 +20,11 @@ If you squashed the whole thing into one class it'd look like:
 
 [source,java]
 --------------------------------------------------
-public class MyNativeScriptPlugin extends Plugin {
+public class MyNativeScriptPlugin extends Plugin implements ScriptPlugin {
+
     @Override
-    public String name() {
-        return "my-native-script";
-    }
-    @Override
-    public String description() {
-        return "my native script that does something great";
-    }
-    public void onModule(ScriptModule scriptModule) {
-        scriptModule.registerScript("my_script", MyNativeScriptFactory.class);
+    public List<NativeScriptFactory> getNativeScripts() {
+        return Collections.singletonList(new MyNativeScriptFactory());
     }
 
     public static class MyNativeScriptFactory implements NativeScriptFactory {

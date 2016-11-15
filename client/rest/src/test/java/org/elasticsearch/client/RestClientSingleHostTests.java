@@ -139,6 +139,17 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
     }
 
+    public void testNullPath() throws IOException {
+        for (String method : getHttpMethods()) {
+            try {
+                restClient.performRequest(method, null);
+                fail("path set to null should fail!");
+            } catch (NullPointerException e) {
+                assertEquals("path must not be null", e.getMessage());
+            }
+        }
+    }
+
     /**
      * Verifies the content of the {@link HttpRequest} that's internally created and passed through to the http client
      */

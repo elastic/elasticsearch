@@ -35,11 +35,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Defines a QA specification: All end user supplied query intents will be mapped to the search request specified in this search request
@@ -57,7 +56,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
     /** Map of parameters to use for filling a query template, can be used instead of providing testRequest. */
-    private Map<String, String> params = new HashMap<>();
+    private Map<String, Object> params = new HashMap<>();
 
     public RatedRequest() {
         // ctor that doesn't require all args to be present immediatly is easier to use with ObjectParser
@@ -91,7 +90,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (int i = 0; i < intentSize; i++) {
             ratedDocs.add(new RatedDocument(in));
         }
-        this.params = (Map) in.readMap();
+        this.params = in.readMap();
         int summaryFieldsSize = in.readInt();
         summaryFields = new ArrayList<>(summaryFieldsSize);
         for (int i = 0; i < summaryFieldsSize; i++) {
@@ -115,7 +114,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (RatedDocument ratedDoc : ratedDocs) {
             ratedDoc.writeTo(out);
         }
-        out.writeMap((Map) params);
+        out.writeMap(params);
         out.writeInt(summaryFields.size());
         for (String fieldName : summaryFields) {
             out.writeString(fieldName);
@@ -176,12 +175,12 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         }
         this.ratedDocs = ratedDocs;
     }
-    
-    public void setParams(Map<String, String> params) {
+
+    public void setParams(Map<String, Object> params) {
         this.params = params;
     }
-    
-    public Map<String, String> getParams() {
+
+    public Map<String, Object> getParams() {
         return this.params;
     }
 
@@ -259,7 +258,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         if (testRequest != null)
             builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
         builder.startObject(PARAMS_FIELD.getPreferredName());
-        for (Entry<String, String> entry : this.params.entrySet()) {
+        for (Entry<String, Object> entry : this.params.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();

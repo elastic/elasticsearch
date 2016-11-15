@@ -270,6 +270,12 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         public Settings() {
         }
 
+        public Settings(Settings other) {
+            this.lenient = other.lenient;
+            this.analyzeWildcard = other.analyzeWildcard;
+            this.quoteFieldSuffix = other.quoteFieldSuffix;
+        }
+
         /** Specifies whether to use lenient parsing, defaults to false. */
         public void lenient(boolean lenient) {
             this.lenient = lenient;

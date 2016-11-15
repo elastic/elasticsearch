@@ -53,8 +53,7 @@ public class NativeScriptTests extends ESTestCase {
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
 
         ExecutableScript executable = scriptModule.getScriptService().executable(
-                new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), ScriptContext.Standard.SEARCH,
-                Collections.emptyMap());
+                new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", Collections.emptyMap()), ScriptContext.Standard.SEARCH);
         assertThat(executable.run().toString(), equalTo("test"));
     }
 
@@ -80,8 +79,8 @@ public class NativeScriptTests extends ESTestCase {
             scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
-                    Collections.emptyMap()), notNullValue());
+            assertThat(scriptService.compile(new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", Collections.emptyMap()),
+                scriptContext, Collections.emptyMap()), notNullValue());
         }
     }
 

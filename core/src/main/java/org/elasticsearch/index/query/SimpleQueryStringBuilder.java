@@ -106,6 +106,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
+    private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields");
 
     /** Query text to parse. */
     private final String queryText;
@@ -126,6 +127,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private String minimumShouldMatch;
     /** Any search flags to be used, ALL by default. */
     private int flags = DEFAULT_FLAGS;
+    /** Flag specifying whether query should be forced to expand to all searchable fields */
+    private Boolean useAllFields;
 
     /** Further search settings needed by the ES specific query string parser only. */
     private Settings settings = new Settings();
@@ -166,6 +169,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         minimumShouldMatch = in.readOptionalString();
         if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             settings.quoteFieldSuffix(in.readOptionalString());
+            useAllFields = in.readOptionalBoolean();
         }
     }
 
@@ -191,6 +195,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeOptionalString(minimumShouldMatch);
         if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
+            out.writeOptionalBoolean(useAllFields);
         }
     }
 
@@ -238,6 +243,15 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Returns the analyzer to use for the query. */
     public String analyzer() {
         return this.analyzer;
+    }
+
+    public Boolean useAllFields() {
+        return useAllFields;
+    }
+
+    public SimpleQueryStringBuilder useAllFields(Boolean useAllFields) {
+        this.useAllFields = useAllFields;
+        return this;
     }
 
     /**
@@ -341,17 +355,37 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // field names in builder can have wildcards etc, need to resolve them here
         Map<String, Float> resolvedFieldsAndWeights = new TreeMap<>();
-        // Use the default field if no fields specified
-        if (fieldsAndWeights.isEmpty()) {
-            resolvedFieldsAndWeights.put(resolveIndexName(context.defaultField(), context), AbstractQueryBuilder.DEFAULT_BOOST);
+
+        if ((useAllFields != null && useAllFields) && (fieldsAndWeights.size() != 0)) {
+            throw addValidationError("cannot use [all_fields] parameter in conjunction with [fields]", null);
+        }
+
+        // If explicitly required to use all fields, use all fields, OR:
+        // Automatically determine the fields (to replace the _all field) if all of the following are true:
+        // - The _all field is disabled,
+        // - and the default_field has not been changed in the settings
+        // - and no fields are specified in the request
+        Settings newSettings = new Settings(settings);
+        if ((this.useAllFields != null && this.useAllFields) ||
+                (context.getMapperService().allEnabled() == false &&
+                        "_all".equals(context.defaultField()) &&
+                        this.fieldsAndWeights.isEmpty())) {
+            resolvedFieldsAndWeights = QueryStringQueryBuilder.allQueryableDefaultFields(context);
+            // Need to use lenient mode when using "all-mode" so exceptions aren't thrown due to mismatched types
+            newSettings.lenient(true);
         } else {
-            for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
-                if (Regex.isSimpleMatchPattern(fieldEntry.getKey())) {
-                    for (String fieldName : context.getMapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
-                        resolvedFieldsAndWeights.put(fieldName, fieldEntry.getValue());
+            // Use the default field if no fields specified
+            if (fieldsAndWeights.isEmpty()) {
+                resolvedFieldsAndWeights.put(resolveIndexName(context.defaultField(), context), AbstractQueryBuilder.DEFAULT_BOOST);
+            } else {
+                for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
+                    if (Regex.isSimpleMatchPattern(fieldEntry.getKey())) {
+                        for (String fieldName : context.getMapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
+                            resolvedFieldsAndWeights.put(fieldName, fieldEntry.getValue());
+                        }
+                    } else {
+                        resolvedFieldsAndWeights.put(resolveIndexName(fieldEntry.getKey(), context), fieldEntry.getValue());
                     }
-                } else {
-                    resolvedFieldsAndWeights.put(resolveIndexName(fieldEntry.getKey(), context), fieldEntry.getValue());
                 }
             }
         }
@@ -369,7 +403,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         }
 
-        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, settings, context);
+        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
@@ -419,6 +453,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
+        if (useAllFields != null) {
+            builder.field(ALL_FIELDS_FIELD.getPreferredName(), useAllFields);
+        }
 
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -439,6 +476,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         String quoteFieldSuffix = null;
+        Boolean useAllFields = null;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -502,6 +540,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     minimumShouldMatch = parser.textOrNull();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, QUOTE_FIELD_SUFFIX_FIELD)) {
                     quoteFieldSuffix = parser.textOrNull();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ALL_FIELDS_FIELD)) {
+                    useAllFields = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
                             "] unsupported field [" + parser.currentName() + "]");
@@ -517,10 +557,16 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
         }
 
+        if ((useAllFields != null && useAllFields) && (fieldsAndWeights.size() != 0)) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "cannot use [all_fields] parameter in conjunction with [fields]");
+        }
+
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
         qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
         qb.flags(flags).defaultOperator(defaultOperator);
         qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
+        qb.useAllFields(useAllFields);
         return Optional.of(qb);
     }
 
@@ -531,7 +577,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags);
+        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags, useAllFields);
     }
 
     @Override
@@ -539,7 +585,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return Objects.equals(fieldsAndWeights, other.fieldsAndWeights) && Objects.equals(analyzer, other.analyzer)
                 && Objects.equals(defaultOperator, other.defaultOperator) && Objects.equals(queryText, other.queryText)
                 && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
-                && Objects.equals(settings, other.settings) && (flags == other.flags);
+                && Objects.equals(settings, other.settings)
+                && (flags == other.flags)
+                && (useAllFields == other.useAllFields);
     }
 }
-

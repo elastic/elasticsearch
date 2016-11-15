@@ -124,9 +124,10 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
         }
 
         protected void doStart() {
-            nodes = observer.observedState().nodes();
+            final ClusterState clusterState = observer.observedState().getClusterState();
+            nodes = clusterState.nodes();
             try {
-                ClusterBlockException blockException = checkGlobalBlock(observer.observedState());
+                ClusterBlockException blockException = checkGlobalBlock(clusterState);
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -135,9 +136,9 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
-                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), request).getName());
-                resolveRequest(observer.observedState(), request);
-                blockException = checkRequestBlock(observer.observedState(), request);
+                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName());
+                resolveRequest(clusterState, request);
+                blockException = checkRequestBlock(clusterState, request);
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -146,7 +147,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
-                shardIt = shards(observer.observedState(), request);
+                shardIt = shards(clusterState, request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;

@@ -39,7 +39,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
-        extends ActionRequest<Self> {
+        extends ActionRequest {
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
     private static final int DEFAULT_SCROLL_SIZE = 1000;
@@ -424,7 +424,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             out.writeVInt(slices);
         } else {
             if (slices > 1) {
-                throw new UnsupportedOperationException("Attempting to send sliced reindex-style request to a node that doesn't support "
+                throw new IllegalArgumentException("Attempting to send sliced reindex-style request to a node that doesn't support "
                         + "it. Version is [" + out.getVersion() + "] but must be [" + BulkByScrollTask.V_5_1_0_UNRELEASED + "]");
             }
         }

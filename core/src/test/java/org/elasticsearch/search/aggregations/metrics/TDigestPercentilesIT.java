@@ -226,7 +226,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentiles("percentiles"))
                                     .field("value")
-                                    .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
                                     .percentiles(pcts))
                 .execute().actionGet();
 
@@ -247,7 +247,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentiles("percentiles"))
                                     .field("value")
-                                    .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                 .percentiles(pcts))
                 .execute().actionGet();
 
@@ -280,7 +280,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentiles("percentiles"))
                                     .field("values")
-                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
                                 .percentiles(pcts))
                 .execute().actionGet();
 
@@ -298,7 +298,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentiles("percentiles"))
                                     .field("values")
-                                    .script(new Script("_value * -1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value * -1", emptyMap()))
                                     .percentiles(pcts))
                 .execute().actionGet();
 
@@ -319,7 +319,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentiles("percentiles"))
                                     .field("values")
-                                    .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                     .percentiles(pcts))
                 .execute().actionGet();
 
@@ -331,7 +331,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptSingleValued() throws Exception {
-        Script script = new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap());
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -353,7 +353,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("doc['value'].value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value - dec", params);
 
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -374,7 +374,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
     @Override
     public void testScriptMultiValued() throws Exception {
         final double[] pcts = randomPercentiles();
-        Script script = new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -488,7 +488,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(percentiles("foo").field("d")
-                .percentiles(50.0).script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                .percentiles(50.0).script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap())))
                 .get();
         assertSearchResponse(r);
 

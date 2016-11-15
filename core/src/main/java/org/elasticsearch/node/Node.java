@@ -19,10 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
@@ -35,9 +32,11 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -307,6 +306,7 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            client = new NodeClient(settings, threadPool);
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             final ScriptModule scriptModule = ScriptModule.create(settings, this.environment, resourceWatcherService,
                 pluginsService.filterPlugins(ScriptPlugin.class));
@@ -327,6 +327,7 @@ public class Node implements Closeable {
             resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
+            final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
@@ -362,7 +363,6 @@ public class Node implements Closeable {
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
-            client = new NodeClient(settings, threadPool);
             final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment,
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
@@ -397,10 +397,9 @@ public class Node implements Closeable {
                     b.bind(HttpServer.class).toProvider(Providers.of(null));
                 };
             }
-            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, transportService, networkService,
-                pluginsService.filterPlugins(DiscoveryPlugin.class));
-            final ZenPing zenPing = newZenPing(settings, threadPool, transportService, discoveryModule.getHostsProvider());
-            modules.add(discoveryModule);
+
+            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
+                networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
             pluginsService.processModules(modules);
             modules.add(b -> {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
@@ -432,7 +431,8 @@ public class Node implements Closeable {
                     b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
                     b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
                         indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
-                    b.bind(ZenPing.class).toInstance(zenPing);
+                    b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
+                    b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {
                         RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
@@ -590,7 +590,7 @@ public class Node implements Closeable {
         if (DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
-            if (observer.observedState().nodes().getMasterNodeId() == null) {
+            if (observer.observedState().getClusterState().nodes().getMasterNodeId() == null) {
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -623,7 +623,6 @@ public class Node implements Closeable {
 
         // start nodes now, after the http server, because it may take some time
         tribeService.startNodes();
-
 
         if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
@@ -765,24 +764,6 @@ public class Node implements Closeable {
         }
         IOUtils.close(toClose);
         logger.info("closed");
-
-        final String log4jShutdownEnabled = System.getProperty("es.log4j.shutdownEnabled", "true");
-        final boolean shutdownEnabled;
-        switch (log4jShutdownEnabled) {
-            case "true":
-                shutdownEnabled = true;
-                break;
-            case "false":
-                shutdownEnabled = false;
-                break;
-            default:
-                throw new IllegalArgumentException(
-                        "invalid value for [es.log4j.shutdownEnabled], was [" + log4jShutdownEnabled + "] but must be [true] or [false]");
-        }
-        if (shutdownEnabled) {
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-        }
     }
 
 
@@ -890,14 +871,14 @@ public class Node implements Closeable {
         return customNameResolvers;
     }
 
-    /** Create a new ZenPing instance for use in zen discovery. */
-    protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                 UnicastHostsProvider hostsProvider) {
-        return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
-    }
-
     /** Constructs an internal node used as a client into a cluster fronted by this tribe node. */
     protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
         return new Node(new Environment(settings), classpathPlugins);
+    }
+
+    /** Constructs a ClusterInfoService which may be mocked for tests. */
+    protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
+                                                       ThreadPool threadPool, NodeClient client) {
+        return new InternalClusterInfoService(settings, clusterService, threadPool, client);
     }
 }

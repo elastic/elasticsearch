@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterServiceState;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -69,14 +70,14 @@ public class ActiveShardsObserver extends AbstractComponent {
         }
 
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-        if (activeShardCount.enoughShardsActive(observer.observedState(), indexName)) {
+        if (activeShardCount.enoughShardsActive(observer.observedState().getClusterState(), indexName)) {
                 onResult.accept(true);
         } else {
             final ClusterStateObserver.ChangePredicate shardsAllocatedPredicate =
                 new ClusterStateObserver.ValidationPredicate() {
                     @Override
-                    protected boolean validate(final ClusterState newState) {
-                        return activeShardCount.enoughShardsActive(newState, indexName);
+                    protected boolean validate(final ClusterServiceState newState) {
+                        return activeShardCount.enoughShardsActive(newState.getClusterState(), indexName);
                     }
                 };
 

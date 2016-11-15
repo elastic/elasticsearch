@@ -31,14 +31,19 @@ import java.io.IOException;
  * Instances of this class represent a complete precision at request. They encode a precision task including search intents and search
  * specifications to be executed subsequently.
  * */
-public class RankEvalRequest extends ActionRequest<RankEvalRequest> {
+public class RankEvalRequest extends ActionRequest {
 
     /** The request data to use for evaluation. */
     private RankEvalSpec task;
 
     @Override
     public ActionRequestValidationException validate() {
-        return null; // TODO
+        ActionRequestValidationException e = null;
+        if (task == null) {
+            e = new ActionRequestValidationException();
+            e.addValidationError("missing ranking evaluation specification");
+        }
+        return null;
     }
 
     /**

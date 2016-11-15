@@ -18,24 +18,19 @@
  */
 package org.elasticsearch.test.discovery;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.PingContextProvider;
-import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.discovery.zen.PingContextProvider;
+import org.elasticsearch.discovery.zen.ZenPing;
 
 /**
  * A {@link ZenPing} implementation which returns results based on an static in-memory map. This allows pinging
@@ -43,14 +38,10 @@ import java.util.stream.Collectors;
  */
 public final class MockZenPing extends AbstractComponent implements ZenPing {
 
-    /** A marker plugin used by {@link org.elasticsearch.node.MockNode} to indicate this mock zen ping should be used. */
-    public static class TestPlugin extends Plugin {}
-
     static final Map<ClusterName, Set<MockZenPing>> activeNodesPerCluster = ConcurrentCollections.newConcurrentMap();
 
     private volatile PingContextProvider contextProvider;
 
-    @Inject
     public MockZenPing(Settings settings) {
         super(settings);
     }

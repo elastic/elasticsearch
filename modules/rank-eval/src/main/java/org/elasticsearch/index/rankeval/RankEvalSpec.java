@@ -39,8 +39,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This class defines a ranking evaluation task including an id, a collection of queries to evaluate and the evaluation metric.
@@ -113,12 +113,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     public void setSpecifications(Collection<RatedRequest> specifications) {
         this.ratedRequests = specifications;
     }
-    
+
     /** Set the template to base test requests on. */
     public void setTemplate(Script script) {
         this.template = script;
     }
-    
+
     /** Returns the template to base test requests on. */
     public Script getTemplate() {
         return this.template;
@@ -138,7 +138,11 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             }
         } , METRIC_FIELD);
         PARSER.declareObject(RankEvalSpec::setTemplate, (p, c) -> {
+            try {
                 return Script.parse(p, c.getParseFieldMatcher(), "mustache");
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
         }, TEMPLATE_FIELD);
         PARSER.declareObjectArray(RankEvalSpec::setSpecifications, (p, c) -> {
             try {
@@ -154,30 +158,20 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
 
         if (templated) {
             for (RatedRequest query_spec : spec.getSpecifications()) {
-                Map<String, String> params = query_spec.getParams();
-                Script scriptWithParams = new Script(spec.template.getScript(), spec.template.getType(), spec.template.getLang(), params);
-                String resolvedRequest = 
-                        ((BytesReference) 
-                                (context.getScriptService().executable(scriptWithParams, ScriptContext.Standard.SEARCH, params)
-                                        .run()))
-                        .utf8ToString();
+                Map<String, Object> params = query_spec.getParams();
+                Script scriptWithParams = new Script(spec.template.getType(), spec.template.getLang(), spec.template.getIdOrCode(), params);
+                String resolvedRequest = ((BytesReference) (context.getScriptService()
+                        .executable(scriptWithParams, ScriptContext.Standard.SEARCH).run())).utf8ToString();
                 try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
-                    QueryParseContext parseContext =
-                            new QueryParseContext(
-                                    context.getSearchRequestParsers().queryParsers, 
-                                    subParser, 
-                                    context.getParseFieldMatcher());
-                    SearchSourceBuilder templateResult = 
-                            SearchSourceBuilder.fromXContent(
-                                    parseContext,
-                                    context.getAggs(),
-                                    context.getSuggesters(),
-                                    context.getSearchExtParsers());
+                    QueryParseContext parseContext = new QueryParseContext(context.getSearchRequestParsers().queryParsers, subParser,
+                            context.getParseFieldMatcher());
+                    SearchSourceBuilder templateResult = SearchSourceBuilder.fromXContent(parseContext, context.getAggs(),
+                            context.getSuggesters(), context.getSearchExtParsers());
                     query_spec.setTestRequest(templateResult);
                 }
             }
         }
-        return spec; 
+        return spec;
     }
 
     @Override

@@ -592,12 +592,15 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, Collections.singletonList(nonOracleCheck), "testG1GCCheck");
 
         final BootstrapCheck.G1GCCheck nonJava8Check = new BootstrapCheck.G1GCCheck() {
+
             @Override
             boolean isJava8() {
                 return false;
             }
+
         };
-        // if not java 8, nothing should happen
+
+        // if not Java 8, nothing should happen
         BootstrapCheck.check(true, Collections.singletonList(nonJava8Check), "testG1GCCheck");
     }
 

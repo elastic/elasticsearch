@@ -48,11 +48,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * We enforce limits once any network host is configured. In this case we assume the node is running in production
- * and all production limit checks must pass. This should be extended as we go to settings like:
- * - discovery.zen.ping.unicast.hosts is set if we use zen disco
- * - ensure we can write in all data directories
- * - fail if the default cluster.name is used, if this is setup on network a real clustername should be used?
+ * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface. In this case we assume the node is
+ * running in production and all bootstrap checks must pass.
  */
 final class BootstrapCheck {
 
@@ -60,8 +57,7 @@ final class BootstrapCheck {
     }
 
     /**
-     * checks the current limits against the snapshot or release build
-     * checks
+     * Executes the bootstrap checks if the node has the transport protocol bound to a non-loopback interface.
      *
      * @param settings              the current node settings
      * @param boundTransportAddress the node network bindings
@@ -74,15 +70,12 @@ final class BootstrapCheck {
     }
 
     /**
-     * executes the provided checks and fails the node if
-     * enforceLimits is true, otherwise logs warnings
+     * Executes the provided checks and fails the node if {@code enforceLimits} is {@code true}, otherwise logs warnings.
      *
-     * @param enforceLimits      true if the checks should be enforced or
-     *                           otherwise warned
-     * @param checks             the checks to execute
-     * @param nodeName           the node name to be used as a logging prefix
+     * @param enforceLimits {@code true} if the checks should be enforced or otherwise warned
+     * @param checks        the checks to execute
+     * @param nodeName      the node name to be used as a logging prefix
      */
-    // visible for testing
     static void check(
         final boolean enforceLimits,
         final List<Check> checks,
@@ -91,13 +84,11 @@ final class BootstrapCheck {
     }
 
     /**
-     * executes the provided checks and fails the node if
-     * enforceLimits is true, otherwise logs warnings
+     * Executes the provided checks and fails the node if {@code enforceLimits} is {@code true}, otherwise logs warnings.
      *
-     * @param enforceLimits      true if the checks should be enforced or
-     *                           otherwise warned
-     * @param checks             the checks to execute
-     * @param logger             the logger to
+     * @param enforceLimits {@code true} if the checks should be enforced or otherwise warned
+     * @param checks        the checks to execute
+     * @param logger        the logger to
      */
     static void check(
             final boolean enforceLimits,
@@ -140,12 +131,11 @@ final class BootstrapCheck {
     }
 
     /**
-     * Tests if the checks should be enforced
+     * Tests if the checks should be enforced.
      *
      * @param boundTransportAddress the node network bindings
-     * @return true if the checks should be enforced
+     * @return {@code true} if the checks should be enforced
      */
-    // visible for testing
     static boolean enforceLimits(BoundTransportAddress boundTransportAddress) {
         Predicate<TransportAddress> isLoopbackOrLinkLocalAddress = t -> t.address().getAddress().isLinkLocalAddress()
             || t.address().getAddress().isLoopbackAddress();
@@ -179,19 +169,19 @@ final class BootstrapCheck {
     }
 
     /**
-     * Encapsulates a limit check
+     * Encapsulates a bootstrap check.
      */
     interface Check {
 
         /**
-         * test if the node fails the check
+         * Test if the node fails the check.
          *
-         * @return true if the node failed the check
+         * @return {@code true} if the node failed the check
          */
         boolean check();
 
         /**
-         * the message for a failed check
+         * The error message for a failed check.
          *
          * @return the error message on check failure
          */
@@ -271,7 +261,7 @@ final class BootstrapCheck {
         public final String errorMessage() {
             return String.format(
                 Locale.ROOT,
-                "max file descriptors [%d] for elasticsearch process likely too low, increase to at least [%d]",
+                "max file descriptors [%d] for elasticsearch process is too low, increase to at least [%d]",
                 getMaxFileDescriptorCount(),
                 limit
             );
@@ -323,7 +313,7 @@ final class BootstrapCheck {
         public String errorMessage() {
             return String.format(
                 Locale.ROOT,
-                "max number of threads [%d] for user [%s] likely too low, increase to at least [%d]",
+                "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
                 getMaxNumberOfThreads(),
                 BootstrapInfo.getSystemProperties().get("user.name"),
                 maxNumberOfThreadsThreshold);
@@ -347,7 +337,7 @@ final class BootstrapCheck {
         public String errorMessage() {
             return String.format(
                 Locale.ROOT,
-                "max size virtual memory [%d] for user [%s] likely too low, increase to [unlimited]",
+                "max size virtual memory [%d] for user [%s] is too low, increase to [unlimited]",
                 getMaxSizeVirtualMemory(),
                 BootstrapInfo.getSystemProperties().get("user.name"));
         }
@@ -377,7 +367,7 @@ final class BootstrapCheck {
         public String errorMessage() {
             return String.format(
                     Locale.ROOT,
-                    "max virtual memory areas vm.max_map_count [%d] likely too low, increase to at least [%d]",
+                    "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
                     getMaxMapCount(),
                     limit);
         }
@@ -561,12 +551,14 @@ final class BootstrapCheck {
         public boolean check() {
             if ("Oracle Corporation".equals(jvmVendor()) && isJava8() && isG1GCEnabled()) {
                 final String jvmVersion = jvmVersion();
+                // HotSpot versions on Java 8 match this regular expression; note that this changes with Java 9 after JEP-223
                 final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)-b\\d+");
                 final Matcher matcher = pattern.matcher(jvmVersion);
                 final boolean matches = matcher.matches();
                 assert matches : jvmVersion;
                 final int major = Integer.parseInt(matcher.group(1));
                 final int update = Integer.parseInt(matcher.group(2));
+                // HotSpot versions for Java 8 have major version 25, the bad versions are all versions prior to update 40
                 return major == 25 && update < 40;
             } else {
                 return false;
@@ -590,9 +582,10 @@ final class BootstrapCheck {
             return Constants.JVM_VERSION;
         }
 
-        // visible for tests
+        // visible for testing
         boolean isJava8() {
-            return Constants.JVM_SPEC_VERSION.equals("1.8");
+            assert "Oracle Corporation".equals(jvmVendor());
+            return JavaVersion.current().equals(JavaVersion.parse("1.8"));
         }
 
         @Override

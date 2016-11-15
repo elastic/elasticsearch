@@ -20,7 +20,6 @@
 package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
@@ -431,6 +430,21 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
+     * This *should not* be used for document parsing. Doing so will result in an exception.
+     *
+     * Note: the returned {@link MapperService} should be closed when unneeded.
+     */
+    public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
+        final Index index = indexMetaData.getIndex();
+        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
+        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
+        pluginsService.onIndexModule(indexModule);
+        return indexModule.newIndexMapperService(mapperRegistry);
+    }
+
+    /**
      * This method verifies that the given {@code metaData} holds sane values to create an {@link IndexService}.
      * This method tries to update the meta data of the created {@link IndexService} if the given {@code metaDataUpdate} is different from the given {@code metaData}.
      * This method will throw an exception if the creation or the update fails.
@@ -703,8 +717,9 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexMetaData metaData = clusterState.getMetaData().indices().get(shardId.getIndexName());
 
         final IndexSettings indexSettings = buildIndexSettings(metaData);
-        if (canDeleteShardContent(shardId, indexSettings) == false) {
-            throw new IllegalStateException("Can't delete shard " + shardId);
+        ShardDeletionCheckResult shardDeletionCheckResult = canDeleteShardContent(shardId, indexSettings);
+        if (shardDeletionCheckResult != ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE) {
+            throw new IllegalStateException("Can't delete shard " + shardId + " (cause: " + shardDeletionCheckResult + ")");
         }
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
@@ -785,39 +800,50 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns <code>true</code> iff the shards content for the given shard can be deleted.
-     * This method will return <code>false</code> if:
-     * <ul>
-     *     <li>if the shard is still allocated / active on this node</li>
-     *     <li>if for instance if the shard is located on shared and should not be deleted</li>
-     *     <li>if the shards data locations do not exists</li>
-     * </ul>
+     * result type returned by {@link #canDeleteShardContent signaling different reasons why a shard can / cannot be deleted}
+     */
+    public enum ShardDeletionCheckResult {
+        FOLDER_FOUND_CAN_DELETE, // shard data exists and can be deleted
+        STILL_ALLOCATED, // the shard is still allocated / active on this node
+        NO_FOLDER_FOUND, // the shards data locations do not exist
+        SHARED_FILE_SYSTEM, // the shard is located on shared and should not be deleted
+        NO_LOCAL_STORAGE // node does not have local storage (see DiscoveryNode.nodeRequiresLocalStorage)
+    }
+
+    /**
+     * Returns <code>ShardDeletionCheckResult</code> signaling whether the shards content for the given shard can be deleted.
      *
      * @param shardId the shard to delete.
      * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
-    public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
+    public ShardDeletionCheckResult canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
         assert shardId.getIndex().equals(indexSettings.getIndex());
         final IndexService indexService = indexService(shardId.getIndex());
         if (indexSettings.isOnSharedFilesystem() == false) {
            if (nodeEnv.hasNodeFile()) {
                 final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
                 if (isAllocated) {
-                    return false; // we are allocated - can't delete the shard
+                    return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
                 } else if (indexSettings.hasCustomDataPath()) {
                     // lets see if it's on a custom path (return false if the shared doesn't exist)
                     // we don't need to delete anything that is not there
-                    return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId));
+                    return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId)) ?
+                        ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
+                        ShardDeletionCheckResult.NO_FOLDER_FOUND;
                 } else {
                     // lets see if it's path is available (return false if the shared doesn't exist)
                     // we don't need to delete anything that is not there
-                    return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId));
+                    return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
+                        ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
+                        ShardDeletionCheckResult.NO_FOLDER_FOUND;
                 }
-            }
+            } else {
+               return ShardDeletionCheckResult.NO_LOCAL_STORAGE;
+           }
         } else {
             logger.trace("{} skipping shard directory deletion due to shadow replicas", shardId);
+            return ShardDeletionCheckResult.SHARED_FILE_SYSTEM;
         }
-        return false;
     }
 
     private IndexSettings buildIndexSettings(IndexMetaData metaData) {
@@ -1126,7 +1152,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public void loadIntoContext(ShardSearchRequest request, SearchContext context, QueryPhase queryPhase) throws Exception {
         assert canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
-        
+
         boolean[] loadedFromCache = new boolean[] { true };
         BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
             queryPhase.execute(context);

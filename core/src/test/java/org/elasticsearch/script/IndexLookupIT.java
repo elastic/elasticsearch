@@ -683,7 +683,7 @@ public class IndexLookupIT extends ESIntegTestCase {
     }
 
     private Script createScript(String script) {
-        return new Script(script, ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        return new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, script, Collections.emptyMap());
     }
 
     public void testFlags() throws Exception {

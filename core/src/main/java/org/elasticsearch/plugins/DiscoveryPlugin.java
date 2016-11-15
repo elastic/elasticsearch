@@ -23,9 +23,13 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
@@ -42,6 +46,24 @@ import org.elasticsearch.transport.TransportService;
  * }</pre>
  */
 public interface DiscoveryPlugin {
+
+    /**
+     * Returns custom discovery implementations added by this plugin.
+     *
+     * The key of the returned map is the name of the discovery implementation
+     * (see {@link org.elasticsearch.discovery.DiscoveryModule#DISCOVERY_TYPE_SETTING}, and
+     * the value is a supplier to construct the {@link Discovery}.
+     *
+     * @param threadPool Use to schedule ping actions
+     * @param transportService Use to communicate with other nodes
+     * @param clusterService Use to find current nodes in the cluster
+     * @param hostsProvider Use to find configured hosts which should be pinged for initial discovery
+     */
+    default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
+                                                               ClusterService clusterService, UnicastHostsProvider hostsProvider) {
+        return Collections.emptyMap();
+    }
+
     /**
      * Override to add additional {@link NetworkService.CustomNameResolver}s.
      * This can be handy if you want to provide your own Network interface name like _mycard_

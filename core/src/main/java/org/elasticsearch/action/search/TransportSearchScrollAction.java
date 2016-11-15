@@ -50,9 +50,8 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = new SearchTransportService(settings, transportService);
-        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService, clusterService);
+        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService);
     }
-
 
     @Override
     protected final void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {

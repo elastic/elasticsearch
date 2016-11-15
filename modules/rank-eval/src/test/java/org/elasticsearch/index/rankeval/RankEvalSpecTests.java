@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
@@ -113,12 +112,7 @@ public class RankEvalSpecTests extends ESTestCase {
                 script = randomAsciiOfLengthBetween(1, 5);
             }
 
-            testItem.setTemplate(new Script(
-                        script,
-                        scriptType,
-                        randomFrom("_lang1", "_lang2", null),
-                        params,
-                        scriptType == ScriptType.INLINE ? XContentType.JSON : null));
+            testItem.setTemplate(new Script(scriptType, randomFrom("_lang1", "_lang2", null), script, params));
         }
 
         XContentBuilder shuffled = ESTestCase.shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));

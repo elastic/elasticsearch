@@ -29,29 +29,33 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceImpl;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public static final String AZURE = "azure";
     protected final Settings settings;
-    protected final Logger logger = Loggers.getLogger(AzureDiscoveryPlugin.class);
+    private static final Logger logger = Loggers.getLogger(AzureDiscoveryPlugin.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public AzureDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
         deprecationLogger.deprecated("azure classic discovery plugin is deprecated. Use azure arm discovery plugin instead");
         logger.trace("starting azure classic discovery plugin...");
     }
@@ -68,10 +72,12 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
             () -> new AzureUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
     }
 
-    public void onModule(DiscoveryModule discoveryModule) {
-        if (isDiscoveryReady(settings, logger)) {
-            discoveryModule.addDiscoveryType(AZURE, ZenDiscovery.class);
-        }
+    @Override
+    public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
+                                                              ClusterService clusterService, UnicastHostsProvider hostsProvider) {
+        // this is for backcompat with pre 5.1, where users would set discovery.type to use ec2 hosts provider
+        return Collections.singletonMap(AZURE, () ->
+            new ZenDiscovery(settings, threadPool, transportService, clusterService, hostsProvider));
     }
 
     @Override
@@ -88,36 +94,19 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
                             AzureComputeService.Discovery.ENDPOINT_NAME_SETTING);
     }
 
-    /**
-     * Check if discovery is meant to start
-     * @return true if we can start discovery features
-     */
-    private static boolean isDiscoveryReady(Settings settings, Logger logger) {
-        // User set discovery.type: azure
-        if (!AzureDiscoveryPlugin.AZURE.equalsIgnoreCase(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
-            logger.trace("discovery.type not set to {}", AzureDiscoveryPlugin.AZURE);
-            return false;
+    @Override
+    public Settings additionalSettings() {
+        // For 5.0, the hosts provider was "zen", but this was before the discovery.zen.hosts_provider
+        // setting existed. This check looks for the legacy setting, and sets hosts provider if set
+        String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
+        if (discoveryType.equals(AZURE)) {
+            deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
+                " setting to set hosts provider is deprecated. " +
+                "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + AZURE + "\" instead");
+            if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
+                return Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), AZURE).build();
+            }
         }
-
-        if (isDefined(settings, AzureComputeService.Management.SUBSCRIPTION_ID_SETTING) &&
-            isDefined(settings, AzureComputeService.Management.SERVICE_NAME_SETTING) &&
-            isDefined(settings, AzureComputeService.Management.KEYSTORE_PATH_SETTING) &&
-            isDefined(settings, AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING)) {
-            logger.trace("All required properties for Azure discovery are set!");
-            return true;
-        } else {
-            logger.debug("One or more Azure discovery settings are missing. " +
-                    "Check elasticsearch.yml file. Should have [{}], [{}], [{}] and [{}].",
-                AzureComputeService.Management.SUBSCRIPTION_ID_SETTING.getKey(),
-                AzureComputeService.Management.SERVICE_NAME_SETTING.getKey(),
-                AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey(),
-                AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey());
-            return false;
-        }
+        return Settings.EMPTY;
     }
-
-    private static boolean isDefined(Settings settings, Setting<String> property) throws ElasticsearchException {
-        return (property.exists(settings) && Strings.hasText(property.get(settings)));
-    }
-
 }

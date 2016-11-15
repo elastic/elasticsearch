@@ -107,7 +107,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private AllocationService allocationService;
     private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
-    private final ZenPing zenPing;
+    protected final ZenPing zenPing; // protected to allow tests access
     private final MasterFaultDetection masterFD;
     private final NodesFaultDetection nodesFD;
     private final PublishClusterStateAction publishClusterState;
@@ -138,15 +138,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private volatile NodeJoinController nodeJoinController;
     private volatile NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
 
-    @Inject
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
-                        ClusterService clusterService, ClusterSettings clusterSettings, ZenPing zenPing) {
+                        ClusterService clusterService, UnicastHostsProvider hostsProvider) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
-        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
-        this.zenPing = zenPing;
+        this.discoverySettings = new DiscoverySettings(settings, clusterService.getClusterSettings());
+        this.zenPing = newZenPing(settings, threadPool, transportService, hostsProvider);
         this.electMaster = new ElectMasterService(settings);
         this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -161,12 +160,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         logger.debug("using ping_timeout [{}], join.timeout [{}], master_election.ignore_non_master [{}]",
                 this.pingTimeout, joinTimeout, masterElectionIgnoreNonMasters);
 
-        clusterSettings.addSettingsUpdateConsumer(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING, this::handleMinimumMasterNodesChanged, (value) -> {
-            final ClusterState clusterState = clusterService.state();
-            int masterNodes = clusterState.nodes().getMasterNodes().size();
-            if (value > masterNodes) {
-                throw new IllegalArgumentException("cannot set " + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " to more than the current master nodes count [" + masterNodes + "]");
-            }
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
+            this::handleMinimumMasterNodesChanged, (value) -> {
+                final ClusterState clusterState = clusterService.state();
+                int masterNodes = clusterState.nodes().getMasterNodes().size();
+                if (value > masterNodes) {
+                    throw new IllegalArgumentException("cannot set "
+                        + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " to more than the current" +
+                        " master nodes count [" + masterNodes + "]");
+                }
         });
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterService);
@@ -187,6 +189,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+    }
+
+    // protected to allow overriding in tests
+    protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                 UnicastHostsProvider hostsProvider) {
+        return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
     }
 
     @Override

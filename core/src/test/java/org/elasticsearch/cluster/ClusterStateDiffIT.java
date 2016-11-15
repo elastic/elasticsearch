@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -56,6 +57,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -238,13 +240,19 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < shardCount; i++) {
             IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", i));
             int replicaCount = randomIntBetween(1, 10);
+            Set<String> availableNodeIds = Sets.newHashSet(nodeIds);
             for (int j = 0; j < replicaCount; j++) {
                 UnassignedInfo unassignedInfo = null;
                 if (randomInt(5) == 1) {
                     unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10));
                 }
+                if (availableNodeIds.isEmpty()) {
+                    break;
+                }
+                String nodeId = randomFrom(availableNodeIds);
+                availableNodeIds.remove(nodeId);
                 indexShard.addShard(
-                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, j == 0,
+                        TestShardRouting.newShardRouting(index, i, nodeId, null, j == 0,
                                 ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)), unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());
@@ -258,8 +266,20 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     private IndexRoutingTable randomChangeToIndexRoutingTable(IndexRoutingTable original, String[] nodes) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
         for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable :  original.shards().values()) {
+            Set<String> availableNodes = Sets.newHashSet(nodes);
             for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
-                final ShardRouting updatedShardRouting = randomChange(shardRouting, nodes);
+                availableNodes.remove(shardRouting.currentNodeId());
+                if (shardRouting.relocating()) {
+                    availableNodes.remove(shardRouting.relocatingNodeId());
+                }
+            }
+
+            for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
+                final ShardRouting updatedShardRouting = randomChange(shardRouting, availableNodes);
+                availableNodes.remove(updatedShardRouting.currentNodeId());
+                if (shardRouting.relocating()) {
+                    availableNodes.remove(updatedShardRouting.relocatingNodeId());
+                }
                 builder.addShard(updatedShardRouting);
             }
         }
@@ -553,7 +573,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             public IndexTemplateMetaData randomCreate(String name) {
                 IndexTemplateMetaData.Builder builder = IndexTemplateMetaData.builder(name);
                 builder.order(randomInt(1000))
-                        .template(randomName("temp"))
+                        .patterns(Collections.singletonList(randomName("temp")))
                         .settings(randomSettings(Settings.EMPTY));
                 int aliasCount = randomIntBetween(0, 10);
                 for (int i = 0; i < aliasCount; i++) {

@@ -274,9 +274,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         String lang = script.getLang();
         ScriptType type = script.getType();
-        //script.getScript() could return either a name or code for a script,
+        //script.getIdOrCode() could return either a name or code for a script,
         //but we check for a file script name first and an indexed script name second
-        String name = script.getScript();
+        String name = script.getIdOrCode();
 
         if (logger.isTraceEnabled()) {
             logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, type, name);
@@ -296,8 +296,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             return compiledScript;
         }
 
-        //script.getScript() will be code if the script type is inline
-        String code = script.getScript();
+        //script.getIdOrCode() will be code if the script type is inline
+        String code = script.getIdOrCode();
 
         if (type == ScriptType.STORED) {
             //The look up for an indexed script must be done every time in case
@@ -468,22 +468,22 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext, Map<String, String> params) {
-        return executable(compile(script, scriptContext, params), script.getParams());
+    public ExecutableScript executable(Script script, ScriptContext scriptContext) {
+        return executable(compile(script, scriptContext, script.getOptions()), script.getParams());
     }
 
     /**
      * Executes a previously compiled script provided as an argument
      */
-    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
-        return getScriptEngineServiceForLang(compiledScript.lang()).executable(compiledScript, vars);
+    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
+        return getScriptEngineServiceForLang(compiledScript.lang()).executable(compiledScript, params);
     }
 
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
      */
-    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params) {
-        CompiledScript compiledScript = compile(script, scriptContext, params);
+    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext) {
+        CompiledScript compiledScript = compile(script, scriptContext, script.getOptions());
         return search(lookup, compiledScript, script.getParams());
     }
 

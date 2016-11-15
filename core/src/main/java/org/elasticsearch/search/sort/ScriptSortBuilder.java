@@ -46,14 +46,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -218,7 +216,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             a -> new ScriptSortBuilder((Script) a[0], (ScriptSortType) a[1]));
 
     static {
-        PARSER.declareField(constructorArg(), Script::parse, ScriptField.SCRIPT, ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(constructorArg(), Script::parse, Script.SCRIPT_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
         PARSER.declareField(constructorArg(), p -> ScriptSortType.fromString(p.text()), TYPE_FIELD, ValueType.STRING);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
@@ -242,7 +240,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {

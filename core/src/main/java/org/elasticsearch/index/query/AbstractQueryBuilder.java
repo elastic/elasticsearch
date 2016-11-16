@@ -304,7 +304,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     /**
-     * Adds 'boost' and 'query_name' parsing to all query builder parsers passed in
+     * Adds {@code boost} and {@code query_name} parsing to the
+     * {@link AbstractObjectParser} passed in. All query builders except
+     * {@link MatchAllQueryBuilder} and {@link MatchNoneQueryBuilder} support these fields so they
+     * should use this method.
      */
     protected static void declareStandardFields(AbstractObjectParser<? extends QueryBuilder, ? extends ParseFieldMatcherSupplier> parser) {
         parser.declareFloat((builder, value) -> builder.boost(value), AbstractQueryBuilder.BOOST_FIELD);

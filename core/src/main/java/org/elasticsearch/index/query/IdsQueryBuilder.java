@@ -24,10 +24,11 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
@@ -37,12 +38,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
@@ -55,16 +55,22 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     private final Set<String> ids = new HashSet<>();
 
-    private final String[] types;
+    private String[] types = Strings.EMPTY_ARRAY;
+
+    /**
+     * Creates a new IdsQueryBuilder with no types specified upfront
+     */
+    public IdsQueryBuilder() {
+        // nothing to do
+    }
 
     /**
      * Creates a new IdsQueryBuilder by providing the types of the documents to look for
+     * @deprecated Replaced by {@link #types(String...)}
      */
+    @Deprecated
     public IdsQueryBuilder(String... types) {
-        if (types == null) {
-            throw new IllegalArgumentException("[ids] types cannot be null");
-        }
-        this.types = types;
+        types(types);
     }
 
     /**
@@ -83,6 +89,17 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     }
 
     /**
+     * Add types to query
+     */
+    public IdsQueryBuilder types(String... types) {
+        if (types == null) {
+            throw new IllegalArgumentException("[" + NAME + "] types cannot be null");
+        }
+        this.types = types;
+        return this;
+    }
+
+    /**
      * Returns the types used in this query
      */
     public String[] types() {
@@ -94,7 +111,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
      */
     public IdsQueryBuilder addIds(String... ids) {
         if (ids == null) {
-            throw new IllegalArgumentException("[ids] ids cannot be null");
+            throw new IllegalArgumentException("[" + NAME + "] ids cannot be null");
         }
         Collections.addAll(this.ids, ids);
         return this;
@@ -120,14 +137,12 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         builder.endObject();
     }
 
-    @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<IdsQueryBuilder, QueryParseContext> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new IdsQueryBuilder(((List<String>) a[0]).toArray(new String[0])));
+    private static ObjectParser<IdsQueryBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME,
+            () -> new IdsQueryBuilder());
 
     static {
-        PARSER.declareStringArray(constructorArg(), IdsQueryBuilder.TYPE_FIELD);
-        PARSER.declareStringArray((builder, values) -> builder.addIds(values.toArray(new String[values.size()])),
-                IdsQueryBuilder.VALUES_FIELD);
+        PARSER.declareStringArray(fromList(String.class, IdsQueryBuilder::types), IdsQueryBuilder.TYPE_FIELD);
+        PARSER.declareStringArray(fromList(String.class, IdsQueryBuilder::addIds), IdsQueryBuilder.VALUES_FIELD);
         declareStandardFields(PARSER);
     }
 

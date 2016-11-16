@@ -506,3 +506,10 @@ per-term `blended` queries. It accepts:
 ===================================================
 The `fuzziness` parameter cannot be used with the `cross_fields` type.
 ===================================================
+
+[[multimatch-leniency]]
+==== Leniency
+
+The `lenient` parameter can be set to `true` to ignore exceptions caused by
+data-type mismatches,  such as trying to query a numeric field with a text
+query string. Defaults to `false`.

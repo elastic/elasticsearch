@@ -10,12 +10,7 @@ GET /_cat/indices/twi*?v&s=index
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:huge_twitter]
-// TEST[s/^/POST _flush\n/]
 // TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
-// We flush very early here because the index's size is cached and we sort on
-// size below. So to get a realistic sort on size we need to flush here or else
-// the size is just whatever portion of the index is pushed out of memory
-// during test setup which isn't deterministic.
 
 Might respond with:
 
@@ -64,11 +59,11 @@ yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0   
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ/.+/ _cat]
 
-What's my largest index by disk usage not including replicas?
+Which index has the largest number of documents?
 
 [source,js]
 --------------------------------------------------
-GET /_cat/indices?v&s=store.size:desc
+GET /_cat/indices?v&s=docs.count:desc
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

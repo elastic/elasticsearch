@@ -19,15 +19,12 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.action.ShardValidateQueryRequestTests;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
@@ -136,8 +133,11 @@ public class VersionTests extends ESTestCase {
         assertThat(Version.V_5_0_0_alpha1.minimumCompatibilityVersion(), equalTo(Version.V_5_0_0_alpha1));
         // from 6.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        assertThat("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
-            Version.V_6_0_0_alpha1.minimumCompatibilityVersion(), equalTo(VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha1)));
+        Version lastVersion = VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha1);
+        assertEquals(lastVersion.major, Version.V_6_0_0_alpha1.minimumCompatibilityVersion().major);
+        assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
+                lastVersion.minor, Version.V_6_0_0_alpha1.minimumCompatibilityVersion().minor);
+        assertEquals(0, Version.V_6_0_0_alpha1.minimumCompatibilityVersion().revision);
     }
 
     public void testToString() {

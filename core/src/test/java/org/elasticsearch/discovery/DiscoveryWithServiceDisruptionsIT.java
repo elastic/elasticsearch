@@ -122,7 +122,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 

@@ -171,6 +171,10 @@ integTest {
     }
     configFile 'scripts/my_script.js'
     configFile 'scripts/my_script.py'
+    configFile 'scripts/my_init_script.painless'
+    configFile 'scripts/my_map_script.painless'
+    configFile 'scripts/my_combine_script.painless'
+    configFile 'scripts/my_reduce_script.painless'
     configFile 'userdict_ja.txt'
     configFile 'KeywordTokenizer.rbbi'
     // Whitelist reindexing from the local node so we can test it.
@@ -248,6 +252,39 @@ buildRestTests.setups['host'] = '''
   - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
 '''
+
+// Used by scripted metric docs
+buildRestTests.setups['ledger'] = '''
+  - do:
+    indices.create:
+      index: ledger
+      body:
+        settings:
+          number_of_shards: 2
+          number_of_replicas: 1
+        mappings:
+          sale:
+            properties:
+              type:
+                type: keyword
+              amount:
+                type: double
+  - do:
+    bulk:
+      index: ledger
+      type: item
+      refresh: true
+      body: |
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "cost of blah"}
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
 
 // Used by pipeline aggregation docs
 buildRestTests.setups['sales'] = '''

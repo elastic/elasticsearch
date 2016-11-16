@@ -20,3 +20,17 @@
         level: "indices"
 
   - is_true: nodes.$master.indices.indices
+
+---
+"Nodes stats unrecognized parameter":
+  - skip:
+      version: " - 5.0.99"
+      reason: strict stats handling does not exist in 5.0
+  - do:
+      nodes.stats:
+        metric: [ transprot ]
+        ignore: 400
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "request [/_nodes/stats/transprot] contains unrecognized metric: [transprot] -> did you mean [transport]?" }

@@ -36,7 +36,13 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -49,9 +55,32 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(GET, "/_stats", this);
         controller.registerHandler(GET, "/_stats/{metric}", this);
-        controller.registerHandler(GET, "/_stats/{metric}/{indexMetric}", this);
         controller.registerHandler(GET, "/{index}/_stats", this);
         controller.registerHandler(GET, "/{index}/_stats/{metric}", this);
+    }
+
+    static Map<String, Consumer<IndicesStatsRequest>> METRICS;
+
+    static {
+        final Map<String, Consumer<IndicesStatsRequest>> metrics = new HashMap<>();
+        metrics.put("docs", r -> r.docs(true));
+        metrics.put("store", r -> r.store(true));
+        metrics.put("indexing", r -> r.indexing(true));
+        metrics.put("search", r -> r.search(true));
+        metrics.put("suggest", r -> r.search(true));
+        metrics.put("get", r -> r.get(true));
+        metrics.put("merge", r -> r.merge(true));
+        metrics.put("refresh", r -> r.refresh(true));
+        metrics.put("flush", r -> r.flush(true));
+        metrics.put("warmer", r -> r.warmer(true));
+        metrics.put("query_cache", r -> r.queryCache(true));
+        metrics.put("segments", r -> r.segments(true));
+        metrics.put("fielddata", r -> r.fieldData(true));
+        metrics.put("completion", r -> r.completion(true));
+        metrics.put("request_cache", r -> r.requestCache(true));
+        metrics.put("recovery", r -> r.recovery(true));
+        metrics.put("translog", r -> r.translog(true));
+        METRICS = Collections.unmodifiableMap(metrics);
     }
 
     @Override
@@ -65,24 +94,28 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         // short cut, if no metrics have been specified in URI
         if (metrics.size() == 1 && metrics.contains("_all")) {
             indicesStatsRequest.all();
+        } else if (metrics.contains("_all")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT,
+                    "request [%s] contains _all and individual metrics [%s]",
+                    request.path(),
+                    request.param("metric")));
         } else {
             indicesStatsRequest.clear();
-            indicesStatsRequest.docs(metrics.contains("docs"));
-            indicesStatsRequest.store(metrics.contains("store"));
-            indicesStatsRequest.indexing(metrics.contains("indexing"));
-            indicesStatsRequest.search(metrics.contains("search") || metrics.contains("suggest"));
-            indicesStatsRequest.get(metrics.contains("get"));
-            indicesStatsRequest.merge(metrics.contains("merge"));
-            indicesStatsRequest.refresh(metrics.contains("refresh"));
-            indicesStatsRequest.flush(metrics.contains("flush"));
-            indicesStatsRequest.warmer(metrics.contains("warmer"));
-            indicesStatsRequest.queryCache(metrics.contains("query_cache"));
-            indicesStatsRequest.segments(metrics.contains("segments"));
-            indicesStatsRequest.fieldData(metrics.contains("fielddata"));
-            indicesStatsRequest.completion(metrics.contains("completion"));
-            indicesStatsRequest.requestCache(metrics.contains("request_cache"));
-            indicesStatsRequest.recovery(metrics.contains("recovery"));
-            indicesStatsRequest.translog(metrics.contains("translog"));
+            // use a sorted set so the unrecognized parameters appear in a reliable sorted order
+            final Set<String> invalidMetrics = new TreeSet<>();
+            for (final String metric : metrics) {
+                final Consumer<IndicesStatsRequest> consumer = METRICS.get(metric);
+                if (consumer != null) {
+                    consumer.accept(indicesStatsRequest);
+                } else {
+                    invalidMetrics.add(metric);
+                }
+            }
+
+            if (!invalidMetrics.isEmpty()) {
+                throw new IllegalArgumentException(unrecognized(request, invalidMetrics, METRICS.keySet(), "metric"));
+            }
         }
 
         if (request.hasParam("groups")) {

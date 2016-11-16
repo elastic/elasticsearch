@@ -40,7 +40,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     static List<String> UPGRADE_FROM_ARCHIVES = ['rpm', 'deb']
 
     private static final BATS = 'bats'
-    private static final String BATS_TEST_COMMAND ="cd \$BATS_ARCHIVES && sudo -E bats --tap \$BATS_TESTS/*.$BATS"
+    private static final String BATS_TEST_COMMAND ="cd \$BATS_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
 
     @Override
     void apply(Project project) {

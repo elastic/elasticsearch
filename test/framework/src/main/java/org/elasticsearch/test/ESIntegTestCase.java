@@ -149,6 +149,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -178,6 +179,7 @@ import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgno
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -406,6 +408,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), randomBoolean());
             }
+            if (randomBoolean()) {
+                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING.getKey(), randomBoolean());
+            }
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                 .preparePutTemplate("random_index_template")
                 .setPatterns(Collections.singletonList("*"))
@@ -527,10 +532,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
                         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
-                        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
-                            .persistentSettings().getAsMap().size(), equalTo(0));
-                        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
-                            .transientSettings().getAsMap().size(), equalTo(0));
+                        final Map<String, String> persistent = metaData.persistentSettings().getAsMap();
+                        assertThat("test leaves persistent cluster metadata behind: " + persistent, persistent.size(), equalTo(0));
+                        final Map<String, String> transientSettings =  new HashMap<>(metaData.transientSettings().getAsMap());
+                        if (isInternalCluster() && internalCluster().getAutoManageMinMasterNode()) {
+                            // this is set by the test infra
+                            transientSettings.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
+                        }
+                        assertThat("test leaves transient cluster metadata behind: " + transientSettings,
+                            transientSettings.keySet(), empty());
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
@@ -1519,6 +1529,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         boolean supportsDedicatedMasters() default true;
 
         /**
+         * The cluster automatically manages the {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} by default
+         * as nodes are started and stopped. Set this to false to manage the setting manually.
+         */
+        boolean autoMinMasterNodes() default true;
+
+        /**
          * Returns the number of client nodes in the cluster. Default is {@link InternalTestCluster#DEFAULT_NUM_CLIENT_NODES}, a
          * negative value means that the number of client nodes will be randomized.
          */
@@ -1613,6 +1629,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private boolean getSupportsDedicatedMasters() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? true : annotation.supportsDedicatedMasters();
+    }
+
+    private boolean getAutoMinMasterNodes() {
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
+        return annotation == null ? true : annotation.autoMinMasterNodes();
     }
 
     private int getNumDataNodes() {
@@ -1753,7 +1774,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             mockPlugins = mocks;
         }
-        return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, minNumDataNodes, maxNumDataNodes,
+        return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, getAutoMinMasterNodes(),
+            minNumDataNodes, maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
             InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
     }

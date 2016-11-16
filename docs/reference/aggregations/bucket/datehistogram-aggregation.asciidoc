@@ -196,6 +196,17 @@ second document falls into the bucket for 1 October 2015:
 <1> The `key_as_string` value represents midnight on each day
     in the specified time zone.
 
+WARNING: When using time zones that follow DST (daylight savings time) changes,
+buckets close to the moment when those changes happen can have slightly different
+sizes than would be expected from the used `interval`.
+For example, consider a DST start in the `CET` time zone: on 27 March 2016 at 2am,
+clocks were turned forward 1 hour to 3am local time. When using `day` as `interval`,
+the bucket covering that day will only hold data for 23 hours instead of the usual
+24 hours for other buckets. The same is true for shorter intervals like e.g. 12h.
+Here, we will have only a 11h bucket on the morning of 27 March when the DST shift
+happens.
+
+
 ==== Offset
 
 The `offset` parameter is used to change the start value of each bucket by the

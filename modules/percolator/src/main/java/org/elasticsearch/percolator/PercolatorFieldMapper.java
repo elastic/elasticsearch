@@ -234,31 +234,11 @@ public class PercolatorFieldMapper extends FieldMapper {
                                  KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
                                  BinaryFieldMapper queryBuilderField) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        this.queryShardContext = new QueryShardContextSupplierCache(queryShardContext);
+        this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;
         this.queryBuilderField = queryBuilderField;
         this.mapUnmappedFieldAsString = INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
-    }
-
-    private static class QueryShardContextSupplierCache implements Supplier<QueryShardContext> {
-        private final Supplier<QueryShardContext> supplier;
-        private volatile QueryShardContext context;
-
-        QueryShardContextSupplierCache(Supplier<QueryShardContext> supplier) {
-            this.supplier = supplier;
-        }
-
-        @Override
-        public QueryShardContext get() {
-            QueryShardContext context = this.context;
-            if (context == null) {
-                context = this.context = supplier.get();
-            }
-            // return a copy
-            return new QueryShardContext(context);
-        }
-
     }
 
     @Override

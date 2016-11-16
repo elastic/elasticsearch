@@ -690,7 +690,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.profile()) {
             context.setProfilers(new Profilers(context.searcher()));
         }
-        context.timeout(source.timeout());
+        if (source.timeout() != null) {
+            context.timeout(source.timeout());
+        }
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null) {
             try {

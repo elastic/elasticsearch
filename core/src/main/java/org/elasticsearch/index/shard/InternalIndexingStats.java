@@ -44,19 +44,19 @@ final class InternalIndexingStats implements IndexingOperationListener {
      * is returned for them. If they are set, then only types provided will be returned, or
      * <tt>_all</tt> for all types.
      */
-    IndexingStats stats(String... types) {
-        IndexingStats.Stats total = totalStats.stats();
+    IndexingStats stats(boolean isThrottled, long currentThrottleInMillis, String... types) {
+        IndexingStats.Stats total = totalStats.stats(isThrottled, currentThrottleInMillis);
         Map<String, IndexingStats.Stats> typesSt = null;
         if (types != null && types.length > 0) {
             typesSt = new HashMap<>(typesStats.size());
             if (types.length == 1 && types[0].equals("_all")) {
                 for (Map.Entry<String, StatsHolder> entry : typesStats.entrySet()) {
-                    typesSt.put(entry.getKey(), entry.getValue().stats());
+                    typesSt.put(entry.getKey(), entry.getValue().stats(isThrottled, currentThrottleInMillis));
                 }
             } else {
                 for (Map.Entry<String, StatsHolder> entry : typesStats.entrySet()) {
                     if (Regex.simpleMatch(types, entry.getKey())) {
-                        typesSt.put(entry.getKey(), entry.getValue().stats());
+                        typesSt.put(entry.getKey(), entry.getValue().stats(isThrottled, currentThrottleInMillis));
                     }
                 }
             }
@@ -160,11 +160,11 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
-        IndexingStats.Stats stats() {
+        IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
             return new IndexingStats.Stats(
                 indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
                 deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
-                noopUpdates.count());
+                noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
         }
 
         void clear() {

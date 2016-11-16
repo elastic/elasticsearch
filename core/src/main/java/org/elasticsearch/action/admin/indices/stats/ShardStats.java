@@ -52,6 +52,30 @@ public class ShardStats implements Streamable, ToXContent {
         this.commonStats = commonStats;
     }
 
+    /** calculates primary stats for shard stats */
+    static CommonStats calculatePrimaryStats(ShardStats[] shards, CommonStatsFlags flags) {
+        CommonStats primaryStats = new CommonStats();
+        boolean primaryFound = false;
+        for (ShardStats shard : shards) {
+            if (shard.getShardRouting().primary()) {
+                primaryStats.add(shard.getStats());
+                primaryFound = true;
+            }
+        }
+        return primaryFound ? primaryStats : new CommonStats(flags);
+    }
+
+    /** calculates total stats for shard stats */
+    static CommonStats calculateTotalStats(ShardStats[] shards, CommonStatsFlags flags) {
+        CommonStats totalStats = new CommonStats();
+        boolean shardFound = false;
+        for (ShardStats shard : shards) {
+            totalStats.add(shard.getStats());
+            shardFound = true;
+        }
+        return shardFound ? totalStats : new CommonStats(flags);
+    }
+
     /**
      * The shard routing information (cluster wide shard state).
      */

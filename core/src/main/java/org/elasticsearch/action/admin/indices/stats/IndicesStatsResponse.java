@@ -44,13 +44,16 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
 
     private Map<ShardRouting, ShardStats> shardStatsMap;
 
+    private CommonStatsFlags flags;
+
     IndicesStatsResponse() {
 
     }
 
-    IndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    IndicesStatsResponse(CommonStatsFlags flags, ShardStats[] shards, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
+        this.flags = flags;
     }
 
     public Map<ShardRouting, ShardStats> asMap() {
@@ -96,7 +99,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
                     shards.add(shard);
                 }
             }
-            indicesStats.put(indexName, new IndexStats(indexName, shards.toArray(new ShardStats[shards.size()])));
+            indicesStats.put(indexName, new IndexStats(indexName, flags, shards.toArray(new ShardStats[shards.size()])));
         }
         this.indicesStats = indicesStats;
         return indicesStats;
@@ -105,31 +108,19 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
     private CommonStats total = null;
 
     public CommonStats getTotal() {
-        if (total != null) {
-            return total;
+        if (total == null) {
+            total = ShardStats.calculateTotalStats(shards, flags);
         }
-        CommonStats stats = new CommonStats();
-        for (ShardStats shard : shards) {
-            stats.add(shard.getStats());
-        }
-        total = stats;
-        return stats;
+        return total;
     }
 
     private CommonStats primary = null;
 
     public CommonStats getPrimaries() {
-        if (primary != null) {
-            return primary;
+        if (primary == null) {
+            primary = ShardStats.calculatePrimaryStats(shards, flags);
         }
-        CommonStats stats = new CommonStats();
-        for (ShardStats shard : shards) {
-            if (shard.getShardRouting().primary()) {
-                stats.add(shard.getStats());
-            }
-        }
-        primary = stats;
-        return stats;
+        return primary;
     }
 
     @Override
@@ -139,6 +130,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         for (int i = 0; i < shards.length; i++) {
             shards[i] = ShardStats.readShardStats(in);
         }
+        flags = new CommonStatsFlags(in);
     }
 
     @Override
@@ -148,6 +140,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         for (ShardStats shard : shards) {
             shard.writeTo(out);
         }
+        flags.writeTo(out);
     }
 
     @Override

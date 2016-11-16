@@ -114,9 +114,9 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
     /**
      * Gives access to package private IndicesStatsResponse constructor for test purpose.
      **/
-    public static IndicesStatsResponse newIndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards,
+    public static IndicesStatsResponse newIndicesStatsResponse(CommonStatsFlags flags, ShardStats[] shards, int totalShards, int successfulShards,
                                                                int failedShards, List<ShardOperationFailedException> shardFailures) {
-        return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
+        return new IndicesStatsResponse(flags, shards, totalShards, successfulShards, failedShards, shardFailures);
     }
 
 }

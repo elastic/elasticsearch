@@ -231,17 +231,13 @@ public class NodeIndicesStats implements Streamable, ToXContent {
     private Map<Index, CommonStats> createStatsByIndex() {
         Map<Index, CommonStats> statsMap = new HashMap<>();
         for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-            if (!statsMap.containsKey(entry.getKey())) {
-                statsMap.put(entry.getKey(), new CommonStats());
-            }
-
+            CommonStats indexStats = statsMap.computeIfAbsent(entry.getKey(), index -> new CommonStats());
             for (IndexShardStats indexShardStats : entry.getValue()) {
                 for (ShardStats shardStats : indexShardStats.getShards()) {
-                    statsMap.get(entry.getKey()).add(shardStats.getStats());
+                    indexStats.add(shardStats.getStats());
                 }
             }
         }
-
         return statsMap;
     }
 

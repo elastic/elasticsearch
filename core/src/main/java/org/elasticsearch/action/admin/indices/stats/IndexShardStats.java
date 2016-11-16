@@ -34,11 +34,14 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
 
     private ShardStats[] shards;
 
+    private CommonStatsFlags flags;
+
     private IndexShardStats() {}
 
-    public IndexShardStats(ShardId shardId, ShardStats[] shards) {
+    public IndexShardStats(ShardId shardId, CommonStatsFlags flags, ShardStats[] shards) {
         this.shardId = shardId;
         this.shards = shards;
+        this.flags = flags;
     }
 
     public ShardId getShardId() {
@@ -61,31 +64,19 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
     private CommonStats total = null;
 
     public CommonStats getTotal() {
-        if (total != null) {
-            return total;
+        if (total == null) {
+            total = ShardStats.calculateTotalStats(shards, flags);
         }
-        CommonStats stats = new CommonStats();
-        for (ShardStats shard : shards) {
-            stats.add(shard.getStats());
-        }
-        total = stats;
-        return stats;
+        return total;
     }
 
     private CommonStats primary = null;
 
     public CommonStats getPrimary() {
-        if (primary != null) {
-            return primary;
+        if (primary == null) {
+            primary = ShardStats.calculatePrimaryStats(shards, flags);
         }
-        CommonStats stats = new CommonStats();
-        for (ShardStats shard : shards) {
-            if (shard.getShardRouting().primary()) {
-                stats.add(shard.getStats());
-            }
-        }
-        primary = stats;
-        return stats;
+        return primary;
     }
 
     @Override
@@ -96,6 +87,7 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
         for (int i = 0; i < shardSize; i++) {
             shards[i] = ShardStats.readShardStats(in);
         }
+        flags = new CommonStatsFlags(in);
     }
 
     @Override
@@ -105,6 +97,7 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
         for (ShardStats stats : shards) {
             stats.writeTo(out);
         }
+        flags.writeTo(out);
     }
 
     public static IndexShardStats readIndexShardStats(StreamInput in) throws IOException {

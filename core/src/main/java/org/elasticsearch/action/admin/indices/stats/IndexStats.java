@@ -31,9 +31,27 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     private final ShardStats shards[];
 
-    public IndexStats(String index, ShardStats[] shards) {
+    private final CommonStats total;
+
+    private final CommonStats primary;
+
+    private final Map<Integer, IndexShardStats> indexShards;
+
+    public IndexStats(String index, CommonStatsFlags flags, ShardStats[] shards) {
         this.index = index;
         this.shards = shards;
+        this.total = ShardStats.calculateTotalStats(shards, flags);
+        this.primary = ShardStats.calculatePrimaryStats(shards, flags);
+        Map<Integer, List<ShardStats>> tmpIndexShards = new HashMap<>();
+        for (ShardStats shard : shards) {
+            List<ShardStats> shardStatList = tmpIndexShards.computeIfAbsent(shard.getShardRouting().id(), integer -> new ArrayList<>());
+            shardStatList.add(shard);
+        }
+        Map<Integer, IndexShardStats> indexShardList = new HashMap<>();
+        for (Map.Entry<Integer, List<ShardStats>> entry : tmpIndexShards.entrySet()) {
+            indexShardList.put(entry.getKey(), new IndexShardStats(entry.getValue().get(0).getShardRouting().shardId(), flags, entry.getValue().toArray(new ShardStats[entry.getValue().size()])));
+        }
+        indexShards = indexShardList;
     }
 
     public String getIndex() {
@@ -44,25 +62,8 @@ public class IndexStats implements Iterable<IndexShardStats> {
         return this.shards;
     }
 
-    private Map<Integer, IndexShardStats> indexShards;
 
     public Map<Integer, IndexShardStats> getIndexShards() {
-        if (indexShards != null) {
-            return indexShards;
-        }
-        Map<Integer, List<ShardStats>> tmpIndexShards = new HashMap<>();
-        for (ShardStats shard : shards) {
-            List<ShardStats> lst = tmpIndexShards.get(shard.getShardRouting().id());
-            if (lst == null) {
-                lst = new ArrayList<>();
-                tmpIndexShards.put(shard.getShardRouting().id(), lst);
-            }
-            lst.add(shard);
-        }
-        indexShards = new HashMap<>();
-        for (Map.Entry<Integer, List<ShardStats>> entry : tmpIndexShards.entrySet()) {
-            indexShards.put(entry.getKey(), new IndexShardStats(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardStats[entry.getValue().size()])));
-        }
         return indexShards;
     }
 
@@ -71,33 +72,12 @@ public class IndexStats implements Iterable<IndexShardStats> {
         return getIndexShards().values().iterator();
     }
 
-    private CommonStats total = null;
 
     public CommonStats getTotal() {
-        if (total != null) {
-            return total;
-        }
-        CommonStats stats = new CommonStats();
-        for (ShardStats shard : shards) {
-            stats.add(shard.getStats());
-        }
-        total = stats;
-        return stats;
+        return total;
     }
 
-    private CommonStats primary = null;
-
     public CommonStats getPrimaries() {
-        if (primary != null) {
-            return primary;
-        }
-        CommonStats stats = new CommonStats();
-        for (ShardStats shard : shards) {
-            if (shard.getShardRouting().primary()) {
-                stats.add(shard.getStats());
-            }
-        }
-        primary = stats;
-        return stats;
+        return primary;
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,6 +58,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -74,6 +76,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -100,7 +103,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     private final int concurrentConnects;
 
-    private final DiscoveryNode[] configuredTargetNodes;
+    private final List<String> configuredHosts;
+
+    private final int limitPortCounts;
 
     private volatile PingContextProvider contextProvider;
 
@@ -114,7 +119,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     private final Map<Integer, SendPingsHandler> receivedResponses = newConcurrentMap();
 
-    // a list of temporal responses a node will return for a request (holds requests from other configuredTargetNodes)
+    // a list of temporal responses a node will return for a request (holds requests from other configuredHosts)
     private final Queue<PingResponse> temporalResponses = ConcurrentCollections.newQueue();
 
     private final UnicastHostsProvider hostsProvider;
@@ -132,24 +137,17 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         this.hostsProvider = unicastHostsProvider;
 
         this.concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
-        List<String> hosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
-        final int limitPortCounts;
+        final List<String> hosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
         if (hosts.isEmpty()) {
             // if unicast hosts are not specified, fill with simple defaults on the local machine
+            configuredHosts = transportService.getLocalAddresses();
             limitPortCounts = LIMIT_LOCAL_PORTS_COUNT;
-            hosts.addAll(transportService.getLocalAddresses());
         } else {
+            configuredHosts = hosts;
             // we only limit to 1 addresses, makes no sense to ping 100 ports
             limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
         }
-
-        logger.debug("using initial hosts {}, with concurrent_connects [{}]", hosts, concurrentConnects);
-        List<DiscoveryNode> configuredTargetNodes = new ArrayList<>();
-        for (final String host : hosts) {
-            configuredTargetNodes.addAll(resolveDiscoveryNodes(host, limitPortCounts, transportService,
-                () -> UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#"));
-        }
-        this.configuredTargetNodes = configuredTargetNodes.toArray(new DiscoveryNode[configuredTargetNodes.size()]);
+        logger.debug("using initial hosts {}, with concurrent_connects [{}]", configuredHosts, concurrentConnects);
 
         transportService.registerRequestHandler(ACTION_NAME, UnicastPingRequest::new, ThreadPool.Names.SAME,
                 new UnicastPingRequestHandler());
@@ -160,27 +158,26 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
     /**
-     * Resolves a host to a list of discovery nodes.  The host is resolved into a transport
-     * address (or a collection of addresses if the number of ports is greater than one) and
-     * the transport addresses are used to created discovery nodes.
+     * Resolves a host to a list of discovery nodes. The host is resolved into a transport address (or a collection of addresses if the
+     * number of ports is greater than one) and the transport addresses are used to created discovery nodes.
      *
-     * @param host the host to resolve
-     * @param limitPortCounts the number of ports to resolve (should be 1 for non-local transport)
+     * @param host             the host to resolve
+     * @param limitPortCounts  the number of ports to resolve (should be 1 for non-local transport)
      * @param transportService the transport service
-     * @param idGenerator the generator to supply unique ids for each discovery node
+     * @param idGenerator      the generator to supply unique ids for each discovery node
      * @return a list of discovery nodes with resolved transport addresses
+     * @throws UnknownHostException if the host fails to resolve to an address
      */
-    public static List<DiscoveryNode> resolveDiscoveryNodes(final String host, final int limitPortCounts,
-                                                            final TransportService transportService, final Supplier<String> idGenerator) {
-        List<DiscoveryNode> discoveryNodes = new ArrayList<>();
-        try {
-            TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
-            for (TransportAddress address : addresses) {
-                discoveryNodes.add(new DiscoveryNode(idGenerator.get(), address, emptyMap(), emptySet(),
-                                                        Version.CURRENT.minimumCompatibilityVersion()));
-            }
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);
+    public static List<DiscoveryNode> resolveDiscoveryNodes(
+        final String host,
+        final int limitPortCounts,
+        final TransportService transportService,
+        final Supplier<String> idGenerator) throws UnknownHostException {
+        final List<DiscoveryNode> discoveryNodes = new ArrayList<>();
+        final TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
+        for (TransportAddress address : addresses) {
+            discoveryNodes.add(new DiscoveryNode(idGenerator.get(), address, emptyMap(), emptySet(),
+                Version.CURRENT.minimumCompatibilityVersion()));
         }
         return discoveryNodes;
     }
@@ -330,8 +327,25 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         // sort the nodes by likelihood of being an active master
         List<DiscoveryNode> sortedNodesToPing = ElectMasterService.sortByMasterLikelihood(nodesToPingSet);
 
-        // new add the unicast targets first
-        List<DiscoveryNode> nodesToPing = CollectionUtils.arrayAsArrayList(configuredTargetNodes);
+        // add the configured hosts first
+        final List<DiscoveryNode> nodesToPing = new ArrayList<>();
+        for (final String host : configuredHosts) {
+            try {
+                final List<DiscoveryNode> resolvedDiscoveryNodes = resolveDiscoveryNodes(
+                    host,
+                    limitPortCounts,
+                    transportService,
+                    () -> UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#");
+                logger.trace(
+                    "resolved host [{}] to {}",
+                    () -> host,
+                    () -> resolvedDiscoveryNodes.stream().map(UnicastZenPing::formatResolvedDiscoveryNode).collect(Collectors.toList()));
+                nodesToPing.addAll(resolvedDiscoveryNodes);
+            } catch (final UnknownHostException e) {
+                logger.warn("failed to resolve host [" + host + "]", e);
+            }
+        }
+
         nodesToPing.addAll(sortedNodesToPing);
 
         final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
@@ -428,6 +442,11 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 // ignore
             }
         }
+    }
+
+    private static String formatResolvedDiscoveryNode(final DiscoveryNode discoveryNode) {
+        final TransportAddress transportAddress = discoveryNode.getAddress();
+        return transportAddress.getAddress() + "@" + transportAddress.getPort();
     }
 
     private void sendPingRequestToNode(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest,

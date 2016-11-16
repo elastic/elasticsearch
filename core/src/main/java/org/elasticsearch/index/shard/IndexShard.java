@@ -286,7 +286,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (indexSettings.getAsBoolean(IndexCacheModule.QUERY_CACHE_EVERYTHING, false)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
-            cachingPolicy = new XUsageTrackingQueryCachingPolicy();
+            QueryCachingPolicy policy = new XUsageTrackingQueryCachingPolicy();
+            if (indexSettings.getAsBoolean(IndexCacheModule.QUERY_CACHE_TERM_QUERIES, true) == false) {
+                policy = new ElasticsearchQueryCachingPolicy(policy);
+            }
+            cachingPolicy = policy;
         }
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);

@@ -50,8 +50,6 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
-include::rank-eval.asciidoc[]
-
 include::how-to.asciidoc[]
 
 include::testing.asciidoc[]

@@ -6,30 +6,22 @@
 
 Imagine having built and deployed a search application: Users are happily
 entering queries into your search frontend. Your application takes these
-queries, combines them with additional information (e.g. the search history of
-those users, the country the user request is coming from, maybe even the
-operating system and browser the user has running). You app creates a dedicated
-Elasticsearch query from that, and returns it's results back to the user.
-Imagine further that you are tasked with tweaking the Elasticsearch query that
-is being created to return specific results for a certain set of queries without
-breaking others. How should that be done?
+queries and creates a dedicated Elasticsearch query from that, and returns its
+results back to the user.  Imagine further that you are tasked with tweaking the
+Elasticsearch query that is being created to return specific results for a
+certain set of queries without breaking others. How should that be done?
 
 One possible solution is to gather a sample of user queries representative of
 how the search application is used, retrieve the search results that are being
-returned both, by the old as well as the old Elasticsearch query. As a next step
-these search results would be manually annotated for their relevancy to the
-original user query. Based on this set of rated requests we can compute one of a
-couple of metrics telling us more about how many relevant search results are
-being returned.
+returned. As a next step these search results would be manually annotated for
+their relevancy to the original user query. Based on this set of rated requests
+we can compute a couple of metrics telling us more about how many relevant
+search results are being returned.
 
-This approach has a couple of caveats: Coming up with these ratings
-usually is time consuming and expensive, as this is done in retrospect we
-usually have to guess what the actual information need of the user was that lead
-them to issue their query. Still it can be a nice approximation for how well our
-translation from user query to Elasticsearch query works for providing the user
-with relevant search results. Elasticsearch provides a ranking evaluation API
-that lets you compute scores for your current ranking function based on
-annotated search results.
+This is a nice approximation for how well our translation from user query to
+Elasticsearch query works for providing the user with relevant search results.
+Elasticsearch provides a ranking evaluation API that lets you compute scores for
+your current ranking function based on annotated search results.
 --
 
 == Plain ranking evaluation
@@ -38,12 +30,16 @@ In its most simple form, for each query a set of ratings can be supplied:
 
 [source,js]
 -----------------------------
-GET /_rank_eval
+GET /index/type/_rank_eval
 {
     "requests": [
     {
         "id": "JFK query",                              <1>
-        "request": {"query": {"match": {"opening_text": {"query": "JFK"}}}},    <2>
+        "request": {
+            "query": {
+                "match": {
+                    "opening_text": {
+                        "query": "JFK"}}}},             <2>
         "ratings": [                                    <3>
         {
           "rating": 1.5,                                <4>
@@ -74,17 +70,21 @@ GET /_rank_eval
 <6> The id of the rated document.
 <7> The index where the rated document lives.
 <8> For a verbose response, specify which properties of a search hit should be returned in addition to index/type/id.
-<9> A metric to use for evaluation. Currently valid are `precision_atn`, `reciprocal_rank` and `dcg_at_n`
+<9> A metric to use for evaluation. See below for a list.
 
 
 == Template based ranking evaluation
 
 [source,js]
 --------------------------------
-GET _rank_eval/template
+GET /index/type/_rank_eval/template
 {
   "template": {
-        "inline": {"query": {"match": {"{{wiki_field}}": {"query": "{{query_string}}"}}}}},  <1>
+        "inline": {
+            "query": {
+                "match": {
+                    "{{wiki_field}}": {
+                        "query": "{{query_string}}"}}}}},  <1>
   "requests": [
   {
       "id": "JFK query"
@@ -123,6 +123,11 @@ GET _rank_eval/template
 
 === Precision
 
+Citing from https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision
+page at Wikipedia]:
+"Precision is the fraction of the documents retrieved that are relevant to the
+user's information need."
+
 Works well as an easy to explain evaluation metric. Caveat: All result positions
 are treated equally. So a ranking of ten results that contains one relevant
 result in position 10 is equally good as a ranking of ten results that contains
@@ -151,7 +156,8 @@ from the precision computation entirely.
 === Reciprocal rank
 
 For any given query this is the reciprocal of the rank of the
-first relevant document retrieved.
+first relevant document retrieved. For example finding the first relevant result
+in position 3 means Reciprocal Rank is going to be 1/3.
 
 [source,js]
 --------------------------------
@@ -165,18 +171,27 @@ first relevant document retrieved.
 
 === Normalized discounted cumulative gain
 
-In contrast to the two metrics above this
-takes both, the grade of the result found as well as the position of the
-document returned into account.
+In contrast to the two metrics above this takes both, the grade of the result
+found as well as the position of the document returned into account.
+
+For more details also check the explanation on
+https://en.wikipedia.org/wiki/Discounted_cumulative_gain[Wikipedia].
 
 
 [source,js]
 --------------------------------
 {
     "metric": {
-       "dcg": {}
+       "dcg": {
+            "normalize": "false"  <1>
+       }
     }
 }
 --------------------------------
 
+<1> Set to true to compute nDCG instead of DCG, default is false.
 
+Setting normalize to true makes DCG values better comparable across different
+result set sizes. See also
+https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Wikipedia
+nDCG] for more details.

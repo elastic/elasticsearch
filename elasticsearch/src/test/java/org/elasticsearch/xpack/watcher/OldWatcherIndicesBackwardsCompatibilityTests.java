@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests for watcher indexes created before 5.0.
  */
-public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
+public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
     @Override
     public Settings nodeSettings(int ord) {
         return Settings.builder()

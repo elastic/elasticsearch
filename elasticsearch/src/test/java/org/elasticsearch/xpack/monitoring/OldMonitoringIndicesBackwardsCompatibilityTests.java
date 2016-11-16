@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.hasKey;
  */
 //Give ourselves 30 seconds instead o 5 to shut down. Sometimes it takes a while, especially on weak hardware. But we do get there.
 @ThreadLeakLingering(linger = 30000)
-public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
+public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
     private final boolean httpExporter = randomBoolean();
 
     @Override

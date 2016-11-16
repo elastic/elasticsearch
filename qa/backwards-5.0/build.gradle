@@ -23,6 +23,8 @@ integTest {
   }
 }
 
+integTest.enabled = false // bwc need to be disabled until we build a BWC layer into seq# components
+
 repositories {
   maven {
     url "https://oss.sonatype.org/content/repositories/snapshots/"

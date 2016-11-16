@@ -40,6 +40,7 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
         return false; // reduce noise
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/x-plugins/issues/4090")
     public void testDynamicIndexAction() throws Exception {
         WatcherClient watcherClient = watcherClient();
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id")

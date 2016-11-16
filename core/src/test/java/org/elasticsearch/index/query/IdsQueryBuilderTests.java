@@ -63,7 +63,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         }
         IdsQueryBuilder query;
         if (types.length > 0 || randomBoolean()) {
-            query = new IdsQueryBuilder(types);
+            query = new IdsQueryBuilder().types(types);
             query.addIds(ids);
         } else {
             query = new IdsQueryBuilder();
@@ -82,11 +82,11 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     }
 
     public void testIllegalArguments() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IdsQueryBuilder((String[]) null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IdsQueryBuilder().types((String[]) null));
         assertEquals("[ids] types cannot be null", e.getMessage());
 
         IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder();
-        e = expectThrows(IllegalArgumentException.class, () -> idsQueryBuilder.addIds((String[])null));
+        e = expectThrows(IllegalArgumentException.class, () -> idsQueryBuilder.addIds((String[]) null));
         assertEquals("[ids] ids cannot be null", e.getMessage());
     }
 
@@ -136,10 +136,22 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         parsed = (IdsQueryBuilder) parseQuery(json);
         assertThat(parsed.ids(), contains("1","100","4"));
         assertEquals(json, 0, parsed.types().length);
+
+        // check without type
+        json =
+                "{\n" +
+                "  \"ids\" : {\n" +
+                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        parsed = (IdsQueryBuilder) parseQuery(json);
+        assertThat(parsed.ids(), contains("1","100","4"));
+        assertEquals(json, 0, parsed.types().length);
     }
 
     public void testFromJsonDeprecatedSyntax() throws IOException {
-        IdsQueryBuilder testQuery = new IdsQueryBuilder("my_type");
+        IdsQueryBuilder testQuery = new IdsQueryBuilder().types("my_type");
 
         //single value type can also be called _type
         final String contentString = "{\n" +
@@ -158,18 +170,18 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         assertEquals(3, e.getLineNumber());
         assertEquals(19, e.getColumnNumber());
 
-        //array of types can also be called type rather than types
+        //array of types can also be called types rather than type
         final String contentString2 = "{\n" +
                 "    \"ids\" : {\n" +
                 "        \"types\" : [\"my_type\"],\n" +
                 "        \"values\" : [ ]\n" +
                 "    }\n" +
                 "}";
-        parsed = (IdsQueryBuilder) parseQuery(contentString, ParseFieldMatcher.EMPTY);
+        parsed = (IdsQueryBuilder) parseQuery(contentString2, ParseFieldMatcher.EMPTY);
         assertEquals(testQuery, parsed);
 
         e = expectThrows(ParsingException.class, () -> parseQuery(contentString2));
-        checkWarningHeaders("Deprecated field [_type] used, expected [type] instead");
+        checkWarningHeaders("Deprecated field [types] used, expected [type] instead");
         assertEquals("Deprecated field [types] used, expected [type] instead", e.getMessage());
         assertEquals(3, e.getLineNumber());
         assertEquals(19, e.getColumnNumber());

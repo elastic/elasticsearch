@@ -54,16 +54,7 @@ public final class GrokProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        String fieldValue;
-
-        try {
-            fieldValue = ingestDocument.getFieldValue(matchField, String.class);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMissing && ingestDocument.hasField(matchField) != true) {
-                return;
-            }
-            throw e;
-        }
+        String fieldValue = ingestDocument.getFieldValue(matchField, String.class, ignoreMissing);
 
         if (fieldValue == null && ignoreMissing) {
             return;

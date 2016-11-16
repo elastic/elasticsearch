@@ -39,7 +39,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     private DiscoveryNode[] nodes;
     private Map<String, AliasFilter> indicesAndFilters;
 
-    ClusterSearchShardsResponse() {
+    public ClusterSearchShardsResponse() {
 
     }
 

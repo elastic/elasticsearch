@@ -41,7 +41,7 @@ automatically or explicitly.
 === Disabling automatic type creation
 
 Automatic type creation can be disabled by setting the `index.mapper.dynamic`
-setting to `false` per-index as an index setting:
+setting to `false` in the index settings:
 
 [source,js]
 --------------------------------------------------

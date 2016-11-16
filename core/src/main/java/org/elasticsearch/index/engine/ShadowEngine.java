@@ -257,6 +257,16 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
+    public boolean isThrottled() {
+        return false;
+    }
+
+    @Override
+    public long getIndexThrottleTimeInMillis() {
+        return 0L;
+    }
+
+    @Override
     public Engine recoverFromTranslog() throws IOException {
         throw new UnsupportedOperationException("can't recover on a shadow engine");
     }

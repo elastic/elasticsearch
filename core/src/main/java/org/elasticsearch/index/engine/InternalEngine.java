@@ -1183,6 +1183,12 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public boolean isThrottled() {
+        return throttle.isThrottled();
+    }
+
+    @Override
     public long getIndexThrottleTimeInMillis() {
         return throttle.getThrottleTimeInMillis();
     }

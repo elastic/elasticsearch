@@ -34,6 +34,8 @@ indices:admin/mappings/fields/get[index][s]
 indices:admin/refresh[s]
 indices:admin/refresh[s][p]
 indices:admin/refresh[s][r]
+indices:admin/seq_no/global_checkpoint_sync[p]
+indices:admin/seq_no/global_checkpoint_sync[r]
 indices:admin/upgrade
 indices:admin/upgrade[n]
 indices:admin/validate/query[s]

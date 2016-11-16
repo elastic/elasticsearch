@@ -407,7 +407,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             // convert to an identity map to check for dups based on update tasks semantics of using identity instead of equal
             final IdentityHashMap<T, ClusterStateTaskListener> tasksIdentity = new IdentityHashMap<>(tasks);
             final List<UpdateTask<T>> updateTasks = tasksIdentity.entrySet().stream().map(
-                entry -> new UpdateTask<>(source, entry.getKey(), config, executor, safe(entry.getValue(), logger))
+                entry -> new UpdateTask<>(source, entry.getKey(), config.priority(), executor, safe(entry.getValue(), logger))
             ).collect(Collectors.toList());
 
             synchronized (updateTasksPerExecutor) {
@@ -546,11 +546,11 @@ public class ClusterService extends AbstractLifecycleComponent {
             if (pending != null) {
                 for (UpdateTask<T> task : pending) {
                     if (task.processed.getAndSet(true) == false) {
-                        logger.trace("will process {}", task.toString(executor));
+                        logger.trace("will process {}", task);
                         toExecute.add(task);
                         processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task.task);
                     } else {
-                        logger.trace("skipping {}, already processed", task.toString(executor));
+                        logger.trace("skipping {}, already processed", task);
                     }
                 }
             }
@@ -608,7 +608,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         if (assertsEnabled) {
             for (UpdateTask<T> updateTask : toExecute) {
                 assert batchResult.executionResults.containsKey(updateTask.task) :
-                    "missing task result for " + updateTask.toString(executor);
+                    "missing task result for " + updateTask;
             }
         }
 
@@ -616,7 +616,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ArrayList<UpdateTask<T>> proccessedListeners = new ArrayList<>();
         // fail all tasks that have failed and extract those that are waiting for results
         for (UpdateTask<T> updateTask : toExecute) {
-            assert batchResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask.toString(executor);
+            assert batchResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask;
             final ClusterStateTaskExecutor.TaskResult executionResult =
                     batchResult.executionResults.get(updateTask.task);
             executionResult.handle(
@@ -624,7 +624,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                     ex -> {
                         logger.debug(
                             (Supplier<?>)
-                                () -> new ParameterizedMessage("cluster state update task {} failed", updateTask.toString(executor)), ex);
+                                () -> new ParameterizedMessage("cluster state update task {} failed", updateTask), ex);
                         updateTask.listener.onFailure(updateTask.source, ex);
                     }
             );
@@ -901,16 +901,13 @@ public class ClusterService extends AbstractLifecycleComponent {
     class UpdateTask<T> extends SourcePrioritizedRunnable {
 
         public final T task;
-        public final ClusterStateTaskConfig config;
-        public final ClusterStateTaskExecutor<T> executor;
         public final ClusterStateTaskListener listener;
+        private final ClusterStateTaskExecutor<T> executor;
         public final AtomicBoolean processed = new AtomicBoolean();
 
-        UpdateTask(String source, T task, ClusterStateTaskConfig config, ClusterStateTaskExecutor<T> executor,
-                   ClusterStateTaskListener listener) {
-            super(config.priority(), source);
+        UpdateTask(String source, T task, Priority priority, ClusterStateTaskExecutor<T> executor, ClusterStateTaskListener listener) {
+            super(priority, source);
             this.task = task;
-            this.config = config;
             this.executor = executor;
             this.listener = listener;
         }
@@ -924,7 +921,8 @@ public class ClusterService extends AbstractLifecycleComponent {
             }
         }
 
-        public String toString(ClusterStateTaskExecutor<T> executor) {
+        @Override
+        public String toString() {
             String taskDescription = executor.describeTasks(Collections.singletonList(task));
             if (taskDescription.isEmpty()) {
                 return "[" + source + "]";

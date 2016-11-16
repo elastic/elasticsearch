@@ -235,17 +235,13 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the number of milliseconds this engine was under index throttling.
      */
-    public long getIndexThrottleTimeInMillis() {
-        return 0;
-    }
+    public abstract long getIndexThrottleTimeInMillis();
 
     /**
      * Returns the <code>true</code> iff this engine is currently under index throttling.
      * @see #getIndexThrottleTimeInMillis()
      */
-    public boolean isThrottled() {
-        return false;
-    }
+    public abstract boolean isThrottled();
 
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {

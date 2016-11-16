@@ -590,9 +590,7 @@ public class Node implements Closeable {
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
-                    public void onNewClusterState(ClusterState state) {
-                        latch.countDown();
-                    }
+                    public void onNewClusterState(ClusterState state) { latch.countDown(); }
 
                     @Override
                     public void onClusterServiceClose() {

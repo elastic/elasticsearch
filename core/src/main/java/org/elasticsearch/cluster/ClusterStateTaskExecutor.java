@@ -78,7 +78,7 @@ public interface ClusterStateTaskExecutor<T> {
          * @param resultingState the resulting cluster state
          * @param executionResults the correspondence between tasks and their outcome
          */
-        private BatchResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
+        BatchResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
             this.resultingState = resultingState;
             this.executionResults = executionResults;
         }

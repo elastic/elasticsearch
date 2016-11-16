@@ -66,7 +66,6 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -149,8 +148,6 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private NodeConnectionsService nodeConnectionsService;
 
-    private final DiscoverySettings discoverySettings;
-
     private boolean initialNoMaster = true;
 
     private volatile ClusterBlock noMasterBlock;
@@ -160,7 +157,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
-        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // will be replaced on doStart.
         this.state = new AtomicReference<>(new ClusterServiceState(ClusterState.builder(clusterName).build(),
@@ -343,13 +339,6 @@ public class ClusterService extends AbstractLifecycleComponent {
      */
     public ClusterServiceState clusterServiceState() {
         return this.state.get();
-    }
-
-    /**
-     * Gets the discovery settings for this cluster.
-     */
-    public DiscoverySettings getDiscoverySettings() {
-        return discoverySettings;
     }
 
     /**
@@ -922,7 +911,6 @@ public class ClusterService extends AbstractLifecycleComponent {
             ClusterState finalNewClusterState = newClusterState;
             updateState(css -> new ClusterServiceState(finalNewClusterState, ClusterStateStatus.BEING_APPLIED, null));
             logger.debug("set local cluster state to version {}", newClusterState.version());
-
             try {
                 // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
                 if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
@@ -932,7 +920,6 @@ public class ClusterService extends AbstractLifecycleComponent {
             } catch (Exception ex) {
                 logger.warn("failed to apply cluster settings", ex);
             }
-
             for (ClusterStateListener listener : preAppliedListeners) {
                 try {
                     listener.clusterChanged(clusterChangedEvent);

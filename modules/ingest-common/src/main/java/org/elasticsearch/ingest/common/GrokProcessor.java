@@ -37,6 +37,7 @@ public final class GrokProcessor extends AbstractProcessor {
     private static final String PATTERN_MATCH_KEY = "_ingest._grok_match_index";
 
     private final String matchField;
+    private final List<String> matchPatterns;
     private final Grok grok;
     private final boolean traceMatch;
     private final boolean ignoreMissing;
@@ -45,6 +46,7 @@ public final class GrokProcessor extends AbstractProcessor {
                          boolean traceMatch, boolean ignoreMissing) {
         super(tag);
         this.matchField = matchField;
+        this.matchPatterns = matchPatterns;
         this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch));
         this.traceMatch = traceMatch;
         this.ignoreMissing = ignoreMissing;
@@ -79,11 +81,15 @@ public final class GrokProcessor extends AbstractProcessor {
             .forEach((e) -> ingestDocument.setFieldValue(e.getKey(), e.getValue()));
 
         if (traceMatch) {
-            @SuppressWarnings("unchecked")
-            HashMap<String, String> matchMap = (HashMap<String, String>) ingestDocument.getFieldValue(PATTERN_MATCH_KEY, Object.class);
-            matchMap.keySet().stream().findFirst().ifPresent((index) -> {
-                ingestDocument.setFieldValue(PATTERN_MATCH_KEY, index);
-            });
+            if (matchPatterns.size() > 1) {
+                @SuppressWarnings("unchecked")
+                HashMap<String, String> matchMap = (HashMap<String, String>) ingestDocument.getFieldValue(PATTERN_MATCH_KEY, Object.class);
+                matchMap.keySet().stream().findFirst().ifPresent((index) -> {
+                    ingestDocument.setFieldValue(PATTERN_MATCH_KEY, index);
+                });
+            } else {
+                ingestDocument.setFieldValue(PATTERN_MATCH_KEY, "0");
+            }
         }
     }
 
@@ -102,6 +108,10 @@ public final class GrokProcessor extends AbstractProcessor {
 
     String getMatchField() {
         return matchField;
+    }
+
+    List<String> getMatchPatterns() {
+        return matchPatterns;
     }
 
     static String combinePatterns(List<String> patterns, boolean traceMatch) {

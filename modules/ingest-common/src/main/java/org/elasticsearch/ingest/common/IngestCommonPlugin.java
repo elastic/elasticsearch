@@ -45,6 +45,7 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(DateProcessor.TYPE, new DateProcessor.Factory());
         processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.templateService));
+        processors.put(SizeProcessor.TYPE, new SizeProcessor.Factory());
         processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.templateService));
         processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory());
         processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.templateService));

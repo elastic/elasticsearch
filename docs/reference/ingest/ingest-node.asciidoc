@@ -1620,6 +1620,41 @@ its value will be replaced with the provided one.
 }
 --------------------------------------------------
 
+[[size-processor]]
+=== Size Processor
+Sets the size of the current document as it will be rendered as a JSON document.
+
+[[size-options]]
+.Siz Options
+[options="header"]
+|======
+| Name                  | Required | Default      | Description
+| `target`              | no       | `_meta.size` | The target field the size will be stored in
+| `consider_size_field` | no       | `false`      | Should the generated `size` field be taken into account when computing size field.
+|======
+
+For example the simplest definition for size processor:
+
+[source,js]
+--------------------------------------------------
+{
+  "size": { }
+}
+--------------------------------------------------
+
+For example the following size processor will generate a field `my_object.my_size` and will take
+into account this `my_object.my_size` field itself when computing the JSON document size:
+
+[source,js]
+--------------------------------------------------
+{
+  "size": {
+    "target": "my_object.my_size",
+    "consider_size_field": true
+  }
+}
+--------------------------------------------------
+
 [[split-processor]]
 === Split Processor
 Splits a field into an array using a separator character. Only works on string fields.

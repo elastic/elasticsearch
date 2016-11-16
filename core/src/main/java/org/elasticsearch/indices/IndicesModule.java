@@ -54,9 +54,14 @@ import org.elasticsearch.index.mapper.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -130,6 +135,7 @@ public class IndicesModule extends AbstractModule {
 
         // builtin metadata mappers
         // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
+
         metadataMappers.put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser());
         metadataMappers.put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser());
         metadataMappers.put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());
@@ -141,6 +147,7 @@ public class IndicesModule extends AbstractModule {
         metadataMappers.put(TTLFieldMapper.NAME, new TTLFieldMapper.TypeParser());
         metadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
         metadataMappers.put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
+        metadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());
         // _field_names is not registered here, see below
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
@@ -166,6 +173,7 @@ public class IndicesModule extends AbstractModule {
         bind(SyncedFlushService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
+        bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
     }
 
     /**

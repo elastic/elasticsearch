@@ -309,7 +309,16 @@ public class IndicesService extends AbstractLifecycleComponent
                     if (indexShard.routingEntry() == null) {
                         continue;
                     }
-                    IndexShardStats indexShardStats = new IndexShardStats(indexShard.shardId(), new ShardStats[] { new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesQueryCache, indexShard, flags), indexShard.commitStats()) });
+                    IndexShardStats indexShardStats =
+                        new IndexShardStats(indexShard.shardId(),
+                            new ShardStats[]{
+                                new ShardStats(
+                                    indexShard.routingEntry(),
+                                    indexShard.shardPath(),
+                                    new CommonStats(indicesQueryCache, indexShard, flags),
+                                    indexShard.commitStats(),
+                                    indexShard.seqNoStats())});
+
                     if (!statsByShard.containsKey(indexService.index())) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
                     } else {
@@ -372,7 +381,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @throws IndexAlreadyExistsException if the index already exists.
      */
     @Override
-    public synchronized IndexService createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners) throws IOException {
+    public synchronized IndexService createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners, Consumer<ShardId> globalCheckpointSyncer) throws IOException {
         ensureChangesAllowed();
         if (indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetaData.getIndexUUID() + "]");
@@ -390,7 +399,15 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService("create index", indexMetaData, indicesQueryCache, indicesFieldDataCache, finalListeners, indexingMemoryController);
+        final IndexService indexService =
+            createIndexService(
+                "create index",
+                indexMetaData,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                globalCheckpointSyncer,
+                indexingMemoryController);
         boolean success = false;
         try {
             indexService.getIndexEventListener().afterIndexCreated(indexService);
@@ -407,7 +424,12 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * This creates a new IndexService without registering it
      */
-    private synchronized IndexService createIndexService(final String reason, IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache, IndicesFieldDataCache indicesFieldDataCache, List<IndexEventListener> builtInListeners, IndexingOperationListener... indexingOperationListeners) throws IOException {
+    private synchronized IndexService createIndexService(final String reason,
+                                                         IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache,
+                                                         IndicesFieldDataCache indicesFieldDataCache,
+                                                         List<IndexEventListener> builtInListeners,
+                                                         Consumer<ShardId> globalCheckpointSyncer,
+                                                         IndexingOperationListener... indexingOperationListeners) throws IOException {
         final Index index = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
@@ -425,8 +447,20 @@ public class IndicesService extends AbstractLifecycleComponent
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
-        return indexModule.newIndexService(nodeEnv, this, circuitBreakerService, bigArrays, threadPool, scriptService,
-                indicesQueriesRegistry, clusterService, client, indicesQueryCache, mapperRegistry, indicesFieldDataCache);
+        return indexModule.newIndexService(
+            nodeEnv,
+            this,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            indicesQueriesRegistry,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            globalCheckpointSyncer,
+            indicesFieldDataCache);
     }
 
     /**
@@ -458,8 +492,8 @@ public class IndicesService extends AbstractLifecycleComponent
             IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
-            final IndexService service = createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache,
-                    emptyList());
+            final IndexService service =
+                createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList(), s -> {});
             closeables.add(() -> service.close("metadata verification", false));
             for (ObjectCursor<MappingMetaData> typeMapping : metaData.getMappings().values()) {
                 // don't apply the default mapping, it has been applied when the mapping was created

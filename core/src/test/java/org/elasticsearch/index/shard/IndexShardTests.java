@@ -62,6 +62,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -506,9 +507,10 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardStats() throws IOException {
+
         IndexShard shard = newStartedShard();
         ShardStats stats = new ShardStats(shard.routingEntry(), shard.shardPath(),
-            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()), shard.commitStats());
+            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()), shard.commitStats(), shard.seqNoStats());
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
         assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
@@ -541,9 +543,10 @@ public class IndexShardTests extends IndexShardTestCase {
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
+        Field seqNoField = new NumericDocValuesField("_seq_no", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
     public void testIndexingOperationsListeners() throws IOException {
@@ -1046,7 +1049,7 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         closeShards(shard);
         IndexShard newShard = newShard(ShardRoutingHelper.reinitPrimary(shard.routingEntry()),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, () -> {});
 
         recoveryShardFromStore(newShard);
 
@@ -1187,7 +1190,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(shard);
         IndexShard newShard = newShard(ShardRoutingHelper.reinitPrimary(shard.routingEntry()),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, () -> {});
 
         recoveryShardFromStore(newShard);
 

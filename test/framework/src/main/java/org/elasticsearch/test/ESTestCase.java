@@ -726,7 +726,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a random subset of values (including a potential empty list)
      */
     public static <T> List<T> randomSubsetOf(Collection<T> collection) {
-        return randomSubsetOf(randomInt(collection.size() - 1), collection);
+        return randomSubsetOf(randomInt(Math.max(collection.size() - 1, 0)), collection);
     }
 
     /**

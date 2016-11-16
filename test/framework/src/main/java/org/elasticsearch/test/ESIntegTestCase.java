@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
@@ -726,7 +727,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Creates a new {@link CreateIndexRequestBuilder} with the settings obtained from {@link #indexSettings()}.
      */
     public final CreateIndexRequestBuilder prepareCreate(String index) {
-        return client().admin().indices().prepareCreate(index).setSettings(indexSettings());
+        return prepareCreate(index, -1);
     }
 
     /**
@@ -743,20 +744,26 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Creates a new {@link CreateIndexRequestBuilder} with the settings obtained from {@link #indexSettings()}.
-     * The index that is created with this builder will only be allowed to allocate on the number of nodes passed to this
-     * method.
-     * <p>
-     * This method uses allocation deciders to filter out certain nodes to allocate the created index on. It defines allocation
-     * rules based on <code>index.routing.allocation.exclude._name</code>.
-     * </p>
+     * Creates a new {@link CreateIndexRequestBuilder} with the settings obtained from {@link #indexSettings()}, augmented
+     * by the given builder
      */
+    public CreateIndexRequestBuilder prepareCreate(String index, Settings.Builder settingsBuilder) {
+        return prepareCreate(index, -1, settingsBuilder);
+    }
+        /**
+         * Creates a new {@link CreateIndexRequestBuilder} with the settings obtained from {@link #indexSettings()}.
+         * The index that is created with this builder will only be allowed to allocate on the number of nodes passed to this
+         * method.
+         * <p>
+         * This method uses allocation deciders to filter out certain nodes to allocate the created index on. It defines allocation
+         * rules based on <code>index.routing.allocation.exclude._name</code>.
+         * </p>
+         */
     public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, Settings.Builder settingsBuilder) {
-        internalCluster().ensureAtLeastNumDataNodes(numNodes);
-
         Settings.Builder builder = Settings.builder().put(indexSettings()).put(settingsBuilder.build());
 
         if (numNodes > 0) {
+            internalCluster().ensureAtLeastNumDataNodes(numNodes);
             getExcludeSettings(index, numNodes, builder);
         }
         return client().admin().indices().prepareCreate(index).setSettings(builder.build());

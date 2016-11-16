@@ -181,7 +181,8 @@ Index response:
     "failed": 0
   },
   "created": true,
-  "result": "created"
+  "result": "created",
+  "_seq_no" : 1
 }
 --------------------------------------------------
 // TESTRESPONSE

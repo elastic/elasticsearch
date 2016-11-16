@@ -36,11 +36,10 @@ import java.io.IOException;
 public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse() {
-
     }
 
-    public IndexResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        super(shardId, type, id, version, created ? Result.CREATED : Result.UPDATED);
+    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long version, boolean created) {
+        super(shardId, type, id, seqNo, version, created ? Result.CREATED : Result.UPDATED);
     }
 
     @Override
@@ -57,6 +56,7 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
+        builder.append(",seqNo=").append(getSeqNo());
         builder.append(",shards=").append(Strings.toString(getShardInfo(), true));
         return builder.append("]").toString();
     }

@@ -145,7 +145,7 @@ public class IndexModuleTests extends ESTestCase {
 
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(nodeEnvironment, deleter, circuitBreakerService, bigArrays, threadPool, scriptService,
-                indicesQueriesRegistry, clusterService, null, indicesQueryCache, mapperRegistry,
+                indicesQueriesRegistry, clusterService, null, indicesQueryCache, mapperRegistry, shardId -> {},
                 new IndicesFieldDataCache(settings, listener));
     }
 
@@ -154,6 +154,7 @@ public class IndexModuleTests extends ESTestCase {
                 new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         module.setSearcherWrapper((s) -> new Wrapper());
         module.engineFactory.set(new MockEngineFactory(AssertingDirectoryReader.class));
+
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getSearcherWrapper() instanceof Wrapper);
         assertSame(indexService.getEngineFactory(), module.engineFactory.get());
@@ -178,6 +179,7 @@ public class IndexModuleTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             // fine
         }
+
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getIndexStore() instanceof FooStore);
 
@@ -243,7 +245,6 @@ public class IndexModuleTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> module.addIndexOperationListener(listener));
         expectThrows(IllegalArgumentException.class, () -> module.addIndexOperationListener(null));
 
-
         IndexService indexService = newIndexService(module);
         assertEquals(2, indexService.getIndexOperationListeners().size());
         assertEquals(IndexingSlowLog.class, indexService.getIndexOperationListeners().get(0).getClass());
@@ -272,7 +273,6 @@ public class IndexModuleTests extends ESTestCase {
 
         expectThrows(IllegalArgumentException.class, () -> module.addSearchOperationListener(listener));
         expectThrows(IllegalArgumentException.class, () -> module.addSearchOperationListener(null));
-
 
         IndexService indexService = newIndexService(module);
         assertEquals(2, indexService.getSearchOperationListener().size());

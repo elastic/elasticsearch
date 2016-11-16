@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,9 +37,16 @@ import static org.hamcrest.Matchers.not;
 
 public class DocWriteResponseTests extends ESTestCase {
     public void testGetLocation() {
-        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0, Result.CREATED) {
-            // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
-        };
+        DocWriteResponse response =
+            new DocWriteResponse(
+                new ShardId("index", "uuid", 0),
+                "type",
+                "id",
+                SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                0,
+                Result.CREATED) {
+                // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
+            };
         assertEquals("/index/type/id", response.getLocation(null));
         assertEquals("/index/type/id?routing=test_routing", response.getLocation("test_routing"));
     }
@@ -48,9 +56,16 @@ public class DocWriteResponseTests extends ESTestCase {
      * is true. We can't assert this in the yaml tests because "not found" is also "false" there....
      */
     public void testToXContentDoesntIncludeForcedRefreshUnlessForced() throws IOException {
-        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0, Result.CREATED) {
-         // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
-        };
+        DocWriteResponse response =
+            new DocWriteResponse(
+                new ShardId("index", "uuid", 0),
+                "type",
+                "id",
+                SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                0,
+                Result.CREATED) {
+                // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
+            };
         response.setShardInfo(new ShardInfo(1, 1));
         response.setForcedRefresh(false);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {

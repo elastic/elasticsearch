@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,7 +39,7 @@ public class SplitProcessorTests extends ESTestCase {
     public void testSplit() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
-        Processor processor = new SplitProcessor(randomAsciiOfLength(10), fieldName, "\\.");
+        Processor processor = new SplitProcessor(randomAsciiOfLength(10), fieldName, "\\.", false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
     }
@@ -46,7 +47,7 @@ public class SplitProcessorTests extends ESTestCase {
     public void testSplitFieldNotFound() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new SplitProcessor(randomAsciiOfLength(10), fieldName, "\\.");
+        Processor processor = new SplitProcessor(randomAsciiOfLength(10), fieldName, "\\.", false);
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");
@@ -56,8 +57,9 @@ public class SplitProcessorTests extends ESTestCase {
     }
 
     public void testSplitNullValue() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        Processor processor = new SplitProcessor(randomAsciiOfLength(10), "field", "\\.");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(),
+            Collections.singletonMap("field", null));
+        Processor processor = new SplitProcessor(randomAsciiOfLength(10), "field", "\\.", false);
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");
@@ -66,11 +68,29 @@ public class SplitProcessorTests extends ESTestCase {
         }
     }
 
+    public void testSplitNullValueWithIgnoreMissing() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
+            Collections.singletonMap(fieldName, null));
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        Processor processor = new SplitProcessor(randomAsciiOfLength(10), fieldName, "\\.", true);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
+    }
+
+    public void testSplitNonExistentWithIgnoreMissing() throws Exception {
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        Processor processor = new SplitProcessor(randomAsciiOfLength(10), "field", "\\.", true);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
+    }
+
     public void testSplitNonStringValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, randomInt());
-        Processor processor = new SplitProcessor(randomAsciiOfLength(10), fieldName, "\\.");
+        Processor processor = new SplitProcessor(randomAsciiOfLength(10), fieldName, "\\.", false);
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");

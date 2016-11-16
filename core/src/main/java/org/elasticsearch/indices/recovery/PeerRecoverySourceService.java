@@ -113,7 +113,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
             throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
         }
 
-        RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
+        RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, targetShardRouting.allocationId().getId(), shard);
         logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(), request.targetNode());
         try {
             return handler.recoverToTarget();
@@ -133,9 +133,9 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
     private final class OngoingRecoveries {
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
 
-        synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
+        synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, String targetAllocationId, IndexShard shard) {
             final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
-            RecoverySourceHandler handler = shardContext.addNewRecovery(request, shard);
+            RecoverySourceHandler handler = shardContext.addNewRecovery(request, targetAllocationId, shard);
             shard.recoveryStats().incCurrentAsSource();
             return handler;
         }
@@ -181,20 +181,21 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
              * Adds recovery source handler if recoveries are not delayed from starting (see also {@link #delayNewRecoveries}.
              * Throws {@link DelayRecoveryException} if new recoveries are delayed from starting.
              */
-            synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
+            synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, String targetAllocationId, IndexShard shard) {
                 if (onNewRecoveryException != null) {
                     throw onNewRecoveryException;
                 }
-                RecoverySourceHandler handler = createRecoverySourceHandler(request, shard);
+                RecoverySourceHandler handler = createRecoverySourceHandler(request, targetAllocationId, shard);
                 recoveryHandlers.add(handler);
                 return handler;
             }
 
-            private RecoverySourceHandler createRecoverySourceHandler(StartRecoveryRequest request, IndexShard shard) {
+            private RecoverySourceHandler createRecoverySourceHandler(StartRecoveryRequest request, String targetAllocationId,
+                                                                      IndexShard shard) {
                 RecoverySourceHandler handler;
                 final RemoteRecoveryTargetHandler recoveryTarget =
-                    new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService, request.targetNode(),
-                        recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
+                    new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), targetAllocationId, transportService,
+                        request.targetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
                 Supplier<Long> currentClusterStateVersionSupplier = () -> clusterService.state().getVersion();
                 if (shard.indexSettings().isOnSharedFilesystem()) {
                     handler = new SharedFSRecoverySourceHandler(shard, recoveryTarget, request, currentClusterStateVersionSupplier,

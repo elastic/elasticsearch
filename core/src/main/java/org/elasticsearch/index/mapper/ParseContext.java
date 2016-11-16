@@ -254,6 +254,16 @@ public abstract class ParseContext {
         }
 
         @Override
+        public Field seqNo() {
+            return in.seqNo();
+        }
+
+        @Override
+        public void seqNo(Field seqNo) {
+            in.seqNo(seqNo);
+        }
+
+        @Override
         public AllEntries allEntries() {
             return in.allEntries();
         }
@@ -299,6 +309,8 @@ public abstract class ParseContext {
         private final SourceToParse sourceToParse;
 
         private Field version;
+
+        private Field seqNo;
 
         private final AllEntries allEntries;
 
@@ -390,6 +402,17 @@ public abstract class ParseContext {
         public void version(Field version) {
             this.version = version;
         }
+
+        @Override
+        public Field seqNo() {
+            return this.seqNo;
+        }
+
+        @Override
+        public void seqNo(Field seqNo) {
+            this.seqNo = seqNo;
+        }
+
 
         @Override
         public AllEntries allEntries() {
@@ -516,6 +539,10 @@ public abstract class ParseContext {
     public abstract Field version();
 
     public abstract void version(Field version);
+
+    public abstract Field seqNo();
+
+    public abstract void seqNo(Field seqNo);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
         return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);

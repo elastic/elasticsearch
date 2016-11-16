@@ -890,4 +890,5 @@ public abstract class StreamOutput extends OutputStream {
             writeNamedWriteable(obj);
         }
     }
+
 }

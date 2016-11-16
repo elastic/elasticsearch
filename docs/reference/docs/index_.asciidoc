@@ -31,6 +31,7 @@ The result of the above index operation is:
     "_id" : "1",
     "_version" : 1,
     "created" : true,
+    "_seq_no" : 0,
     "result" : created
 }
 --------------------------------------------------
@@ -228,6 +229,7 @@ The result of the above index operation is:
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
     "created" : true,
+    "_seq_no" : 0,
     "result": "created"
 }
 --------------------------------------------------

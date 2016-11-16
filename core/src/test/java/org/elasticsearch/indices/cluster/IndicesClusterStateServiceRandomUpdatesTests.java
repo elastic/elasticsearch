@@ -71,6 +71,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+
 public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndicesClusterStateServiceTestCase {
 
     private final ClusterStateChanges cluster = new ClusterStateChanges();
@@ -141,9 +142,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState initialState = ClusterState.builder(stateWithIndex)
-                                        .metaData(MetaData.builder(stateWithIndex.metaData()).remove(name))
-                                        .routingTable(RoutingTable.builder().build())
-                                        .build();
+            .metaData(MetaData.builder(stateWithIndex.metaData()).remove(name))
+            .routingTable(RoutingTable.builder().build())
+            .build();
 
         // pick a data node to simulate the adding an index cluster state change event on, that has shards assigned to it
         DiscoveryNode node = stateWithIndex.nodes().get(
@@ -158,14 +159,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // create a new empty cluster state with a brand new cluster UUID
         ClusterState newClusterState = ClusterState.builder(initialState)
-                                           .metaData(MetaData.builder(initialState.metaData()).clusterUUID(UUIDs.randomBase64UUID()))
-                                           .build();
+            .metaData(MetaData.builder(initialState.metaData()).clusterUUID(UUIDs.randomBase64UUID()))
+            .build();
 
         // simulate the cluster state change on the node
         localState = adaptClusterStateToLocalNode(newClusterState, node);
         previousLocalState = adaptClusterStateToLocalNode(stateWithIndex, node);
         indicesCSSvc.clusterChanged(new ClusterChangedEvent("cluster state change with a new cluster UUID (and doesn't contain the index)",
-                                                            localState, previousLocalState));
+            localState, previousLocalState));
 
         // check that in memory data structures have been removed once the new cluster state is applied,
         // but the persistent data is still there
@@ -375,8 +376,21 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(settings, threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
-        return new IndicesClusterStateService(settings, indicesService, clusterService,
-            threadPool, recoveryTargetService, shardStateAction, null, repositoriesService, null, null, null, null, null);
+        return new IndicesClusterStateService(
+            settings,
+            indicesService,
+            clusterService,
+            threadPool,
+            recoveryTargetService,
+            shardStateAction,
+            null,
+            repositoriesService,
+            null,
+            null,
+            null,
+            null,
+            null,
+            shardId -> {});
     }
 
     private class RecordingIndicesService extends MockIndicesService {

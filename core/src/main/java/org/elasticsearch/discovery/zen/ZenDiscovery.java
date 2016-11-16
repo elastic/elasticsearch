@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -45,12 +44,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -732,11 +729,21 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 assert !newClusterState.blocks().hasGlobalBlock(clusterService.getNoMasterBlock()) : "received a cluster state with a master block";
 
                 if (currentState.nodes().isLocalNodeElectedMaster()) {
-                    if (handleAnotherMaster(currentState, newClusterState.nodes().getMasterNode(), newClusterState.version(), "via a new cluster state")) {
-                        ClusterBlocks.Builder clusterBlocks = ClusterBlocks.builder().blocks(newClusterState.blocks())
-                                                                  .addGlobalBlock(clusterService.getNoMasterBlock());
-                        currentState = ClusterState.builder(currentState).blocks(clusterBlocks).build();
-                    }
+                    clusterService.submitClusterServiceTask("received-cluster-state-while-master", new ClusterServiceTask(Priority.IMMEDIATE) {
+                        @Override
+                        public ClusterServiceTaskResult execute(ClusterState currentState) throws Exception {
+                            if (handleAnotherMaster(currentState, newClusterState.nodes().getMasterNode(), newClusterState.version(), "via a new cluster state")) {
+                                return NO_MASTER_RESULT;
+                            }
+                            return HAS_MASTER_RESULT;
+                        }
+
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.debug("unexpected error during cluster service task after receiving a " +
+                                             "cluster state from another node while master", e);
+                        }
+                    });
                     return currentState;
                 }
 

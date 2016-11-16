@@ -15,7 +15,7 @@ Obtaining Elasticsearch for Docker is as simple as issuing a +docker pull+ comma
 
 ifeval::["{release-state}"=="unreleased"]
 
-However, version {version} of Elasticsearch has not yet been released, so no Docker image is currently available for this version.
+WARNING: Version {version} of Elasticsearch has not yet been released, so no Docker image is currently available for this version.
 
 endif::[]
 
@@ -38,7 +38,7 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of the Elasticsearch Docker image has not yet been released.
+WARNING: Version {version} of the Elasticsearch Docker image has not yet been released.
 
 endif::[]
 
@@ -108,7 +108,7 @@ To bring up the cluster, use the <<docker-prod-cluster-composefile,`docker-compo
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of the Elasticsearch Docker image has not yet been released, so a `docker-compose.yml` is not available for this version.
+WARNING: Version {version} of the Elasticsearch Docker image has not yet been released, so a `docker-compose.yml` is not available for this version.
 
 endif::[]
 
@@ -133,7 +133,7 @@ This example also uses https://docs.docker.com/engine/tutorials/dockervolumes[Do
 `docker-compose.yml`:
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of the Elasticsearch Docker image has not yet been released, so a `docker-compose.yml` is not available for this version.
+WARNING: Version {version} of the Elasticsearch Docker image has not yet been released, so a `docker-compose.yml` is not available for this version.
 
 endif::[]
 

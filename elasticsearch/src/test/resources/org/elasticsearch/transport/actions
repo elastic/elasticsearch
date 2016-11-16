@@ -40,7 +40,6 @@ indices:admin/mappings/fields/get
 indices:admin/mappings/get
 indices:admin/open
 indices:admin/refresh
-indices:admin/seq_no/global_checkpoint_sync
 indices:admin/settings/update
 indices:admin/shards/search_shards
 indices:admin/shrink

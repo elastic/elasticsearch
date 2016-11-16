@@ -36,6 +36,10 @@ public class ElvisTests extends ScriptTestCase {
         // Assigning to a primitive
         assertEquals(1, exec("int i = params.a ?: 1; return i"));
         assertEquals(1, exec("int i = params.a ?: 2; return i", singletonMap("a", 1), true));
+        assertEquals(1, exec("Integer a = Integer.valueOf(1); int b = a ?: 2; return b"));
+        Exception e = expectScriptThrows(ClassCastException.class, () ->
+            exec("Integer a = Integer.valueOf(1); int b = a ?: Integer.valueOf(2); return b"));
+        assertEquals("Cannot cast from [Integer] to [int].", e.getMessage());
 
         // Explicit casting
         assertEquals(1, exec("return (Integer)(params.a ?: Integer.valueOf(1))"));
@@ -123,5 +127,10 @@ public class ElvisTests extends ScriptTestCase {
         assertEquals("Extraneous elvis operator. LHS is null.", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a ?: null"));
         assertEquals("Extraneous elvis operator. RHS is null.", e.getMessage());
+    }
+
+    public void testQuestionSpaceColonIsNotElvis() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a ? : 1", false));
+        assertEquals("invalid sequence of tokens near [':'].", e.getMessage());
     }
 }

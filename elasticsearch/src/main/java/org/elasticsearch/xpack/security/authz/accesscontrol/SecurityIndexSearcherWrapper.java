@@ -126,6 +126,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
         allowedMetaFields.add("_source"); // TODO: add _source to MapperService#META_FIELDS?
         allowedMetaFields.add("_version"); // TODO: add _version to MapperService#META_FIELDS?
         allowedMetaFields.remove("_all"); // The _all field contains actual data and we can't include that by default.
+        allowedMetaFields.add("_seq_no"); // TODO: add _seq_no to MapperService#META_FIELDS?
 
         this.allowedMetaFields = Collections.unmodifiableSet(allowedMetaFields);
     }

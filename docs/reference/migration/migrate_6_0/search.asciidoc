@@ -5,3 +5,7 @@
 
 * The `collect_payloads` parameter of the `span_near` query has been removed. Payloads will be
   loaded when needed.
+
+* Queries on boolean fields now strictly parse boolean-like values. This means
+  only the strings `"true"` and `"false"` will be parsed into their boolean
+  counterparts. Other strings will cause an error to be thrown.

@@ -321,14 +321,6 @@ public class DateFieldMapper extends FieldMapper {
                 dateParser = this.dateMathParser;
             }
 
-            if (PointValues.size(reader, name()) == 0) {
-                // no points, so nothing matches
-                return Relation.DISJOINT;
-            }
-
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
-
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
                 fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser, context);
@@ -350,6 +342,17 @@ public class DateFieldMapper extends FieldMapper {
                     --toInclusive;
                 }
             }
+
+            // This check needs to be done after fromInclusive and toInclusive
+            // are resolved so we can throw an exception if they are invalid
+            // even if there are no points in the shard
+            if (PointValues.size(reader, name()) == 0) {
+                // no points, so nothing matches
+                return Relation.DISJOINT;
+            }
+
+            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             if (minValue >= fromInclusive && maxValue <= toInclusive) {
                 return Relation.WITHIN;

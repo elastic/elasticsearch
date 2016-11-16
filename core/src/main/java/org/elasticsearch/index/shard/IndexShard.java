@@ -277,7 +277,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
-            cachingPolicy = new UsageTrackingQueryCachingPolicy();
+            QueryCachingPolicy cachingPolicy = new UsageTrackingQueryCachingPolicy();
+            if (IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING.get(settings) == false) {
+                cachingPolicy = new ElasticsearchQueryCachingPolicy(cachingPolicy);
+            }
+            this.cachingPolicy = cachingPolicy;
         }
         indexShardOperationsLock = new IndexShardOperationsLock(shardId, logger, threadPool);
         searcherWrapper = indexSearcherWrapper;

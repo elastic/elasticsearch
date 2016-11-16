@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * For each qa specification identified by its id this response returns the respective
@@ -47,13 +47,16 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     private double qualityLevel;
     /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
     private Map<String, EvalQueryQuality> details;
+    /**Mapping from intent id to potential exceptions that were thrown on query execution.*/
+    private Map<String, Exception> failures;
 
     public RankEvalResponse() {
     }
 
-    public RankEvalResponse(double qualityLevel, Map<String, EvalQueryQuality> partialResults) {
+    public RankEvalResponse(double qualityLevel, Map<String, EvalQueryQuality> partialResults, Map<String, Exception> failures) {
         this.qualityLevel = qualityLevel;
         this.details = partialResults;
+        this.failures = failures;
     }
 
     public double getQualityLevel() {
@@ -64,9 +67,13 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         return Collections.unmodifiableMap(details);
     }
 
+    public Map<String, Exception> getFailures() {
+        return Collections.unmodifiableMap(failures);
+    }
+
     @Override
     public String toString() {
-        return "RankEvalResponse, quality: " + qualityLevel + ", partial results: " + details;
+        return "RankEvalResponse, quality: " + qualityLevel + ", partial results: " + details + ", number of failures: " + failures.size();
     }
 
     @Override
@@ -77,6 +84,11 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         for (String queryId : details.keySet()) {
             out.writeString(queryId);
             details.get(queryId).writeTo(out);
+        }
+        out.writeVInt(failures.size());
+        for (String queryId : failures.keySet()) {
+            out.writeString(queryId);
+            out.writeException(failures.get(queryId));
         }
     }
 
@@ -91,6 +103,12 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
             EvalQueryQuality partial = new EvalQueryQuality(in);
             this.details.put(queryId, partial);
         }
+        int failuresSize = in.readVInt();
+        this.failures = new HashMap<>(failuresSize);
+        for (int i = 0; i < failuresSize; i++) {
+            String queryId = in.readString();
+            this.failures.put(queryId, in.readException());
+        }
     }
 
     @Override
@@ -102,25 +120,14 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
             details.get(key).toXContent(builder, params);
         }
         builder.endObject();
+        builder.startObject("failures");
+        for (String key : failures.keySet()) {
+            builder.startObject(key);
+            ElasticsearchException.renderException(builder, params, failures.get(key));
+            builder.endObject();
+        }
+        builder.endObject();
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public final boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        RankEvalResponse other = (RankEvalResponse) obj;
-        return Objects.equals(qualityLevel, other.qualityLevel) &&
-                Objects.equals(details, other.details);
-    }
-
-    @Override
-    public final int hashCode() {
-        return Objects.hash(qualityLevel, details);
     }
 }

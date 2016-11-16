@@ -64,14 +64,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec qualityTask = request.getRankEvalSpec();
 
-        Map<String, Collection<DocumentKey>> unknownDocs = new ConcurrentHashMap<>();
         Collection<RatedRequest> specifications = qualityTask.getSpecifications();
         AtomicInteger responseCounter = new AtomicInteger(specifications.size());
         Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(specifications.size());
+        Map<String, Exception> errors = new ConcurrentHashMap<>(specifications.size());
 
         for (RatedRequest querySpecification : specifications) {
-            final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask, querySpecification,
-                    partialResults, unknownDocs, responseCounter);
+            final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask.getMetric(), querySpecification,
+                    partialResults, errors, responseCounter);
             SearchSourceBuilder specRequest = querySpecification.getTestRequest();
             List<String> summaryFields = querySpecification.getSummaryFields();
             if (summaryFields.isEmpty()) {
@@ -95,14 +95,15 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         private ActionListener<RankEvalResponse> listener;
         private RatedRequest specification;
         private Map<String, EvalQueryQuality> requestDetails;
-        private RankEvalSpec task;
+        private Map<String, Exception> errors;
+        private RankedListQualityMetric metric;
         private AtomicInteger responseCounter;
 
-        public RankEvalActionListener(ActionListener<RankEvalResponse> listener, RankEvalSpec task, RatedRequest specification,
-                Map<String, EvalQueryQuality> details, Map<String, Collection<DocumentKey>> unknownDocs,
-                AtomicInteger responseCounter) {
+        public RankEvalActionListener(ActionListener<RankEvalResponse> listener, RankedListQualityMetric metric, RatedRequest specification,
+                Map<String, EvalQueryQuality> details, Map<String, Exception> errors, AtomicInteger responseCounter) {
             this.listener = listener;
-            this.task = task;
+            this.metric = metric;
+            this.errors = errors;
             this.specification = specification;
             this.requestDetails = details;
             this.responseCounter = responseCounter;
@@ -111,20 +112,22 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         @Override
         public void onResponse(SearchResponse searchResponse) {
             SearchHit[] hits = searchResponse.getHits().getHits();
-            EvalQueryQuality queryQuality = task.getMetric().evaluate(specification.getSpecId(), hits,
-                    specification.getRatedDocs());
+            EvalQueryQuality queryQuality = metric.evaluate(specification.getSpecId(), hits, specification.getRatedDocs());
             requestDetails.put(specification.getSpecId(), queryQuality);
-
-            if (responseCounter.decrementAndGet() < 1) {
-                // TODO add other statistics like micro/macro avg?
-                listener.onResponse(
-                        new RankEvalResponse(task.getMetric().combine(requestDetails.values()), requestDetails));
-            }
+            handleResponse();
         }
 
         @Override
         public void onFailure(Exception exception) {
-            this.listener.onFailure(exception);
+            errors.put(specification.getSpecId(), exception);
+            handleResponse();
+        }
+
+        private void handleResponse() {
+            if (responseCounter.decrementAndGet() == 0) {
+                // TODO add other statistics like micro/macro avg?
+                listener.onResponse(new RankEvalResponse(metric.combine(requestDetails.values()), requestDetails, errors));
+            }
         }
     }
 }

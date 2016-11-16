@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
@@ -126,7 +126,7 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
     }
 
     /**
-     * test that running a bad query (e.g. one that will target a non existing field) will error
+     * test that running a bad query (e.g. one that will target a non existing field) will produce an error in the response
      */
     public void testBadQuery() {
         List<String> indices = Arrays.asList(new String[] { "test" });
@@ -146,7 +146,11 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
-        expectThrows(SearchPhaseExecutionException.class, () -> client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet());
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        assertEquals(1, response.getFailures().size());
+        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(response.getFailures().get("broken_query"));
+        assertEquals("[range] time_zone can not be applied to non date field [text]", rootCauses[0].getMessage());
+
     }
 
     private static List<RatedDocument> createRelevant(String... docs) {

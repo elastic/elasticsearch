@@ -927,7 +927,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         public final T task;
         public final ClusterStateTaskListener listener;
         private final ClusterStateTaskExecutor<T> executor;
-        private final String description;
         public final AtomicBoolean processed = new AtomicBoolean();
 
         UpdateTask(String source, T task, Priority priority, ClusterStateTaskExecutor<T> executor, ClusterStateTaskListener listener) {
@@ -935,15 +934,6 @@ public class ClusterService extends AbstractLifecycleComponent {
             this.task = task;
             this.executor = executor;
             this.listener = listener;
-            this.description = createToString(executor.describeTasks(Collections.singletonList(task)));
-        }
-
-        private String createToString(String taskDescription) {
-            if (taskDescription.isEmpty()) {
-                return "[" + source + "]";
-            } else {
-                return "[" + source + "[" + taskDescription + "]]";
-            }
         }
 
         @Override
@@ -957,7 +947,12 @@ public class ClusterService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
-            return description;
+            String taskDescription = executor.describeTasks(Collections.singletonList(task));
+            if (taskDescription.isEmpty()) {
+                return "[" + source + "]";
+            } else {
+                return "[" + source + "[" + taskDescription + "]]";
+            }
         }
     }
 

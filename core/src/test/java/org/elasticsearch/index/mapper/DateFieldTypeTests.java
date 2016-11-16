@@ -73,11 +73,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIsFieldWithinQueryEmptyReader() throws IOException {
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null, null, null, null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                randomBoolean(), randomBoolean(), null, null, null));
+                randomBoolean(), randomBoolean(), null, null, context));
     }
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
@@ -128,7 +129,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType();
         ft2.setName("my_date2");
-        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, null));
+
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null, null, null, null, () -> nowInMillis);
+        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
         IOUtils.close(reader, w, dir);
     }
 

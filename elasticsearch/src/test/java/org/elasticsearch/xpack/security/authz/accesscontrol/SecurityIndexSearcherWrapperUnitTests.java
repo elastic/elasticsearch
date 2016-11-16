@@ -172,7 +172,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         FieldSubsetReader.FieldSubsetDirectoryReader result =
                 (FieldSubsetReader.FieldSubsetDirectoryReader) securityIndexSearcherWrapper.wrap(esIn);
-        assertThat(result.getFieldNames().size(), equalTo(12));
+        assertThat(result.getFieldNames().size(), equalTo(13));
         assertThat(result.getFieldNames().contains("_uid"), is(true));
         assertThat(result.getFieldNames().contains("_id"), is(true));
         assertThat(result.getFieldNames().contains("_version"), is(true));
@@ -185,6 +185,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         assertThat(result.getFieldNames().contains("_size"), is(true));
         assertThat(result.getFieldNames().contains("_index"), is(true));
         assertThat(result.getFieldNames().contains("_field_names"), is(true));
+        assertThat(result.getFieldNames().contains("_seq_no"), is(true));
         // _all contains actual user data and therefor can't be included by default
         assertThat(result.getFieldNames().contains("_all"), is(false));
     }

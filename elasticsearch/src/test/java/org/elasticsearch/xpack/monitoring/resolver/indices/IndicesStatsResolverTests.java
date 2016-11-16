@@ -98,7 +98,7 @@ public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCa
             stats.segments = new SegmentsStats();
             stats.merge = new MergeStats();
             stats.refresh = new RefreshStats();
-            shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null));
+            shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null));
         }
         return IndicesStatsResponseTestUtils.newIndicesStatsResponse(shardStats.toArray(new ShardStats[shardStats.size()]),
                 shardStats.size(), shardStats.size(), 0, emptyList());

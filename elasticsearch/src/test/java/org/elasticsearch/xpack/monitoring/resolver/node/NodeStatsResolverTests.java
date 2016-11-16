@@ -134,7 +134,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
         stats.indexing = new IndexingStats();
         stats.search = new SearchStats();
         stats.segments = new SegmentsStats();
-        ShardStats shardStats = new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null);
+        ShardStats shardStats = new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null);
         FsInfo.Path[] pathInfo = new FsInfo.Path[]{
                 new FsInfo.Path("/test", "/dev/sda", 10, -8, 0),
         };

@@ -150,7 +150,11 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         shardCommonStats.fieldData = new FieldDataStats();
         shardCommonStats.queryCache = new QueryCacheStats();
         return new ShardStats[]{
-                new ShardStats(shardRouting, new ShardPath(false, shardPath, shardPath, new ShardId(index, 0)), shardCommonStats, null)
-        };
+                new ShardStats(
+                        shardRouting,
+                        new ShardPath(false, shardPath, shardPath, new ShardId(index, 0)),
+                        shardCommonStats,
+                        null,
+                        null)};
     }
 }

@@ -1018,7 +1018,7 @@ public abstract class TransportReplicationAction<
             }
             transportService.sendRequest(node, transportReplicaAction,
                 new ConcreteShardRequest<>(request, replica.allocationId().getId()), transportOptions,
-                new ActionListenerResponseHandler<>(listener, ReplicaResponse::new));
+                new ActionListenerResponseHandler<ReplicaResponse>(listener, ReplicaResponse::new));
         }
 
         @Override

@@ -143,7 +143,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         assert waitFor >= 0;
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
         final ClusterServiceState observedState = observer.observedState();
-        final ClusterState state = observedState.getClusterState();
+        final ClusterState state = observedState.getLocalClusterState();
         if (request.timeout().millis() == 0) {
             listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
@@ -152,7 +152,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         final ClusterStateObserver.ChangePredicate validationPredicate = new ClusterStateObserver.ValidationPredicate() {
             @Override
             protected boolean validate(ClusterServiceState newState) {
-                return newState.getClusterStateStatus() == ClusterStateStatus.APPLIED && validateRequest(request, newState.getClusterState(), concreteWaitFor);
+                return newState.getClusterStateStatus() == ClusterStateStatus.APPLIED && validateRequest(request, newState.getLocalClusterState(), concreteWaitFor);
             }
         };
 

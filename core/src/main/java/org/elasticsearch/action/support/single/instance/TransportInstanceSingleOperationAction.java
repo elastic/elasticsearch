@@ -124,7 +124,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
         }
 
         protected void doStart() {
-            final ClusterState clusterState = observer.observedState().getClusterState();
+            final ClusterState clusterState = observer.observedState().getLocalClusterState();
             nodes = clusterState.nodes();
             try {
                 ClusterBlockException blockException = checkGlobalBlock(clusterState);

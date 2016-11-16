@@ -25,11 +25,10 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -180,7 +179,7 @@ public class NodeJoinController extends AbstractComponent {
             checkPendingJoinsAndElectIfNeeded();
         } else {
             clusterService.submitStateUpdateTask("zen-disco-node-join",
-                node, ClusterStateTaskConfig.build(Priority.URGENT),
+                node, ClusterTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }
     }
@@ -282,7 +281,7 @@ public class NodeJoinController extends AbstractComponent {
 
             tasks.put(BECOME_MASTER_TASK, (source1, e) -> {}); // noop listener, the election finished listener determines result
             tasks.put(FINISH_ELECTION_TASK, electionFinishedListener);
-            clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            clusterService.submitStateUpdateTasks(source, tasks, ClusterTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         public synchronized void closeAndProcessPending(String reason) {
@@ -290,7 +289,7 @@ public class NodeJoinController extends AbstractComponent {
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
             final String source = "zen-disco-election-stop [" + reason + "]";
             tasks.put(FINISH_ELECTION_TASK, electionFinishedListener);
-            clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            clusterService.submitStateUpdateTasks(source, tasks, ClusterTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         private void innerClose() {
@@ -467,8 +466,6 @@ public class NodeJoinController extends AbstractComponent {
             assert currentState.nodes().getMasterNodeId() == null : currentState;
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
-            ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
             for (final DiscoveryNode joiningNode : joiningNodes) {
                 final DiscoveryNode existingNode = nodesBuilder.get(joiningNode.getId());
                 if (existingNode != null && existingNode.equals(joiningNode) == false) {
@@ -479,7 +476,7 @@ public class NodeJoinController extends AbstractComponent {
 
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above
-            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
+            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
             return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
                 "removed dead nodes on election"));
         }

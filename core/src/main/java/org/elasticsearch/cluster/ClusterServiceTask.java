@@ -19,19 +19,36 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.service.ClusterServiceStateListener;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
- * An exception to cluster service state listener that allows for timeouts and for post added notifications.
- *
- *
+ * A task to execute for the cluster service.
  */
-public interface TimeoutClusterStateListener extends ClusterServiceStateListener {
+public abstract class ClusterServiceTask implements ClusterServiceTaskExecutor, ClusterTaskConfig, ClusterTaskListener {
 
-    void postAdded();
+    private final Priority priority;
 
-    void onClose();
+    public ClusterServiceTask() {
+        this(Priority.NORMAL);
+    }
 
-    void onTimeout(TimeValue timeout);
+    public ClusterServiceTask(Priority priority) {
+        this.priority = priority;
+    }
+
+    /**
+     * If the cluster state update task wasn't processed by the provided timeout, call
+     * {@link ClusterStateTaskListener#onFailure(String, Exception)}. May return null to indicate no timeout is needed (default).
+     */
+    @Nullable
+    public TimeValue timeout() {
+        return null;
+    }
+
+    @Override
+    public Priority priority() {
+        return priority;
+    }
 }

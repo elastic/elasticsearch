@@ -19,19 +19,19 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.service.ClusterServiceStateListener;
-import org.elasticsearch.common.unit.TimeValue;
-
 /**
- * An exception to cluster service state listener that allows for timeouts and for post added notifications.
- *
- *
+ * An interface for responding to failures when executing cluster service tasks.
  */
-public interface TimeoutClusterStateListener extends ClusterServiceStateListener {
+public interface ClusterTaskListener {
+    /**
+     * A callback called when execute fails.
+     */
+    void onFailure(String source, Exception e);
 
-    void postAdded();
-
-    void onClose();
-
-    void onTimeout(TimeValue timeout);
+    /**
+     * A callback for when the task was rejected because the local node is no longer master
+     */
+    default void onNoLongerMaster(String source) {
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+    }
 }

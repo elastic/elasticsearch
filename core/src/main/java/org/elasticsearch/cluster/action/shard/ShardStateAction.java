@@ -27,7 +27,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -92,7 +92,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     private void sendShardAction(final String actionName, final ClusterStateObserver observer, final ShardEntry shardEntry, final Listener listener) {
-        DiscoveryNode masterNode = observer.observedState().getClusterState().nodes().getMasterNode();
+        DiscoveryNode masterNode = observer.observedState().getLocalClusterState().nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("{} no master known for action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry);
             waitForNewMasterAndRetry(actionName, observer, shardEntry, listener);
@@ -200,7 +200,7 @@ public class ShardStateAction extends AbstractComponent {
             clusterService.submitStateUpdateTask(
                 "shard-failed",
                 request,
-                ClusterStateTaskConfig.build(Priority.HIGH),
+                ClusterTaskConfig.build(Priority.HIGH),
                 shardFailedClusterStateTaskExecutor,
                 new ClusterStateTaskListener() {
                     @Override
@@ -364,7 +364,7 @@ public class ShardStateAction extends AbstractComponent {
             clusterService.submitStateUpdateTask(
                 "shard-started",
                 request,
-                ClusterStateTaskConfig.build(Priority.URGENT),
+                ClusterTaskConfig.build(Priority.URGENT),
                 shardStartedClusterStateTaskExecutor,
                 shardStartedClusterStateTaskExecutor);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);

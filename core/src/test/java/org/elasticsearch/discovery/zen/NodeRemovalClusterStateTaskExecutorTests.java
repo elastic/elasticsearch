@@ -32,7 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -78,13 +78,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
 
         final AtomicBoolean rejoined = new AtomicBoolean();
-        final AtomicReference<ClusterState> rejoinedClusterState = new AtomicReference<>();
-        final BiFunction<ClusterState, String, ClusterState> rejoin = (cs, r) -> {
-            rejoined.set(true);
-            rejoinedClusterState.set(ClusterState.builder(cs).build());
-            return rejoinedClusterState.get();
-        };
-
+        final BiConsumer<DiscoveryNodes, String> rejoin = (nodes, r) -> rejoined.set(true);
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
                 new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, logger) {
@@ -118,7 +112,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         // ensure that we did not reroute
         verifyNoMoreInteractions(allocationService);
         assertTrue(rejoined.get());
-        assertThat(result.resultingState, equalTo(rejoinedClusterState.get()));
+        assertThat(result.resultingState, equalTo(remainingNodesClusterState.get()));
 
         for (final ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
             assertNull(result.resultingState.nodes().get(task.node().getId()));
@@ -133,10 +127,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         when(allocationService.deassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class)))
             .thenAnswer(im -> im.getArguments()[0]);
 
-        final BiFunction<ClusterState, String, ClusterState> rejoin = (cs, r) -> {
-            fail("rejoin should not be invoked");
-            return cs;
-        };
+        final BiConsumer<DiscoveryNodes, String> rejoin = (nodes, r) -> fail("rejoin should not be invoked");
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =

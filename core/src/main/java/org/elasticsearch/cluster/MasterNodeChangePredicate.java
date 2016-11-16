@@ -30,12 +30,7 @@ public enum MasterNodeChangePredicate implements ClusterStateObserver.ChangePred
         ClusterServiceState newState) {
         // checking if the masterNodeId changed is insufficient as the
         // same master node might get re-elected after a disruption
-        return newState.getClusterState().nodes().getMasterNodeId() != null &&
-            newState.getClusterState() != previousState.getClusterState();
-    }
-
-    @Override
-    public boolean apply(ClusterChangedEvent changedEvent) {
-        return changedEvent.nodesDelta().masterNodeChanged();
+        return newState.getLocalClusterState().nodes().getMasterNodeId() != null &&
+            newState.getLocalClusterState() != previousState.getLocalClusterState();
     }
 }

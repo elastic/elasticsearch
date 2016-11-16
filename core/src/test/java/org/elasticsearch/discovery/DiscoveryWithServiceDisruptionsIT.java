@@ -28,10 +28,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -359,7 +358,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, DiscoverySettings.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, ClusterService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
 
 
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
@@ -386,9 +385,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // Wait until the master node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
-        logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all");
+        logger.info("Verify no master block with {} set to {}", ClusterService.NO_MASTER_BLOCK_SETTING.getKey(), "all");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
+                .setTransientSettings(Settings.builder().put(ClusterService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
                 .get();
 
         networkDisruption.startDisrupting();
@@ -398,7 +397,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, DiscoverySettings.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, ClusterService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
@@ -687,31 +686,57 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 String>>>());
         for (final String node : majoritySide) {
             masters.put(node, new ArrayList<Tuple<String, String>>());
-            internalCluster().getInstance(ClusterService.class, node).add(new ClusterStateListener() {
+            internalCluster().getInstance(ClusterService.class, node).add(TimeValue.timeValueSeconds(30), new TimeoutClusterStateListener() {
                 @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-                    DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
+                public void clusterServiceStateChanged(ClusterServiceState previousState, ClusterServiceState currentState) {
+                    DiscoveryNode previousMaster = previousState.getLocalClusterState().nodes().getMasterNode();
+                    DiscoveryNode currentMaster = currentState.getLocalClusterState().nodes().getMasterNode();
                     if (!Objects.equals(previousMaster, currentMaster)) {
-                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
-                                event.previousState());
+                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}",
+                            node, previousState.getLocalClusterState(), currentState.getLocalClusterState());
                         String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
                         String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
                         masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
                     }
                 }
+
+                @Override
+                public void postAdded() {
+                }
+
+                @Override
+                public void onClose() {
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                }
             });
         }
 
         final CountDownLatch oldMasterNodeSteppedDown = new CountDownLatch(1);
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).add(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                if (event.state().nodes().getMasterNodeId() == null) {
-                    oldMasterNodeSteppedDown.countDown();
+        internalCluster().getInstance(ClusterService.class, oldMasterNode).add(TimeValue.timeValueSeconds(10),
+            new TimeoutClusterStateListener() {
+                @Override
+                public void clusterServiceStateChanged(ClusterServiceState previousState, ClusterServiceState currentState) {
+                    if (currentState.getLocalClusterState().nodes().getMasterNodeId() == null) {
+                        oldMasterNodeSteppedDown.countDown();
+                    }
+                }
+
+                @Override
+                public void postAdded() {
+                }
+
+                @Override
+                public void onClose() {
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
                 }
             }
-        });
+        );
 
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         logger.info("freezing node [{}]", oldMasterNode);

@@ -95,7 +95,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(indexStats.getPrimaries().getDocs().getCount(), equalTo((long) nbDocs));
         assertNotNull(indexStats.getTotal().getStore());
         assertThat(indexStats.getTotal().getStore().getSizeInBytes(), greaterThan(0L));
-        assertThat(indexStats.getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
         assertNotNull(indexStats.getTotal().getIndexing());
         assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
     }
@@ -154,7 +153,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
                     assertThat(indexStats.getPrimaries().getDocs().getCount(), equalTo((long) docsPerIndex[i]));
                     assertNotNull(indexStats.getTotal().getStore());
                     assertThat(indexStats.getTotal().getStore().getSizeInBytes(), greaterThanOrEqualTo(0L));
-                    assertThat(indexStats.getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
                     assertNotNull(indexStats.getTotal().getIndexing());
                     assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
                     found = true;

@@ -34,7 +34,32 @@ setup:
                                 x: "bbb"
 
     - match: { hits.hits.0.fields.bar.0: "aaabbb"}
+---
+"Scripted Field Doing Compare":
+    - do:
+        search:
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            inline: "boolean compare(Supplier s, def v) {return s.get() == v;}
+                                     compare(() -> { return doc['foo'].value }, params.x);"
+                            params:
+                                x: "aaa"
 
+    - match: { hits.hits.0.fields.bar.0: true}
+    - do:
+        search:
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            inline: "boolean compare(Supplier s, def v) {return s.get() == v;}
+                                     compare(() -> { return doc['foo'].value }, params.x);"
+                            params:
+                                x: "bbb"
+
+    - match: { hits.hits.0.fields.bar.0: false}
 ---
 "Scripted Field with a null safe dereference (non-null)":
     - do:

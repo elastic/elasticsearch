@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.apache.lucene.search.postingshighlight;
+package org.apache.lucene.search.uhighlight;
 
-import org.apache.lucene.search.highlight.Snippet;
 import org.apache.lucene.search.highlight.Encoder;
+import org.apache.lucene.search.highlight.Snippet;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
 /**
@@ -76,7 +76,7 @@ public class CustomPassageFormatter extends PassageFormatter {
         return snippets;
     }
 
-    protected void append(StringBuilder dest, String content, int start, int end) {
+    private void append(StringBuilder dest, String content, int start, int end) {
         dest.append(encoder.encodeText(content.substring(start, end)));
     }
 }

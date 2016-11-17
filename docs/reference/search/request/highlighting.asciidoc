@@ -126,6 +126,21 @@ the index to be bigger):
 }
 --------------------------------------------------
 
+==== Unified Highlighter
+
+experimental[]
+
+The `unified` highlighter can extract offsets from either postings, term vectors, or via re-analyzing text.
+Under the hood it uses Lucene UnifiedHighlighter which picks its strategy depending on the field and the query to highlight.
+Independently of the strategy this highlighter breaks the text into sentences and scores individual sentences as
+if they were documents in this corpus, using the BM25 algorithm.
+It supports accurate phrase and multi-term (fuzzy, prefix, regex) highlighting and can be used with the following options:
+
+* `force_source`
+* `encoder`
+* `highlight_query`
+* `pre_tags and `post_tags`
+
 ==== Force highlighter type
 
 The `type` field allows to force a specific highlighter type. This is useful

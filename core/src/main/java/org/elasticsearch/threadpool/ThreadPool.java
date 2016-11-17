@@ -144,7 +144,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
-    static final Executor DIRECT_EXECUTOR = command -> command.run();
+    static final ExecutorService DIRECT_EXECUTOR = EsExecutors.newDirectorExecutorService();
 
     private final ThreadContext threadContext;
 
@@ -278,21 +278,24 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Get the generic executor. This executor's {@link Executor#execute(Runnable)} method will run the Runnable it is given in
-     * the {@link ThreadContext} of the thread that queues it.
+     * Get the generic executor service. This executor service {@link Executor#execute(Runnable)} method will run the {@link Runnable} it
+     * is given in the {@link ThreadContext} of the thread that queues it.
      */
-    public Executor generic() {
+    public ExecutorService generic() {
         return executor(Names.GENERIC);
     }
 
     /**
-     * Get the executor with the given name. This executor's {@link Executor#execute(Runnable)} method will run the Runnable it is given in
-     * the {@link ThreadContext} of the thread that queues it.
+     * Get the executor service with the given name. This executor service's {@link Executor#execute(Runnable)} method will run the
+     * {@link Runnable} it is given in the {@link ThreadContext} of the thread that queues it.
+     *
+     * @param name the name of the executor service to obtain
+     * @throws IllegalArgumentException if no executor service with the specified name exists
      */
-    public Executor executor(String name) {
-        Executor executor = executors.get(name).executor();
+    public ExecutorService executor(String name) {
+        ExecutorService executor = executors.get(name).executor();
         if (executor == null) {
-            throw new IllegalArgumentException("No executor found for [" + name + "]");
+            throw new IllegalArgumentException("no executor service found for [" + name + "]");
         }
         return executor;
     }
@@ -515,16 +518,16 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     static class ExecutorHolder {
-        private final Executor executor;
+        private final ExecutorService executor;
         public final Info info;
 
-        ExecutorHolder(Executor executor, Info info) {
+        ExecutorHolder(ExecutorService executor, Info info) {
             assert executor instanceof EsThreadPoolExecutor || executor == DIRECT_EXECUTOR;
             this.executor = executor;
             this.info = info;
         }
 
-        Executor executor() {
+        ExecutorService executor() {
             return executor;
         }
     }

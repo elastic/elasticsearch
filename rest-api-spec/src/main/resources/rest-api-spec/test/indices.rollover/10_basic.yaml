@@ -124,7 +124,7 @@
         index: logs-000002
 
   - do:
-      catch: /index_already_exists_exception/
+      catch: /(index|resource)_already_exists_exception/
       indices.rollover:
         dry_run: true
         alias: "logs_search"
@@ -135,7 +135,7 @@
 
   # also do it without dry_run
   - do:
-      catch: /index_already_exists_exception/
+      catch: /(index|resource)_already_exists_exception/
       indices.rollover:
         dry_run: false
         alias: "logs_search"

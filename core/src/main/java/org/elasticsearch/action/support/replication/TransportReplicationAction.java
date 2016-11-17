@@ -1018,6 +1018,7 @@ public abstract class TransportReplicationAction<
             }
             transportService.sendRequest(node, transportReplicaAction,
                 new ConcreteShardRequest<>(request, replica.allocationId().getId()), transportOptions,
+                // Eclipse can't handle when this is <> so we specify the type here.
                 new ActionListenerResponseHandler<ReplicaResponse>(listener, ReplicaResponse::new));
         }
 

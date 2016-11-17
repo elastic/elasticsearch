@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import org.jboss.netty.handler.ssl.NotSslRecordException;
+
+import io.netty.handler.ssl.NotSslRecordException;
 
 import javax.net.ssl.SSLException;
 

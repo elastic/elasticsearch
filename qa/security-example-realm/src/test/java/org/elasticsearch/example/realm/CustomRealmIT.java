@@ -39,7 +39,7 @@ public class CustomRealmIT extends ESIntegTestCase {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
                 .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom("security3", "security4"))
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
                 .build();
     }
 

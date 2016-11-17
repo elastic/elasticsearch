@@ -5,16 +5,14 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
+import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty3.Netty3HttpRequest;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
@@ -25,14 +23,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
+import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
 import org.elasticsearch.xpack.ssl.SSLService;
-import org.jboss.netty.handler.ssl.SslHandler;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLPeerUnverifiedException;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
 
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
@@ -70,7 +63,10 @@ public class SecurityRestFilter extends RestFilter {
         if (licenseState.isAuthAllowed() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             if (extractClientCertificate) {
-                putClientCertificateInContext(request, threadContext, logger);
+                Netty4HttpRequest nettyHttpRequest = (Netty4HttpRequest) request;
+                SslHandler handler = nettyHttpRequest.getChannel().pipeline().get(SslHandler.class);
+                assert handler != null;
+                ServerTransportFilter.extactClientCertificates(logger, threadContext, handler.engine(), nettyHttpRequest.getChannel());
             }
             service.authenticate(request, ActionListener.wrap((authentication) -> {
                     RemoteHostHeader.process(request, threadContext);
@@ -78,44 +74,6 @@ public class SecurityRestFilter extends RestFilter {
                 }, (e) -> restController.sendErrorResponse(request, channel, e)));
         } else {
             filterChain.continueProcessing(request, channel, client);
-        }
-    }
-
-    static void putClientCertificateInContext(RestRequest request, ThreadContext threadContext, Logger logger) throws Exception {
-        assert request instanceof Netty3HttpRequest || request instanceof Netty4HttpRequest;
-        if (request instanceof Netty3HttpRequest) {
-            Netty3HttpRequest nettyHttpRequest = (Netty3HttpRequest) request;
-
-            SslHandler handler = nettyHttpRequest.getChannel().getPipeline().get(SslHandler.class);
-            assert handler != null;
-            extractClientCerts(handler.getEngine(), nettyHttpRequest.getChannel(), threadContext, logger);
-        } else if (request instanceof Netty4HttpRequest) {
-            Netty4HttpRequest nettyHttpRequest = (Netty4HttpRequest) request;
-
-            io.netty.handler.ssl.SslHandler handler = nettyHttpRequest.getChannel().pipeline().get(io.netty.handler.ssl.SslHandler.class);
-            assert handler != null;
-            extractClientCerts(handler.engine(), nettyHttpRequest.getChannel(), threadContext, logger);
-        }
-
-    }
-
-    private static void extractClientCerts(SSLEngine sslEngine, Object channel, ThreadContext threadContext, Logger logger) {
-        try {
-            Certificate[] certs = sslEngine.getSession().getPeerCertificates();
-            if (certs instanceof X509Certificate[]) {
-                threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, certs);
-            }
-        } catch (SSLPeerUnverifiedException e) {
-            // this happens when client authentication is optional and the client does not provide credentials. If client
-            // authentication was required then this connection should be closed before ever getting into this class
-            assert sslEngine.getNeedClientAuth() == false;
-            assert sslEngine.getWantClientAuth();
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel), e);
-            } else if (logger.isDebugEnabled()) {
-                logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
-            }
         }
     }
 }

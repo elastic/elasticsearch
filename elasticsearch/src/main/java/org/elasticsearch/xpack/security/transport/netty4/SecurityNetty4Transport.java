@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
  */
 public class SecurityNetty4Transport extends Netty4Transport {
 
-    private static final Setting<Boolean> PROFILE_SSL_SETTING = Setting.boolSetting(setting("ssl.enabled"), false);
+    public static final Setting<Boolean> PROFILE_SSL_SETTING = Setting.boolSetting(setting("ssl.enabled"), false);
 
     private final SSLService sslService;
     @Nullable private final IPFilter authenticator;
@@ -157,4 +157,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
             super.connect(ctx, remoteAddress, localAddress, promise);
         }
     }
+
+    public static Settings profileSslSettings(Settings profileSettings) {
+        return profileSettings.getByPrefix(setting("ssl."));
+    }
+
 }

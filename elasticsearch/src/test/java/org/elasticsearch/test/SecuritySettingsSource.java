@@ -14,7 +14,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
-import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -151,7 +150,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(xpackPluginClass(), Netty3Plugin.class, Netty4Plugin.class);
+        return Arrays.asList(xpackPluginClass(),
+                Netty4Plugin.class);
     }
 
     @Override

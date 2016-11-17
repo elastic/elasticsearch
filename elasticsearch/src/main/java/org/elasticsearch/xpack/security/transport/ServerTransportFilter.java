@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import io.netty.channel.Channel;
+import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -25,8 +27,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -100,19 +100,13 @@ public interface ServerTransportFilter {
                 unwrappedChannel = ((DelegatingTransportChannel) unwrappedChannel).getChannel();
             }
 
-            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)) {
-                if (((TcpTransportChannel) unwrappedChannel).getChannel() instanceof Channel) {
-                    Channel channel = (Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
-                    SslHandler sslHandler = channel.getPipeline().get(SslHandler.class);
-                    assert sslHandler != null;
-                    extactClientCertificates(sslHandler.getEngine(), channel);
-                } else if (((TcpTransportChannel) unwrappedChannel).getChannel() instanceof io.netty.channel.Channel) {
-                    io.netty.channel.Channel channel = (io.netty.channel.Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
-                    io.netty.handler.ssl.SslHandler sslHandler = channel.pipeline().get(io.netty.handler.ssl.SslHandler.class);
-                    if (channel.isOpen()) {
-                        assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();
-                        extactClientCertificates(sslHandler.engine(), channel);
-                    }
+            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel) &&
+                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof io.netty.channel.Channel) {
+                Channel channel = (io.netty.channel.Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
+                SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
+                if (channel.isOpen()) {
+                    assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();
+                    extactClientCertificates(logger, threadContext, sslHandler.engine(), channel);
                 }
             }
 
@@ -125,25 +119,25 @@ public interface ServerTransportFilter {
                     asyncAuthorizer.authorize(authzService);
                 }, listener::onFailure));
         }
+    }
 
-        private void extactClientCertificates(SSLEngine sslEngine, Object channel) {
-            try {
-                Certificate[] certs = sslEngine.getSession().getPeerCertificates();
-                if (certs instanceof X509Certificate[]) {
-                    threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, certs);
-                }
-            } catch (SSLPeerUnverifiedException e) {
-                // this happens when client authentication is optional and the client does not provide credentials. If client
-                // authentication was required then this connection should be closed before ever getting into this class
-                assert sslEngine.getNeedClientAuth() == false;
-                assert sslEngine.getWantClientAuth();
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                    "SSL Peer did not present a certificate on channel [{}]", channel), e);
-                } else if (logger.isDebugEnabled()) {
-                    logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
-                }
+    static void extactClientCertificates(Logger logger, ThreadContext threadContext, SSLEngine sslEngine, Object channel) {
+        try {
+            Certificate[] certs = sslEngine.getSession().getPeerCertificates();
+            if (certs instanceof X509Certificate[]) {
+                threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, certs);
+            }
+        } catch (SSLPeerUnverifiedException e) {
+            // this happens when client authentication is optional and the client does not provide credentials. If client
+            // authentication was required then this connection should be closed before ever getting into this class
+            assert sslEngine.getNeedClientAuth() == false;
+            assert sslEngine.getWantClientAuth();
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "SSL Peer did not present a certificate on channel [{}]", channel), e);
+            } else if (logger.isDebugEnabled()) {
+                logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
             }
         }
     }

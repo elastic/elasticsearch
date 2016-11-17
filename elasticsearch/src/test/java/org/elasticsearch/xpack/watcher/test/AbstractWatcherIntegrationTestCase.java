@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
+import io.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -73,7 +74,6 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.hamcrest.Matcher;
-import org.jboss.netty.util.internal.SystemPropertyUtil;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -123,13 +123,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     private static String scheduleEngineName;
 
-    private boolean useSecurity3;
-
-    @Before
-    public void setUseSecurity3() {
-        useSecurity3 = randomBoolean();
-    }
-
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (securityEnabled == null) {
@@ -150,7 +143,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("index.store.mock.check_index_on_close", false)
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
-                .put(SecuritySettings.settings(securityEnabled, useSecurity3))
+                .put(SecuritySettings.settings(securityEnabled))
                 .put("xpack.watcher.trigger.schedule.engine", scheduleEngineName)
                 .put("script.inline", "true")
                 .build();
@@ -274,8 +267,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return Settings.builder()
                 .put("client.transport.sniff", false)
                 .put(Security.USER_SETTING.getKey(), "admin:changeme")
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, useSecurity3 ? Security.NAME3 : Security.NAME4)
-                .put(NetworkModule.HTTP_TYPE_KEY, useSecurity3 ? Security.NAME3 : Security.NAME4)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
+                .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
                 .build();
     }
 
@@ -743,7 +736,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 ;
 
 
-        public static Settings settings(boolean enabled, boolean useSecurity3)  {
+        public static Settings settings(boolean enabled)  {
             Settings.Builder builder = Settings.builder();
             if (!enabled) {
                 return builder.put("xpack.security.enabled", false).build();
@@ -763,15 +756,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         .put("xpack.security.authc.sign_user_header", false)
                         .put("xpack.security.audit.enabled", auditLogsEnabled)
                         .put(Environment.PATH_CONF_SETTING.getKey(), conf);
-                if (useSecurity3) {
-                    builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3);
-                    builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME3);
-                } else {
-                    // security should always use one of its transports so if it is enabled explicitly declare one otherwise a local
-                    // transport could be used
-                    builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-                    builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
-                }
+                        // security should always use one of its transports so if it is enabled explicitly declare one otherwise a local
+                        // transport could be used
+                        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
+                        builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
                 return builder.build();
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for security", ex);

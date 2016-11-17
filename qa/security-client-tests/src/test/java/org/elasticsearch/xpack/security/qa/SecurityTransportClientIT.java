@@ -40,7 +40,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
                 .put(Security.USER_SETTING.getKey(), ADMIN_USER_PW)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom("security3", "security4"))
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
                 .build();
     }
 

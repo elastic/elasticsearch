@@ -114,8 +114,6 @@ import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
@@ -145,7 +143,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
-    public static final String NAME3 = XPackPlugin.SECURITY + "3";
     public static final String NAME4 = XPackPlugin.SECURITY + "4";
     public static final Setting<Optional<String>> USER_SETTING =
             new Setting<>(setting("user"), (String) null, Optional::ofNullable, Property.NodeScope);
@@ -354,9 +351,9 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
         if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
             final String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
-            if (NAME3.equals(transportType) == false && NAME4.equals(transportType) == false) {
-                throw new IllegalArgumentException("transport type setting [" + NetworkModule.TRANSPORT_TYPE_KEY + "] must be one of [" +
-                        NAME3 + "," + NAME4 + "]");
+            if (NAME4.equals(transportType) == false) {
+                throw new IllegalArgumentException("transport type setting [" + NetworkModule.TRANSPORT_TYPE_KEY + "] must be [" + NAME4
+                        + "]");
             }
         } else {
             // default to security4
@@ -365,13 +362,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
         if (NetworkModule.HTTP_TYPE_SETTING.exists(settings)) {
             final String httpType = NetworkModule.HTTP_TYPE_SETTING.get(settings);
-            if (httpType.equals(NAME3)) {
-                SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
-            } else if (httpType.equals(NAME4)) {
+            if (httpType.equals(NAME4)) {
                 SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
             } else {
-                throw new IllegalArgumentException("http type setting [" + NetworkModule.HTTP_TYPE_KEY + "] must be one of [" +
-                        NAME3 + "," + NAME4 + "]");
+                throw new IllegalArgumentException("http type setting [" + NetworkModule.HTTP_TYPE_KEY + "] must be [" + NAME4 + "]");
             }
         } else {
             // default to security4
@@ -714,13 +708,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
-        Map<String, Supplier<Transport>> map = new HashMap<>();
-        map.put(Security.NAME3, () -> new SecurityNetty3Transport(settings, threadPool, networkService, bigArrays, ipFilter.get(),
-                sslService, namedWriteableRegistry, circuitBreakerService));
-        map.put(Security.NAME4, () -> new SecurityNetty4Transport(settings, threadPool, networkService, bigArrays,
+        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4Transport(settings, threadPool, networkService, bigArrays,
                 namedWriteableRegistry, circuitBreakerService, ipFilter.get(), sslService));
-        return Collections.unmodifiableMap(map);
-
     }
 
     @Override
@@ -731,12 +720,9 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
-        Map<String, Supplier<HttpServerTransport>> map = new HashMap<>();
-        map.put(Security.NAME3, () -> new SecurityNetty3HttpServerTransport(settings, networkService, bigArrays, ipFilter.get(), sslService,
+        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
+                ipFilter.get(), sslService,
                 threadPool));
-        map.put(Security.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays, ipFilter.get(), sslService,
-                threadPool));
-        return Collections.unmodifiableMap(map);
     }
 
 }

@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -223,7 +224,7 @@ public class IPFilterTests extends ESTestCase {
         // don't use the assert helper because we don't want the audit trail to be invoked here
         String message = String.format(Locale.ROOT, "Expected address %s to be allowed", "8.8.8.8");
         InetAddress address = InetAddresses.forString("8.8.8.8");
-        assertThat(message, ipFilter.accept("default", address), is(true));
+        assertThat(message, ipFilter.accept("default", new InetSocketAddress(address, 0)), is(true));
         verifyZeroInteractions(auditTrail);
 
         // for sanity enable license and check that it is denied
@@ -249,7 +250,7 @@ public class IPFilterTests extends ESTestCase {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be allowed", inetAddress);
             InetAddress address = InetAddresses.forString(inetAddress);
-            assertThat(message, ipFilter.accept(profile, address), is(true));
+            assertTrue(message, ipFilter.accept(profile, new InetSocketAddress(address, 0)));
             ArgumentCaptor<SecurityIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(SecurityIpFilterRule.class);
             verify(auditTrail).connectionGranted(eq(address), eq(profile), ruleCaptor.capture());
             assertNotNull(ruleCaptor.getValue());
@@ -264,7 +265,7 @@ public class IPFilterTests extends ESTestCase {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be denied", inetAddress);
             InetAddress address = InetAddresses.forString(inetAddress);
-            assertThat(message, ipFilter.accept(profile, address), is(false));
+            assertFalse(message, ipFilter.accept(profile, new InetSocketAddress(address, 0)));
             ArgumentCaptor<SecurityIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(SecurityIpFilterRule.class);
             verify(auditTrail).connectionDenied(eq(address), eq(profile), ruleCaptor.capture());
             assertNotNull(ruleCaptor.getValue());

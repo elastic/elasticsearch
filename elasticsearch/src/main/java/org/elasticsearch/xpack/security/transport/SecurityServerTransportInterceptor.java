@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.ssl.SSLService;
 
@@ -125,8 +125,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
-            final boolean profileSsl = SecurityNetty3Transport.PROFILE_SSL_SETTING.get(profileSettings);
-            final Settings profileSslSettings = SecurityNetty3Transport.profileSslSettings(profileSettings);
+            final boolean profileSsl = SecurityNetty4Transport.PROFILE_SSL_SETTING.get(profileSettings);
+            final Settings profileSslSettings = SecurityNetty4Transport.profileSslSettings(profileSettings);
             final boolean clientAuth = sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
             final boolean extractClientCert = profileSsl && clientAuth;
             String type = entry.getValue().get(SETTING_NAME, "node");
@@ -150,10 +150,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         return Collections.unmodifiableMap(profileFilters);
-    }
-
-    ServerTransportFilter transportFilter(String profile) {
-        return profileFilters.get(profile);
     }
 
     public static class ProfileSecuredRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {

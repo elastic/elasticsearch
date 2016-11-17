@@ -31,7 +31,6 @@ licenseHeaders {
 
 dependencies {
   // security deps
-  compile project(path: ':modules:transport-netty3', configuration: 'runtime')
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')
   compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
   compile 'org.bouncycastle:bcprov-jdk15on:1.55'

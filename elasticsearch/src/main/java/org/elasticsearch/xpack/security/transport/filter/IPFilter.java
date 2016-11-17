@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport.filter;
 
 
+import io.netty.handler.ipfilter.IpFilterRuleType;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -22,6 +23,7 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,19 +78,15 @@ public class IPFilter {
             .immutableMap();
 
     public static final SecurityIpFilterRule DEFAULT_PROFILE_ACCEPT_ALL = new SecurityIpFilterRule(true, "default:accept_all") {
+
         @Override
-        public boolean contains(InetAddress inetAddress) {
+        public boolean matches(InetSocketAddress remoteAddress) {
             return true;
         }
 
         @Override
-        public boolean isAllowRule() {
-            return true;
-        }
-
-        @Override
-        public boolean isDenyRule() {
-            return false;
+        public IpFilterRuleType ruleType() {
+            return IpFilterRuleType.ACCEPT;
         }
     };
 
@@ -179,7 +177,7 @@ public class IPFilter {
         updateRules();
     }
 
-    public boolean accept(String profile, InetAddress peerAddress) {
+    public boolean accept(String profile, InetSocketAddress peerAddress) {
         if (licenseState.isIpFilteringAllowed() == false) {
             return true;
         }
@@ -190,18 +188,18 @@ public class IPFilter {
         }
 
         for (SecurityIpFilterRule rule : rules.get(profile)) {
-            if (rule.contains(peerAddress)) {
-                boolean isAllowed = rule.isAllowRule();
+            if (rule.matches(peerAddress)) {
+                boolean isAllowed = rule.ruleType() == IpFilterRuleType.ACCEPT;
                 if (isAllowed) {
-                    auditTrail.connectionGranted(peerAddress, profile, rule);
+                    auditTrail.connectionGranted(peerAddress.getAddress(), profile, rule);
                 } else {
-                    auditTrail.connectionDenied(peerAddress, profile, rule);
+                    auditTrail.connectionDenied(peerAddress.getAddress(), profile, rule);
                 }
                 return isAllowed;
             }
         }
 
-        auditTrail.connectionGranted(peerAddress, profile, DEFAULT_PROFILE_ACCEPT_ALL);
+        auditTrail.connectionGranted(peerAddress.getAddress(), profile, DEFAULT_PROFILE_ACCEPT_ALL);
         return true;
     }
 

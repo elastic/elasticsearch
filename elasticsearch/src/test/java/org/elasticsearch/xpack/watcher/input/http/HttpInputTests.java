@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
+import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.joda.time.DateTime;
 import org.junit.Before;
 

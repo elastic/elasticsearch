@@ -18,7 +18,6 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.junit.BeforeClass;
 
 import java.util.HashSet;

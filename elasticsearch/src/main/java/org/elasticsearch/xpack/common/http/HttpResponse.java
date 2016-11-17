@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.common.http;
 
+import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
 import java.util.ArrayList;

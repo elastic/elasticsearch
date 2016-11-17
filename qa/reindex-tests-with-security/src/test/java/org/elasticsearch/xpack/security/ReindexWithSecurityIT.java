@@ -23,14 +23,6 @@ import java.util.Collections;
 
 public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
-    private boolean useSecurity3;
-
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        useSecurity3 = randomBoolean();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -49,11 +41,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder().put(super.externalClusterClientSettings());
-        if (useSecurity3) {
-            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3);
-        } else {
-            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-        }
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
         builder.put(Security.USER_SETTING.getKey(), "test_admin:changeme");
         return builder.build();
     }

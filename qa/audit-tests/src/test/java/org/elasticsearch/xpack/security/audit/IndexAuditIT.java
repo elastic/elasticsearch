@@ -114,7 +114,7 @@ public class IndexAuditIT extends ESIntegTestCase {
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
                 .put(Security.USER_SETTING.getKey(), USER + ":" + PASS)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom("security3", "security4"))
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
                 .build();
     }
 

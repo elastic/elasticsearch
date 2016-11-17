@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.test;
 
+import io.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.hamcrest.Matcher;
-import org.jboss.netty.util.internal.SystemPropertyUtil;
 import org.junit.After;
 import org.junit.Before;
 

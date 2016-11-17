@@ -149,29 +149,6 @@ public class SecurityTests extends ESTestCase {
         assertEquals(Security.NAME4, NetworkModule.HTTP_TYPE_SETTING.get(defaultSettings));
     }
 
-    public void testTransportSettingNetty3Transport() {
-        Settings baseSettings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3).build();
-        Settings transport3 = Security.additionalSettings(baseSettings, false);
-        assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(transport3));
-        assertEquals(Security.NAME4, NetworkModule.HTTP_TYPE_SETTING.get(transport3));
-    }
-
-    public void testTransportSettingNetty3Http() {
-        Settings baseSettings = Settings.builder().put(NetworkModule.HTTP_TYPE_KEY, Security.NAME3).build();
-        Settings http3 = Security.additionalSettings(baseSettings, false);
-        assertEquals(Security.NAME4, NetworkModule.TRANSPORT_TYPE_SETTING.get(http3));
-        assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(http3));
-    }
-
-    public void testTransportSettingNetty3Both() {
-        Settings both3 = Security.additionalSettings(Settings.builder()
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3)
-            .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME3)
-            .build(), false);
-        assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(both3));
-        assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(both3));
-    }
-
     public void testTransportSettingNetty4Both() {
         Settings both4 = Security.additionalSettings(Settings.builder()
             .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
@@ -182,18 +159,16 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testTransportSettingValidation() {
-        final String badType = randomFrom("netty3", "netty4", "other", "security1");
+        final String badType = randomFrom("netty4", "other", "security1");
         Settings settingsTransport = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, badType).build();
         IllegalArgumentException badTransport = expectThrows(IllegalArgumentException.class,
                 () -> Security.additionalSettings(settingsTransport, false));
-        assertThat(badTransport.getMessage(), containsString(Security.NAME3));
         assertThat(badTransport.getMessage(), containsString(Security.NAME4));
         assertThat(badTransport.getMessage(), containsString(NetworkModule.TRANSPORT_TYPE_KEY));
 
         Settings settingsHttp = Settings.builder().put(NetworkModule.HTTP_TYPE_KEY, badType).build();
         IllegalArgumentException badHttp = expectThrows(IllegalArgumentException.class,
                 () -> Security.additionalSettings(settingsHttp, false));
-        assertThat(badHttp.getMessage(), containsString(Security.NAME3));
         assertThat(badHttp.getMessage(), containsString(Security.NAME4));
         assertThat(badHttp.getMessage(), containsString(NetworkModule.HTTP_TYPE_KEY));
     }

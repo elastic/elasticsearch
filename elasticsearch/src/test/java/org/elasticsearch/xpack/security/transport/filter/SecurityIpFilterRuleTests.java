@@ -5,15 +5,20 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
+import io.netty.handler.ipfilter.IpFilterRule;
+import io.netty.handler.ipfilter.IpFilterRuleType;
+import io.netty.handler.ipfilter.IpSubnetFilterRule;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.jboss.netty.handler.ipfilter.IpFilterRule;
-import org.jboss.netty.handler.ipfilter.IpSubnetFilterRule;
-import org.jboss.netty.handler.ipfilter.PatternRule;
+
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 
 import static org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule.ACCEPT_ALL;
 import static org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule.DENY_ALL;
 import static org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule.getRule;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -43,9 +48,13 @@ public class SecurityIpFilterRuleTests extends ESTestCase {
         final boolean allow = randomBoolean();
         IpFilterRule rule = getRule(allow, "127.0.0.0/24");
         assertThat(rule, instanceOf(IpSubnetFilterRule.class));
-        assertThat(rule.isAllowRule(), equalTo(allow));
+        if (allow) {
+            assertEquals(rule.ruleType(), IpFilterRuleType.ACCEPT);
+        } else {
+            assertEquals(rule.ruleType(), IpFilterRuleType.REJECT);
+        }
         IpSubnetFilterRule ipSubnetFilterRule = (IpSubnetFilterRule) rule;
-        assertThat(ipSubnetFilterRule.contains("127.0.0.1"), equalTo(true));
+        assertTrue(ipSubnetFilterRule.matches(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0)));
     }
 
     public void testParseIpSubnetFilterRuleWithOtherValues() throws Exception {
@@ -62,6 +71,27 @@ public class SecurityIpFilterRuleTests extends ESTestCase {
         String ruleSpec = "127.0.0.1,::1,192.168.0.*,name*,specific_name";
         IpFilterRule rule = getRule(allow, ruleSpec);
         assertThat(rule, instanceOf(PatternRule.class));
-        assertThat(rule.isAllowRule(), equalTo(allow));
+        if (allow) {
+            assertEquals(rule.ruleType(), IpFilterRuleType.ACCEPT);
+        } else {
+            assertEquals(rule.ruleType(), IpFilterRuleType.REJECT);
+        }
+    }
+
+    public void testParseSubnetMask() throws UnknownHostException {
+        Tuple<InetAddress, Integer> result = SecurityIpFilterRule.parseSubnetMask("2001:0db8:85a3:0000:0000:8a2e:0370:7334/24");
+        assertEquals(NetworkAddress.format(result.v1()), "2001:db8:85a3::8a2e:370:7334");
+        assertEquals(24, result.v2().intValue());
+
+        result = SecurityIpFilterRule.parseSubnetMask("127.0.0.0/24");
+        assertEquals(NetworkAddress.format(result.v1()), "127.0.0.0");
+        assertEquals(24, result.v2().intValue());
+
+        result = SecurityIpFilterRule.parseSubnetMask("127.0.0.1/255.255.255.0");
+        assertEquals(NetworkAddress.format(result.v1()), "127.0.0.1");
+        assertEquals(24, result.v2().intValue());
+
+        expectThrows(UnknownHostException.class, () -> SecurityIpFilterRule.parseSubnetMask("127.0.0.1"));
+        expectThrows(IllegalArgumentException.class, () -> SecurityIpFilterRule.parseSubnetMask("127.0.0.1/"));
     }
 }

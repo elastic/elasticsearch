@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.ssl.CertUtils;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.user.User;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
@@ -226,9 +226,9 @@ public class PkiRealm extends Realm {
         Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
         for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
             Settings profileSettings = entry.getValue().getByPrefix(Security.settingPrefix());
-            if (SecurityNetty3Transport.PROFILE_SSL_SETTING.get(profileSettings)
+            if (SecurityNetty4Transport.PROFILE_SSL_SETTING.get(profileSettings)
                     && sslService.isSSLClientAuthEnabled(
-                            SecurityNetty3Transport.profileSslSettings(profileSettings), transportSSLSettings)) {
+                    SecurityNetty4Transport.profileSslSettings(profileSettings), transportSSLSettings)) {
                 return;
             }
         }

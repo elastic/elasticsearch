@@ -5,17 +5,24 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
+import io.netty.handler.ipfilter.IpFilterRule;
+import io.netty.handler.ipfilter.IpFilterRuleType;
+import io.netty.handler.ipfilter.IpSubnetFilterRule;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.jboss.netty.handler.ipfilter.IpFilterRule;
-import org.jboss.netty.handler.ipfilter.IpSubnetFilterRule;
-import org.jboss.netty.handler.ipfilter.PatternRule;
 
+import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.StringJoiner;
+import java.util.StringTokenizer;
 
 /**
  * decorator class to have a useful toString() method for an IpFilterRule
@@ -25,36 +32,25 @@ public class SecurityIpFilterRule implements IpFilterRule {
 
     public static final SecurityIpFilterRule ACCEPT_ALL = new SecurityIpFilterRule(true, "accept_all") {
         @Override
-        public boolean contains(InetAddress inetAddress) {
+        public boolean matches(InetSocketAddress remoteAddress) {
             return true;
         }
 
         @Override
-        public boolean isAllowRule() {
-            return true;
-        }
-
-        @Override
-        public boolean isDenyRule() {
-            return false;
+        public IpFilterRuleType ruleType() {
+            return IpFilterRuleType.ACCEPT;
         }
     };
 
     public static final SecurityIpFilterRule DENY_ALL = new SecurityIpFilterRule(true, "deny_all") {
-
         @Override
-        public boolean contains(InetAddress inetAddress) {
+        public boolean matches(InetSocketAddress remoteAddress) {
             return true;
         }
 
         @Override
-        public boolean isAllowRule() {
-            return false;
-        }
-
-        @Override
-        public boolean isDenyRule() {
-            return true;
+        public IpFilterRuleType ruleType() {
+            return IpFilterRuleType.REJECT;
         }
     };
 
@@ -72,24 +68,9 @@ public class SecurityIpFilterRule implements IpFilterRule {
     }
 
     @Override
-    public boolean contains(InetAddress inetAddress) {
-        return ipFilterRule.contains(inetAddress);
-    }
-
-    @Override
-    public boolean isAllowRule() {
-        return ipFilterRule.isAllowRule();
-    }
-
-    @Override
-    public boolean isDenyRule() {
-        return ipFilterRule.isDenyRule();
-    }
-
-    @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        if (isAllowRule()) {
+        if (ruleType() == IpFilterRuleType.ACCEPT) {
             builder.append("allow ");
         } else {
             builder.append("deny ");
@@ -99,7 +80,76 @@ public class SecurityIpFilterRule implements IpFilterRule {
         return builder.toString();
     }
 
+    static Tuple<InetAddress, Integer> parseSubnetMask(String address) throws UnknownHostException {
+        int p = address.indexOf('/');
+        if (p < 0) {
+            throw new UnknownHostException("Invalid CIDR notation used: " + address);
+        }
+        if (p == address.length() -1) {
+            throw new IllegalArgumentException("address must not end with a '/");
+        }
+        String addrString = address.substring(0, p);
+        String maskString = address.substring(p + 1);
+        InetAddress addr = InetAddress.getByName(addrString);
+        int mask;
+        if (maskString.indexOf('.') < 0) {
+            mask = parseInt(maskString, -1);
+        } else {
+            mask = getNetMask(maskString);
+            if (addr instanceof Inet6Address) {
+                mask += 96;
+            }
+        }
+        if (mask < 0) {
+            throw new UnknownHostException("Invalid mask length used: " + maskString);
+        }
+        return new Tuple<>(addr, mask);
+    }
+
+
+    /**
+     * Get the Subnet's Netmask in Decimal format.<BR>
+     * i.e.: getNetMask("255.255.255.0") returns the integer CIDR mask
+     *
+     * @param netMask a network mask
+     * @return the integer CIDR mask
+     */
+    private static int getNetMask(String netMask) {
+        StringTokenizer nm = new StringTokenizer(netMask, ".");
+        int i = 0;
+        int[] netmask = new int[4];
+        while (nm.hasMoreTokens()) {
+            netmask[i] = Integer.parseInt(nm.nextToken());
+            i++;
+        }
+        int mask1 = 0;
+        for (i = 0; i < 4; i++) {
+            mask1 += Integer.bitCount(netmask[i]);
+        }
+        return mask1;
+    }
+
+    /**
+     * @param intstr a string containing an integer.
+     * @param def    the default if the string does not contain a valid
+     *               integer.
+     * @return the inetAddress from the integer
+     */
+    private static int parseInt(String intstr, int def) {
+        Integer res;
+        if (intstr == null) {
+            return def;
+        }
+        try {
+            res = Integer.decode(intstr);
+        } catch (Exception e) {
+            res = def;
+        }
+        return res.intValue();
+    }
+
     static IpFilterRule getRule(boolean isAllowRule, String value) {
+        IpFilterRuleType filterRuleType = isAllowRule ? IpFilterRuleType.ACCEPT : IpFilterRuleType.REJECT;
         String[] values = value.split(",");
         int allRuleIndex = Arrays.binarySearch(values, 0, values.length, "_all");
         if (allRuleIndex >= 0) {
@@ -111,36 +161,34 @@ public class SecurityIpFilterRule implements IpFilterRule {
         }
 
         if (value.contains("/")) {
+            // subnet rule...
             if (values.length != 1) {
                 throw new IllegalArgumentException("multiple subnet filters cannot be specified in a single rule!");
             }
             try {
-                return new IpSubnetFilterRule(isAllowRule, value);
+                Tuple<InetAddress, Integer> inetAddressIntegerTuple = parseSubnetMask(value);
+                return new IpSubnetFilterRule(inetAddressIntegerTuple.v1(), inetAddressIntegerTuple.v2(), filterRuleType);
             } catch (UnknownHostException e) {
                 String ruleType = (isAllowRule ? "allow " : "deny ");
                 throw new ElasticsearchException("unable to create ip filter for rule [" + ruleType + " " + value + "]", e);
             }
-        }
-
-        boolean firstAdded = false;
-        StringBuilder ruleSpec = new StringBuilder();
-        for (String singleValue : values) {
-            if (firstAdded) {
-                ruleSpec.append(",");
-            } else {
-                firstAdded = true;
+        } else {
+            // pattern rule - not netmask
+            StringJoiner rules = new StringJoiner(",");
+            for (String pattern : values) {
+                if (InetAddresses.isInetAddress(pattern)) {
+                    // we want the inet addresses to be normalized especially in the IPv6 case where :0:0: is equivalent to ::
+                    // that's why we convert the address here and then format since PatternRule also uses the formatting to normalize
+                    // the value we are matching against
+                    InetAddress inetAddress = InetAddresses.forString(pattern);
+                    pattern = "i:" + NetworkAddress.format(inetAddress);
+                } else {
+                    pattern = "n:" + pattern;
+                }
+                rules.add(pattern);
             }
-
-            boolean isInetAddress = InetAddresses.isInetAddress(singleValue);
-            if (isInetAddress) {
-                ruleSpec.append("i:");
-            } else {
-                ruleSpec.append("n:");
-            }
-            ruleSpec.append(singleValue);
+            return new PatternRule(filterRuleType, rules.toString());
         }
-
-        return new PatternRule(isAllowRule, ruleSpec.toString());
     }
 
     static String getRuleSpec(TransportAddress... addresses) {
@@ -156,5 +204,15 @@ public class SecurityIpFilterRule implements IpFilterRule {
             ruleSpec.append(NetworkAddress.format(transportAddress.address().getAddress()));
         }
         return ruleSpec.toString();
+    }
+
+    @Override
+    public boolean matches(InetSocketAddress remoteAddress) {
+        return ipFilterRule.matches(remoteAddress);
+    }
+
+    @Override
+    public IpFilterRuleType ruleType() {
+        return ipFilterRule.ruleType();
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Locale;
 
@@ -162,7 +163,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
         IPFilter ipFilter = internalCluster().getDataNodeInstance(IPFilter.class);
         String message = String.format(Locale.ROOT, "Expected allowed connection for profile %s against host %s", profile, host);
-        assertThat(message, ipFilter.accept(profile, InetAddress.getByName(host)), is(true));
+        assertThat(message, ipFilter.accept(profile, new InetSocketAddress(InetAddress.getByName(host), 0)), is(true));
     }
 
     private void assertConnectionRejected(String profile, String host) throws UnknownHostException {
@@ -173,6 +174,6 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
         IPFilter ipFilter = internalCluster().getDataNodeInstance(IPFilter.class);
         String message = String.format(Locale.ROOT, "Expected rejection for profile %s against host %s", profile, host);
-        assertThat(message, ipFilter.accept(profile, InetAddress.getByName(host)), is(false));
+        assertThat(message, ipFilter.accept(profile, new InetSocketAddress(InetAddress.getByName(host), 0)), is(false));
     }
 }

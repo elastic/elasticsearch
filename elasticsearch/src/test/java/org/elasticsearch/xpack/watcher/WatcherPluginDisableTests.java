@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -48,7 +47,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, Netty3Plugin.class, Netty4Plugin.class);
+        return Arrays.asList(XPackPlugin.class, Netty4Plugin.class);
     }
 
     @Override

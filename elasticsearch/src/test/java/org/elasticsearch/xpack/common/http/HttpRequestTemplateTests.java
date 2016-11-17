@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.common.http;
 
+import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.util.Collections;
 

@@ -26,7 +26,7 @@ class IpFilterRemoteAddressFilter extends AbstractRemoteAddressFilter<InetSocket
     @Override
     protected boolean accept(final ChannelHandlerContext ctx, final InetSocketAddress remoteAddress) throws Exception {
         // at this stage no auth has happened, so we do not have any principal anyway
-        return filter.accept(profile, remoteAddress.getAddress());
+        return filter.accept(profile, remoteAddress);
     }
 
 }

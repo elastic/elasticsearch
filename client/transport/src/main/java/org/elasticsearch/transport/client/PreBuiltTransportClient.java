@@ -23,25 +23,21 @@ import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
-import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
  * A builder to create an instance of {@link TransportClient}
  * This class pre-installs the
- * {@link Netty3Plugin},
  * {@link Netty4Plugin},
  * {@link ReindexPlugin},
  * {@link PercolatorPlugin},
@@ -54,7 +50,6 @@ public class PreBuiltTransportClient extends TransportClient {
     private static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS =
             Collections.unmodifiableList(
                     Arrays.asList(
-                            Netty3Plugin.class,
                             Netty4Plugin.class,
                             ReindexPlugin.class,
                             PercolatorPlugin.class,

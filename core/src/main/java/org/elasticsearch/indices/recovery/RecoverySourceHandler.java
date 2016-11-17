@@ -390,7 +390,10 @@ public class RecoverySourceHandler {
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
-        cancellableThreads.execute(recoveryTarget::finalizeRecovery);
+        cancellableThreads.execute(() -> {
+            recoveryTarget.finalizeRecovery();
+            shard.markAllocationIdAsInSync(recoveryTarget.getTargetAllocationId());
+        });
 
         if (request.isPrimaryRelocation()) {
             // in case of primary relocation we have to ensure that the cluster state on the primary relocation target has all

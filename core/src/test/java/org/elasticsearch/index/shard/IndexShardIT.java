@@ -56,6 +56,8 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -98,13 +100,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl,
+    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long seqNo, long timestamp, long ttl,
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
+        Field seqNoField = new NumericDocValuesField("_seq_no", seqNo);
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Collections.singletonList(document), source,
+        return new ParsedDocument(versionField, seqNoField, id, type, routing, timestamp, ttl, Collections.singletonList(document), source,
             mappingUpdate);
     }
 
@@ -318,7 +321,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 new ByteSizeValue(133 /* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldFlush());
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(),
+        ParsedDocument doc = testParsedDocument(
+            "1",
+            "1",
+            "test",
+            null,
+            SequenceNumbersService.UNASSIGNED_SEQ_NO,
+            -1,
+            -1,
+            new ParseContext.Document(),
             new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
@@ -460,7 +471,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
             shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
             indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners));
+            indexService.getThreadPool(), indexService.getBigArrays(), null, () -> {}, Collections.emptyList(), Arrays.asList(listeners));
         return newShard;
     }
 

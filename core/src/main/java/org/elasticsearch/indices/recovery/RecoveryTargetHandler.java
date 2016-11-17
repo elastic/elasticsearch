@@ -41,7 +41,7 @@ public interface RecoveryTargetHandler {
     /**
      * The finalize request clears unreferenced translog files, refreshes the engine now that
      * new segments are available, and enables garbage collection of
-     * tombstone files. The shard is also moved to the POST_RECOVERY phase during this time
+     * tombstone files.
      **/
     void finalizeRecovery();
 
@@ -78,4 +78,8 @@ public interface RecoveryTargetHandler {
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps) throws IOException;
 
+    /***
+     * @return the allocation id of the target shard.
+     */
+    String getTargetAllocationId();
 }

@@ -21,11 +21,11 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -68,7 +68,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -137,10 +136,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
         if (state.routingTable().hasIndex(index)) {
-            throw new IndexAlreadyExistsException(state.routingTable().index(index).getIndex());
+            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
         if (state.metaData().hasIndex(index)) {
-            throw new IndexAlreadyExistsException(state.metaData().index(index).getIndex());
+            throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());
         }
         if (state.metaData().hasAlias(index)) {
             throw new InvalidIndexNameException(index, "already exists as alias");
@@ -350,7 +349,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                                                    (tmpImd.getNumberOfReplicas() + 1) + "]");
                             }
                             // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                            final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
+                            final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList(), shardId -> {});
                             createdIndex = indexService.index();
                             // now add the mappings
                             MapperService mapperService = indexService.mapperService();
@@ -453,7 +452,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        if (e instanceof IndexAlreadyExistsException) {
+                        if (e instanceof ResourceAlreadyExistsException) {
                             logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                         } else {
                             logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
@@ -520,7 +519,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                         Set<String> targetIndexMappingsTypes, String targetIndexName,
                                         Settings targetIndexSettings) {
         if (state.metaData().hasIndex(targetIndexName)) {
-            throw new IndexAlreadyExistsException(state.metaData().index(targetIndexName).getIndex());
+            throw new ResourceAlreadyExistsException(state.metaData().index(targetIndexName).getIndex());
         }
         final IndexMetaData sourceMetaData = state.metaData().index(sourceIndex);
         if (sourceMetaData == null) {

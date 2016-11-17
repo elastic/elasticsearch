@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -171,7 +171,7 @@ public class RolloverIT extends ESIntegTestCase {
         try {
             client().admin().indices().prepareRolloverIndex("test_alias").get();
             fail("expected failure due to existing rollover index");
-        } catch (IndexAlreadyExistsException e) {
+        } catch (ResourceAlreadyExistsException e) {
             assertThat(e.getIndex().getName(), equalTo("test_index-000001"));
         }
     }

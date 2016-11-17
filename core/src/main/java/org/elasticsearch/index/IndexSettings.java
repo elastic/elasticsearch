@@ -107,6 +107,9 @@ public final class IndexSettings {
         Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
             Property.IndexScope);
 
+    public static final Setting<TimeValue> INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL =
+        Setting.timeSetting("index.seq_no.checkpoint_sync_interval", new TimeValue(30, TimeUnit.SECONDS),
+            new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic, Property.IndexScope);
 
     /**
      * Index setting to enable / disable deletes garbage collection.
@@ -148,6 +151,7 @@ public final class IndexSettings {
     private volatile Translog.Durability durability;
     private final TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
+    private final TimeValue globalCheckpointInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
@@ -243,6 +247,7 @@ public final class IndexSettings {
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
+        globalCheckpointInterval = scopedSettings.get(INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
@@ -462,6 +467,13 @@ public final class IndexSettings {
      */
     public TimeValue getRefreshInterval() {
         return refreshInterval;
+    }
+
+    /**
+     * Returns this interval in which the primary shards of this index should check and advance the global checkpoint
+     */
+    public TimeValue getGlobalCheckpointInterval() {
+        return globalCheckpointInterval;
     }
 
     /**

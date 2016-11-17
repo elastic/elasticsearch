@@ -54,7 +54,6 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -757,7 +756,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     /** All known byte-sized cluster settings. */
     public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
-        IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(),
         RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
 
 

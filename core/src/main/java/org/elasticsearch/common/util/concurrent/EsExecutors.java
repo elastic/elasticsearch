@@ -25,7 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -73,6 +76,50 @@ public class EsExecutors {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
         return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy(), contextHolder);
+    }
+
+    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new AbstractExecutorService() {
+
+        @Override
+        public void shutdown() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return false;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return false;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            command.run();
+        }
+
+    };
+
+    /**
+     * Returns an {@link ExecutorService} that executes submitted tasks on the current thread. This executor service does not support being
+     * shutdown.
+     *
+     * @return an {@link ExecutorService} that executes submitted tasks on the current thread
+     */
+    public static ExecutorService newDirectExecutorService() {
+        return DIRECT_EXECUTOR_SERVICE;
     }
 
     public static String threadName(Settings settings, String ... names) {

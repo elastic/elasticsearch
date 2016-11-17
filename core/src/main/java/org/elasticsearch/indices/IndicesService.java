@@ -28,6 +28,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -98,7 +99,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -169,7 +169,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
-    private final IndexStoreConfig indexStoreConfig;
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
@@ -196,7 +195,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
-        this.indexStoreConfig = new IndexStoreConfig(settings);
         this.analysisRegistry = analysisRegistry;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -204,8 +202,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING, indexStoreConfig::setRateLimitingType);
-        clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, indexStoreConfig::setRateLimitingThrottle);
         indexingMemoryController = new IndexingMemoryController(settings, threadPool,
                                                                 // ensure we pull an iter with new shards - flatten makes a copy
                                                                 () -> Iterables.flatten(this).iterator());
@@ -309,7 +305,16 @@ public class IndicesService extends AbstractLifecycleComponent
                     if (indexShard.routingEntry() == null) {
                         continue;
                     }
-                    IndexShardStats indexShardStats = new IndexShardStats(indexShard.shardId(), new ShardStats[] { new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesQueryCache, indexShard, flags), indexShard.commitStats()) });
+                    IndexShardStats indexShardStats =
+                        new IndexShardStats(indexShard.shardId(),
+                            new ShardStats[]{
+                                new ShardStats(
+                                    indexShard.routingEntry(),
+                                    indexShard.shardPath(),
+                                    new CommonStats(indicesQueryCache, indexShard, flags),
+                                    indexShard.commitStats(),
+                                    indexShard.seqNoStats())});
+
                     if (!statsByShard.containsKey(indexService.index())) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
                     } else {
@@ -369,17 +374,17 @@ public class IndicesService extends AbstractLifecycleComponent
      * Creates a new {@link IndexService} for the given metadata.
      * @param indexMetaData the index metadata to create the index for
      * @param builtInListeners a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the per-index listeners
-     * @throws IndexAlreadyExistsException if the index already exists.
+     * @throws ResourceAlreadyExistsException if the index already exists.
      */
     @Override
-    public synchronized IndexService createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners) throws IOException {
+    public synchronized IndexService createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners, Consumer<ShardId> globalCheckpointSyncer) throws IOException {
         ensureChangesAllowed();
         if (indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetaData.getIndexUUID() + "]");
         }
         final Index index = indexMetaData.getIndex();
         if (hasIndex(index)) {
-            throw new IndexAlreadyExistsException(index);
+            throw new ResourceAlreadyExistsException(index);
         }
         List<IndexEventListener> finalListeners = new ArrayList<>(builtInListeners);
         final IndexEventListener onStoreClose = new IndexEventListener() {
@@ -390,7 +395,15 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService("create index", indexMetaData, indicesQueryCache, indicesFieldDataCache, finalListeners, indexingMemoryController);
+        final IndexService indexService =
+            createIndexService(
+                "create index",
+                indexMetaData,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                globalCheckpointSyncer,
+                indexingMemoryController);
         boolean success = false;
         try {
             indexService.getIndexEventListener().afterIndexCreated(indexService);
@@ -407,7 +420,12 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * This creates a new IndexService without registering it
      */
-    private synchronized IndexService createIndexService(final String reason, IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache, IndicesFieldDataCache indicesFieldDataCache, List<IndexEventListener> builtInListeners, IndexingOperationListener... indexingOperationListeners) throws IOException {
+    private synchronized IndexService createIndexService(final String reason,
+                                                         IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache,
+                                                         IndicesFieldDataCache indicesFieldDataCache,
+                                                         List<IndexEventListener> builtInListeners,
+                                                         Consumer<ShardId> globalCheckpointSyncer,
+                                                         IndexingOperationListener... indexingOperationListeners) throws IOException {
         final Index index = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
@@ -417,7 +435,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             idxSettings.isShadowReplicaIndex() ? "s" : "", reason);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -425,8 +443,20 @@ public class IndicesService extends AbstractLifecycleComponent
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
-        return indexModule.newIndexService(nodeEnv, this, circuitBreakerService, bigArrays, threadPool, scriptService,
-                indicesQueriesRegistry, clusterService, client, indicesQueryCache, mapperRegistry, indicesFieldDataCache);
+        return indexModule.newIndexService(
+            nodeEnv,
+            this,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            indicesQueriesRegistry,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            globalCheckpointSyncer,
+            indicesFieldDataCache);
     }
 
     /**
@@ -439,7 +469,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final Index index = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
-        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(mapperRegistry);
     }
@@ -458,8 +488,8 @@ public class IndicesService extends AbstractLifecycleComponent
             IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
-            final IndexService service = createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache,
-                    emptyList());
+            final IndexService service =
+                createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList(), s -> {});
             closeables.add(() -> service.close("metadata verification", false));
             for (ObjectCursor<MappingMetaData> typeMapping : metaData.getMappings().values()) {
                 // don't apply the default mapping, it has been applied when the mapping was created

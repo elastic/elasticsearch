@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -122,7 +123,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         IndexingOperationListener.CompositeListener compositeListener = new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
-        compositeListener.postDelete(delete, new Engine.DeleteResult(1, true));
+        compositeListener.postDelete(delete, new Engine.DeleteResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -146,7 +147,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(index, new Engine.IndexResult(0, false));
+        compositeListener.postIndex(index, new Engine.IndexResult(0, SequenceNumbersService.UNASSIGNED_SEQ_NO, false));
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());

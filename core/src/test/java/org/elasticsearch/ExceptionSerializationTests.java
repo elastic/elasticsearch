@@ -745,7 +745,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(120, org.elasticsearch.repositories.RepositoryVerificationException.class);
         ids.put(121, org.elasticsearch.search.aggregations.InvalidAggregationPathException.class);
         ids.put(122, null);
-        ids.put(123, org.elasticsearch.indices.IndexAlreadyExistsException.class);
+        ids.put(123, org.elasticsearch.ResourceAlreadyExistsException.class);
         ids.put(124, null);
         ids.put(125, TcpTransport.HttpOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);

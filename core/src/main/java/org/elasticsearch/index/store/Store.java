@@ -159,7 +159,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.shardLock = shardLock;
         this.onClose = onClose;
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
-        this.statsCache = new StoreStatsCache(refreshInterval, directory, directoryService);
+        this.statsCache = new StoreStatsCache(refreshInterval, directory);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
 
         assert onClose != null;
@@ -1351,18 +1351,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private static class StoreStatsCache extends SingleObjectCache<StoreStats> {
         private final Directory directory;
-        private final DirectoryService directoryService;
 
-        public StoreStatsCache(TimeValue refreshInterval, Directory directory, DirectoryService directoryService) throws IOException {
-            super(refreshInterval, new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos()));
+        public StoreStatsCache(TimeValue refreshInterval, Directory directory) throws IOException {
+            super(refreshInterval, new StoreStats(estimateSize(directory)));
             this.directory = directory;
-            this.directoryService = directoryService;
         }
 
         @Override
         protected StoreStats refresh() {
             try {
-                return new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos());
+                return new StoreStats(estimateSize(directory));
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to refresh store stats", ex);
             }

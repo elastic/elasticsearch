@@ -19,15 +19,11 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog.TranslogGeneration;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 

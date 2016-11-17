@@ -27,7 +27,6 @@ group = 'org.elasticsearch.client'
 
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.plugin:transport-netty3-client:${version}"
   compile "org.elasticsearch.plugin:transport-netty4-client:${version}"
   compile "org.elasticsearch.plugin:reindex-client:${version}"
   compile "org.elasticsearch.plugin:lang-mustache-client:${version}"

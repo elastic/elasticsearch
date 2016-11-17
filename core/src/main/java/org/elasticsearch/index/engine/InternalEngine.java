@@ -62,6 +62,8 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
@@ -83,8 +85,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 public class InternalEngine extends Engine {
+
     /**
      * When we last pruned expired tombstones from versionMap.deletes:
      */
@@ -112,6 +116,10 @@ public class InternalEngine extends Engine {
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
     private final IndexThrottle throttle;
+
+    private final SequenceNumbersService seqNoService;
+    static final String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
+    static final String MAX_SEQ_NO = "max_seq_no";
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -141,13 +149,29 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
+
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             try {
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
+                final SeqNoStats seqNoStats = loadSeqNoStats(engineConfig, writer);
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                            "recovering max sequence number: [{}], local checkpoint: [{}], global checkpoint: [{}]",
+                            seqNoStats.getMaxSeqNo(),
+                            seqNoStats.getLocalCheckpoint(),
+                            seqNoStats.getGlobalCheckpoint());
+                }
+                seqNoService =
+                        new SequenceNumbersService(
+                                shardId,
+                                engineConfig.getIndexSettings(),
+                                seqNoStats.getMaxSeqNo(),
+                                seqNoStats.getLocalCheckpoint(),
+                                seqNoStats.getGlobalCheckpoint());
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer);
+                translog = openTranslog(engineConfig, writer, seqNoService::getGlobalCheckpoint);
                 assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -235,7 +259,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer) throws IOException {
+    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, LongSupplier globalCheckpointSupplier) throws IOException {
+        assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         Translog.TranslogGeneration generation = null;
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
@@ -244,11 +269,11 @@ public class InternalEngine extends Engine {
             if (generation == null) {
                 throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
             }
-            if (generation != null && generation.translogUUID == null) {
+            if (generation.translogUUID == null) {
                 throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig, generation);
+        final Translog translog = new Translog(translogConfig, generation, globalCheckpointSupplier);
         if (generation == null || generation.translogUUID == null) {
             assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
                 + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
@@ -260,7 +285,7 @@ public class InternalEngine extends Engine {
             boolean success = false;
             try {
                 commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
-                    ? writer.getCommitData().get(SYNC_COMMIT_ID) : null);
+                    ? commitDataAsMap(writer).get(SYNC_COMMIT_ID) : null);
                 success = true;
             } finally {
                 if (success == false) {
@@ -285,7 +310,7 @@ public class InternalEngine extends Engine {
     private Translog.TranslogGeneration loadTranslogIdFromCommit(IndexWriter writer) throws IOException {
         // commit on a just opened writer will commit even if there are no changes done to it
         // we rely on that for the commit data translog id key
-        final Map<String, String> commitUserData = writer.getCommitData();
+        final Map<String, String> commitUserData = commitDataAsMap(writer);
         if (commitUserData.containsKey("translog_id")) {
             assert commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY) == false : "legacy commit contains translog UUID";
             return new Translog.TranslogGeneration(null, Long.parseLong(commitUserData.get("translog_id")));
@@ -298,6 +323,39 @@ public class InternalEngine extends Engine {
             return new Translog.TranslogGeneration(translogUUID, translogGen);
         }
         return null;
+    }
+
+    /**
+     * Reads the sequence number stats from the Lucene commit point (maximum sequence number and local checkpoint) and the Translog
+     * checkpoint (global checkpoint).
+     *
+     * @param engineConfig the engine configuration (for the open mode and the translog path)
+     * @param writer       the index writer (for the Lucene commit point)
+     * @return the sequence number stats
+     * @throws IOException if an I/O exception occurred reading the Lucene commit point or the translog checkpoint
+     */
+    private static SeqNoStats loadSeqNoStats(final EngineConfig engineConfig, final IndexWriter writer) throws IOException {
+        long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+        long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
+            final String key = entry.getKey();
+            if (key.equals(LOCAL_CHECKPOINT_KEY)) {
+                assert localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED;
+                localCheckpoint = Long.parseLong(entry.getValue());
+            } else if (key.equals(MAX_SEQ_NO)) {
+                assert maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : localCheckpoint;
+                maxSeqNo = Long.parseLong(entry.getValue());
+            }
+        }
+
+        final long globalCheckpoint;
+        if (engineConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
+        } else {
+            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -402,7 +460,7 @@ public class InternalEngine extends Engine {
                 }
             }
         } catch (Exception e) {
-            result = new IndexResult(checkIfDocumentFailureOrThrow(index, e), index.version());
+            result = new IndexResult(checkIfDocumentFailureOrThrow(index, e), index.version(), SequenceNumbersService.UNASSIGNED_SEQ_NO);
         }
         return result;
     }
@@ -469,9 +527,27 @@ public class InternalEngine extends Engine {
         return false;
     }
 
+    private boolean assertSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
+        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            // legacy support
+            assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no." +
+                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ". seq no: " + seqNo;
+        } else if (origin == Operation.Origin.PRIMARY) {
+            // sequence number should not be set when operation origin is primary
+            assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "primary ops should never an assigned seq no. got: " + seqNo;
+        } else {
+            // sequence number should be set when operation origin is not primary
+            assert seqNo >= 0 : "replica ops should an assigned seq no. origin: " + origin +
+                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated();
+        }
+        return true;
+    }
+
     private IndexResult innerIndex(Index index) throws IOException {
+        assert assertSequenceNumber(index.origin(), index.seqNo());
         final Translog.Location location;
         final long updatedVersion;
+        IndexResult indexResult = null;
         try (Releasable ignored = acquireLock(index.uid())) {
             lastWriteNanos = index.startTime();
             /* if we have an autoGeneratedID that comes into the engine we can potentially optimize
@@ -536,11 +612,16 @@ public class InternalEngine extends Engine {
                 }
             }
             final long expectedVersion = index.version();
-            final IndexResult indexResult;
             if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) {
                 // skip index operation because of version conflict on recovery
-                indexResult = new IndexResult(expectedVersion, false);
+                indexResult = new IndexResult(expectedVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, false);
             } else {
+                final long seqNo;
+                if (index.origin() == Operation.Origin.PRIMARY) {
+                    seqNo = seqNoService.generateSeqNo();
+                } else {
+                    seqNo = index.seqNo();
+                }
                 updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
                 index.parsedDoc().version().setLongValue(updatedVersion);
                 if (currentVersion == Versions.NOT_FOUND && forceUpdateDocument == false) {
@@ -550,7 +631,7 @@ public class InternalEngine extends Engine {
                 } else {
                     update(index.uid(), index.docs(), indexWriter);
                 }
-                indexResult = new IndexResult(updatedVersion, deleted);
+                indexResult = new IndexResult(updatedVersion, seqNo, deleted);
                 location = index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
                         ? translog.add(new Translog.Index(index, indexResult))
                         : null;
@@ -560,7 +641,12 @@ public class InternalEngine extends Engine {
             indexResult.setTook(System.nanoTime() - index.startTime());
             indexResult.freeze();
             return indexResult;
+        } finally {
+            if (indexResult != null && indexResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                seqNoService.markSeqNoAsCompleted(indexResult.getSeqNo());
+            }
         }
+
     }
 
     private static void index(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
@@ -607,7 +693,7 @@ public class InternalEngine extends Engine {
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             result = innerDelete(delete);
         } catch (Exception e) {
-            result = new DeleteResult(checkIfDocumentFailureOrThrow(delete, e), delete.version());
+            result = new DeleteResult(checkIfDocumentFailureOrThrow(delete, e), delete.version(), delete.seqNo());
         }
         maybePruneDeletedTombstones();
         return result;
@@ -622,9 +708,11 @@ public class InternalEngine extends Engine {
     }
 
     private DeleteResult innerDelete(Delete delete) throws IOException {
+        assert assertSequenceNumber(delete.origin(), delete.seqNo());
         final Translog.Location location;
         final long updatedVersion;
         final boolean found;
+        DeleteResult deleteResult = null;
         try (Releasable ignored = acquireLock(delete.uid())) {
             lastWriteNanos = delete.startTime();
             final long currentVersion;
@@ -640,14 +728,19 @@ public class InternalEngine extends Engine {
             }
 
             final long expectedVersion = delete.version();
-            final DeleteResult deleteResult;
             if (checkVersionConflict(delete, currentVersion, expectedVersion, deleted)) {
                 // skip executing delete because of version conflict on recovery
-                deleteResult = new DeleteResult(expectedVersion, true);
+                deleteResult = new DeleteResult(expectedVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, true);
             } else {
+                final long seqNo;
+                if (delete.origin() == Operation.Origin.PRIMARY) {
+                    seqNo = seqNoService.generateSeqNo();
+                } else {
+                    seqNo = delete.seqNo();
+                }
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
-                deleteResult = new DeleteResult(updatedVersion, found);
+                deleteResult = new DeleteResult(updatedVersion, seqNo, found);
                 location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
                         ? translog.add(new Translog.Delete(delete, deleteResult))
                         : null;
@@ -658,6 +751,10 @@ public class InternalEngine extends Engine {
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
             return deleteResult;
+        } finally {
+            if (deleteResult != null && deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                seqNoService.markSeqNoAsCompleted(deleteResult.getSeqNo());
+            }
         }
     }
 
@@ -720,16 +817,16 @@ public class InternalEngine extends Engine {
             final long versionMapBytes = versionMap.ramBytesUsedForRefresh();
             final long indexingBufferBytes = indexWriter.ramBytesUsed();
 
-            final boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes/4 < versionMapBytes);
+            final boolean useRefresh = versionMapRefreshPending.get() || (indexingBufferBytes / 4 < versionMapBytes);
             if (useRefresh) {
                 // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
                 logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
-                             new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                        new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
                 refresh("write indexing buffer");
             } else {
                 // Most of our heap is used by the indexing buffer, so we do a cheaper (just writes segments, doesn't open a new searcher) IW.flush:
                 logger.debug("use IndexWriter.flush to write indexing buffer (heap size=[{}]) since version map is small (heap size=[{}])",
-                             new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                        new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
                 indexWriter.flush();
             }
         } catch (AlreadyClosedException e) {
@@ -1031,8 +1128,8 @@ public class InternalEngine extends Engine {
             failOnTragicEvent((AlreadyClosedException)e);
             return true;
         } else if (e != null &&
-            ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
-                || (translog.isOpen() == false && translog.getTragicException() == e))) {
+                ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
+                        || (translog.isOpen() == false && translog.getTragicException() == e))) {
             // this spot on - we are handling the tragic event exception here so we have to fail the engine
             // right away
             failEngine(source, e);
@@ -1186,7 +1283,7 @@ public class InternalEngine extends Engine {
         @Override
         public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
             IndexSearcher searcher = super.newSearcher(reader, previousReader);
-            if (reader instanceof LeafReader && isMergedSegment((LeafReader)reader)) {
+            if (reader instanceof LeafReader && isMergedSegment((LeafReader) reader)) {
                 // we call newSearcher from the IndexReaderWarmer which warms segments during merging
                 // in that case the reader is a LeafReader and all we need to do is to build a new Searcher
                 // and return it since it does it's own warming for that particular reader.
@@ -1209,7 +1306,7 @@ public class InternalEngine extends Engine {
     @Override
     public void activateThrottling() {
         int count = throttleRequestCount.incrementAndGet();
-        assert count >= 1: "invalid post-increment throttleRequestCount=" + count;
+        assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
         if (count == 1) {
             throttle.activate();
         }
@@ -1218,12 +1315,18 @@ public class InternalEngine extends Engine {
     @Override
     public void deactivateThrottling() {
         int count = throttleRequestCount.decrementAndGet();
-        assert count >= 0: "invalid post-decrement throttleRequestCount=" + count;
+        assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
         if (count == 0) {
             throttle.deactivate();
         }
     }
 
+    @Override
+    public boolean isThrottled() {
+        return throttle.isThrottled();
+    }
+
+    @Override
     public long getIndexThrottleTimeInMillis() {
         return throttle.getThrottleTimeInMillis();
     }
@@ -1314,14 +1417,35 @@ public class InternalEngine extends Engine {
         ensureCanFlush();
         try {
             Translog.TranslogGeneration translogGeneration = translog.getGeneration();
-            logger.trace("committing writer with translog id [{}]  and sync id [{}] ", translogGeneration.translogFileGeneration, syncId);
-            Map<String, String> commitData = new HashMap<>(2);
-            commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
-            commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
-            if (syncId != null) {
-                commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-            }
-            indexWriter.setCommitData(commitData);
+
+            final String translogFileGen = Long.toString(translogGeneration.translogFileGeneration);
+            final String translogUUID = translogGeneration.translogUUID;
+            final String localCheckpoint = Long.toString(seqNoService().getLocalCheckpoint());
+
+            writer.setLiveCommitData(() -> {
+                /*
+                 * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
+                 * segments, including the local checkpoint amongst other values. The maximum sequence number is different - we never want
+                 * the maximum sequence number to be less than the last sequence number to go into a Lucene commit, otherwise we run the
+                 * risk of re-using a sequence number for two different documents when restoring from this commit point and subsequently
+                 * writing new documents to the index.  Since we only know which Lucene documents made it into the final commit after the
+                 * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the max_seq_no to the time of invocation
+                 * of the commit data iterator (which occurs after all documents have been flushed to Lucene).
+                 */
+                final Map<String, String> commitData = new HashMap<>(6);
+                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGen);
+                commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+                commitData.put(LOCAL_CHECKPOINT_KEY, localCheckpoint);
+                if (syncId != null) {
+                    commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+                }
+                commitData.put(MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
+                if (logger.isTraceEnabled()) {
+                    logger.trace("committing writer with commit data [{}]", commitData);
+                }
+                return commitData.entrySet().iterator();
+            });
+
             writer.commit();
         } catch (Exception ex) {
             try {
@@ -1374,6 +1498,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public SequenceNumbersService seqNoService() {
+        return seqNoService;
+    }
+
+    @Override
     public DocsStats getDocStats() {
         final int numDocs = indexWriter.numDocs();
         final int maxDoc = indexWriter.maxDoc();
@@ -1418,5 +1547,16 @@ public class InternalEngine extends Engine {
     @Override
     public boolean isRecovering() {
         return pendingTranslogRecovery.get();
+    }
+
+    /**
+     * Gets the commit data from {@link IndexWriter} as a map.
+     */
+    private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
+        Map<String, String> commitData = new HashMap<>(6);
+        for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
+            commitData.put(entry.getKey(), entry.getValue());
+        }
+        return commitData;
     }
 }

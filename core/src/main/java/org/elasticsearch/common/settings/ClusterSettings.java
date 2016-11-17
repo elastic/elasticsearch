@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -64,7 +63,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -183,8 +181,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
                     FsRepository.REPOSITORIES_COMPRESS_SETTING,
                     FsRepository.REPOSITORIES_LOCATION_SETTING,
-                    IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING,
-                    IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                     IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,

@@ -210,6 +210,10 @@ curl -u elastic http://127.0.0.1:9200/_cat/health
 Enter host password for user 'elastic':
 1472225929 15:38:49 docker-cluster green 2 2 4 2 0 0 0 0 - 100.0%
 --------------------------------------------
+// NOTCONSOLE
+// This is demonstrating curl. Console will prompt you for a username and
+// password so no need to demonstrate that. Converting this would not show the
+// important `-u elastic` parameters for `curl`.
 
 Log messages go to the console and are handled by the configured Docker logging driver. By default you can access logs with `docker logs`.
 

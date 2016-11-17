@@ -209,25 +209,26 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testUtilityCompare() {
-        assertEquals(true, exec("Utility.compare(() -> new ArrayList(), new ArrayList())"));
-        assertEquals(true, exec("Utility.compare(() -> { new ArrayList() }, new ArrayList())"));
+        String compare = "boolean compare(Supplier s, def v) {s.get() == v}";
+        assertEquals(true, exec(compare + "compare(() -> new ArrayList(), new ArrayList())"));
+        assertEquals(true, exec(compare + "compare(() -> { new ArrayList() }, new ArrayList())"));
 
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
         params.put("number", 2);
 
-        assertEquals(true, exec("Utility.compare(() -> { return params['key'] }, 'value')", params, true));
-        assertEquals(false, exec("Utility.compare(() -> { return params['nokey'] }, 'value')", params, true));
-        assertEquals(true, exec("Utility.compare(() -> { return params['nokey'] }, null)", params, true));
-        assertEquals(true, exec("Utility.compare(() -> { return params['number'] }, 2)", params, true));
-        assertEquals(false, exec("Utility.compare(() -> { return params['number'] }, 'value')", params, true));
-        assertEquals(false, exec("Utility.compare(() -> { if (params['number'] == 2) { return params['number'] }" +
+        assertEquals(true, exec(compare + "compare(() -> { return params['key'] }, 'value')", params, true));
+        assertEquals(false, exec(compare + "compare(() -> { return params['nokey'] }, 'value')", params, true));
+        assertEquals(true, exec(compare + "compare(() -> { return params['nokey'] }, null)", params, true));
+        assertEquals(true, exec(compare + "compare(() -> { return params['number'] }, 2)", params, true));
+        assertEquals(false, exec(compare + "compare(() -> { return params['number'] }, 'value')", params, true));
+        assertEquals(false, exec(compare + "compare(() -> { if (params['number'] == 2) { return params['number'] }" +
             "else { return params['key'] } }, 'value')", params, true));
-        assertEquals(true, exec("Utility.compare(() -> { if (params['number'] == 2) { return params['number'] }" +
+        assertEquals(true, exec(compare + "compare(() -> { if (params['number'] == 2) { return params['number'] }" +
             "else { return params['key'] } }, 2)", params, true));
-        assertEquals(true, exec("Utility.compare(() -> { if (params['number'] == 1) { return params['number'] }" +
+        assertEquals(true, exec(compare + "compare(() -> { if (params['number'] == 1) { return params['number'] }" +
             "else { return params['key'] } }, 'value')", params, true));
-        assertEquals(false, exec("Utility.compare(() -> { if (params['number'] == 1) { return params['number'] }" +
+        assertEquals(false, exec(compare + "compare(() -> { if (params['number'] == 1) { return params['number'] }" +
             "else { return params['key'] } }, 2)", params, true));
     }
 }

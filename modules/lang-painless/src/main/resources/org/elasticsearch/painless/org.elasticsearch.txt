@@ -107,10 +107,6 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.Booleans -> org.elastics
   List getValues()
 }
 
-class Utility -> org.elasticsearch.painless.Utility extends Object {
-    boolean compare(Supplier,Object)
-}
-
 # for testing.
 # currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
 class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.FeatureTest extends Object {

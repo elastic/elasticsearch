@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -20,13 +21,16 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -38,7 +42,7 @@ import static org.hamcrest.Matchers.is;
  *
  * The cluster started by the integrations tests may also index into itself...
  */
-@ClusterScope(scope = Scope.TEST)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
 @TestLogging("org.elasticsearch.xpack.security.audit.index:TRACE")
 public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
 
@@ -69,13 +73,6 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         return Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME);
     }
 
-    @Override
-    public void beforeIndexDeletion() {
-        // For this test, this is a NO-OP because the index audit trail will continue to capture events and index after
-        // the tests have completed. The default implementation of this method expects that nothing is performing operations
-        // after the test has completed
-    }
-
     @Before
     public void startRemoteCluster() throws IOException, InterruptedException {
         final List<String> addresses = new ArrayList<>();
@@ -90,8 +87,8 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         // create another cluster
         String cluster2Name = clusterName(Scope.TEST.name(), randomLong());
 
-        // Setup a second test cluster with randomization for number of nodes, security enabled, and SSL
-        final int numNodes = randomIntBetween(2, 3);
+        // Setup a second test cluster with a single node, security enabled, and SSL
+        final int numNodes = 1;
         SecuritySettingsSource cluster2SettingsSource =
                 new SecuritySettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.TEST) {
             @Override
@@ -112,39 +109,51 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         };
         remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false, true, numNodes, numNodes,
                 cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), getClientWrapper());
-        remoteCluster.beforeTest(random(), 0.5);
+        remoteCluster.beforeTest(random(), 0.0);
         assertNoTimeout(remoteCluster.client().admin().cluster().prepareHealth().setWaitForGreenStatus().get());
     }
 
     @After
     public void stopRemoteCluster() throws Exception {
+        List<Closeable> toStop = new ArrayList<>();
+        // stop the index audit trail so that the shards aren't locked causing the test to fail
+        toStop.add(() -> StreamSupport.stream(internalCluster().getInstances(AuditTrailService.class).spliterator(), false)
+                .map(s -> s.getAuditTrails()).flatMap(List::stream)
+                .filter(t -> t.name().equals(IndexAuditTrail.NAME))
+                .forEach((auditTrail) -> ((IndexAuditTrail) auditTrail).stop()));
+        // first stop both audit trails otherwise we keep on indexing
         if (remoteCluster != null) {
-            remoteCluster.getInstance(AuditTrailService.class).getAuditTrails().stream()
+            toStop.add(() ->  StreamSupport.stream(remoteCluster.getInstances(AuditTrailService.class).spliterator(), false)
+                    .map(s -> s.getAuditTrails()).flatMap(List::stream)
                     .filter(t -> t.name().equals(IndexAuditTrail.NAME))
-                    .forEach((auditTrail) -> ((IndexAuditTrail) auditTrail).stop());
-
-            try {
-                remoteCluster.wipe(Collections.<String>emptySet());
-            } finally {
-                remoteCluster.afterTest();
-            }
-            remoteCluster.close();
+                    .forEach((auditTrail) -> ((IndexAuditTrail) auditTrail).stop()));
+            toStop.add(() -> remoteCluster.wipe(Collections.<String>emptySet()));
+            toStop.add(remoteCluster::afterTest);
+            toStop.add(remoteCluster);
         }
 
-        // stop the index audit trail so that the shards aren't locked causing the test to fail
-        internalCluster().getInstance(AuditTrailService.class).getAuditTrails().stream()
-                .filter(t -> t.name().equals(IndexAuditTrail.NAME))
-                .forEach((auditTrail) -> ((IndexAuditTrail) auditTrail).stop());
+
+        IOUtils.close(toStop);
     }
 
     public void testThatRemoteAuditInstancesAreStarted() throws Exception {
-        AuditTrailService auditTrailService = remoteCluster.getInstance(AuditTrailService.class);
-        Optional<AuditTrail> auditTrail = auditTrailService.getAuditTrails().stream()
-            .filter(t -> t.name().equals(IndexAuditTrail.NAME)).findFirst();
-        assertTrue(auditTrail.isPresent());
-        IndexAuditTrail indexAuditTrail = (IndexAuditTrail)auditTrail.get();
-
-        awaitBusy(() -> indexAuditTrail.state() == IndexAuditTrail.State.STARTED);
-        assertThat(indexAuditTrail.state(), is(IndexAuditTrail.State.STARTED));
+        // we ensure that all instances present are started otherwise we will have issues
+        // and race with the shutdown logic
+        for (InternalTestCluster cluster : Arrays.asList(remoteCluster, internalCluster())) {
+            for (AuditTrailService auditTrailService : cluster.getInstances(AuditTrailService.class)) {
+                Optional<AuditTrail> auditTrail = auditTrailService.getAuditTrails().stream()
+                        .filter(t -> t.name().equals(IndexAuditTrail.NAME)).findAny();
+                if (cluster == remoteCluster || (localAudit && outputs.contains("index"))) {
+                    // remote cluster must be present and only if we do local audit and output to an index we are good on the local one
+                    // as well.
+                    assertTrue(auditTrail.isPresent());
+                }
+                if (auditTrail.isPresent()) {
+                    IndexAuditTrail indexAuditTrail = (IndexAuditTrail) auditTrail.get();
+                    assertBusy(() -> assertSame("trail not started remoteCluster: " + (remoteCluster == cluster),
+                            indexAuditTrail.state(), IndexAuditTrail.State.STARTED));
+                }
+            }
+        }
     }
 }

@@ -59,6 +59,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -102,7 +103,6 @@ import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.res
  * Audit trail implementation that writes events into an index.
  */
 public class IndexAuditTrail extends AbstractComponent implements AuditTrail, ClusterStateListener {
-
 
     public static final String NAME = "index";
     public static final String INDEX_NAME_PREFIX = ".security_audit_log";
@@ -157,7 +157,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final String nodeName;
     private final Client client;
-    private final BlockingQueue<Message> eventQueue;
     private final QueueConsumer queueConsumer;
     private final ThreadPool threadPool;
     private final AtomicBoolean putTemplatePending = new AtomicBoolean(false);
@@ -181,9 +180,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.nodeName = settings.get("name");
-        this.queueConsumer = new QueueConsumer(EsExecutors.threadName(settings, "audit-queue-consumer"));
-        int maxQueueSize = QUEUE_SIZE_SETTING.get(settings);
-        this.eventQueue = createQueue(maxQueueSize);
+        final int maxQueueSize = QUEUE_SIZE_SETTING.get(settings);
+        this.queueConsumer = new QueueConsumer(EsExecutors.threadName(settings, "audit-queue-consumer"), createQueue(maxQueueSize));
         this.rollover = ROLLOVER_SETTING.get(settings);
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.indexToRemoteCluster = REMOTE_CLIENT_SETTINGS.get(settings).names().size() > 0;
@@ -218,14 +216,16 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
      * @param master flag indicating if the current node is the master
      * @return true if all requirements are met and the service can be started
      */
-    public synchronized boolean canStart(ClusterChangedEvent event, boolean master) {
+    public boolean canStart(ClusterChangedEvent event, boolean master) {
         if (indexToRemoteCluster) {
             // just return true as we do not determine whether we can start or not based on the local cluster state, but must base it off
             // of the remote cluster state and this method is called on the cluster state update thread, so we do not really want to
             // execute remote calls on this thread
             return true;
         }
-        return canStart(event.state(), master);
+        synchronized (this) {
+            return canStart(event.state(), master);
+        }
     }
 
     private boolean canStart(ClusterState clusterState, boolean master) {
@@ -241,7 +241,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             return false;
         }
 
-        String index = resolve(INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
+        String index = getIndexName();
         IndexMetaData metaData = clusterState.metaData().index(index);
         if (metaData == null) {
             logger.debug("security audit index [{}] does not exist, so service can start", index);
@@ -254,6 +254,10 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
         logger.debug("security audit index [{}] does not have all primary shards started, so service cannot start", index);
         return false;
+    }
+
+    private String getIndexName() {
+        return resolve(INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
     }
 
     /**
@@ -285,6 +289,15 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                                 throw new IllegalStateException("state transition from starting to initialized failed, current value: " +
                                         state.get());
                             }
+                            // for some reason we can't start up since the remote cluster is not fully setup. in this case
+                            // we try to wait for yellow status (all primaries started up) this will also wait for
+                            // state recovery etc.
+                            String indexName = getIndexName();
+                            // if this index doesn't exists the call will fail with a not_found exception...
+                            client.admin().cluster().prepareHealth().setIndices().setWaitForYellowStatus().execute(ActionListener.wrap(
+                                    (x) -> start(master),
+                                    (e) -> logger.error("failed to get wait for yellow status on index [" + indexName + "]", e))
+                            );
                         }
                     }
 
@@ -313,7 +326,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     public synchronized void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
-            queueConsumer.interrupt();
+            queueConsumer.close();
         }
 
         if (state() != State.STOPPED) {
@@ -749,7 +762,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     void enqueue(Message message, String type) {
         State currentState = state();
         if (currentState != State.STOPPING && currentState != State.STOPPED) {
-            boolean accepted = eventQueue.offer(message);
+            boolean accepted = queueConsumer.offer(message);
             if (!accepted) {
                 logger.warn("failed to index audit event: [{}]. internal queue is full, which may be caused by a high indexing rate or " +
                         "issue with the destination", type);
@@ -759,7 +772,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     // for testing to ensure we get the proper timestamp and index name...
     Message peek() {
-        return eventQueue.peek();
+        return queueConsumer.peek();
     }
 
     private static Client initializeRemoteClient(Settings settings, Logger logger) {
@@ -845,7 +858,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                         if (response.isAcknowledged()) {
                             // now we may need to update the mappings of the current index
                             final DateTime dateTime;
-                            final Message message = eventQueue.peek();
+                            final Message message = queueConsumer.peek();
                             if (message != null) {
                                 dateTime = message.timestamp;
                             } else {
@@ -962,32 +975,65 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         settings.add(INCLUDE_REQUEST_BODY);
     }
 
-    private class QueueConsumer extends Thread {
+    private final class QueueConsumer extends Thread implements Closeable {
+        private final AtomicBoolean open = new AtomicBoolean(true);
+        private final BlockingQueue<Message> eventQueue;
+        private final Message shutdownSentinelMessage;
 
-        volatile boolean running = true;
-
-        QueueConsumer(String name) {
+        QueueConsumer(String name, BlockingQueue eventQueue) {
             super(name);
+            this.eventQueue = eventQueue;
+            try {
+                shutdownSentinelMessage = new Message();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        @Override
+        public void close() {
+            if (open.compareAndSet(true, false)) {
+                try {
+                    eventQueue.put(shutdownSentinelMessage);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
 
         @Override
         public void run() {
-            while (running) {
+            while (open.get()) {
                 try {
-                    Message message = eventQueue.take();
-                    IndexRequest indexRequest = client.prepareIndex()
+                    final Message message = eventQueue.take();
+                    if (message == shutdownSentinelMessage || open.get() == false) {
+                        break;
+                    }
+                    final IndexRequest indexRequest = client.prepareIndex()
                             .setIndex(resolve(INDEX_NAME_PREFIX, message.timestamp, rollover))
                             .setType(DOC_TYPE).setSource(message.builder).request();
                     bulkProcessor.add(indexRequest);
                 } catch (InterruptedException e) {
                     logger.debug("index audit queue consumer interrupted", e);
-                    running = false;
-                    return;
+                    close();
+                    break;
                 } catch (Exception e) {
                     // log the exception and keep going
                     logger.warn("failed to index audit message from queue", e);
                 }
             }
+            eventQueue.clear();
+        }
+
+        public boolean offer(Message message) {
+            if (open.get()) {
+                return eventQueue.offer(message);
+            }
+            return false;
+        }
+
+        public Message peek() {
+            return eventQueue.peek();
         }
     }
 

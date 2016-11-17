@@ -1,7 +1,7 @@
 [[modules-scripting-native]]
 === Native (Java) Scripts
 
-Sometimes `groovy` and <<modules-scripting-expression, expression>> aren't enough. For those times you can
+Sometimes `painless` and <<modules-scripting-expression, expression>> aren't enough. For those times you can
 implement a native script.
 
 The best way to implement a native script is to write a plugin and install it.

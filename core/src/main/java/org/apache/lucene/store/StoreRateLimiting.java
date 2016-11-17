@@ -23,13 +23,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.store.IndexStoreConfig;
 
 /**
  */
 public class StoreRateLimiting {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndexStoreConfig.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(StoreRateLimiting.class));
 
     public interface Provider {
 

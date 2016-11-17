@@ -1,0 +1,197 @@
+[[rank-eval]]
+= Ranking Evaluation
+
+[partintro]
+--
+
+Imagine having built and deployed a search application: Users are happily
+entering queries into your search frontend. Your application takes these
+queries and creates a dedicated Elasticsearch query from that, and returns its
+results back to the user.  Imagine further that you are tasked with tweaking the
+Elasticsearch query that is being created to return specific results for a
+certain set of queries without breaking others. How should that be done?
+
+One possible solution is to gather a sample of user queries representative of
+how the search application is used, retrieve the search results that are being
+returned. As a next step these search results would be manually annotated for
+their relevancy to the original user query. Based on this set of rated requests
+we can compute a couple of metrics telling us more about how many relevant
+search results are being returned.
+
+This is a nice approximation for how well our translation from user query to
+Elasticsearch query works for providing the user with relevant search results.
+Elasticsearch provides a ranking evaluation API that lets you compute scores for
+your current ranking function based on annotated search results.
+--
+
+== Plain ranking evaluation
+
+In its most simple form, for each query a set of ratings can be supplied:
+
+[source,js]
+-----------------------------
+GET /index/type/_rank_eval
+{
+    "requests": [
+    {
+        "id": "JFK query",                              <1>
+        "request": {
+            "query": {
+                "match": {
+                    "opening_text": {
+                        "query": "JFK"}}}},             <2>
+        "ratings": [                                    <3>
+        {
+          "rating": 1.5,                                <4>
+          "_type": "page",                              <5>
+          "_id": "13736278",                            <6>
+          "_index": "enwiki_rank"                       <7>
+        },
+        {
+          "rating": 1,
+          "_type": "page",
+          "_id": "30900421",
+          "_index": "enwiki_rank"
+        }],  
+      "summary_fields": ["title"],                      <8>
+    },
+    "metric": {                                         <9>
+      "reciprocal_rank": {}
+   }
+}
+------------------------------
+// CONSOLE
+
+<1> A human readable id for the rated query (that will be re-used in the response to provide further details).
+<2> The actual Elasticsearch query to execute.
+<3> A set of ratings for how well a certain document fits as response for the query.
+<4> A rating expressing how well the document fits the query, higher is better, are treated as int values.
+<5> The type where the rated document lives.
+<6> The id of the rated document.
+<7> The index where the rated document lives.
+<8> For a verbose response, specify which properties of a search hit should be returned in addition to index/type/id.
+<9> A metric to use for evaluation. See below for a list.
+
+
+== Template based ranking evaluation
+
+[source,js]
+--------------------------------
+GET /index/type/_rank_eval/template
+{
+  "template": {
+        "inline": {
+            "query": {
+                "match": {
+                    "{{wiki_field}}": {
+                        "query": "{{query_string}}"}}}}},  <1>
+  "requests": [
+  {
+      "id": "JFK query"
+      "ratings": [
+        {
+          "rating": 1.5,
+          "_type": "page",
+          "_id": "13736278",
+          "_index": "enwiki_rank"
+        },
+        {
+          "rating": 1,
+          "_type": "page",
+          "_id": "30900421",
+          "_index": "enwiki_rank"
+        }      ],
+      "params": {
+        "query_string": "JFK",                          <2>
+        "wiki_field": "opening_text"                    <2>
+      },
+    }],
+    "metric": {
+      "precision": {
+        "relevant_rating_threshold": 2
+      }
+   }
+}
+--------------------------------
+// CONSOLE
+
+<1> The template to use for every rated search request.
+<2> The parameters to use to fill the template above.
+
+
+== Valid evaluation metrics
+
+=== Precision
+
+Citing from https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision
+page at Wikipedia]:
+"Precision is the fraction of the documents retrieved that are relevant to the
+user's information need."
+
+Works well as an easy to explain evaluation metric. Caveat: All result positions
+are treated equally. So a ranking of ten results that contains one relevant
+result in position 10 is equally good as a ranking of ten results that contains
+one relevant result in position 1.
+
+[source,js]
+--------------------------------
+{
+    "metric": {
+      "precision": {
+        "relevant_rating_threshold": 1,              <1>
+        "ignore_unlabeled": "false"                  <2>
+      }
+   }
+}
+--------------------------------
+
+<1> For graded relevance ratings only ratings above this threshold are
+considered as relevant results for the given query. By default this is set to 1.
+
+<2> All documents retrieved by the rated request that have no ratings
+assigned are treated unrelevant by default. Set to true in order to drop them
+from the precision computation entirely.
+
+
+=== Reciprocal rank
+
+For any given query this is the reciprocal of the rank of the
+first relevant document retrieved. For example finding the first relevant result
+in position 3 means Reciprocal Rank is going to be 1/3.
+
+[source,js]
+--------------------------------
+{
+    "metric": {
+        "reciprocal_rank": {}
+    }
+}
+--------------------------------
+
+
+=== Normalized discounted cumulative gain
+
+In contrast to the two metrics above this takes both, the grade of the result
+found as well as the position of the document returned into account.
+
+For more details also check the explanation on
+https://en.wikipedia.org/wiki/Discounted_cumulative_gain[Wikipedia].
+
+
+[source,js]
+--------------------------------
+{
+    "metric": {
+       "dcg": {
+            "normalize": "false"  <1>
+       }
+    }
+}
+--------------------------------
+
+<1> Set to true to compute nDCG instead of DCG, default is false.
+
+Setting normalize to true makes DCG values better comparable across different
+result set sizes. See also
+https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Wikipedia
+nDCG] for more details.

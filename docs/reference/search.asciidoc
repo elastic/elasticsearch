@@ -131,4 +131,6 @@ include::search/profile.asciidoc[]
 
 include::search/percolate.asciidoc[]
 
+include::search/rank-eval.asciidoc[]
+
 include::search/field-stats.asciidoc[]

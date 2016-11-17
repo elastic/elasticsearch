@@ -55,6 +55,11 @@ task cppMake(type: Exec) {
     args '-c', 'source cpp/set_env.sh && ' + make + ' -j' + numCpus
 }
 
+task cppStrip(type: Exec) {
+    commandLine bash
+    args '-c', 'source cpp/set_env.sh && cpp/strip_binaries.sh'
+}
+
 task cppTest(type: Exec) {
     commandLine bash
     args '-c', 'source cpp/set_env.sh && ' + make + ' -j' + numCpus + ' test'
@@ -63,9 +68,11 @@ task cppTest(type: Exec) {
 task cppAll {
     dependsOn 'cppObjCompile'
     dependsOn 'cppMake'
+    dependsOn 'cppStrip'
     dependsOn 'cppTest'
     tasks.findByName('cppMake').mustRunAfter 'cppObjCompile'
-    tasks.findByName('cppTest').mustRunAfter 'cppMake'
+    tasks.findByName('cppStrip').mustRunAfter 'cppMake'
+    tasks.findByName('cppTest').mustRunAfter 'cppStrip'
 }
 
 subprojects {

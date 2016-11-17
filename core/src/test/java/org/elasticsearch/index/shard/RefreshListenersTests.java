@@ -104,11 +104,6 @@ public class RefreshListenersTests extends ESTestCase {
             public Directory newDirectory() throws IOException {
                 return directory;
             }
-
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
         };
         store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();

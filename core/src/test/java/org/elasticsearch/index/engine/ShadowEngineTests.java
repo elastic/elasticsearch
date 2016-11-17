@@ -193,11 +193,6 @@ public class ShadowEngineTests extends ESTestCase {
             public Directory newDirectory() throws IOException {
                 return directory;
             }
-
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
         };
         return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
     }

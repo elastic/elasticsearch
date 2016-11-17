@@ -38,7 +38,6 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             "node_stats.indices.fielddata.memory_size_in_bytes",
             "node_stats.indices.fielddata.evictions",
             "node_stats.indices.store.size_in_bytes",
-            "node_stats.indices.store.throttle_time_in_millis",
             "node_stats.indices.indexing.throttle_time_in_millis",
             "node_stats.indices.indexing.index_total",
             "node_stats.indices.indexing.index_time_in_millis",

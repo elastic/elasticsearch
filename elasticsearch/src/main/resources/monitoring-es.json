@@ -119,9 +119,6 @@
                   "properties": {
                     "size_in_bytes": {
                       "type": "long"
-                    },
-                    "throttle_time_in_millis": {
-                      "type": "long"
                     }
                   }
                 },
@@ -252,9 +249,6 @@
                 "store": {
                   "properties": {
                     "size_in_bytes": {
-                      "type": "long"
-                    },
-                    "throttle_time_in_millis": {
                       "type": "long"
                     }
                   }
@@ -546,9 +540,6 @@
                 "store": {
                   "properties": {
                     "size_in_bytes": {
-                      "type": "long"
-                    },
-                    "throttle_time_in_millis": {
                       "type": "long"
                     }
                   }

@@ -30,7 +30,7 @@ In its most simple form, for each query a set of ratings can be supplied:
 
 [source,js]
 -----------------------------
-GET /index/type/_rank_eval
+GET /twitter/tweet/_rank_eval
 {
     "requests": [
     {
@@ -38,20 +38,20 @@ GET /index/type/_rank_eval
         "request": {
             "query": {
                 "match": {
-                    "opening_text": {
+                    "title": {
                         "query": "JFK"}}}},             <2>
         "ratings": [                                    <3>
         {
           "rating": 1.5,                                <4>
-          "_type": "page",                              <5>
+          "_type": "tweet",                             <5>
           "_id": "13736278",                            <6>
-          "_index": "enwiki_rank"                       <7>
+          "_index": "twitter"                           <7>
         },
         {
           "rating": 1,
-          "_type": "page",
+          "_type": "tweet",
           "_id": "30900421",
-          "_index": "enwiki_rank"
+          "_index": "twitter"
         }],  
       "summary_fields": ["title"]                       <8>
     }],
@@ -61,6 +61,7 @@ GET /index/type/_rank_eval
 }
 ------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 <1> A human readable id for the rated query (that will be re-used in the response to provide further details).
 <2> The actual Elasticsearch query to execute.
@@ -77,13 +78,13 @@ GET /index/type/_rank_eval
 
 [source,js]
 --------------------------------
-GET /index/type/_rank_eval/template
+GET /twitter/tweet/_rank_eval/template
 {
   "template": {
         "inline": {
             "query": {
                 "match": {
-                    "{{wiki_field}}": {
+                    "{{field}}": {
                         "query": "{{query_string}}"}}}}},  <1>
   "requests": [
   {
@@ -91,19 +92,19 @@ GET /index/type/_rank_eval/template
       "ratings": [
         {
           "rating": 1.5,
-          "_type": "page",
+          "_type": "tweet",
           "_id": "13736278",
-          "_index": "enwiki_rank"
+          "_index": "twitter"
         },
         {
           "rating": 1,
-          "_type": "page",
+          "_type": "tweet",
           "_id": "30900421",
-          "_index": "enwiki_rank"
+          "_index": "twitter"
         }],
       "params": {
         "query_string": "JFK",                          <2>
-        "wiki_field": "opening_text"                    <2>
+        "field": "opening_text"                         <2>
       }
     }],
     "metric": {
@@ -114,6 +115,7 @@ GET /index/type/_rank_eval/template
 }
 --------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 <1> The template to use for every rated search request.
 <2> The parameters to use to fill the template above.
@@ -135,7 +137,7 @@ one relevant result in position 1.
 
 [source,js]
 --------------------------------
-GET /index/type/_rank_eval
+GET /twitter/tweet/_rank_eval
 {
     "requests": [
     {
@@ -146,12 +148,13 @@ GET /index/type/_rank_eval
     "metric": {
       "precision": {
         "relevant_rating_threshold": 1,              <1>
-        "ignore_unlabeled": "false"                  <2>
+        "ignore_unlabeled": false                    <2>
       }
    }
 }
 --------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 <1> For graded relevance ratings only ratings above this threshold are
 considered as relevant results for the given query. By default this is set to 1.
@@ -169,7 +172,7 @@ in position 3 means Reciprocal Rank is going to be 1/3.
 
 [source,js]
 --------------------------------
-GET /index/type/_rank_eval
+GET /twitter/tweet/_rank_eval
 {
     "requests": [
     {
@@ -183,6 +186,7 @@ GET /index/type/_rank_eval
 }
 --------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 === Normalized discounted cumulative gain
 
@@ -195,7 +199,7 @@ https://en.wikipedia.org/wiki/Discounted_cumulative_gain[Wikipedia].
 
 [source,js]
 --------------------------------
-GET /index/type/_rank_eval
+GET /twitter/tweet/_rank_eval
 {
     "requests": [
     {
@@ -211,6 +215,7 @@ GET /index/type/_rank_eval
 }
 --------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 <1> Set to true to compute nDCG instead of DCG, default is false.
 

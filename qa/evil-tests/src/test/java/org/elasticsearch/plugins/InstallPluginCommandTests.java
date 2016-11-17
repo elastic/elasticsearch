@@ -372,7 +372,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testBuiltinModule() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPlugin("lang-groovy", pluginDir);
+        String pluginZip = createPlugin("lang-painless", pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("is a system module"));
         assertInstallCleaned(env.v2());

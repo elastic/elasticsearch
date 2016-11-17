@@ -25,6 +25,7 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -303,31 +304,38 @@ public class MatchQuery {
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            float boost = 1;
+            Query innerQuery = query;
+            while (innerQuery instanceof BoostQuery) {
+                BoostQuery bq = (BoostQuery) innerQuery;
+                boost *= bq.getBoost();
+                innerQuery = bq.getQuery();
+            }
             final MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
             prefixQuery.setMaxExpansions(maxExpansions);
             prefixQuery.setSlop(phraseSlop);
-            if (query instanceof PhraseQuery) {
-                PhraseQuery pq = (PhraseQuery)query;
+            if (innerQuery instanceof PhraseQuery) {
+                PhraseQuery pq = (PhraseQuery) innerQuery;
                 Term[] terms = pq.getTerms();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
                     prefixQuery.add(new Term[] {terms[i]}, positions[i]);
                 }
-                return prefixQuery;
-            } else if (query instanceof MultiPhraseQuery) {
-                MultiPhraseQuery pq = (MultiPhraseQuery)query;
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof MultiPhraseQuery) {
+                MultiPhraseQuery pq = (MultiPhraseQuery) innerQuery;
                 Term[][] terms = pq.getTermArrays();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
                     prefixQuery.add(terms[i], positions[i]);
                 }
-                return prefixQuery;
-            } else if (query instanceof TermQuery) {
-                prefixQuery.add(((TermQuery) query).getTerm());
-                return prefixQuery;
-            } else if (query instanceof AllTermQuery) {
-                prefixQuery.add(((AllTermQuery) query).getTerm());
-                return prefixQuery;
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof TermQuery) {
+                prefixQuery.add(((TermQuery) innerQuery).getTerm());
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof AllTermQuery) {
+                prefixQuery.add(((AllTermQuery) innerQuery).getTerm());
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
             }
             return query;
         }

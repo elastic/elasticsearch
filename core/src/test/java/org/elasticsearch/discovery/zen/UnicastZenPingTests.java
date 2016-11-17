@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,6 +47,7 @@ import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
+import org.mockito.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -61,26 +64,36 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class UnicastZenPingTests extends ESTestCase {
 
     private ThreadPool threadPool = new TestThreadPool(getClass().getName());
+    // close in reverse order as opened
     private Stack<Closeable> closeables = new Stack<>();
 
     @After
     public void tearDown() throws Exception {
         try {
-            // we need to close these in reverse order they were opened but Java stack is broken, it does not iterate in the expected order
-            // (as if you were popping)
+            // JDK stack is broken, it does not iterate in the expected order (http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4475301)
             final List<Closeable> reverse = new ArrayList<>();
             while (!closeables.isEmpty()) {
                 reverse.add(closeables.pop());
@@ -224,7 +237,7 @@ public class UnicastZenPingTests extends ESTestCase {
         assertCounters(handleD, handleA, handleB, handleC, handleD);
     }
 
-    public void testUnknownHost() {
+    public void testUnknownHostNotCached() {
         // use ephemeral ports
         final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
 
@@ -346,6 +359,168 @@ public class UnicastZenPingTests extends ESTestCase {
         }
     }
 
+    public void testPortLimit() throws InterruptedException {
+        final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        final Transport transport = new MockTcpTransport(
+            Settings.EMPTY,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            networkService,
+            Version.CURRENT);
+        closeables.push(transport);
+        final TransportService transportService =
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        closeables.push(transportService);
+        final AtomicInteger idGenerator = new AtomicInteger();
+        final int limitPortCounts = randomIntBetween(1, 10);
+        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
+            threadPool,
+            logger,
+            Collections.singletonList("127.0.0.1"),
+            limitPortCounts,
+            transportService,
+            () -> Integer.toString(idGenerator.incrementAndGet()),
+            TimeValue.timeValueMillis(100));
+        assertThat(discoveryNodes, hasSize(limitPortCounts));
+        final Set<Integer> ports = new HashSet<>();
+        for (final DiscoveryNode discoveryNode : discoveryNodes) {
+            assertTrue(discoveryNode.getAddress().address().getAddress().isLoopbackAddress());
+            ports.add(discoveryNode.getAddress().getPort());
+        }
+        assertThat(ports, equalTo(IntStream.range(9300, 9300 + limitPortCounts).mapToObj(m -> m).collect(Collectors.toSet())));
+    }
+
+    public void testUnknownHost() throws InterruptedException {
+        final Logger logger = mock(Logger.class);
+        final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        final String hostname = randomAsciiOfLength(8);
+        final UnknownHostException unknownHostException = new UnknownHostException(hostname);
+        final Transport transport = new MockTcpTransport(
+            Settings.EMPTY,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            networkService,
+            Version.CURRENT) {
+
+            @Override
+            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+                throw unknownHostException;
+            }
+
+        };
+        closeables.push(transport);
+
+        final TransportService transportService =
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        closeables.push(transportService);
+        final AtomicInteger idGenerator = new AtomicInteger();
+
+        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
+            threadPool,
+            logger,
+            Arrays.asList(hostname),
+            1,
+            transportService,
+            () -> Integer.toString(idGenerator.incrementAndGet()),
+            TimeValue.timeValueMillis(100)
+        );
+
+        assertThat(discoveryNodes, empty());
+        verify(logger).warn("failed to resolve host [" + hostname + "]", unknownHostException);
+    }
+
+    public void testResolveTimeout() throws InterruptedException {
+        final Logger logger = mock(Logger.class);
+        final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Transport transport = new MockTcpTransport(
+            Settings.EMPTY,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            networkService,
+            Version.CURRENT) {
+
+            @Override
+            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+                if ("hostname1".equals(address)) {
+                    return new TransportAddress[]{new TransportAddress(TransportAddress.META_ADDRESS, 9300)};
+                } else if ("hostname2".equals(address)) {
+                    try {
+                        latch.await();
+                        return new TransportAddress[]{new TransportAddress(TransportAddress.META_ADDRESS, 9300)};
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    throw new UnknownHostException(address);
+                }
+            }
+
+        };
+        closeables.push(transport);
+
+        final TransportService transportService =
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        closeables.push(transportService);
+            final AtomicInteger idGenerator = new AtomicInteger();
+        try {
+            final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
+                threadPool,
+                logger,
+                Arrays.asList("hostname1", "hostname2"),
+                1,
+                transportService,
+                () -> Integer.toString(idGenerator.incrementAndGet()),
+                TimeValue.timeValueMillis(100));
+
+            assertThat(discoveryNodes, hasSize(1));
+            verify(logger).trace(
+                "resolved host [{}] to {}", "hostname1",
+                new TransportAddress[]{new TransportAddress(TransportAddress.META_ADDRESS, 9300)});
+            verify(logger).warn("timed out resolving host [{}]", "hostname2");
+            verifyNoMoreInteractions(logger);
+        } finally {
+            latch.countDown();
+        }
+    }
+
+    public void testInvalidHosts() throws InterruptedException {
+        final Logger logger = mock(Logger.class);
+        final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        final Transport transport = new MockTcpTransport(
+            Settings.EMPTY,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            networkService,
+            Version.CURRENT);
+        closeables.push(transport);
+
+        final TransportService transportService =
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        closeables.push(transportService);
+        final AtomicInteger idGenerator = new AtomicInteger();
+        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
+            threadPool,
+            logger,
+            Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),
+            1,
+            transportService,
+            () -> Integer.toString(idGenerator.incrementAndGet()),
+            TimeValue.timeValueMillis(100));
+        assertThat(discoveryNodes, hasSize(1)); // only one of the two is valid and will be used
+        assertThat(discoveryNodes.get(0).getAddress().getAddress(), equalTo("127.0.0.1"));
+        assertThat(discoveryNodes.get(0).getAddress().getPort(), equalTo(9301));
+        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), Matchers.any(ExecutionException.class));
+    }
+
     // assert that we tried to ping each of the configured nodes at least once
     private void assertCounters(NetworkHandle that, NetworkHandle...handles) {
         for (NetworkHandle handle : handles) {
@@ -362,8 +537,8 @@ public class UnicastZenPingTests extends ESTestCase {
         final Version version,
         final BiFunction<Settings, Version, Transport> supplier) {
         final Transport transport = supplier.apply(settings, version);
-        final TransportService transportService = new TransportService(settings, transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        final TransportService transportService =
+            new TransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         final ConcurrentMap<TransportAddress, AtomicInteger> counters = ConcurrentCollections.newConcurrentMap();

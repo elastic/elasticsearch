@@ -103,7 +103,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         final Settings settings = Settings.builder()
                                       .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                                       .build();
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, transportService);
+        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, transportService, threadPool);
         final List<DiscoveryNode> nodes = provider.buildDynamicNodes();
         assertEquals(0, nodes.size());
     }
@@ -136,6 +136,6 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedUnicastHostsProvider(settings, transportService).buildDynamicNodes();
+        return new FileBasedUnicastHostsProvider(settings, transportService, threadPool).buildDynamicNodes();
     }
 }

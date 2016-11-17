@@ -23,10 +23,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.FileNotFoundException;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT;
 import static org.elasticsearch.discovery.zen.UnicastZenPing.resolveDiscoveryNodes;
 
 /**
@@ -61,15 +63,20 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
     static final String UNICAST_HOST_PREFIX = "#zen_file_unicast_host_";
 
     private final TransportService transportService;
+    private final ThreadPool threadPool;
 
     private final Path unicastHostsFilePath;
 
     private final AtomicLong nodeIdGenerator = new AtomicLong(); // generates unique ids for the node
 
-    FileBasedUnicastHostsProvider(Settings settings, TransportService transportService) {
+    private final TimeValue resolveTimeout;
+
+    FileBasedUnicastHostsProvider(Settings settings, TransportService transportService, ThreadPool threadPool) {
         super(settings);
         this.transportService = transportService;
+        this.threadPool = threadPool;
         this.unicastHostsFilePath = new Environment(settings).configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
+        this.resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
     }
 
     @Override
@@ -89,15 +96,17 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
         }
 
         final List<DiscoveryNode> discoNodes = new ArrayList<>();
-        for (final String host : hostsList) {
-            try {
-                discoNodes.addAll(resolveDiscoveryNodes(host, 1, transportService,
-                    () -> UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#"));
-            } catch (IllegalArgumentException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Failed to parse transport address from [{}]",
-                                                                            host), e);
-                continue;
-            }
+        try {
+            discoNodes.addAll(resolveDiscoveryNodes(
+                threadPool,
+                logger,
+                hostsList,
+                1,
+                transportService,
+                () -> UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#",
+                resolveTimeout));
+        } catch (InterruptedException e) {
+
         }
 
         logger.debug("[discovery-file] Using dynamic discovery nodes {}", discoNodes);

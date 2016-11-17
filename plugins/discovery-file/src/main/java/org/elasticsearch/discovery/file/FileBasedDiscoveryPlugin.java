@@ -19,11 +19,9 @@
 
 package org.elasticsearch.discovery.file;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.function.Supplier;
-
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
@@ -33,7 +31,16 @@ import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.ResourceWatcherService;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Plugin for providing file-based unicast hosts discovery. The list of unicast hosts
@@ -46,15 +53,28 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Settings settings;
+    private ThreadPool threadPool;
 
     public FileBasedDiscoveryPlugin(Settings settings) {
         this.settings = settings;
     }
 
     @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        SearchRequestParsers searchRequestParsers) {
+        this.threadPool = threadPool;
+        return Collections.emptyList();
+    }
+
+    @Override
     public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
                                                                             NetworkService networkService) {
-        return Collections.singletonMap("file", () -> new FileBasedUnicastHostsProvider(settings, transportService));
+        return Collections.singletonMap("file", () -> new FileBasedUnicastHostsProvider(settings, transportService, threadPool));
     }
 
     @Override

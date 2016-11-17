@@ -495,7 +495,7 @@ public class TribeService extends AbstractLifecycleComponent {
                     }
                 }
             }
-            clusterStateChanged |= updateCustoms(tasks, metaData);
+            clusterStateChanged |= updateCustoms(currentState, tasks, metaData);
             if (clusterStateChanged) {
                 newState.blocks(blocks);
                 newState.metaData(metaData);
@@ -504,7 +504,7 @@ public class TribeService extends AbstractLifecycleComponent {
             return clusterStateChanged;
         }
 
-        private boolean updateCustoms(List<ClusterChangedEvent> tasks, MetaData.Builder metaData) {
+        private boolean updateCustoms(ClusterState currentState, List<ClusterChangedEvent> tasks, MetaData.Builder metaData) {
             boolean clusterStateChanged = false;
             ClusterChangedEvent latestTask = tasks.get(tasks.size() - 1);
             final ClusterState tribeClientState = latestTask.state();
@@ -538,12 +538,17 @@ public class TribeService extends AbstractLifecycleComponent {
             for (String changedCustomMetaDataType : changedCustomMetaDataTypeSet) {
                 MetaData.Custom mergedCustomMetaData = mergedCustomMetaDataMap.get(changedCustomMetaDataType);
                 if (mergedCustomMetaData == null) {
-                    // custom md has been removed
-                    clusterStateChanged = true;
-                    metaData.removeCustom(changedCustomMetaDataType);
+                    // we ignore merging custom md which doesn't implement MergableCustomMetaData interface
+                    if (currentState.metaData().custom(changedCustomMetaDataType) instanceof MergableCustomMetaData) {
+                        // custom md has been removed
+                        clusterStateChanged = true;
+                        logger.info("[{}] removing custom meta data type [{}]", tribeName, changedCustomMetaDataType);
+                        metaData.removeCustom(changedCustomMetaDataType);
+                    }
                 } else {
                     // custom md has been changed
                     clusterStateChanged = true;
+                    logger.info("[{}] updating custom meta data type [{}] data [{}]", tribeName, changedCustomMetaDataType, mergedCustomMetaData);
                     metaData.putCustom(changedCustomMetaDataType, mergedCustomMetaData);
                 }
             }

@@ -131,7 +131,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 // to be unbounded and most instances may only aggregate few
                 // documents, so use hashed based
                 // global ordinals to keep the bucket ords dense.
-                if (Aggregator.descendsFromBucketAggregator(parent)) {
+                // Additionally, if using partitioned terms the regular global 
+                // ordinals would be sparse so we opt for hash
+                if (Aggregator.descendsFromBucketAggregator(parent) ||
+                        (includeExclude != null && includeExclude.isPartitionBased())) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     if (factories == AggregatorFactories.EMPTY) {

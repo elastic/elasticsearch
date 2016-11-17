@@ -28,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,12 +52,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  * */
 public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
     private Client client;
+    private IndicesQueriesRegistry queryParsers;
 
     @Inject
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService) {
+            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
+            IndicesQueriesRegistry queryParsers) {
         super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 RankEvalRequest::new);
+        this.queryParsers = queryParsers;
         this.client = client;
     }
 

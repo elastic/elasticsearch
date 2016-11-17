@@ -157,21 +157,25 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         RankEvalSpec spec = PARSER.parse(parser, context);
 
         if (templated) {
-            for (RatedRequest query_spec : spec.getSpecifications()) {
-                Map<String, Object> params = query_spec.getParams();
-                Script scriptWithParams = new Script(spec.template.getType(), spec.template.getLang(), spec.template.getIdOrCode(), params);
-                String resolvedRequest = ((BytesReference) (context.getScriptService()
-                        .executable(scriptWithParams, ScriptContext.Standard.SEARCH).run())).utf8ToString();
-                try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
-                    QueryParseContext parseContext = new QueryParseContext(context.getSearchRequestParsers().queryParsers, subParser,
-                            context.getParseFieldMatcher());
-                    SearchSourceBuilder templateResult = SearchSourceBuilder.fromXContent(parseContext, context.getAggs(),
-                            context.getSuggesters(), context.getSearchExtParsers());
-                    query_spec.setTestRequest(templateResult);
-                }
-            }
+            executeTemplate(context, spec);
         }
         return spec;
+    }
+
+    private static void executeTemplate(RankEvalContext context, RankEvalSpec spec) throws IOException {
+        for (RatedRequest query_spec : spec.getSpecifications()) {
+            Map<String, Object> params = query_spec.getParams();
+            Script scriptWithParams = new Script(spec.template.getType(), spec.template.getLang(), spec.template.getIdOrCode(), params);
+            String resolvedRequest = ((BytesReference) (context.getScriptService()
+                    .executable(scriptWithParams, ScriptContext.Standard.SEARCH).run())).utf8ToString();
+            try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
+                QueryParseContext parseContext = new QueryParseContext(context.getSearchRequestParsers().queryParsers, subParser,
+                        context.getParseFieldMatcher());
+                SearchSourceBuilder templateResult = SearchSourceBuilder.fromXContent(parseContext, context.getAggs(),
+                        context.getSuggesters(), context.getSearchExtParsers());
+                query_spec.setTestRequest(templateResult);
+            }
+        }
     }
 
     @Override

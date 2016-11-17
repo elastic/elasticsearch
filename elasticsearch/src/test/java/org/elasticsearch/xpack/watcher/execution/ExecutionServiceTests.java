@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,8 +21,8 @@ import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
@@ -45,7 +46,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -780,7 +781,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         Wid wid = new Wid(watch.id(), watch.nonce(), now());
 
-        Executor currentThreadExecutor = command -> command.run();
+        final ExecutorService currentThreadExecutor = EsExecutors.newDirectExecutorService();
         when(threadPool.generic()).thenReturn(currentThreadExecutor);
 
         TriggeredWatch triggeredWatch = new TriggeredWatch(wid, new ScheduleTriggerEvent(now() ,now()));

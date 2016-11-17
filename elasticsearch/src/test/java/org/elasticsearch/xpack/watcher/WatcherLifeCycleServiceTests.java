@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+
+import java.util.concurrent.ExecutorService;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -42,7 +45,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     @Before
     public void prepareServices() {
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(anyString())).thenReturn(Runnable::run);
+        final ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        when(threadPool.executor(anyString())).thenReturn(executorService);
         clusterService = mock(ClusterService.class);
         Answer<Object> answer = new Answer<Object>() {
             @Override

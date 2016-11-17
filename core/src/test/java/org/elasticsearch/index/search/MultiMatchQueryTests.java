@@ -32,6 +32,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -55,7 +56,12 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() throws IOException {
-        IndexService indexService = createIndex("test");
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.syns.type","synonym")
+            .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+            .put("index.analysis.analyzer.syns.tokenizer","standard")
+            .put("index.analysis.analyzer.syns.filter","syns").build();
+        IndexService indexService = createIndex("test", settings);
         MapperService mapperService = indexService.mapperService();
         String mapping = "{\n" +
                 "    \"person\":{\n" +
@@ -63,10 +69,12 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "            \"name\":{\n" +
                 "                  \"properties\":{\n" +
                 "                        \"first\": {\n" +
-                "                            \"type\":\"text\"\n" +
+                "                            \"type\":\"text\",\n" +
+                "                            \"analyzer\":\"syns\"\n" +
                 "                        }," +
                 "                        \"last\": {\n" +
-                "                            \"type\":\"text\"\n" +
+                "                            \"type\":\"text\",\n" +
+                "                            \"analyzer\":\"syns\"\n" +
                 "                        }" +
                 "                   }" +
                 "            }\n" +
@@ -175,5 +183,22 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             multiMatchQuery("foo").field("_all").type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX).toQuery(queryShardContext);
         assertThat(parsedQuery, instanceOf(MultiPhrasePrefixQuery.class));
         assertThat(parsedQuery.toString(), equalTo("_all:\"foo*\""));
+    }
+
+    public void testMultiMatchCrossFieldsWithSynonyms() throws IOException {
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> { throw new UnsupportedOperationException(); });
+        Query parsedQuery =
+            multiMatchQuery("quick").field("name.first").field("name.last")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
+        Term[] terms = new Term[4];
+        terms[0] = new Term("name.first", "quick");
+        terms[1] = new Term("name.first", "fast");
+        terms[2] = new Term("name.last", "quick");
+        terms[3] = new Term("name.last", "fast");
+        float[] boosts = new float[4];
+        Arrays.fill(boosts, 1.0f);
+        BlendedTermQuery expectedQuery = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
+        assertThat(parsedQuery, equalTo(expectedQuery));
     }
 }

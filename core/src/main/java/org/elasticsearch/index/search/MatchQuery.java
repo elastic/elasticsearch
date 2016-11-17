@@ -31,6 +31,7 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
@@ -302,6 +303,11 @@ public class MatchQuery {
             return blendTermQuery(term, mapper);
         }
 
+        @Override
+        protected Query newSynonymQuery(Term[] terms) {
+            return blendTermsQuery(terms, mapper);
+        }
+
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
             float boost = 1;
@@ -356,6 +362,10 @@ public class MatchQuery {
             return booleanQuery;
 
         }
+    }
+
+    protected Query blendTermsQuery(Term[] terms, MappedFieldType fieldType) {
+        return new SynonymQuery(terms);
     }
 
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {

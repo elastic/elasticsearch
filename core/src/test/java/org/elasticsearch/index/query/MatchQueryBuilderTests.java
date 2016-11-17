@@ -33,11 +33,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-<<<<<<< HEAD
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
-=======
 import org.elasticsearch.common.compress.CompressedXContent;
->>>>>>> 09fbb4d... Fix match_phrase_prefix on boosted fields (#21623)
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;

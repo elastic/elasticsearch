@@ -208,7 +208,7 @@ public class LambdaTests extends ScriptTestCase {
         assertEquals(5, exec("def foo(int x) { Optional.empty().orElseGet(() -> x) } return foo(5);"));
     }
 
-    public void testUtilityCompare() {
+    public void testReservedCapture() {
         String compare = "boolean compare(Supplier s, def v) {s.get() == v}";
         assertEquals(true, exec(compare + "compare(() -> new ArrayList(), new ArrayList())"));
         assertEquals(true, exec(compare + "compare(() -> { new ArrayList() }, new ArrayList())"));

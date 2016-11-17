@@ -38,7 +38,7 @@ import java.util.Set;
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
 
 
-public class RankEvalRequestTests  extends ESIntegTestCase {
+public class RankEvalRequestIT  extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(RankEvalPlugin.class);

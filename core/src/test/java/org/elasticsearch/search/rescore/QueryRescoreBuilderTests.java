@@ -148,7 +148,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             QueryRescorerBuilder rescoreBuilder = randomRescoreBuilder();
-            QueryRescoreContext rescoreContext = rescoreBuilder.build(mockShardContext);
+            QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.build(mockShardContext);
             int expectedWindowSize = rescoreBuilder.windowSize() == null ? QueryRescoreContext.DEFAULT_WINDOW_SIZE :
                 rescoreBuilder.windowSize().intValue();
             assertEquals(expectedWindowSize, rescoreContext.window());
@@ -179,7 +179,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             RescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
-            assertEquals("rescore doesn't support rescorer with name [bad_rescorer_name]", e.getMessage());
+            assertEquals("Unknown RescoreBuilder [bad_rescorer_name]", e.getMessage());
         }
 
         rescoreElement = "{\n" +

@@ -89,7 +89,7 @@ public final class SSource extends AStatement {
 
         @Override
         public boolean isReserved(String name) {
-            return Locals.KEYWORDS.contains(name);
+            return Locals.MAIN_KEYWORDS.contains(name);
         }
 
         public boolean usesScore() {

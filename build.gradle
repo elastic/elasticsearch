@@ -2,6 +2,35 @@ description = 'Builds the Prelert Engine native binaries and Java classes'
 
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.elasticsearch.gradle.precommit.LicenseHeadersTask
+
+buildscript {
+    repositories {
+        if (System.getProperty("repos.mavenlocal") != null) {
+            // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is useful for building against
+            // elasticsearch snapshots
+            mavenLocal()
+        }
+        mavenCentral()
+        maven {
+            name 'sonatype-snapshots'
+            url "https://oss.sonatype.org/content/repositories/snapshots/"
+        }
+        jcenter()
+    }
+    dependencies {
+        classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
+    }
+}
+
+subprojects {
+  // we must not publish to sonatype until we have set up x-plugins to only publish the parts we want to publish!
+  project.afterEvaluate {
+    if (project.plugins.hasPlugin('com.bmuschko.nexus') && project.nexus.repositoryUrl.startsWith('file://') == false) {
+      uploadArchives.enabled = false
+    }
+  }
+}
 
 boolean isLinux = OperatingSystem.current().isLinux()
 boolean isMacOsX = OperatingSystem.current().isMacOsX()
@@ -43,7 +72,6 @@ subprojects {
     apply plugin: 'eclipse'
     apply plugin: 'idea'
     apply plugin: 'maven'
-    apply plugin: 'java'
     
     buildscript {
         repositories {
@@ -77,11 +105,9 @@ subprojects {
         jcenter()
     }
 
-    configurations.all {
-    }
-
-    dependencies {
-        testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
+    tasks.withType(LicenseHeadersTask.class) {
+      approvedLicenses = ['Elasticsearch Confidential']
+      additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
     }
 }
 
@@ -179,4 +205,3 @@ allprojects {
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
-

@@ -1,4 +1,6 @@
 rootProject.name = 'prelert-engine-api'
 include ':engine-node'
+include ':docs'
 
 project(':engine-node').projectDir = "$rootDir/java/apps/engine-node" as File
+project(':docs').projectDir = "$rootDir/docs" as File

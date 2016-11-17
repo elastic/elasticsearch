@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Objects;
+import java.util.function.Supplier;
+
 /**
  * A set of methods for non-native boxing and non-native
  * exact math operations used at both compile-time and runtime.
@@ -35,6 +38,10 @@ public class Utility {
         }
 
         return value.charAt(0);
+    }
+
+    public static boolean compare(Supplier<Object> left, Object right) {
+        return Objects.equals(left.get(), right);
     }
 
     private Utility() {}

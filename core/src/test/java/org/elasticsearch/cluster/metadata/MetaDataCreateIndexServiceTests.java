@@ -36,7 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -79,7 +79,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             Settings.builder().put("index.blocks.write", true).build());
 
         assertEquals("index [source] already exists",
-            expectThrows(IndexAlreadyExistsException.class, () ->
+            expectThrows(ResourceAlreadyExistsException.class, () ->
                 MetaDataCreateIndexService.validateShrinkIndex(state, "target", Collections.emptySet(), "source", Settings.EMPTY)
             ).getMessage());
 

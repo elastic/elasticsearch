@@ -58,7 +58,7 @@ import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
@@ -758,7 +758,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param indexMetaData the index metadata to create the index for
          * @param builtInIndexListener a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with
          *                             the per-index listeners
-         * @throws IndexAlreadyExistsException if the index already exists.
+         * @throws ResourceAlreadyExistsException if the index already exists.
          */
         U createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInIndexListener) throws IOException;
 

@@ -124,6 +124,7 @@
         index: logs-000002
 
   - do:
+      # index_already_exists_exception was renamed to resource_arleady_exists_exception in 6.0
       catch: /(index|resource)_already_exists_exception/
       indices.rollover:
         dry_run: true
@@ -135,6 +136,7 @@
 
   # also do it without dry_run
   - do:
+      # index_already_exists_exception was renamed to resource_arleady_exists_exception in 6.0
       catch: /(index|resource)_already_exists_exception/
       indices.rollover:
         dry_run: false

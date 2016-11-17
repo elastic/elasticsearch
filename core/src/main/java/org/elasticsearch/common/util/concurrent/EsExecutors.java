@@ -78,7 +78,7 @@ public class EsExecutors {
         return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy(), contextHolder);
     }
 
-    private static ExecutorService DIRECT_EXECUTOR_SERVICE = new AbstractExecutorService() {
+    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new AbstractExecutorService() {
 
         @Override
         public void shutdown() {
@@ -118,7 +118,7 @@ public class EsExecutors {
      *
      * @return an {@link ExecutorService} that executes submitted tasks on the current thread
      */
-    public static ExecutorService newDirectorExecutorService() {
+    public static ExecutorService newDirectExecutorService() {
         return DIRECT_EXECUTOR_SERVICE;
     }
 

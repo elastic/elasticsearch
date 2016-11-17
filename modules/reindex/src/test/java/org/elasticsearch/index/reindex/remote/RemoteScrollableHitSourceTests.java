@@ -91,7 +91,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final ExecutorService directExecutor = EsExecutors.newDirectorExecutorService();
+        final ExecutorService directExecutor = EsExecutors.newDirectExecutorService();
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {

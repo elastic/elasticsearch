@@ -70,7 +70,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     public void setup() {
         store = mock(PipelineStore.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        final ExecutorService executorService = EsExecutors.newDirectorExecutorService();
+        final ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(executorService);
         executionService = new PipelineExecutionService(store, threadPool);
     }

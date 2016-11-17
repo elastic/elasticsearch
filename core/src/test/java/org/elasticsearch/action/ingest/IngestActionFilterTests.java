@@ -160,7 +160,7 @@ public class IngestActionFilterTests extends ESTestCase {
     public void testApplyWithBulkRequest() throws Exception {
         Task task = mock(Task.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        final ExecutorService executorService = EsExecutors.newDirectorExecutorService();
+        final ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(any())).thenReturn(executorService);
         PipelineStore store = mock(PipelineStore.class);
 

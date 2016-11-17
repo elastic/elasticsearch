@@ -144,7 +144,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
-    static final ExecutorService DIRECT_EXECUTOR = EsExecutors.newDirectorExecutorService();
+    static final ExecutorService DIRECT_EXECUTOR = EsExecutors.newDirectExecutorService();
 
     private final ThreadContext threadContext;
 
@@ -293,11 +293,11 @@ public class ThreadPool extends AbstractComponent implements Closeable {
      * @throws IllegalArgumentException if no executor service with the specified name exists
      */
     public ExecutorService executor(String name) {
-        ExecutorService executor = executors.get(name).executor();
-        if (executor == null) {
+        final ExecutorHolder holder = executors.get(name);
+        if (holder == null) {
             throw new IllegalArgumentException("no executor service found for [" + name + "]");
         }
-        return executor;
+        return holder.executor();
     }
 
     public ScheduledExecutorService scheduler() {

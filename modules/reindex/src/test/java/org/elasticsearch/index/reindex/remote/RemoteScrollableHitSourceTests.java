@@ -48,6 +48,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.rest.RestStatus;
@@ -64,7 +65,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -90,10 +91,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        final ExecutorService directExecutor = EsExecutors.newDirectExecutorService();
         threadPool = new TestThreadPool(getTestName()) {
             @Override
-            public Executor executor(String name) {
-                return Runnable::run;
+            public ExecutorService executor(String name) {
+                return directExecutor;
             }
 
             @Override

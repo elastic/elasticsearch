@@ -34,18 +34,20 @@ public class ElvisTests extends ScriptTestCase {
         assertEquals("str", exec("return params.a ?: 'asdf'", singletonMap("a", "str"), true));
 
         // Assigning to a primitive
-        assertEquals(1, exec("int i = params.a ?: 1; return i"));
-        assertEquals(1, exec("int i = params.a ?: 2; return i", singletonMap("a", 1), true));
-        assertEquals(1, exec("Integer a = Integer.valueOf(1); int b = a ?: 2; return b"));
-        Exception e = expectScriptThrows(ClassCastException.class, () ->
-            exec("Integer a = Integer.valueOf(1); int b = a ?: Integer.valueOf(2); return b"));
-        assertEquals("Cannot cast from [Integer] to [int].", e.getMessage());
+        assertCannotReturnPrimitive("int i = params.a ?: 1; return i");
+        assertCannotReturnPrimitive("Integer a = Integer.valueOf(1); int b = a ?: 2; return b");
+        assertCannotReturnPrimitive("Integer a = Integer.valueOf(1); int b = a ?: Integer.valueOf(2); return b");
+
+        // Assigning to an object
+        assertEquals(1, exec("Integer i = params.a ?: Integer.valueOf(1); return i"));
+        assertEquals(1, exec("Integer i = params.a ?: Integer.valueOf(2); return i", singletonMap("a", 1), true));
+        assertEquals(1, exec("Integer a = Integer.valueOf(1); Integer b = a ?: Integer.valueOf(2); return b"));
+        assertEquals(2, exec("Integer a = null; Integer b = a ?: Integer.valueOf(2); return b"));
 
         // Explicit casting
         assertEquals(1, exec("return (Integer)(params.a ?: Integer.valueOf(1))"));
         assertEquals(1, exec("return (Integer)(params.a ?: Integer.valueOf(2))", singletonMap("a", 1), true));
-        assertEquals(1, exec("return (int)(params.a ?: 1)"));
-        assertEquals(1, exec("return (int)(params.a ?: 2)", singletonMap("a", 1), true));
+        assertCannotReturnPrimitive("return (int)(params.a ?: 1)");
 
         // Now some chains
         assertEquals(1, exec("return params.a ?: params.a ?: 1"));
@@ -72,7 +74,7 @@ public class ElvisTests extends ScriptTestCase {
         assertEquals(1, exec("return params.a?.b ?: 1"));
         assertEquals(1, exec("return params.a?.b ?: 2", singletonMap("a", singletonMap("b", 1)), true));
 
-        // TODO we can save an extra box/unbox when the null safe dereference would output a primitive and the rhs is also a primitive
+        // TODO This could be expanded to allow primitives where neither of the two operations allow them alone
     }
 
     public void testLazy() {
@@ -132,5 +134,10 @@ public class ElvisTests extends ScriptTestCase {
     public void testQuestionSpaceColonIsNotElvis() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a ? : 1", false));
         assertEquals("invalid sequence of tokens near [':'].", e.getMessage());
+    }
+
+    private void assertCannotReturnPrimitive(String script) {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec(script));
+        assertEquals("Evlis operator cannot return primitives", e.getMessage());
     }
 }

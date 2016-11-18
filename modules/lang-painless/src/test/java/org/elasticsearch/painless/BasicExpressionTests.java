@@ -233,7 +233,7 @@ public class BasicExpressionTests extends ScriptTestCase {
     }
 
     private void assertMustBeNullable(String script) {
-        Exception e = expectScriptThrows(IllegalArgumentException.class , () -> exec("String a = null; return a?.length()"));
+        Exception e = expectScriptThrows(IllegalArgumentException.class , () -> exec(script));
         assertEquals("Result of null safe operator must be nullable", e.getMessage());
     }
 }

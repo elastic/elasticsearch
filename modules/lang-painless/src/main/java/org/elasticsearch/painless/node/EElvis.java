@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -39,13 +38,6 @@ import static java.util.Objects.requireNonNull;
 public class EElvis extends AExpression {
     private AExpression lhs;
     private AExpression rhs;
-    /**
-     * Should we unbox result of the lhs if it is non null? This is required when the result is being cast to a primitive
-     * ({@code int i = params.i ? : 0}). Unlink {@link EConditional} which can cast the left and right arms to the result, the Elvis
-     * operator has to handle when the lhs is null. So the best it can do is cast the lhs to a the boxed form of the primitive and then
-     * unbox it if it is non-null.
-     */
-    private boolean unboxLhs;
 
     public EElvis(Location location, AExpression lhs, AExpression rhs) {
         super(location);
@@ -62,11 +54,10 @@ public class EElvis extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        lhs.expected = expected;
-        if (lhs.expected != null && lhs.expected.sort.primitive) {
-            lhs.expected = Definition.getType(lhs.expected.sort.boxed.getSimpleName());
-            unboxLhs = true;
+        if (expected != null && expected.sort.primitive) {
+            throw createError(new IllegalArgumentException("Evlis operator cannot return primitives"));
         }
+        lhs.expected = expected;
         lhs.explicit = explicit;
         lhs.internal = internal;
         rhs.expected = expected;
@@ -109,15 +100,7 @@ public class EElvis extends AExpression {
 
         lhs.write(writer, globals);
         writer.dup();
-        if (unboxLhs) {
-            Label nul = new Label();
-            writer.ifNull(nul);
-            writer.unbox(actual.type);
-            writer.goTo(end);
-            writer.mark(nul);
-        } else {
-            writer.ifNonNull(end);
-        }
+        writer.ifNonNull(end);
         writer.pop();
         rhs.write(writer, globals);
         writer.mark(end);

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardStateMetaData;
@@ -287,20 +288,26 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 }
             } else {
                 final String finalAllocationId = allocationId;
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", shard, nodeShardState.getNode(), finalAllocationId), nodeShardState.storeException());
-                allocationId = null;
+                if (nodeShardState.storeException() instanceof ShardLockObtainFailedException) {
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be opened as it's locked, treating as valid shard", shard, nodeShardState.getNode(), finalAllocationId), nodeShardState.storeException());
+                } else {
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", shard, nodeShardState.getNode(), finalAllocationId), nodeShardState.storeException());
+                    allocationId = null;
+                }
             }
 
             if (allocationId != null) {
                 numberOfAllocationsFound++;
                 if (inSyncAllocationIds.contains(allocationId)) {
-                    if (nodeShardState.primary()) {
+                    // put shards that were primary before and that didn't throw a ShardLockObtainFailedException first
+                    if (nodeShardState.primary() && nodeShardState.storeException() == null) {
                         matchingNodeShardStates.addFirst(nodeShardState);
                     } else {
                         matchingNodeShardStates.addLast(nodeShardState);
                     }
                 } else if (matchAnyShard) {
-                    if (nodeShardState.primary()) {
+                    // put shards that were primary before and that didn't throw a ShardLockObtainFailedException first
+                    if (nodeShardState.primary() && nodeShardState.storeException() == null) {
                         nonMatchingNodeShardStates.addFirst(nodeShardState);
                     } else {
                         nonMatchingNodeShardStates.addLast(nodeShardState);
@@ -412,10 +419,19 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                     logger.trace("[{}] on node [{}] has allocation id [{}]", shard, nodeShardState.getNode(), nodeShardState.allocationId());
                 }
             } else {
-                final long finalVerison = version;
-                // when there is an store exception, we disregard the reported version and assign it as no version (same as shard does not exist)
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", shard, nodeShardState.getNode(), finalVerison), nodeShardState.storeException());
-                version = ShardStateMetaData.NO_VERSION;
+                final long finalVersion = version;
+                if (nodeShardState.storeException() instanceof ShardLockObtainFailedException) {
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has version [{}] but the store can not be opened as it's locked, treating as valid shard", shard, nodeShardState.getNode(), finalVersion), nodeShardState.storeException());
+                    if (nodeShardState.allocationId() != null) {
+                        version = Long.MAX_VALUE; // shard was already selected in a 5.x cluster as primary, prefer this shard copy again.
+                    } else {
+                        version = 0L; // treat as lowest version so that this shard is the least likely to be selected as primary
+                    }
+                } else {
+                    // disregard the reported version and assign it as no version (same as shard does not exist)
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", shard, nodeShardState.getNode(), finalVersion), nodeShardState.storeException());
+                    version = ShardStateMetaData.NO_VERSION;
+                }
             }
 
             if (version != ShardStateMetaData.NO_VERSION) {

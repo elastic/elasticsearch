@@ -46,6 +46,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.snapshots.Snapshot;
@@ -171,6 +172,33 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
+        assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    /**
+     * Tests that when the node returns a ShardLockObtainFailedException, it will be considered as a valid shard copy
+     */
+    public void testShardLockObtainFailedException() {
+        final RoutingAllocation allocation;
+        boolean useAllocationIds = randomBoolean();
+        if (useAllocationIds) {
+            allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), CLUSTER_RECOVERED,
+                randomFrom(Version.V_2_0_0, Version.CURRENT), "allocId1");
+            testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, "allocId1", randomBoolean(),
+                new ShardLockObtainFailedException(shardId, "test"));
+        } else {
+            allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), CLUSTER_RECOVERED, Version.V_2_1_1);
+            testAllocator.addData(node1, 3, null, randomBoolean(), new ShardLockObtainFailedException(shardId, "test"));
+        }
+        testAllocator.allocateUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node1.getId()));
+        if (useAllocationIds) {
+            // check that allocation id is reused
+            assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(), equalTo("allocId1"));
+        }
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
     }
 

@@ -64,11 +64,33 @@ sudo bin/elasticsearch-plugin install [url] <1>
 -----------------------------------
 <1> must be a valid URL, the plugin name is determined from its descriptor.
 
-For instance, to install a plugin from your local file system, you could run:
+==== Unix File System
+
+To install a plugin from your local file system at `/path/to/plugin.zip`, you could run:
 
 [source,shell]
 -----------------------------------
 sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
+-----------------------------------
+
+==== Windows File System
+
+On Windows, the `file` path is much easier to work with using absolute paths only. Absolute paths
+that include a drive letter require  three leading `/` before the drive letter. This uses Java's
+built-in parsing behavior.
+
+[source,shell]
+-----------------------------------
+bin\elasticsearch-plugin install "file:///C:/Program Files/path/to/plugin.zip"
+-----------------------------------
+
+NOTE: Any path that contains spaces must be contained in quotes!
+
+==== URL
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install http://some.domain/path/to/plugin.zip
 -----------------------------------
 
 The plugin script will refuse to talk to an HTTPS URL with an untrusted

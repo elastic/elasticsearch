@@ -14,3 +14,5 @@ green wiki2 3 0   428   0     8mb     8mb
 % curl 192.168.56.10:9200/_cat/count/wiki2
 1384314139815 19:42:19 428
 --------------------------------------------------
+
+Note that the cat count API does not include documents affiliated with <<mapping-nested-type, nested types>>, and thus it may vary from the document counts reported in the <<cluster-nodes-stats,node stats>> and <<indices-stats,indices stats>> APIs.

@@ -47,7 +47,7 @@ project.ext.numCpus = Runtime.runtime.availableProcessors()
 
 task cppClean(type: Exec) {
     commandLine bash
-    args '-c', 'source cpp/set_env.sh && ' + make + ' clean'
+    args '-c', 'source cpp/set_env.sh && rm -rf cppdistribution && ' + make + ' clean'
 }
 
 task cppObjCompile(type: Exec) {

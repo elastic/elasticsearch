@@ -98,7 +98,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     public static final Setting<Integer> DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
         Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, Property.NodeScope);
     public static final Setting<TimeValue> DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT =
-        Setting.positiveTimeSetting("discovery.zen.ping.unicast.hosts.resolve_timeout", TimeValue.timeValueSeconds(30), Property.NodeScope);
+        Setting.positiveTimeSetting("discovery.zen.ping.unicast.hosts.resolve_timeout", TimeValue.timeValueSeconds(1), Property.NodeScope);
 
     // these limits are per-address
     public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
@@ -131,7 +131,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     private final UnicastHostsProvider hostsProvider;
 
-    private final ExecutorService unicastConnectExecutor;
+    private final ExecutorService unicastZenPingExecutorService;
 
     private final TimeValue resolveTimeout;
 
@@ -166,10 +166,14 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         transportService.registerRequestHandler(ACTION_NAME, UnicastPingRequest::new, ThreadPool.Names.SAME,
                 new UnicastPingRequestHandler());
 
-        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
-        unicastConnectExecutor = EsExecutors.newScaling("unicast_connect", 0, concurrentConnects, 60, TimeUnit.SECONDS,
-                threadFactory, threadPool.getThreadContext());
-
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
+        unicastZenPingExecutorService = EsExecutors.newScaling(
+            "unicast_connect",
+            0, concurrentConnects,
+            60,
+            TimeUnit.SECONDS,
+            threadFactory,
+            threadPool.getThreadContext());
     }
 
     private static class ResolvedHostname {
@@ -209,9 +213,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     /**
      * Resolves a list of hosts to a list of discovery nodes. Each host is resolved into a transport address (or a collection of addresses
      * if the number of ports is greater than one) and the transport addresses are used to created discovery nodes. Host lookups are done
-     * in parallel using the generic thread pool from the specified thread pool up to the specified resolve timeout.
+     * in parallel using specified executor service up to the specified resolve timeout.
      *
-     * @param threadPool       the thread pool used to parallelize hostname lookups
+     * @param executorService  the executor service used to parallelize hostname lookups
      * @param logger           logger used for logging messages regarding hostname lookups
      * @param hosts            the hosts to resolve
      * @param limitPortCounts  the number of ports to resolve (should be 1 for non-local transport)
@@ -221,14 +225,14 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
      * @return a list of discovery nodes with resolved transport addresses
      */
     public static List<DiscoveryNode> resolveDiscoveryNodes(
-        final ThreadPool threadPool,
+        final ExecutorService executorService,
         final Logger logger,
         final List<String> hosts,
         final int limitPortCounts,
         final TransportService transportService,
         final Supplier<String> idGenerator,
         final TimeValue resolveTimeout) throws InterruptedException {
-        Objects.requireNonNull(threadPool);
+        Objects.requireNonNull(executorService);
         Objects.requireNonNull(logger);
         Objects.requireNonNull(hosts);
         Objects.requireNonNull(transportService);
@@ -241,7 +245,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         final List<Callable<ResolvedHostname>> callables =
             hosts.stream().map(hn -> lookup(hn, transportService, limitPortCounts)).collect(Collectors.toList());
         final List<Future<ResolvedHostname>> futures =
-            threadPool.generic().invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS);
+            executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS);
         final List<DiscoveryNode> discoveryNodes = new ArrayList<>();
         // ExecutorService#invokeAll guarantees that the futures are returned in the iteration order of the tasks so we can associate the
         // hostname with the corresponding task by iterating together
@@ -300,7 +304,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     @Override
     public void close() {
-        ThreadPool.terminate(unicastConnectExecutor, 0, TimeUnit.SECONDS);
+        ThreadPool.terminate(unicastZenPingExecutorService, 0, TimeUnit.SECONDS);
         Releasables.close(receivedResponses.values());
         closed = true;
     }
@@ -335,25 +339,38 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     @Override
     public void ping(final PingListener listener, final TimeValue duration) {
+        final List<DiscoveryNode> resolvedDiscoveryNodes;
+        try {
+            resolvedDiscoveryNodes = resolveDiscoveryNodes(
+                unicastZenPingExecutorService,
+                logger,
+                configuredHosts,
+                limitPortCounts,
+                transportService,
+                () -> UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#",
+                resolveTimeout);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingHandlerIdGenerator.incrementAndGet());
         try {
             receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
             try {
-                sendPings(duration, null, sendPingsHandler);
+                sendPings(duration, null, sendPingsHandler, resolvedDiscoveryNodes);
             } catch (RejectedExecutionException e) {
                 logger.debug("Ping execution rejected", e);
-                // The RejectedExecutionException can come from the fact unicastConnectExecutor is at its max down in sendPings
+                // The RejectedExecutionException can come from the fact unicastZenPingExecutorService is at its max down in sendPings
                 // But don't bail here, we can retry later on after the send ping has been scheduled.
             }
 
             threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    sendPings(duration, null, sendPingsHandler);
+                    sendPings(duration, null, sendPingsHandler, resolvedDiscoveryNodes);
                     threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
-                            sendPings(duration, TimeValue.timeValueMillis(duration.millis() / 2), sendPingsHandler);
+                            sendPings(duration, TimeValue.timeValueMillis(duration.millis() / 2), sendPingsHandler, resolvedDiscoveryNodes);
                             sendPingsHandler.close();
                             listener.onPing(sendPingsHandler.pingCollection().toList());
                             for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
@@ -418,7 +435,11 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
 
-    void sendPings(final TimeValue timeout, @Nullable TimeValue waitTime, final SendPingsHandler sendPingsHandler) {
+    void sendPings(
+        final TimeValue timeout,
+        @Nullable TimeValue waitTime,
+        final SendPingsHandler sendPingsHandler,
+        final List<DiscoveryNode> resolvedDiscoveryNodes) {
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = sendPingsHandler.id();
         pingRequest.timeout = timeout;
@@ -444,22 +465,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         List<DiscoveryNode> sortedNodesToPing = ElectMasterService.sortByMasterLikelihood(nodesToPingSet);
 
         // add the configured hosts first
-        final List<DiscoveryNode> nodesToPing = new ArrayList<>();
-        final List<DiscoveryNode> resolvedDiscoveryNodes;
-        try {
-            resolvedDiscoveryNodes = resolveDiscoveryNodes(
-                threadPool,
-                logger,
-                configuredHosts,
-                limitPortCounts,
-                transportService,
-                () -> UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#",
-                resolveTimeout);
-            nodesToPing.addAll(resolvedDiscoveryNodes);
-        } catch (final InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
+        final List<DiscoveryNode> nodesToPing = new ArrayList<>(resolvedDiscoveryNodes.size() + sortedNodesToPing.size());
+        nodesToPing.addAll(resolvedDiscoveryNodes);
         nodesToPing.addAll(sortedNodesToPing);
 
         final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
@@ -497,7 +504,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 }
                 // fork the connection to another thread
                 final DiscoveryNode finalNodeToSend = nodeToSend;
-                unicastConnectExecutor.execute(new Runnable() {
+                unicastZenPingExecutorService.execute(new Runnable() {
                     @Override
                     public void run() {
                         if (sendPingsHandler.isClosed()) {

@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.FileNotFoundException;
@@ -38,6 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -63,7 +63,7 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
     static final String UNICAST_HOST_PREFIX = "#zen_file_unicast_host_";
 
     private final TransportService transportService;
-    private final ThreadPool threadPool;
+    private final ExecutorService executorService;
 
     private final Path unicastHostsFilePath;
 
@@ -71,10 +71,10 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
 
     private final TimeValue resolveTimeout;
 
-    FileBasedUnicastHostsProvider(Settings settings, TransportService transportService, ThreadPool threadPool) {
+    FileBasedUnicastHostsProvider(Settings settings, TransportService transportService, ExecutorService executorService) {
         super(settings);
         this.transportService = transportService;
-        this.threadPool = threadPool;
+        this.executorService = executorService;
         this.unicastHostsFilePath = new Environment(settings).configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
         this.resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
     }
@@ -98,7 +98,7 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
         final List<DiscoveryNode> discoNodes = new ArrayList<>();
         try {
             discoNodes.addAll(resolveDiscoveryNodes(
-                threadPool,
+                executorService,
                 logger,
                 hostsList,
                 1,

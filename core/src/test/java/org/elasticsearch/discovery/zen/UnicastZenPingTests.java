@@ -35,6 +35,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -66,6 +67,9 @@ import java.util.Stack;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -86,6 +90,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class UnicastZenPingTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private ExecutorService executorService;
     // close in reverse order as opened
     private Stack<Closeable> closeables;
 
@@ -93,6 +98,9 @@ public class UnicastZenPingTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + getClass().getName() + "]");
+        executorService =
+            EsExecutors.newScaling(getClass().getName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
         closeables = new Stack<>();
     }
 
@@ -106,6 +114,7 @@ public class UnicastZenPingTests extends ESTestCase {
             }
             IOUtils.close(reverse);
         } finally {
+            terminate(executorService);
             terminate(threadPool);
             super.tearDown();
         }
@@ -382,7 +391,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final AtomicInteger idGenerator = new AtomicInteger();
         final int limitPortCounts = randomIntBetween(1, 10);
         final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
-            threadPool,
+            executorService,
             logger,
             Collections.singletonList("127.0.0.1"),
             limitPortCounts,
@@ -426,7 +435,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final AtomicInteger idGenerator = new AtomicInteger();
 
         final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
-            threadPool,
+            executorService,
             logger,
             Arrays.asList(hostname),
             1,
@@ -478,7 +487,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final TimeValue resolveTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 100));
         try {
             final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
-                threadPool,
+                executorService,
                 logger,
                 Arrays.asList("hostname1", "hostname2"),
                 1,
@@ -515,7 +524,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transportService);
         final AtomicInteger idGenerator = new AtomicInteger();
         final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
-            threadPool,
+            executorService,
             logger,
             Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),
             1,

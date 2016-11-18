@@ -31,6 +31,7 @@ import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleHTMLFormatter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
@@ -104,9 +105,14 @@ public class PlainHighlighter implements Highlighter {
 
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
-
             for (Object textToHighlight : textsToHighlight) {
-                String text = textToHighlight.toString();
+                String text;
+                if (textToHighlight instanceof BytesRef) {
+                    // keywords are internally stored as utf8 bytes
+                    text = ((BytesRef) textToHighlight).utf8ToString();
+                } else {
+                    text = textToHighlight.toString();
+                }
 
                 try (TokenStream tokenStream = analyzer.tokenStream(mapper.fieldType().name(), text)) {
                     if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {

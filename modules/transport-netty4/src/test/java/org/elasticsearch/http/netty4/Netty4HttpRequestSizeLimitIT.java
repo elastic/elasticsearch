@@ -101,7 +101,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
         Tuple<String, CharSequence>[] requestUris = new Tuple[1500];
         for (int i = 0; i < requestUris.length; i++) {
             requestUris[i] = Tuple.tuple("/_cluster/settings",
-                "{ \"transient\": {\"indices.ttl.interval\": \"40s\" } }");
+                "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }");
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);

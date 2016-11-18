@@ -106,7 +106,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Returns true if this index can be supported by the current version of elasticsearch
      */
     private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
-        return indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1);
+        return indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_beta1);
     }
 
     /**

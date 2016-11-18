@@ -49,8 +49,6 @@ import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoDistanceRangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoHashCellQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
@@ -153,16 +151,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .geoDistance(GeoDistance.ARC);
     }
 
-    public void testGeoDistanceRange() {
-        geoDistanceRangeQuery("pin.location", new GeoPoint(40, -70)) // TODO check why I need the point here but not above
-            .from("200km")
-            .to("400km")
-            .includeLower(true)
-            .includeUpper(false)
-            .optimizeBbox("memory")
-            .geoDistance(GeoDistance.ARC);
-    }
-
     public void testGeoPolygon() {
         List<GeoPoint> points = new ArrayList<GeoPoint>();
         points.add(new GeoPoint(40, -70));
@@ -191,13 +179,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         qb.relation(ShapeRelation.WITHIN)
             .indexedShapeIndex("shapes")
             .indexedShapePath("location");
-    }
-
-    public void testGeoHashCell() {
-        geoHashCellQuery("pin.location",
-                new GeoPoint(13.4080, 52.5186))
-            .neighbors(true)
-            .precision(3);
     }
 
     public void testHasChild() {

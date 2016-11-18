@@ -181,48 +181,6 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
-    // Related to issue 3256
-    public void testUpdateRequestWithTTL() throws Exception {
-        TimeValue providedTTLValue = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
-        Settings settings = settings(Version.CURRENT).build();
-
-        UpdateHelper updateHelper = new UpdateHelper(settings, null);
-
-        // We just upsert one document with ttl
-        IndexRequest indexRequest = new IndexRequest("test", "type1", "1")
-                .source(jsonBuilder().startObject().field("foo", "bar").endObject())
-                .ttl(providedTTLValue);
-        UpdateRequest updateRequest = new UpdateRequest("test", "type1", "1")
-                .doc(jsonBuilder().startObject().field("fooz", "baz").endObject())
-                .upsert(indexRequest);
-
-        long nowInMillis = randomPositiveLong();
-        // We simulate that the document is not existing yet
-        GetResult getResult = new GetResult("test", "type1", "1", 0, false, null, null);
-        UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0),updateRequest, getResult, () -> nowInMillis);
-        Streamable action = result.action();
-        assertThat(action, instanceOf(IndexRequest.class));
-        IndexRequest indexAction = (IndexRequest) action;
-        assertThat(indexAction.ttl(), is(providedTTLValue));
-
-        // We just upsert one document with ttl using a script
-        indexRequest = new IndexRequest("test", "type1", "2")
-                .source(jsonBuilder().startObject().field("foo", "bar").endObject())
-                .ttl(providedTTLValue);
-        updateRequest = new UpdateRequest("test", "type1", "2")
-                .upsert(indexRequest)
-                .script(new Script(";"))
-                .scriptedUpsert(true);
-
-        // We simulate that the document is not existing yet
-        getResult = new GetResult("test", "type1", "2", 0, false, null, null);
-        result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
-        action = result.action();
-        assertThat(action, instanceOf(IndexRequest.class));
-        indexAction = (IndexRequest) action;
-        assertThat(indexAction.ttl(), is(providedTTLValue));
-    }
-
     // Related to issue #15822
     public void testInvalidBodyThrowsParseException() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
@@ -312,15 +270,13 @@ public class UpdateRequestTests extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(baseSettings, environment,
             new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-        TimeValue providedTTLValue = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
         Settings settings = settings(Version.CURRENT).build();
 
         UpdateHelper updateHelper = new UpdateHelper(settings, scriptService);
 
         // We just upsert one document with now() using a script
         IndexRequest indexRequest = new IndexRequest("test", "type1", "2")
-            .source(jsonBuilder().startObject().field("foo", "bar").endObject())
-            .ttl(providedTTLValue);
+            .source(jsonBuilder().startObject().field("foo", "bar").endObject());
 
         {
             UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
@@ -341,14 +297,11 @@ public class UpdateRequestTests extends ESTestCase {
                 .upsert(indexRequest)
                 .script(new Script(ScriptType.INLINE, "mock", "ctx._timestamp = ctx._now", Collections.emptyMap()))
                 .scriptedUpsert(true);
-            long nowInMillis = randomPositiveLong();
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "type1", "2", 0, true, new BytesArray("{}"), null);
-            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
+            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> 42L);
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
-            IndexRequest indexAction = (IndexRequest) action;
-            assertEquals(indexAction.timestamp(), Long.toString(nowInMillis));
         }
     }
 }

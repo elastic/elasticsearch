@@ -44,9 +44,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
-import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.joda.time.DateTimeZone;
 
@@ -129,9 +127,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             ALLOWED_QUERY_MAPPER_TYPES.add(nt.typeName());
         }
         ALLOWED_QUERY_MAPPER_TYPES.add(ScaledFloatFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(StringFieldMapper.CONTENT_TYPE);
         ALLOWED_QUERY_MAPPER_TYPES.add(TextFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(TimestampFieldMapper.CONTENT_TYPE);
     }
 
     private final String queryString;

@@ -171,14 +171,14 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
 
-    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, ParseContext.Document document, BytesReference source, Mapping mappingsUpdate) {
+    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, ParseContext.Document document, BytesReference source, Mapping mappingsUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         Field seqNoField = new NumericDocValuesField("_seq_no", 0);
         document.add(uidField);
         document.add(versionField);
         document.add(new LongPoint("point_field", 42)); // so that points report memory/disk usage
-        return new ParsedDocument(versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
+        return new ParsedDocument(versionField, seqNoField, id, type, routing, Arrays.asList(document), source, mappingsUpdate);
     }
 
     protected Store createStore(Path p) throws IOException {
@@ -260,7 +260,7 @@ public class ShadowEngineTests extends ESTestCase {
 
     public void testCommitStats() {
         // create a doc and refresh
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
         CommitStats stats1 = replicaEngine.commitStats();
@@ -292,10 +292,10 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(primaryEngine.segmentsStats(false).getMemoryInBytes(), equalTo(0L));
 
         // create a doc and refresh
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
+        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, testDocumentWithTextField(), B_2, null);
         primaryEngine.index(new Engine.Index(newUid("2"), doc2));
         primaryEngine.refresh("test");
 
@@ -354,7 +354,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(0).isCompound(), equalTo(true));
 
 
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, testDocumentWithTextField(), B_3, null);
         primaryEngine.index(new Engine.Index(newUid("3"), doc3));
         primaryEngine.refresh("test");
 
@@ -426,7 +426,7 @@ public class ShadowEngineTests extends ESTestCase {
         primaryEngine.flush();
         replicaEngine.refresh("test");
 
-        ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+        ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, testDocumentWithTextField(), B_3, null);
         primaryEngine.index(new Engine.Index(newUid("4"), doc4));
         primaryEngine.refresh("test");
 
@@ -459,7 +459,7 @@ public class ShadowEngineTests extends ESTestCase {
         List<Segment> segments = primaryEngine.segments(true);
         assertThat(segments.isEmpty(), equalTo(true));
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
         primaryEngine.refresh("test");
 
@@ -467,10 +467,10 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.size(), equalTo(1));
         assertThat(segments.get(0).ramTree, notNullValue());
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
+        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, testDocumentWithTextField(), B_2, null);
         primaryEngine.index(new Engine.Index(newUid("2"), doc2));
         primaryEngine.refresh("test");
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, testDocumentWithTextField(), B_3, null);
         primaryEngine.index(new Engine.Index(newUid("3"), doc3));
         primaryEngine.refresh("test");
 
@@ -496,7 +496,7 @@ public class ShadowEngineTests extends ESTestCase {
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
         try {
             replicaEngine.index(new Engine.Index(newUid("1"), doc));
             fail("should have thrown an exception");
@@ -515,7 +515,7 @@ public class ShadowEngineTests extends ESTestCase {
         // index a document
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
-        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
         try {
             replicaEngine.index(new Engine.Index(newUid("1"), doc));
             fail("should have thrown an exception");
@@ -534,7 +534,7 @@ public class ShadowEngineTests extends ESTestCase {
         // Now, add a document to the primary so we can test shadow engine deletes
         document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
         primaryEngine.flush();
         replicaEngine.refresh("test");
@@ -589,7 +589,7 @@ public class ShadowEngineTests extends ESTestCase {
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
         // its not there...
@@ -642,7 +642,7 @@ public class ShadowEngineTests extends ESTestCase {
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_2), SourceFieldMapper.Defaults.FIELD_TYPE));
-        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
+        doc = testParsedDocument("1", "1", "test", null, document, B_2, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
         // its not updated yet...
@@ -712,7 +712,7 @@ public class ShadowEngineTests extends ESTestCase {
         // add it back
         document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
         // its not there...
@@ -757,7 +757,7 @@ public class ShadowEngineTests extends ESTestCase {
         // now do an update
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
-        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
         // its not updated yet...
@@ -793,7 +793,7 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
 
         // create a document
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
         // its not there...
@@ -838,7 +838,7 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     public void testFailEngineOnCorruption() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
         primaryEngine.flush();
         MockDirectoryWrapper leaf = DirectoryUtils.getLeaf(replicaEngine.config().getStore().directory(), MockDirectoryWrapper.class);
@@ -875,7 +875,7 @@ public class ShadowEngineTests extends ESTestCase {
      */
     public void testFailStart() throws IOException {
         // Need a commit point for this
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
         primaryEngine.flush();
 
@@ -961,7 +961,7 @@ public class ShadowEngineTests extends ESTestCase {
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
         pEngine.index(new Engine.Index(newUid("1"), doc));
         pEngine.flush(true, true);
 
@@ -983,7 +983,7 @@ public class ShadowEngineTests extends ESTestCase {
     public void testDocStats() throws IOException {
         final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
         for (int i = 0; i < numDocs; i++) {
-            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, testDocument(), new BytesArray("{}"), null);
             Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
             Engine.IndexResult indexResult = primaryEngine.index(firstIndexRequest);
             assertThat(indexResult.getVersion(), equalTo(1L));

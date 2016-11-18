@@ -340,15 +340,6 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // before 5.x
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        indexService = createIndex("test_old", oldIndexSettings);
-        parser = indexService.mapperService().documentMapperParser();
-
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, defaultMapper.mappingSource().toString());
     }
 
     /**

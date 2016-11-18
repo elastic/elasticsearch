@@ -38,12 +38,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.LegacyByteFieldMapper;
-import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper;
-import org.elasticsearch.index.mapper.LegacyFloatFieldMapper;
-import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper;
-import org.elasticsearch.index.mapper.LegacyLongFieldMapper;
-import org.elasticsearch.index.mapper.LegacyShortFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -198,11 +192,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRequireDocValuesOnLongs() {
-        doTestRequireDocValues(new LegacyLongFieldMapper.LongFieldType());
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
     }
 
     public void testRequireDocValuesOnDoubles() {
-        doTestRequireDocValues(new LegacyDoubleFieldMapper.DoubleFieldType());
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
     }
 
     public void testRequireDocValuesOnBools() {

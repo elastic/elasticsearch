@@ -23,8 +23,6 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
-import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
@@ -37,13 +35,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper.LegacyGeoPointFieldType;
-import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.search.geo.LegacyInMemoryGeoBoundingBoxQuery;
-import org.elasticsearch.index.search.geo.LegacyIndexedGeoBoundingBoxQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -360,34 +353,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            return LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
-                luceneTopLeft.getLon(), luceneBottomRight.getLon());
-        } else if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {
-            // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
-            // if index created V_2_3 > use prefix encoded postings format
-            final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
-                GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-            return new GeoPointInBBoxQuery(fieldType.name(), encoding, luceneBottomRight.lat(), luceneTopLeft.lat(),
-                luceneTopLeft.lon(), luceneBottomRight.lon());
-        }
-
-        Query query;
-        switch(type) {
-            case INDEXED:
-                LegacyGeoPointFieldType geoFieldType = ((LegacyGeoPointFieldType) fieldType);
-                query = LegacyIndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType, context);
-                break;
-            case MEMORY:
-                IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-                query = new LegacyInMemoryGeoBoundingBoxQuery(luceneTopLeft, luceneBottomRight, indexFieldData);
-                break;
-            default:
-                // Someone extended the type enum w/o adjusting this switch statement.
-                throw new IllegalStateException("geo bounding box type [" + type + "] not supported.");
-        }
-
-        return query;
+        return LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
+            luceneTopLeft.getLon(), luceneBottomRight.getLon());
     }
 
     @Override

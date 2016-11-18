@@ -68,18 +68,6 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
-    public void testFormatBackCompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_source").field("format", "json").endObject()
-                .endObject().endObject().string();
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_0))
-                .build();
-
-        DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
-        parser.parse("type", new CompressedXContent(mapping)); // no exception
-    }
-
     public void testIncludes() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", new String[]{"path1*"}).endObject()

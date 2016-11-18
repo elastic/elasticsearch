@@ -68,7 +68,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: "doc['foo'].value?.length() + params.x;"
+                            inline: "(doc['foo'].value?.length() ?: 0) + params.x;"
                             params:
                                 x: 5
 
@@ -83,7 +83,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            inline: "(doc['missing'].value?.length() == null ? 0 : doc['missing'].value?.length()) + params.x;"
+                            inline: "(doc['missing'].value?.length() ?: 0) + params.x;"
                             params:
                                 x: 5
 

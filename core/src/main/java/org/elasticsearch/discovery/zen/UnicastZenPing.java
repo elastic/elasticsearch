@@ -271,7 +271,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                     logger.warn(message, e);
                 }
             } else {
-                logger.warn("timed out resolving host [{}]", hostname);
+                logger.warn("timed out after [{}] resolving host [{}]", resolveTimeout, hostname);
             }
         }
         return discoveryNodes;

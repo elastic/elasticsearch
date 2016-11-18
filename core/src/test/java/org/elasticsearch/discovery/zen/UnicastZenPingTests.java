@@ -474,7 +474,8 @@ public class UnicastZenPingTests extends ESTestCase {
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         closeables.push(transportService);
-            final AtomicInteger idGenerator = new AtomicInteger();
+        final AtomicInteger idGenerator = new AtomicInteger();
+        final TimeValue resolveTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 100));
         try {
             final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
                 threadPool,
@@ -483,13 +484,13 @@ public class UnicastZenPingTests extends ESTestCase {
                 1,
                 transportService,
                 () -> Integer.toString(idGenerator.incrementAndGet()),
-                TimeValue.timeValueMillis(100));
+                resolveTimeout);
 
             assertThat(discoveryNodes, hasSize(1));
             verify(logger).trace(
                 "resolved host [{}] to {}", "hostname1",
                 new TransportAddress[]{new TransportAddress(TransportAddress.META_ADDRESS, 9300)});
-            verify(logger).warn("timed out resolving host [{}]", "hostname2");
+            verify(logger).warn("timed out after [{}] resolving host [{}]", resolveTimeout, "hostname2");
             verifyNoMoreInteractions(logger);
         } finally {
             latch.countDown();

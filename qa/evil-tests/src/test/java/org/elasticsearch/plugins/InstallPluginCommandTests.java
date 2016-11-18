@@ -477,6 +477,37 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
+    public void testPlatformBinPermissions() throws Exception {
+        assumeTrue("posix filesystem", isPosix);
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Path platformDir = pluginDir.resolve("platform");
+        Path platformNameDir = platformDir.resolve("linux-x86_64");
+        Path platformBinDir = platformNameDir.resolve("bin");
+        Files.createDirectories(platformBinDir);
+        Path programFile = Files.createFile(platformBinDir.resolve("someprogram"));
+        try (PosixPermissionsResetter binAttrs = new PosixPermissionsResetter(programFile)) {
+            Set<PosixFilePermission> perms = binAttrs.getCopyPermissions();
+            // make sure execute permissions are missing (they should be by default but just in case)
+            perms.remove(PosixFilePermission.OWNER_EXECUTE);
+            perms.remove(PosixFilePermission.GROUP_EXECUTE);
+            perms.remove(PosixFilePermission.OTHERS_EXECUTE);
+            binAttrs.setPermissions(perms);
+        }
+        String pluginZip = createPlugin("fake", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake", pluginDir, env.v2());
+        // check that the installed program has execute permissions, even though the one added to the plugin didn't
+        Path installedPlatformBinDir = env.v2().pluginsFile().resolve("fake").resolve("platform").resolve("linux-x86_64").resolve("bin");
+        assertTrue(Files.isDirectory(installedPlatformBinDir));
+        Path installedProgramFile = installedPlatformBinDir.resolve("someprogram");
+        assertTrue(Files.isRegularFile(installedProgramFile));
+        Set<PosixFilePermission> perms = Files.getPosixFilePermissions(installedProgramFile);
+        assertTrue(perms.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertTrue(perms.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertTrue(perms.contains(PosixFilePermission.OTHERS_EXECUTE));
+    }
+
     public void testConfig() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);

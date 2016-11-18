@@ -40,6 +40,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -445,10 +446,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.builder();
+        final Predicate<String> canUpdate = (key) -> (onlyDynamic == false && get(key) != null) || hasDynamicSetting(key);
+        final Predicate<String> canRemove = (key) ->( // we can delete if
+            onlyDynamic && hasDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
+            || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
+            || (onlyDynamic == false && get(key) != null)); // if it's not dynamic AND we have a key
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
-            if (entry.getValue() == null) {
+            if (entry.getValue() == null && (canRemove.test(entry.getKey()) || entry.getKey().endsWith("*"))) {
+                // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
+                // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
                 toRemove.add(entry.getKey());
-            } else if ((onlyDynamic == false && get(entry.getKey()) != null) || hasDynamicSetting(entry.getKey())) {
+                // we don't set changed here it's set after we apply deletes below if something actually changed
+            } else if (entry.getValue() != null && canUpdate.test(entry.getKey())) {
                 validate(entry.getKey(), toApply);
                 settingsBuilder.put(entry.getKey(), entry.getValue());
                 updates.put(entry.getKey(), entry.getValue());
@@ -456,20 +465,22 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else {
                 throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
             }
-
         }
-        changed |= applyDeletes(toRemove, target);
+        changed |= applyDeletes(toRemove, target, canRemove);
         target.put(settingsBuilder.build());
         return changed;
     }
 
-    private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder) {
+    private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder, Predicate<String> canRemove) {
         boolean changed = false;
         for (String entry : deletes) {
             Set<String> keysToRemove = new HashSet<>();
             Set<String> keySet = builder.internalMap().keySet();
             for (String key : keySet) {
-                if (Regex.simpleMatch(entry, key)) {
+                if (Regex.simpleMatch(entry, key) && canRemove.test(key)) {
+                    // we have to re-check with canRemove here since we might have a wildcard expression foo.* that matches
+                    // dynamic as well as static settings if that is the case we might remove static settings since we resolve the
+                    // wildcards late
                     keysToRemove.add(key);
                 }
             }

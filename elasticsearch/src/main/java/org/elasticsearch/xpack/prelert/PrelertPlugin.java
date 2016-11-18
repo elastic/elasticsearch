@@ -27,7 +27,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.prelert.action.PutListAction;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.elasticsearch.xpack.prelert.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.GetBucketAction;
@@ -43,6 +42,7 @@ import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.action.PostDataCloseAction;
 import org.elasticsearch.xpack.prelert.action.PostDataFlushAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
+import org.elasticsearch.xpack.prelert.action.PutListAction;
 import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction;
 import org.elasticsearch.xpack.prelert.action.ResumeJobAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
@@ -57,20 +57,18 @@ import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.logs.JobLogs;
 import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutoDetectResultProcessor;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutodetectResultsParser;
-import org.elasticsearch.xpack.prelert.job.process.normalizer.noop.NoOpRenormaliser;
-import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobService;
 import org.elasticsearch.xpack.prelert.job.metadata.JobAllocator;
 import org.elasticsearch.xpack.prelert.job.metadata.JobLifeCycleService;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
+import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
+import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
 import org.elasticsearch.xpack.prelert.job.process.NativeController;
 import org.elasticsearch.xpack.prelert.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.NativeAutodetectProcessFactory;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutodetectResultsParser;
+import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobService;
 import org.elasticsearch.xpack.prelert.job.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
@@ -84,8 +82,8 @@ import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPauseJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPutJobsAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestResumeJobAction;
-import org.elasticsearch.xpack.prelert.rest.list.RestPutListAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestGetListAction;
+import org.elasticsearch.xpack.prelert.rest.list.RestPutListAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestGetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestPutModelSnapshotDescriptionAction;
@@ -176,13 +174,13 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         ScheduledJobService scheduledJobService = new ScheduledJobService(threadPool, client, jobProvider, dataProcessor,
                 new HttpDataExtractorFactory(), System::currentTimeMillis);
         return Arrays.asList(
-            jobProvider,
-            jobManager,
-            new JobAllocator(settings, clusterService, threadPool),
-            new JobLifeCycleService(settings, client, clusterService, scheduledJobService, dataProcessor, threadPool.generic()),
-            new ElasticsearchBulkDeleterFactory(client), //NORELEASE: this should use Delete-by-query
-            dataProcessor
-        );
+                jobProvider,
+                jobManager,
+                new JobAllocator(settings, clusterService, threadPool),
+                new JobLifeCycleService(settings, client, clusterService, scheduledJobService, dataProcessor, threadPool.generic()),
+                new ElasticsearchBulkDeleterFactory(client), //NORELEASE: this should use Delete-by-query
+                dataProcessor
+                );
     }
 
     @Override
@@ -212,7 +210,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 RestStartJobSchedulerAction.class,
                 RestStopJobSchedulerAction.class,
                 RestDeleteModelSnapshotAction.class
-        );
+                );
     }
 
     @Override
@@ -244,7 +242,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(StartJobSchedulerAction.INSTANCE, StartJobSchedulerAction.TransportAction.class),
                 new ActionHandler<>(StopJobSchedulerAction.INSTANCE, StopJobSchedulerAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class)
-        );
+                );
     }
 
     public static Path resolveConfigFile(Environment env, String name) {

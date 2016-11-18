@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.prelert.utils;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
 
 /**
  * An interface for iterators that can have resources that will be automatically cleaned up

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformType;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.prelert.utils.SingleDocument;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;

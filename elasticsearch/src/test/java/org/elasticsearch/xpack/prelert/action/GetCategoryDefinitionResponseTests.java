@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.prelert.action;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.prelert.utils.SingleDocument;
 
 import java.util.Collections;
 

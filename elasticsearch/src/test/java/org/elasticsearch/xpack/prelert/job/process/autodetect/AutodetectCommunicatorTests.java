@@ -69,7 +69,6 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(false);
         when(process.readError()).thenReturn("Mock process is dead");
-        @SuppressWarnings("resource")
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
         InterimResultsParams params = InterimResultsParams.builder().build();
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> communicator.flushJob(params));

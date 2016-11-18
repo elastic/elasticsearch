@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.PartitionScore;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.prelert.utils.SingleDocument;
 
 import java.util.ArrayList;
 import java.util.Collections;

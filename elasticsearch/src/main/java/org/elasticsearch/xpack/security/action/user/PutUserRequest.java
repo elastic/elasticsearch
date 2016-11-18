@@ -13,8 +13,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
+import org.elasticsearch.xpack.security.support.Validation;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,6 +45,11 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         ActionRequestValidationException validationException = null;
         if (username == null) {
             validationException = addValidationError("user is missing", validationException);
+        } else {
+            Validation.Error error = Validation.Users.validateUsername(username, false, Settings.EMPTY);
+            if (error != null) {
+                validationException = addValidationError(error.toString(), validationException);
+            }
         }
         if (roles == null) {
             validationException = addValidationError("roles are missing", validationException);

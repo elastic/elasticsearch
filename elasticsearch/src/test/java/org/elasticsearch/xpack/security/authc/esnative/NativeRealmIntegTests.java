@@ -479,6 +479,15 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         }
     }
 
+    public void testCannotCreateUserWithLeadingDigitInUserName() throws Exception {
+        SecurityClient client = securityClient();
+        ValidationException v = expectThrows(ValidationException.class,
+                () -> client.preparePutUser("99bottles", "on-th3-w@ll".toCharArray(), "admin_role").get()
+        );
+        assertThat(v.getMessage(), containsString("valid username"));
+        assertThat(v.getMessage(), containsString("must begin with"));
+    }
+
     public void testUsersAndRolesDoNotInterfereWithIndicesStats() throws Exception {
         client().prepareIndex("foo", "bar").setSource("ignore", "me").get();
 
@@ -504,7 +513,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().preparePutUser(username, randomBoolean() ? "changeme".toCharArray() : null, "admin").get());
-        assertThat(exception.getMessage(), containsString("user [" + username + "] is reserved"));
+        assertThat(exception.getMessage(), containsString("Username [" + username + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().prepareDeleteUser(username).get());
@@ -520,7 +529,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray()).get());
-        assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
+        assertThat(exception.getMessage(), containsString("Username [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().preparePutUser(SystemUser.NAME, "foobar".toCharArray()).get());

@@ -30,22 +30,26 @@ import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
+import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRange;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -193,6 +197,60 @@ public class BucketScriptTests extends ESIntegTestCase {
                 assertThat(seriesArithmeticValue, equalTo(field2SumValue + field3SumValue / field4SumValue));
             }
         }
+    }
+
+    @Test
+    public void inlineScriptWithDateRange() throws Exception {
+        client().admin().indices().prepareCreate("date_range_index").addMapping("type",
+                "{ \"type\": { \"properties\": { \"" + FIELD_4_NAME + "\": { \"type\": \"date\" } } } }").get();
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int docs = 0; docs < 4; docs++) {
+            XContentBuilder jsonBuilder = jsonBuilder();
+            jsonBuilder.startObject();
+            jsonBuilder.field(FIELD_1_NAME, docs + 1);
+            jsonBuilder.field(FIELD_2_NAME, docs + 1);
+            jsonBuilder.field(FIELD_3_NAME, docs + 2);
+            jsonBuilder.field(FIELD_4_NAME, "2016-11-0" + (docs + 1));
+            jsonBuilder.endObject();
+            builders.add(client().prepareIndex("date_range_index", "type").setSource(jsonBuilder));
+        }
+
+        indexRandom(true, builders);
+        ensureSearchable();
+
+        SearchResponse response = client().prepareSearch("date_range_index")
+                .addAggregation(dateRange("range").field(FIELD_4_NAME).addRange(null, "2016-11-03").addRange("2016-11-03", null)
+                        .subAggregation(avg("b").field(FIELD_2_NAME)).subAggregation(avg("c").field(FIELD_3_NAME))
+                        .subAggregation(bucketScript("diff").setBucketsPaths("b", "c")
+                                .script(new Script("_value1 - _value0", ScriptType.INLINE, null, null))))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalDateRange range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<InternalDateRange.Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(2));
+
+        InternalDateRange.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getFrom(), nullValue());
+        assertThat(bucket.getTo(), equalTo((Object) new DateTime(2016, 11, 03, 0, 0, 0, 0, DateTimeZone.UTC)));
+        SimpleValue diff = bucket.getAggregations().get("diff");
+        assertThat(diff, notNullValue());
+        double diffValue = diff.value();
+        assertThat(diffValue, equalTo(1.0));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getFrom(), equalTo((Object) new DateTime(2016, 11, 03, 0, 0, 0, 0, DateTimeZone.UTC)));
+        assertThat(bucket.getTo(), nullValue());
+        diff = bucket.getAggregations().get("diff");
+        assertThat(diff, notNullValue());
+        diffValue = diff.value();
+        assertThat(diffValue, equalTo(1.0));
     }
 
     @Test

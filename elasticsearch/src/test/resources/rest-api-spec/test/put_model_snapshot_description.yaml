@@ -1,0 +1,108 @@
+setup:
+  - do:
+      indices.create:
+        index:  prelertresults-foo
+        body:
+          mappings:
+            modelSnapshot:
+              properties:
+                "timestamp":
+                  type: date
+                "restorePriority":
+                  type: integer
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelSnapshot
+        id:     "1"
+        body: >
+          {
+            "jobId" : "foo",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "restorePriority": "1",
+            "snapshotId": "foo"
+          }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelSnapshot
+        id:     "2"
+        body: >
+          {
+            "jobId": "foo",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "restorePriority": "2",
+            "snapshotId": "bar",
+            "description": "bar"
+          }
+
+  - do:
+      indices.refresh:
+        index: prelertresults-foo
+
+---
+"Test without description":
+  - do:
+      catch: request
+      xpack.prelert.put_model_snapshot_description:
+        jobId: "foo"
+        snapshotId: "foo"
+        body: >
+          {
+            "some_field": "foo"
+          }
+
+---
+"Test with valid description":
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+        description: "new_description"
+
+  - match: { hitCount: 0 }
+  - length: { hits: 0 }
+
+  - do:
+      xpack.prelert.put_model_snapshot_description:
+        jobId: "foo"
+        snapshotId: "foo"
+        body: >
+          {
+            "description": "new_description"
+          }
+
+  - do:
+      indices.refresh:
+        index: prelertresults-foo
+
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+        description: "new_description"
+
+  - match: { hitCount: 1 }
+  - match: { hits.0.restorePriority: 1 }
+  - match: { hits.0.timestamp: 1464825600000 }
+
+---
+"Test with conflict against existing description":
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+        description: "bar"
+
+  - match: { hitCount: 1 }
+  - length: { hits: 1 }
+  - match: { hits.0.jobId: "foo" }
+  - match: { hits.0.description: "bar" }
+
+  - do:
+      catch: request
+      xpack.prelert.put_model_snapshot_description:
+        jobId: "foo"
+        snapshotId: "foo"
+        body: >
+          {
+            "description": "bar"
+          }

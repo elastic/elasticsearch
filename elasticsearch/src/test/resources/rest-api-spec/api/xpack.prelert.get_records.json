@@ -1,0 +1,54 @@
+{
+  "xpack.prelert.get_records": {
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/prelert/results/{jobId}/records",
+      "paths": [ "/_xpack/prelert/results/{jobId}/records" ],
+      "parts": {
+        "jobId": {
+          "type" : "string",
+          "required": true
+        }
+      },
+      "params": {
+        "expand": {
+          "type": "boolean"
+        },
+        "includeInterim": {
+          "type": "boolean"
+        },
+        "from": {
+          "type": "int",
+          "description": "skips a number of records"
+        },
+        "size": {
+          "type": "int",
+          "description": "specifies a max number of records to get"
+        },
+        "start": {
+          "type": "string",
+          "required": true
+        },
+        "end": {
+          "type": "string",
+          "required": true
+        },
+        "anomalyScore": {
+          "type": "double"
+        },
+        "maxNormalizedProbability": {
+          "type": "double"
+        },
+        "partitionValue": {
+          "type": "string"
+        },
+        "sort": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

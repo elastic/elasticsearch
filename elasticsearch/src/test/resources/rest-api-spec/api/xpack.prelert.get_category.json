@@ -1,0 +1,31 @@
+{
+  "xpack.prelert.get_category": {
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/prelert/results/{jobId}/categorydefinition/{categoryId}",
+      "paths": [
+        "/_xpack/prelert/results/{jobId}/categorydefinition/{categoryId}",
+        "/_xpack/prelert/results/{jobId}/categorydefinition/"
+      ],
+      "parts": {
+        "jobId": {
+          "type" : "string",
+          "required": true
+        },
+        "categoryId": {
+          "type" : "string"
+        }
+      },
+      "params": {
+        "from": {
+          "type": "int",
+          "description": "skips a number of categories"
+        },
+        "size": {
+          "type": "int",
+          "description": "specifies a max number of categories to get"
+        }
+      }
+    }
+  }
+}

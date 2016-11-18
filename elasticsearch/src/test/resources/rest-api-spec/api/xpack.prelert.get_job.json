@@ -1,0 +1,22 @@
+{
+  "xpack.prelert.get_job": {
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/prelert/jobs/{job_id}",
+      "paths": [ "/_xpack/prelert/jobs/{job_id}", "/_xpack/prelert/jobs/{job_id}/{metric}"],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to fetch"
+        },
+        "metric" : {
+          "type" : "list",
+          "options" : ["_all", "config", "data_counts", "model_size_stats"],
+          "description" : "Limit the information returned to the specified statistics"
+        }
+      }
+    },
+    "body": null
+  }
+}

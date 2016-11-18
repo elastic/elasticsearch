@@ -1,0 +1,218 @@
+setup:
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "jobId":"foo",
+            "description":"Analysis of response time by airline",
+            "analysisConfig" : {
+                "bucketSpan":3600,
+                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            },
+            "dataDescription" : {
+                "fieldDelimiter":",",
+                "timeField":"time",
+                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelSnapshot
+        id:     "1"
+        body: >
+          {
+            "jobId": "foo",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "restorePriority": "1",
+            "snapshotId": "foo1",
+            "description": "first",
+            "latestRecordTimeStamp": "2016-06-02T00:00:00Z",
+            "latestResultTimeStamp": "2016-06-02T00:00:00Z"
+          }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelSnapshot
+        id:     "2"
+        body: >
+          {
+            "jobId": "foo",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "restorePriority": "2",
+            "snapshotId": "foo2",
+            "description": "second",
+            "latestRecordTimeStamp": "2016-06-01T00:00:00Z",
+            "latestResultTimeStamp": "2016-06-01T00:00:00Z"
+          }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   bucket
+        id:     1
+        body:   { "jobId": "foo", "timestamp": "2016-06-02T00:00:00Z" }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   bucket
+        id:     2
+        body:   { "jobId": "foo", "timestamp": "2016-06-01T12:00:00Z" }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   bucket
+        id:     3
+        body:   { "jobId": "foo", "timestamp": "2016-05-01T00:00:00Z" }
+
+  - do:
+      indices.refresh:
+        index: prelertresults-foo
+
+---
+"Test revert model with only jobId":
+  - do:
+      catch: request
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+
+---
+"Test revert model with invalid time":
+  - do:
+      catch: request
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        time: "foo"
+
+---
+"Test revert model with invalid snapshotId":
+  - do:
+      catch: /resource_not_found_exception/
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        snapshotId: "not_exist"
+
+---
+"Test revert model with invalid description":
+  - do:
+      catch: /resource_not_found_exception/
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        description: "foo"
+
+---
+"Test revert model with valid snapshotId":
+  - do:
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        snapshotId: "foo1"
+
+  - match: { exists: true }
+  - match: { type: "modelSnapshot" }
+  - match: { document.jobId: "foo" }
+  - match: { document.timestamp: 1464825600000 }
+  - match: { document.restorePriority: 1 }
+  - match: { document.snapshotId: "foo1" }
+  - match: { document.snapshotDocCount: 0 }
+
+  - do:
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        snapshotId: "foo2"
+
+  - match: { exists: true }
+  - match: { type: "modelSnapshot" }
+  - match: { document.jobId: "foo" }
+  - match: { document.timestamp: 1464739200000 }
+  - match: { document.restorePriority: 2 }
+  - match: { document.snapshotId: "foo2" }
+  - match: { document.snapshotDocCount: 0 }
+
+---
+"Test revert model with valid time":
+  - do:
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        time: "2016-06-02T01:00:00Z"
+
+  - match: { exists: true }
+  - match: { type: "modelSnapshot" }
+  - match: { document.jobId: "foo" }
+  - match: { document.timestamp: 1464825600000 }
+  - match: { document.restorePriority: 1 }
+  - match: { document.snapshotId: "foo1" }
+  - match: { document.snapshotDocCount: 0 }
+
+  - do:
+        xpack.prelert.revert_model_snapshot:
+          jobId: "foo"
+          time: "2016-06-01T01:00:00Z"
+
+  - match: { exists: true }
+  - match: { type: "modelSnapshot" }
+  - match: { document.jobId: "foo" }
+  - match: { document.timestamp: 1464739200000 }
+  - match: { document.restorePriority: 2 }
+  - match: { document.snapshotId: "foo2" }
+  - match: { document.snapshotDocCount: 0 }
+
+---
+"Test revert model with valid description":
+  - do:
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        description: "first"
+
+  - match: { exists: true }
+  - match: { type: "modelSnapshot" }
+  - match: { document.jobId: "foo" }
+  - match: { document.timestamp: 1464825600000 }
+  - match: { document.restorePriority: 1 }
+  - match: { document.snapshotId: "foo1" }
+  - match: { document.snapshotDocCount: 0 }
+
+  - do:
+        xpack.prelert.revert_model_snapshot:
+          jobId: "foo"
+          description: "second"
+
+  - match: { exists: true }
+  - match: { type: "modelSnapshot" }
+  - match: { document.jobId: "foo" }
+  - match: { document.timestamp: 1464739200000 }
+  - match: { document.restorePriority: 2 }
+  - match: { document.snapshotId: "foo2" }
+  - match: { document.snapshotDocCount: 0 }
+
+---
+"Test revert model with deleteInterveningResults":
+  - do:
+      xpack.prelert.get_bucket:
+        jobId: "foo"
+        start: "2016-01-01T00:00:00Z"
+        end: "2016-12-01T00:00:00Z"
+
+  - match: { hitCount: 3 }
+
+  - do:
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        snapshotId: "foo2"
+        deleteInterveningResults: true
+
+  - do:
+      indices.refresh:
+        index: prelertresults-foo
+
+  - do:
+      xpack.prelert.get_bucket:
+        jobId: "foo"
+        start: "2016-01-01T00:00:00Z"
+        end: "2016-12-01T00:00:00Z"
+
+  - match: { hitCount: 1 }
+  - match: { hits.0.jobId: "foo" }
+  - match: { hits.0.timestamp: 1462060800000 }

@@ -1,0 +1,47 @@
+jetty.home: somewhere/jetty
+
+# ------------------------------------------------------------------------------
+# These settings relate to scalability/resource usage limits
+
+# Maximum number of anomaly records to be stored per bucket per job
+# max.anomaly.records: 500
+
+# Maximum number of active jobs per processor on the machine
+max.jobs.factor: 6.0
+
+# How often to update usage statistics (in seconds)
+# usage.update.interval: 300
+
+# ------------------------------------------------------------------------------
+# These settings relate to validation/rejection of suspect input
+
+# Reject a data upload when this percentage of records have unparseable dates
+max.percent.date.errors: 26
+
+# Reject a data upload when this percentage of records arrive with times outside
+# the declared latency window
+# max.percent.outoforder.errors: 25
+
+# ------------------------------------------------------------------------------
+# These settings relate to the Elasticsearch that we're storing our results in
+
+# Should we use the Elasticsearch Node Client (es-node) or Transport Client
+# (es-transport) to connect to the Elasticsearch cluster that stores the results?
+# results.storage.client: es-node
+
+# Elasticsearch cluster name
+# es.cluster.name: prelert
+
+# Which host is the Elasticsearch node we'll connect to running on?
+# es.host: localhost
+
+# HTTP port for Elasticsearch's REST API
+# es.http.port: 9200
+
+# TCP port range for Elasticsearch's transport protocol
+es.transport.tcp.port: 9300-9400
+
+# Override determination of the number of processors on the machine (for the
+# purpose of deciding thread pool sizes)
+# es.processors: 4
+

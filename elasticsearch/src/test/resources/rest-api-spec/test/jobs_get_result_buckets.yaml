@@ -1,0 +1,42 @@
+setup:
+  - do:
+      indices.create:
+        index:  prelertresults-farequote
+        body:
+          mappings:
+            bucket:
+              properties:
+                "timestamp":
+                  type: date
+  - do:
+      index:
+        index:  prelertresults-farequote
+        type:   bucket
+        id:     1
+        body:   { "jobId": "farequote", "timestamp": "2016-06-01T00:00:00Z" }
+
+  - do:
+      indices.refresh:
+        index: prelertresults-farequote
+
+---
+"Test result buckets api":
+  - do:
+      xpack.prelert.get_bucket:
+        jobId: "farequote"
+        start: "2016-05-01T00:00:00Z"
+        end: "2016-07-01T00:00:00Z"
+
+  - match: { hitCount: 1 }
+  - match: { hits.0.timestamp: 1464739200000 }
+  - match: { hits.0.jobId: farequote}
+
+---
+"Test result bucket api":
+  - do:
+      xpack.prelert.get_bucket:
+        jobId: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+
+  - match: { hits.0.timestamp: 1464739200000}
+  - match: { hits.0.jobId: farequote }

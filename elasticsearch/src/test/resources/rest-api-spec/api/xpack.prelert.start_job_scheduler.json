@@ -1,0 +1,29 @@
+{
+  "xpack.prelert.start_job_scheduler": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/prelert/schedulers/{job_id}/_start",
+      "paths": [ "/_xpack/prelert/schedulers/{job_id}/_start" ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job whose scheduler to start"
+        }
+      },
+      "params": {
+        "start": {
+          "type": "string",
+          "required": false,
+          "description": "The start time from where the scheduler should begin"
+        },
+        "end": {
+          "type": "string",
+          "required": false,
+          "description": "The end time when the scheduler should stop. When not set, the scheduler continues in real time"
+        }
+      }
+    },
+    "body": null
+  }
+}

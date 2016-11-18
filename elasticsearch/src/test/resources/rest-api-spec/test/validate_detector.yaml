@@ -1,0 +1,21 @@
+---
+"Test valid detector":
+  - do:
+      xpack.prelert.validate_detector:
+        body:  >
+          {
+            "function":"count",
+            "byFieldName":"airline"
+          }
+  - match: { acknowledged: true }
+
+---
+"Test invalid detector":
+  - do:
+      catch: /fieldName must be set when the 'mean' function is used/
+      xpack.prelert.validate_detector:
+        body:  >
+          {
+            "function":"mean",
+            "byFieldName":"airline"
+          }

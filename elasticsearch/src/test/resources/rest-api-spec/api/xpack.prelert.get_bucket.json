@@ -1,0 +1,55 @@
+{
+  "xpack.prelert.get_bucket": {
+    "methods": [ "GET", "POST" ],
+    "url": {
+      "path": "/_xpack/prelert/results/{jobId}/bucket/{timestamp}",
+      "paths": [
+        "/_xpack/prelert/results/{jobId}/bucket/{timestamp}",
+        "/_xpack/prelert/results/{jobId}/bucket"
+      ],
+      "parts": {
+        "jobId": {
+          "type" : "string",
+          "required": true
+        },
+        "timestamp": {
+          "type" : "string"
+        }
+      },
+      "params": {
+        "expand": {
+          "type": "boolean"
+        },
+        "includeInterim": {
+          "type": "boolean"
+        },
+        "partitionValue": {
+          "type": "string"
+        },
+        "from": {
+          "type": "int",
+          "description": "skips a number of buckets"
+        },
+        "size": {
+          "type": "int",
+          "description": "specifies a max number of buckets to get"
+        },
+        "start": {
+          "type": "string"
+        },
+        "end": {
+          "type": "string"
+        },
+        "anomalyScore": {
+          "type": "double"
+        },
+        "maxNormalizedProbability": {
+          "type": "double"
+        }
+      }
+    },
+    "body": {
+      "description" : "Bucket selection details if not provided in URI"
+    }
+  }
+}

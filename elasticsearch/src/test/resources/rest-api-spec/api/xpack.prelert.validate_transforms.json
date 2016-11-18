@@ -1,0 +1,14 @@
+{
+  "xpack.prelert.validate_transforms": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/prelert/_validate/transforms",
+      "paths": [ "/_xpack/prelert/_validate/transforms" ],
+      "params": {}
+    },
+    "body": {
+      "description" : "The transforms",
+      "required" : true
+    }    
+  }
+}

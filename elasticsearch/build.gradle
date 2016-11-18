@@ -1,0 +1,91 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
+import org.gradle.internal.os.OperatingSystem
+
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+
+boolean isWindows = OperatingSystem.current().isWindows()
+boolean isLinux = OperatingSystem.current().isLinux()
+boolean isMacOsX = OperatingSystem.current().isMacOsX()
+
+project.ext.nasDirectory = isWindows ? "\\\\prelert-nas\\builds\\6.5.0\\" :
+    (isMacOsX ? "/Volumes/builds/6.5.0/" : "/export/builds/6.5.0/")
+// norelease: replace with something else when we become part of x-plugins
+project.ext.nasExtension = '_' + (System.getenv()['GIT_COMMIT'] ?: 'xxxxxxxxxxxxxx').substring(0, 14) +
+    (isWindows ? "_windows-x86_64.zip" : (isMacOsX ? "_darwin-x86_64.zip" :
+    (isLinux ? "_linux-x86_64.zip" : "_sunos-x86_64.zip")))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'prelert'
+    description 'Prelert Plugin'
+    classname 'org.elasticsearch.xpack.prelert.PrelertPlugin'
+}
+
+version = "${elasticsearchVersion}"
+
+// We need to enable this at some point
+thirdPartyAudit.enabled = false
+
+dependencies {
+    compile group: 'net.sf.supercsv', name: 'super-csv', version:"${supercsvVersion}"
+    testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
+}
+
+test {
+    exclude '**/*NoBootstrapTests.class'
+}
+
+task noBootstrapTest(type: Test,
+        dependsOn: test.dependsOn) {
+    classpath = project.test.classpath
+    testClassesDir = project.test.testClassesDir
+    include '**/*NoBootstrapTests.class'
+}
+check.dependsOn noBootstrapTest
+noBootstrapTest.mustRunAfter test
+
+integTest {
+    cluster {
+        //setting 'useNativeProcess', 'true'
+        distribution = 'zip'
+    }
+}
+
+integTest.mustRunAfter noBootstrapTest
+
+bundlePlugin {
+  from("${rootDir}/cppdistribution") {
+    into '.'
+    // Don't copy Windows import libraries
+    exclude "**/*.lib"
+    // Don't copy the test support library
+    exclude "**/libPreTest.*"
+    includeEmptyDirs = false
+  }
+}
+
+// norelease: this won't be needed when the pluginAll task below is removed
+class SimpleCopy extends DefaultTask {
+  String sourceFile;
+  String destFile;
+
+  @TaskAction
+  def copy() {
+    Files.copy(Paths.get(sourceFile), Paths.get(destFile), StandardCopyOption.REPLACE_EXISTING)
+  }
+}
+
+// norelease: by the time we move to x-plugins we cannot use the Prelert NAS at all
+task pluginAll(type: SimpleCopy) {
+  // This doesn't use a Copy task because that builds hashes for a huge number of files on the NAS
+  String zipFile = "${esplugin.name}-${elasticsearchVersion}.zip"
+  sourceFile = "${projectDir}/build/distributions/" + zipFile
+  destFile = project.ext.nasDirectory + zipFile.replace('.zip', project.ext.nasExtension)
+}
+
+pluginAll.dependsOn check
+

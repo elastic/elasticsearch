@@ -1,0 +1,52 @@
+setup:
+  - do:
+      indices.create:
+        index:  prelertresults-farequote
+        body:
+          mappings:
+            results:
+              properties:
+                "jobId":
+                  type: keyword
+                "result_type":
+                  type: keyword
+                "timestamp":
+                  type: date
+                "normalizedProbability":
+                  type: float
+                "anomalyScore":
+                  type: float
+                "overFieldValue":
+                  type: keyword
+                "partitionFieldValue":
+                  type: keyword
+                "byFieldValue":
+                  type: keyword
+                "fieldName":
+                  type: keyword
+                "function":
+                  type: keyword
+
+  - do:
+      index:
+        index:  prelertresults-farequote
+        type:   results
+        id:     2
+        body:   { "jobId": "farequote", "timestamp": "2016-06-01T00:00:00Z", "result_type": "record" }
+
+  - do:
+      indices.refresh:
+        index: prelertresults-farequote
+
+---
+"Test result records api":
+  - do:
+      xpack.prelert.get_records:
+        jobId: "farequote"
+        start: "2016-05-01T00:00:00Z"
+        end: "2016-07-01T00:00:00Z"
+
+  - match: { hitCount: 1 }
+  - match: { hits.0.timestamp: 1464739200000 }
+  - match: { hits.0.jobId: farequote}
+  - match: { hits.0.result_type: record}

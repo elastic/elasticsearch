@@ -1,0 +1,98 @@
+---
+"Test job crud apis":
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "jobId":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysisConfig" : {
+                "bucketSpan":3600,
+                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            },
+            "dataDescription" : {
+                "fieldDelimiter":",",
+                "timeField":"time",
+                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { jobId: "farequote" }
+
+  - do:
+      indices.get:
+        index: "prelertresults-farequote"
+  - is_true: "prelertresults-farequote"
+
+  - do:
+      xpack.prelert.get_jobs:
+        from: 0
+        size: 100
+  - match: { hitCount: 1 }
+  - match: { hits.0.jobId: "farequote" }
+
+  - do:
+      xpack.prelert.get_job:
+        job_id: "farequote"
+  - match: { exists: true }
+  - match: { type: "job" }
+  - match: { document.config.jobId: "farequote" }
+
+  - do:
+      xpack.prelert.delete_job:
+        job_id: "farequote"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      xpack.prelert.get_job:
+        job_id: "farequote"
+
+  - do:
+      indices.exists:
+        index: "prelertresults-farequote"
+  - is_false: ''
+
+---
+"Test get job API with non existing job id":
+  - do:
+      catch: missing
+      xpack.prelert.get_job:
+        job_id: "non-existing"
+
+---
+"Test put job with id that is already taken":
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "jobId":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysisConfig" : {
+                "bucketSpan":3600,
+                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            },
+            "dataDescription" : {
+                "fieldDelimiter":",",
+                "timeField":"time",
+                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { jobId: "farequote" }
+
+  - do:
+      catch: /resource_already_exists_exception/
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "jobId":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysisConfig" : {
+                "bucketSpan":3600,
+                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            },
+            "dataDescription" : {
+                "fieldDelimiter":",",
+                "timeField":"time",
+                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }

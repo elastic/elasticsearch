@@ -1,0 +1,70 @@
+---
+setup:
+  - do:
+      xpack.prelert.put_list:
+        body:  >
+          {
+            "id": "foo",
+            "items": ["abc", "xyz"]
+          }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test get list API with bad ID":
+
+  - do:
+      catch: missing
+      xpack.prelert.get_list:
+        list_id: "do_not_exist"
+
+  - match: { exists:   false }
+  - match: { type:    "list"   }
+  - is_false: document
+
+---
+"Test get list API":
+
+  - do:
+      xpack.prelert.get_list:
+        list_id: "foo"
+
+  - match: { exists:   true }
+  - match: { type:    "list"   }
+  - match:
+      document:
+        id: "foo"
+        items: ["abc", "xyz"]
+
+---
+"Test create list api":
+  - do:
+      xpack.prelert.put_list:
+        body:  >
+          {
+            "id": "foo2",
+            "items": ["abc", "xyz"]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      xpack.prelert.get_list:
+        list_id: "foo2"
+
+  - match: { exists:   true }
+  - match: { type:    "list"   }
+  - match:
+      document:
+        id: "foo2"
+        items: ["abc", "xyz"]
+
+---
+"Test create list api without ID":
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.prelert.put_list:
+        body:  >
+          {
+            "items": ["abc", "xyz"]
+          }

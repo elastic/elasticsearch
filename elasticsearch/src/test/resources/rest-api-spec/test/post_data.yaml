@@ -1,0 +1,102 @@
+setup:
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "jobId":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysisConfig" : {
+                "bucketSpan":3600,
+                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            },
+            "dataDescription" : {
+                "format":"JSON",
+                "timeField":"time",
+                "timeFormat":"epoch"
+            }
+          }
+
+---
+"Test POST data job api, flush, close and verify DataCounts doc":
+  - do:
+      xpack.prelert.post_data:
+        jobId: farequote
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+  - match: { processed_record_count: 2 }
+  - match: { processed_field_count: 4}
+  - match: { input_bytes: 177 }
+  - match: { input_field_count: 6 }
+  - match: { invalid_date_count: 0 }
+  - match: { missing_field_count: 0 }
+  - match: { out_of_order_timestamp_count: 0}
+  - match: { earliest_record_timestamp: 1403481600000}
+  - match: { latest_record_timestamp: 1403481700000}
+
+  - do:
+      xpack.prelert.flush_data:
+        jobId: farequote
+  - match: { acknowledged: true }
+
+  - do:
+      xpack.prelert.close_data:
+        jobId: farequote
+  - match: { acknowledged: true }
+
+  - do:
+    get:
+      index: prelertresults-farequote
+      type: dataCounts
+      id: farequote-data-counts
+
+  - match: { _source.processed_record_count: 2 }
+  - match: { _source.processed_field_count: 4}
+  - match: { _source.input_bytes: 177 }
+  - match: { _source.input_field_count: 6 }
+  - match: { _source.invalid_date_count: 0 }
+  - match: { _source.missing_field_count: 0 }
+  - match: { _source.out_of_order_timestamp_count: 0}
+  - match: { _source.earliest_record_timestamp: 1403481600000}
+  - match: { _source.latest_record_timestamp: 1403481700000}
+
+---
+"Test POST data with invalid parameters":
+  - do:
+      catch: /parse_exception/
+      xpack.prelert.post_data:
+        jobId: foo
+        resetStart: not_a_date
+        body:  >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481600"}
+
+  - do:
+      catch: /parse_exception/
+      xpack.prelert.post_data:
+        jobId: foo
+        resetEnd: end_not_a_date
+        body:  >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481600"}
+
+---
+"Test Flush data with invalid parameters":
+  - do:
+      catch: /parse_exception/
+      xpack.prelert.flush_data:
+        jobId: foo
+        start: not_a_date
+
+  - do:
+      catch: /parse_exception/
+      xpack.prelert.flush_data:
+        jobId: foo
+        end: end_not_a_date
+
+  - do:
+      catch: /parse_exception/
+      xpack.prelert.flush_data:
+        jobId: foo
+        advanceTime: advance_time_not_a_date

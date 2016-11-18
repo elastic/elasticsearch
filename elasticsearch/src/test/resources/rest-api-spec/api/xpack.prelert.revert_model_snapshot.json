@@ -1,0 +1,39 @@
+{
+  "xpack.prelert.revert_model_snapshot": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/prelert/modelsnapshots/{jobId}/_revert",
+      "paths": [ "/_xpack/prelert/modelsnapshots/{jobId}/_revert" ],
+      "parts": {
+        "jobId": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to fetch"
+        }
+      },
+      "params": {
+        "from": {
+          "type": "integer",
+          "description": ""
+        },
+        "time": {
+          "type": "date",
+          "description": "revert to a snapshot with a timestamp no later than this time"
+        },
+        "snapshotId": {
+          "type": "string",
+          "description": "the snapshot ID of the snapshot to revert to"
+        },
+        "description": {
+          "type": "string",
+          "description": "the description of the snapshot to revert to"
+        },
+        "deleteInterveningResults": {
+          "type": "boolean",
+          "description": "should we reset the results back to the time of the snapshot?"
+        }
+      }
+    },
+    "body": null
+  }
+}

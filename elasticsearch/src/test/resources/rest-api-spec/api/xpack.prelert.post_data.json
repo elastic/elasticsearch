@@ -1,0 +1,35 @@
+{
+  "xpack.prelert.post_data": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/prelert/data/{jobId}",
+      "paths": [ "/_xpack/prelert/data/{jobId}" ],
+      "parts": {
+        "jobId": {
+          "type": "string",
+          "required": true,
+          "description": "The name of the job receiving the data"
+        }
+      },
+      "params": {
+        "ignoreDowntime": {
+          "type": "boolean",
+          "description": "Controls if gaps in data are treated as anomalous or as a maintenance window after a job re-start"
+        },
+        "resetStart": {
+          "type": "string",
+          "description": "Optional parameter to specify the start of the bucket resetting range"
+        },
+        "resetEnd": {
+          "type": "string",
+          "description": "Optional parameter to specify the end of the bucket resetting range"
+        }
+      }
+    },
+    "body": {
+      "description" : "The data to process",
+      "required" : true
+    }
+  }
+}
+

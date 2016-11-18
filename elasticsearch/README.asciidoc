@@ -1,0 +1,3 @@
+= Elasticsearch Prelert Plugin
+
+Behavioral Analytics for Elasticsearch

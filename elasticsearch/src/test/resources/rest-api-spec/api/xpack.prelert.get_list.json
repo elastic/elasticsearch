@@ -1,0 +1,17 @@
+{
+  "xpack.prelert.get_list": {
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/prelert/lists/{list_id}",
+      "paths": [ "/_xpack/prelert/lists/{list_id}" ],
+      "parts": {
+        "list_id": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The ID of the list to fetch"
+        }
+      }
+    },
+    "body": null
+  }
+}

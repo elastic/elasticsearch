@@ -1,0 +1,26 @@
+{
+  "xpack.prelert.put_model_snapshot_description": {
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_xpack/prelert/modelsnapshots/{jobId}/{snapshotId}/description",
+      "paths": [ "/_xpack/prelert/modelsnapshots/{jobId}/{snapshotId}/description" ],
+      "parts": {
+        "jobId": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to fetch"
+        },
+        "snapshotId": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the snapshot whose description is to be updated"
+        }
+      },
+      "params": {}
+    },
+    "body": {
+      "description" : "A JSON object containing the description to update with",
+      "required" : true
+    }
+  }
+}

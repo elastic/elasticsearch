@@ -1,0 +1,138 @@
+setup:
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "jobId":"foo",
+            "description":"Analysis of response time by airline",
+            "analysisConfig" : {
+                "bucketSpan":3600,
+                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            },
+            "dataDescription" : {
+                "fieldDelimiter":",",
+                "timeField":"time",
+                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelSnapshot
+        id:     "foo1"
+        body: >
+          {
+            "jobId": "foo",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "restorePriority": "1",
+            "snapshotId": "foo1",
+            "description": "first",
+            "latestRecordTimeStamp": "2016-06-02T00:00:00Z",
+            "latestResultTimeStamp": "2016-06-02T00:00:00Z",
+            "snapshotDocCount": 2
+          }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelState
+        id:     "foo1_0"
+        body: >
+          {
+            "state": "foo"
+          }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelState
+        id:     "foo1_1"
+        body: >
+          {
+            "state": "foo"
+          }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelSnapshot
+        id:     "foo2"
+        body: >
+          {
+            "jobId": "foo",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "restorePriority": "2",
+            "snapshotId": "foo2",
+            "description": "second",
+            "latestRecordTimeStamp": "2016-06-01T00:00:00Z",
+            "latestResultTimeStamp": "2016-06-01T00:00:00Z"
+          }
+
+  - do:
+      indices.refresh:
+        index: prelertresults-foo
+
+---
+"Test delete snapshot missing snapshotId":
+  - do:
+      catch: param
+      xpack.prelert.delete_model_snapshot:
+        jobId: "foo"
+
+---
+"Test delete snapshot missing jobId":
+  - do:
+      catch: param
+      xpack.prelert.delete_model_snapshot:
+        snapshotId: "foo"
+
+---
+"Test valid delete snapshot":
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+  - match: { hitCount: 2 }
+
+  - do:
+      count:
+        index: prelertresults-foo
+        type: modelState
+
+  - match: { count: 2 }
+
+  - do:
+      xpack.prelert.delete_model_snapshot:
+        jobId: "foo"
+        snapshotId: "foo1"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.refresh:
+        index: prelertresults-foo
+
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+  - match: { hitCount: 1 }
+  - match: { hits.0.snapshotId: "foo2"}
+
+  - do:
+      count:
+        index: prelertresults-foo
+        type: modelState
+
+  - match: { count: 0 }
+
+---
+"Test delete with in-use model":
+  - do:
+      xpack.prelert.revert_model_snapshot:
+        jobId: "foo"
+        snapshotId: "foo2"
+
+  - do:
+      catch: request
+      xpack.prelert.delete_model_snapshot:
+        jobId: "foo"
+        snapshotId: "foo2"

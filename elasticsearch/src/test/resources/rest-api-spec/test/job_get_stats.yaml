@@ -1,0 +1,75 @@
+setup:
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "jobId":"job-stats-test",
+            "description":"Analysis of response time by airline",
+            "analysisConfig" : {
+                "bucketSpan":3600,
+                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            },
+            "dataDescription" : {
+                "format":"JSON",
+                "timeField":"time",
+                "timeFormat":"epoch"
+            }
+          }
+
+---
+"Test get job stats after uploading data prompting the creation of some stats":
+  - do:
+      xpack.prelert.get_job:
+        job_id: job-stats-test
+
+  - is_true: document.config
+  - is_false: document.data_counts
+  - is_false: document.model_size_stats
+
+  - do:
+      xpack.prelert.post_data:
+        jobId: job-stats-test
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
+
+  - do:
+      xpack.prelert.flush_data:
+        jobId: job-stats-test
+  - match: { acknowledged: true }
+
+
+  - do:
+      xpack.prelert.get_job:
+        job_id: job-stats-test
+        metric: data_counts
+
+  - match: { document.data_counts.processed_record_count: 2 }
+  - match: { document.data_counts.processed_field_count: 4}
+  - match: { document.data_counts.input_field_count: 4 }
+
+# Test filters
+# It's difficult to test for the presence of model_size_stats as they
+# won't be created with such a small data sample
+  - do:
+      xpack.prelert.get_job:
+        job_id: "job-stats-test"
+        metric: "data_counts"
+  - is_false: document.config
+  - is_true: document.data_counts
+  - is_false: document.model_size_stats
+
+  - do:
+      xpack.prelert.get_job:
+        job_id: "job-stats-test"
+        metric: "model_size_stats"
+  - is_false: document.config
+  - is_false: document.data_counts
+
+  - do:
+      xpack.prelert.get_job:
+        job_id: "job-stats-test"
+        metric: "_all"
+  - is_true: document.config
+  - is_true: document.data_counts
+

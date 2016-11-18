@@ -1,0 +1,19 @@
+{
+  "xpack.prelert.put_job": {
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_xpack/prelert/jobs",
+      "paths": [ "/_xpack/prelert/jobs" ],
+      "params": {
+        "overwrite": {
+          "type": "boolean",
+          "description": ""
+        }
+      }
+    },
+    "body": {
+      "description" : "The job",
+      "required" : true
+    }    
+  }
+}

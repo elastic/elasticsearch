@@ -1,0 +1,14 @@
+{
+  "xpack.prelert.put_list": {
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_xpack/prelert/lists",
+      "paths": [ "/_xpack/prelert/lists" ],
+      "params": {}
+    },
+    "body": {
+      "description" : "The list details",
+      "required" : true
+    }
+  }
+}

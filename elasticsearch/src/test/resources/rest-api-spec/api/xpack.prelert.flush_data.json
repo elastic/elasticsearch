@@ -1,0 +1,38 @@
+{
+  "xpack.prelert.flush_data": {
+    "methods": [
+      "POST"
+    ],
+    "url": {
+      "path": "/_xpack/prelert/data/{jobId}/_flush",
+      "paths": [
+        "/_xpack/prelert/data/{jobId}/_flush"
+      ],
+      "parts": {
+        "jobId": {
+          "type": "string",
+          "required": true,
+          "description": "The name of the job to flush"
+        }
+      },
+      "params": {
+        "calcInterim": {
+          "type": "boolean",
+          "description": "Calculates interim results for the most recent bucket or all buckets within the latency period"
+        },
+        "start": {
+          "type": "string",
+          "description": "When used in conjunction with calcInterim, specifies the range of buckets on which to calculate interim results"
+        },
+        "end": {
+          "type": "string",
+          "description": "When used in conjunction with calcInterim, specifies the range of buckets on which to calculate interim results"
+        },
+        "advanceTime": {
+          "type": "string",
+          "description": "Setting this tells the Engine API that no data prior to advanceTime is expected"
+        }
+      }
+    }
+  }
+}

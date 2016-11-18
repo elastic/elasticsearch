@@ -1,0 +1,15 @@
+es.cluster.name: prelert : this is invalid because there are two unquoted colons
+
+# Which host is the Elasticsearch node we'll connect to running on?
+# es.host: localhost
+
+# HTTP port for Elasticsearch's REST API
+# es.http.port: 9200
+
+# TCP port range for Elasticsearch's transport protocol
+# es.transport.tcp.port: 9300-9400
+
+# Override determination of the number of processors on the machine (for the
+# purpose of deciding thread pool sizes)
+# es.processors: 4
+

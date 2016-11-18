@@ -1,0 +1,91 @@
+setup:
+  - do:
+      indices.create:
+        index:  prelertresults-foo
+        body:
+          mappings:
+            modelSnapshot:
+              properties:
+                "timestamp":
+                  type: date
+                "restorePriority":
+                  type: integer
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelSnapshot
+        id:     "1"
+        body:   { "jobId": "foo", "timestamp": "2016-06-02T00:00:00Z", "restorePriority": "1" }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   modelSnapshot
+        id:     "2"
+        body:   { "jobId": "foo", "timestamp": "2016-06-01T00:00:00Z", "restorePriority": "2" }
+
+  - do:
+      indices.refresh:
+        index: prelertresults-foo
+
+---
+"Test get model snapshots API with no params":
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+
+
+  - match: { hitCount: 2 }
+  - match: { hits.0.restorePriority: 2 }
+  - match: { hits.0.timestamp: 1464739200000 }
+
+---
+"Test get model snapshots API with start/end":
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+        start: "2016-05-01T00:00:00Z"
+        end: "2016-07-01T00:00:00Z"
+
+
+  - match: { hitCount: 2 }
+  - match: { hits.0.restorePriority: 2 }
+  - match: { hits.0.timestamp: 1464739200000 }
+
+---
+"Test get model snapshots API with ascending":
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+        desc: false
+
+
+  - match: { hitCount: 2 }
+  - match: { hits.0.restorePriority: 1 }
+  - match: { hits.0.timestamp: 1464825600000 }
+
+---
+"Test get model snapshots API with size":
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+        size: 1
+
+
+  - match: { hitCount: 2 }
+  - match: { hits.0.restorePriority: 2 }
+  - match: { hits.0.timestamp: 1464739200000 }
+  - length: { hits: 1 }
+
+---
+"Test get model snapshots API with from":
+  - do:
+      xpack.prelert.get_model_snapshots:
+        jobId: "foo"
+        from: 1
+
+
+  - match: { hitCount: 2 }
+  - match: { hits.0.restorePriority: 1 }
+  - match: { hits.0.timestamp: 1464825600000 }
+  - length: { hits: 1 }

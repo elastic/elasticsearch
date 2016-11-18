@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,6 +46,7 @@ import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
+import org.junit.Before;
 import org.mockito.Matchers;
 
 import java.io.Closeable;
@@ -74,7 +74,6 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -86,9 +85,16 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class UnicastZenPingTests extends ESTestCase {
 
-    private ThreadPool threadPool = new TestThreadPool(getClass().getName());
+    private ThreadPool threadPool;
     // close in reverse order as opened
-    private Stack<Closeable> closeables = new Stack<>();
+    private Stack<Closeable> closeables;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(getClass().getName());
+        closeables = new Stack<>();
+    }
 
     @After
     public void tearDown() throws Exception {

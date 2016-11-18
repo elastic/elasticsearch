@@ -104,7 +104,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
             public boolean apply(Void aVoid) {
                 return scheduleCounter.get() == 2;
             }
-        }, 100L, TimeUnit.MILLISECONDS));
+        }, 500L, TimeUnit.MILLISECONDS));
         cancellable.cancel();
     }
 

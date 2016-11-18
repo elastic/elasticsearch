@@ -613,7 +613,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         taskOutputs.notifyFailedTasks();
 
         if (taskOutputs.clusterStateUnchanged()) {
-            taskOutputs.notifySuccessfulTasks();
+            taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             logger.debug("processing [{}]: took [{}] no change in cluster_state", taskInputs.summary, executionTime);
             warnAboutSlowTaskIfNeeded(executionTime, taskInputs.summary);
@@ -829,6 +829,9 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * Represents a set of tasks to be processed together with their executor
+     */
     class TaskInputs {
         public final String summary;
         public final ArrayList<UpdateTask> updateTasks;
@@ -853,6 +856,9 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * Output created by executing a set of tasks provided as TaskInputs
+     */
     class TaskOutputs {
         public final TaskInputs taskInputs;
         public final ClusterServiceState previousClusterServiceState;
@@ -922,7 +928,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             }
         }
 
-        public void notifySuccessfulTasks() {
+        public void notifySuccessfulTasksOnUnchangedClusterState() {
             ClusterState clusterState = newClusterServiceState.getClusterState();
             nonFailedTasks.forEach(task -> {
                 if (task.listener instanceof AckedClusterStateTaskListener) {

@@ -106,7 +106,7 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
                 () -> UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#",
                 resolveTimeout));
         } catch (InterruptedException e) {
-
+            throw new RuntimeException(e);
         }
 
         logger.debug("[discovery-file] Using dynamic discovery nodes {}", discoNodes);

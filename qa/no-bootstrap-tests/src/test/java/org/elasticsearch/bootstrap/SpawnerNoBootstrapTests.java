@@ -51,6 +51,30 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             + "\n"
             + "read SOMETHING\n";
 
+    /**
+     * Simplest case: a plugin with no controller daemon.
+     */
+    public void testNoControllerSpawn() throws IOException, InterruptedException {
+        Path esHome = createTempDir().resolve("esHome");
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
+        Settings settings = settingsBuilder.build();
+
+        Environment environment = new Environment(settings);
+
+        // This plugin will NOT have a controller daemon
+        Path plugin = environment.pluginsFile().resolve("a_plugin");
+        Files.createDirectories(plugin);
+
+        try (Spawner spawner = new Spawner()) {
+            spawner.spawnNativePluginControllers(environment);
+            assertTrue(spawner.getProcesses().isEmpty());
+        }
+    }
+
+    /**
+     * Two plugins - one with a controller daemon and one without.
+     */
     public void testControllerSpawn() throws IOException, InterruptedException {
         // On Windows you cannot directly run a batch file - you have to run cmd.exe with the batch file
         // as an argument and that's out of the remit of the controller daemon process spawner.  If

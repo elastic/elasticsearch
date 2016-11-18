@@ -1,7 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:   1.7.5
+:version:   1.7.6
 :branch:    1.7
 :jdk:       1.8.0_25
 :defguide:  https://www.elastic.co/guide/en/elasticsearch/guide/current

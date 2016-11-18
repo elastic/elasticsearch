@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision.WeightedDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,27 +31,27 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Unit tests for the {@link ShardAllocationDecision} class.
+ * Unit tests for the {@link AllocateUnassignedDecision} class.
  */
-public class ShardAllocationDecisionTests extends ESTestCase {
+public class AllocateUnassignedDecisionTests extends ESTestCase {
 
     public void testDecisionNotTaken() {
-        ShardAllocationDecision shardAllocationDecision = ShardAllocationDecision.DECISION_NOT_TAKEN;
-        assertFalse(shardAllocationDecision.isDecisionTaken());
-        assertNull(shardAllocationDecision.getFinalDecisionType());
-        assertNull(shardAllocationDecision.getAllocationStatus());
-        assertNull(shardAllocationDecision.getAllocationId());
-        assertNull(shardAllocationDecision.getAssignedNodeId());
-        assertNull(shardAllocationDecision.getFinalExplanation());
-        assertNull(shardAllocationDecision.getNodeDecisions());
-        expectThrows(IllegalArgumentException.class, () -> shardAllocationDecision.getFinalDecisionSafe());
+        AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
+        assertFalse(allocateUnassignedDecision.isDecisionTaken());
+        assertNull(allocateUnassignedDecision.getFinalDecisionType());
+        assertNull(allocateUnassignedDecision.getAllocationStatus());
+        assertNull(allocateUnassignedDecision.getAllocationId());
+        assertNull(allocateUnassignedDecision.getAssignedNodeId());
+        assertNull(allocateUnassignedDecision.getFinalExplanation());
+        assertNull(allocateUnassignedDecision.getNodeDecisions());
+        expectThrows(IllegalArgumentException.class, () -> allocateUnassignedDecision.getFinalDecisionSafe());
     }
 
     public void testNoDecision() {
         final AllocationStatus allocationStatus = randomFrom(
             AllocationStatus.DELAYED_ALLOCATION, AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA
         );
-        ShardAllocationDecision noDecision = ShardAllocationDecision.no(allocationStatus, "something is wrong");
+        AllocateUnassignedDecision noDecision = AllocateUnassignedDecision.no(allocationStatus, "something is wrong");
         assertTrue(noDecision.isDecisionTaken());
         assertEquals(Decision.Type.NO, noDecision.getFinalDecisionType());
         assertEquals(allocationStatus, noDecision.getAllocationStatus());
@@ -61,10 +60,10 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         assertNull(noDecision.getAssignedNodeId());
         assertNull(noDecision.getAllocationId());
 
-        Map<String, ShardAllocationDecision.WeightedDecision> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new ShardAllocationDecision.WeightedDecision(Decision.NO));
-        nodeDecisions.put("node2", new ShardAllocationDecision.WeightedDecision(Decision.NO));
-        noDecision = ShardAllocationDecision.no(AllocationStatus.DECIDERS_NO, "something is wrong",
+        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
+        nodeDecisions.put("node1", new NodeAllocationResult(Decision.NO));
+        nodeDecisions.put("node2", new NodeAllocationResult(Decision.NO));
+        noDecision = AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, "something is wrong",
             nodeDecisions.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getDecision()))
         );
         assertTrue(noDecision.isDecisionTaken());
@@ -76,14 +75,14 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         assertNull(noDecision.getAllocationId());
 
         // test bad values
-        expectThrows(NullPointerException.class, () -> ShardAllocationDecision.no((AllocationStatus)null, "a"));
+        expectThrows(NullPointerException.class, () -> AllocateUnassignedDecision.no((AllocationStatus)null, "a"));
     }
 
     public void testThrottleDecision() {
-        Map<String, WeightedDecision> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new ShardAllocationDecision.WeightedDecision(Decision.NO));
-        nodeDecisions.put("node2", new ShardAllocationDecision.WeightedDecision(Decision.THROTTLE));
-        ShardAllocationDecision throttleDecision = ShardAllocationDecision.throttle("too much happening",
+        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
+        nodeDecisions.put("node1", new NodeAllocationResult(Decision.NO));
+        nodeDecisions.put("node2", new NodeAllocationResult(Decision.THROTTLE));
+        AllocateUnassignedDecision throttleDecision = AllocateUnassignedDecision.throttle("too much happening",
             nodeDecisions.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getDecision()))
         );
         assertTrue(throttleDecision.isDecisionTaken());
@@ -96,11 +95,11 @@ public class ShardAllocationDecisionTests extends ESTestCase {
     }
 
     public void testYesDecision() {
-        Map<String, ShardAllocationDecision.WeightedDecision> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new ShardAllocationDecision.WeightedDecision(Decision.YES));
-        nodeDecisions.put("node2", new ShardAllocationDecision.WeightedDecision(Decision.NO));
+        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
+        nodeDecisions.put("node1", new NodeAllocationResult(Decision.YES));
+        nodeDecisions.put("node2", new NodeAllocationResult(Decision.NO));
         String allocId = randomBoolean() ? "allocId" : null;
-        ShardAllocationDecision yesDecision = ShardAllocationDecision.yes(
+        AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(
             "node1", "node was very kind", allocId, nodeDecisions.entrySet().stream().collect(
                 Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getDecision())
             )
@@ -119,27 +118,27 @@ public class ShardAllocationDecisionTests extends ESTestCase {
             AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA, AllocationStatus.DELAYED_ALLOCATION);
         for (AllocationStatus allocationStatus : cachableStatuses) {
             if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
-                ShardAllocationDecision cached = ShardAllocationDecision.throttle(null, null);
-                ShardAllocationDecision another = ShardAllocationDecision.throttle(null, null);
+                AllocateUnassignedDecision cached = AllocateUnassignedDecision.throttle(null, null);
+                AllocateUnassignedDecision another = AllocateUnassignedDecision.throttle(null, null);
                 assertSame(cached, another);
-                ShardAllocationDecision notCached = ShardAllocationDecision.throttle("abc", null);
-                another = ShardAllocationDecision.throttle("abc", null);
+                AllocateUnassignedDecision notCached = AllocateUnassignedDecision.throttle("abc", null);
+                another = AllocateUnassignedDecision.throttle("abc", null);
                 assertNotSame(notCached, another);
             } else {
-                ShardAllocationDecision cached = ShardAllocationDecision.no(allocationStatus, null);
-                ShardAllocationDecision another = ShardAllocationDecision.no(allocationStatus, null);
+                AllocateUnassignedDecision cached = AllocateUnassignedDecision.no(allocationStatus, null);
+                AllocateUnassignedDecision another = AllocateUnassignedDecision.no(allocationStatus, null);
                 assertSame(cached, another);
-                ShardAllocationDecision notCached = ShardAllocationDecision.no(allocationStatus, "abc");
-                another = ShardAllocationDecision.no(allocationStatus, "abc");
+                AllocateUnassignedDecision notCached = AllocateUnassignedDecision.no(allocationStatus, "abc");
+                another = AllocateUnassignedDecision.no(allocationStatus, "abc");
                 assertNotSame(notCached, another);
             }
         }
 
         // yes decisions are not precomputed and cached
         Map<String, Decision> dummyMap = Collections.emptyMap();
-        ShardAllocationDecision first = ShardAllocationDecision.yes("node1", "abc", "alloc1", dummyMap);
-        ShardAllocationDecision second = ShardAllocationDecision.yes("node1", "abc", "alloc1", dummyMap);
-        // same fields for the ShardAllocationDecision, but should be different instances
+        AllocateUnassignedDecision first = AllocateUnassignedDecision.yes("node1", "abc", "alloc1", dummyMap);
+        AllocateUnassignedDecision second = AllocateUnassignedDecision.yes("node1", "abc", "alloc1", dummyMap);
+        // same fields for the AllocateUnassignedDecision, but should be different instances
         assertNotSame(first, second);
     }
 

@@ -158,6 +158,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ensureGreen();
         InternalClusterService clusterService = (InternalClusterService) internalCluster().getInstance(ClusterService.class);
         final CountDownLatch block = new CountDownLatch(1);
+        final CountDownLatch blockCompleted = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("block-task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -166,6 +167,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
+                blockCompleted.countDown();
                 return currentState;
             }
 
@@ -195,6 +197,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         });
         block.countDown();
         block2.await();
+        blockCompleted.await();
         synchronized (clusterService.updateTasksPerExecutor) {
             assertTrue("expected empty map but was " + clusterService.updateTasksPerExecutor,
                 clusterService.updateTasksPerExecutor.isEmpty());

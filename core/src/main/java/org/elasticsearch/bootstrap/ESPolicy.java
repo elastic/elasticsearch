@@ -21,10 +21,10 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.net.SocketPermission;
-import java.net.URL;
 import java.io.FilePermission;
 import java.io.IOException;
+import java.net.SocketPermission;
+import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -32,6 +32,7 @@ import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
@@ -133,18 +134,66 @@ final class ESPolicy extends Policy {
 
     // TODO: remove this hack when insecure defaults are removed from java
 
+    /**
+     * Wraps a bad default permission, applying a pre-implies to any permissions before checking if the wrapped bad default permission
+     * implies a permission.
+     */
+    private static class BadDefaultPermission extends Permission {
+
+        private final Permission badDefaultPermission;
+        private final Predicate<Permission> preImplies;
+
+        /**
+         * Construct an instance with a pre-implies check to apply to desired permissions.
+         *
+         * @param badDefaultPermission the bad default permission to wrap
+         * @param preImplies           a test that is applied to a desired permission before checking if the bad default permission that
+         *                             this instance wraps implies the desired permission
+         */
+        public BadDefaultPermission(final Permission badDefaultPermission, final Predicate<Permission> preImplies) {
+            super(badDefaultPermission.getName());
+            this.badDefaultPermission = badDefaultPermission;
+            this.preImplies = preImplies;
+        }
+
+        @Override
+        public final boolean implies(Permission permission) {
+            return preImplies.test(permission) && badDefaultPermission.implies(permission);
+        }
+
+        @Override
+        public final boolean equals(Object obj) {
+            return badDefaultPermission.equals(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return badDefaultPermission.hashCode();
+        }
+
+        @Override
+        public String getActions() {
+            return badDefaultPermission.getActions();
+        }
+
+    }
+
     // default policy file states:
     // "It is strongly recommended that you either remove this permission
     //  from this policy file or further restrict it to code sources
     //  that you specify, because Thread.stop() is potentially unsafe."
     // not even sure this method still works...
-    static final Permission BAD_DEFAULT_NUMBER_ONE = new RuntimePermission("stopThread");
+    private static final Permission BAD_DEFAULT_NUMBER_ONE = new BadDefaultPermission(new RuntimePermission("stopThread"), p -> true);
 
     // default policy file states:
     // "allows anyone to listen on dynamic ports"
     // specified exactly because that is what we want, and fastest since it won't imply any
     // expensive checks for the implicit "resolve"
-    static final Permission BAD_DEFAULT_NUMBER_TWO = new SocketPermission("localhost:0", "listen");
+    private static final Permission BAD_DEFAULT_NUMBER_TWO =
+        new BadDefaultPermission(
+            new SocketPermission("localhost:0", "listen"),
+            // we apply this pre-implies test because some SocketPermission#implies calls do expensive reverse-DNS resolves
+            p -> p instanceof SocketPermission && p.getActions().contains("listen"));
 
     /**
      * Wraps the Java system policy, filtering out bad default permissions that
@@ -159,7 +208,7 @@ final class ESPolicy extends Policy {
 
         @Override
         public boolean implies(ProtectionDomain domain, Permission permission) {
-            if (BAD_DEFAULT_NUMBER_ONE.equals(permission) || BAD_DEFAULT_NUMBER_TWO.equals(permission)) {
+            if (BAD_DEFAULT_NUMBER_ONE.implies(permission) || BAD_DEFAULT_NUMBER_TWO.implies(permission)) {
                 return false;
             }
             return delegate.implies(domain, permission);

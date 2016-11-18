@@ -69,6 +69,20 @@ public class ScopedSettingsTests extends ESTestCase {
             target, update, "node"));
         assertEquals(1, dynamicSetting.get(target.build()).intValue());
         assertEquals(6, staticSetting.get(target.build()).intValue());
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("some.*").build(),
+            target, update, "node"));
+        assertEquals(1, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("*").build(),
+            target, update, "node"));
+        assertEquals(1, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
     }
 
     public void testAddConsumer() {

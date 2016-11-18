@@ -61,7 +61,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportSettings;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -372,16 +371,12 @@ public class TribeService extends AbstractLifecycleComponent {
 
         @Override
         public BatchResult<ClusterChangedEvent> execute(ClusterState currentState, List<ClusterChangedEvent> tasks) throws Exception {
-            ClusterState accumulator = ClusterState.builder(currentState).build();
             BatchResult.Builder<ClusterChangedEvent> builder = BatchResult.builder();
-            ClusterState.Builder newState = ClusterState.builder(accumulator).incrementVersion();
-            boolean clusterStateChanged = updateNodes(accumulator, tasks, newState);
-            clusterStateChanged |= updateIndicesAndMetaData(accumulator, tasks, newState);
-            if (clusterStateChanged) {
-                accumulator = newState.build();
-            }
+            ClusterState.Builder newState = ClusterState.builder(currentState).incrementVersion();
+            boolean clusterStateChanged = updateNodes(currentState, tasks, newState);
+            clusterStateChanged |= updateIndicesAndMetaData(currentState, tasks, newState);
             builder.successes(tasks);
-            return builder.build(accumulator);
+            return builder.build(clusterStateChanged ? newState.build() : currentState);
         }
 
         private boolean updateNodes(ClusterState currentState, List<ClusterChangedEvent> tasks, ClusterState.Builder newState) {
@@ -506,34 +501,19 @@ public class TribeService extends AbstractLifecycleComponent {
 
         private boolean updateCustoms(ClusterState currentState, List<ClusterChangedEvent> tasks, MetaData.Builder metaData) {
             boolean clusterStateChanged = false;
-            ClusterChangedEvent latestTask = tasks.get(tasks.size() - 1);
-            final ClusterState tribeClientState = latestTask.state();
             Set<String> changedCustomMetaDataTypeSet = tasks.stream()
                     .map(ClusterChangedEvent::changedCustomMetaDataSet)
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
             final List<Node> tribeClientNodes = TribeService.this.nodes;
             Map<String, MetaData.Custom> mergedCustomMetaDataMap = mergeChangedCustomMetaData(changedCustomMetaDataTypeSet,
-                    customMetaDataType -> {
-                        List<MetaData.Custom> tribeCustomMetaDataList = new ArrayList<>(tribeClientNodes.size());
-                        for (Node tribeClientNode : tribeClientNodes) {
-                            String currentTribeName = TRIBE_NAME_SETTING.get(tribeClientNode.settings());
-                            final MetaData.Custom custom;
-                            if (currentTribeName.equals(tribeName)) {
-                                // tribe client node that triggered the cluster change event
-                                // use the latest changed state instead of getting the state
-                                // from the tribe client's cluster service
-                                custom = tribeClientState.metaData().custom(customMetaDataType);
-                            } else {
-                                ClusterState currentTribeClientState = getClusterService(tribeClientNode).state();
-                                custom = currentTribeClientState.metaData().custom(customMetaDataType);
-                            }
-                            if (custom != null && custom instanceof MergableCustomMetaData) {
-                                tribeCustomMetaDataList.add(custom);
-                            }
-                        }
-                        return tribeCustomMetaDataList;
-                    }
+                    customMetaDataType -> tribeClientNodes.stream()
+                            .map(TribeService::getClusterService).map(ClusterService::state)
+                            .map(ClusterState::metaData)
+                            .map(clusterMetaData -> ((MetaData.Custom) clusterMetaData.custom(customMetaDataType)))
+                            .filter(custom1 -> custom1 != null && custom1 instanceof MergableCustomMetaData)
+                            .map(custom2 -> (MergableCustomMetaData) custom2)
+                            .collect(Collectors.toList())
             );
             for (String changedCustomMetaDataType : changedCustomMetaDataTypeSet) {
                 MetaData.Custom mergedCustomMetaData = mergedCustomMetaDataMap.get(changedCustomMetaDataType);
@@ -585,20 +565,15 @@ public class TribeService extends AbstractLifecycleComponent {
 
     // pkg-private for testing
     static Map<String, MetaData.Custom> mergeChangedCustomMetaData(Set<String> changedCustomMetaDataTypeSet,
-                                                                   Function<String, List<MetaData.Custom>> customMetaDataByTribeNode) {
+                                                                   Function<String, List<MergableCustomMetaData>> customMetaDataByTribeNode) {
+
         Map<String, MetaData.Custom> changedCustomMetaDataMap = new HashMap<>(changedCustomMetaDataTypeSet.size());
         for (String customMetaDataType : changedCustomMetaDataTypeSet) {
-            List<MetaData.Custom> tribeCustomMetaDataList = customMetaDataByTribeNode.apply(customMetaDataType);
-            if (tribeCustomMetaDataList.isEmpty() == false) {
-                MetaData.Custom mergedCustomMetaData = tribeCustomMetaDataList.get(0);
-                assert mergedCustomMetaData instanceof MergableCustomMetaData
-                        : "expected to merge only MergableCustomMetaData";
-                for (int i = 1; i < tribeCustomMetaDataList.size(); i++) {
-                    MetaData.Custom currentCustom = tribeCustomMetaDataList.get(i);
-                    mergedCustomMetaData = ((MergableCustomMetaData) mergedCustomMetaData).merge(currentCustom);
-                }
-                changedCustomMetaDataMap.put(customMetaDataType, mergedCustomMetaData);
-            }
+            customMetaDataByTribeNode.apply(customMetaDataType).stream()
+                    .reduce((mergableCustomMD, mergableCustomMD2) ->
+                            ((MergableCustomMetaData) mergableCustomMD.merge((MetaData.Custom) mergableCustomMD2)))
+                    .ifPresent(mergedCustomMetaData ->
+                            changedCustomMetaDataMap.put(customMetaDataType, ((MetaData.Custom) mergedCustomMetaData)));
         }
         return changedCustomMetaDataMap;
     }

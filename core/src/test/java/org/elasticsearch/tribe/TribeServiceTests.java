@@ -131,7 +131,7 @@ public class TribeServiceTests extends ESTestCase {
     }
 
     public void testMergeMultipleCustomMetaData() {
-        Map<String, List<MetaData.Custom>> inputMap = new HashMap<>();
+        Map<String, List<TribeService.MergableCustomMetaData>> inputMap = new HashMap<>();
         inputMap.put(MergableCustomMetaData1.TYPE,
                 Arrays.asList(new MergableCustomMetaData1("data10"), new MergableCustomMetaData1("data11")));
         inputMap.put(MergableCustomMetaData2.TYPE,
@@ -149,15 +149,15 @@ public class TribeServiceTests extends ESTestCase {
     }
 
     public void testMergeCustomMetaDataFromMany() {
-        Map<String, List<MetaData.Custom>> inputMap = new HashMap<>();
+        Map<String, List<TribeService.MergableCustomMetaData>> inputMap = new HashMap<>();
         int n = randomIntBetween(3, 5);
-        List<MetaData.Custom> customList1 = new ArrayList<>();
+        List<TribeService.MergableCustomMetaData> customList1 = new ArrayList<>();
         for (int i = 0; i <= n; i++) {
             customList1.add(new MergableCustomMetaData1("data1"+String.valueOf(i)));
         }
         Collections.shuffle(customList1, random());
         inputMap.put(MergableCustomMetaData1.TYPE, customList1);
-        List<MetaData.Custom> customList2 = new ArrayList<>();
+        List<TribeService.MergableCustomMetaData> customList2 = new ArrayList<>();
         for (int i = 0; i <= n; i++) {
             customList2.add(new MergableCustomMetaData2("data2"+String.valueOf(i)));
         }

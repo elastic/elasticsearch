@@ -519,6 +519,14 @@ public class TribeIT extends ESIntegTestCase {
             putCustomMetaData(cluster2, secondCustomMetaDataType2);
             assertCustomMetaDataUpdated(internalCluster(), mergedCustomMetaDataType1.get(0));
             assertCustomMetaDataUpdated(internalCluster(), mergedCustomMetaDataType2.get(0));
+
+            // test removing custom md is propagates to tribe
+            removeCustomMetaData(cluster2, secondCustomMetaDataType1.type());
+            assertCustomMetaDataUpdated(internalCluster(), firstCustomMetaDataType1);
+            assertCustomMetaDataUpdated(internalCluster(), mergedCustomMetaDataType2.get(0));
+            removeCustomMetaData(cluster2, secondCustomMetaDataType2.type());
+            assertCustomMetaDataUpdated(internalCluster(), firstCustomMetaDataType1);
+            assertCustomMetaDataUpdated(internalCluster(), firstCustomMetaDataType2);
         }
     }
 

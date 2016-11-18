@@ -446,13 +446,16 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.builder();
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
-            if (entry.getValue() == null) {
-                toRemove.add(entry.getKey());
-            } else if ((onlyDynamic == false && get(entry.getKey()) != null) || hasDynamicSetting(entry.getKey())) {
-                validate(entry.getKey(), toApply);
-                settingsBuilder.put(entry.getKey(), entry.getValue());
-                updates.put(entry.getKey(), entry.getValue());
-                changed = true;
+            if ((onlyDynamic == false && get(entry.getKey()) != null) || hasDynamicSetting(entry.getKey())) {
+                if (entry.getValue() == null) {
+                    toRemove.add(entry.getKey());
+                    // we don't set changed here it's set after we apply deletes below
+                } else {
+                    validate(entry.getKey(), toApply);
+                    settingsBuilder.put(entry.getKey(), entry.getValue());
+                    updates.put(entry.getKey(), entry.getValue());
+                    changed = true;
+                }
             } else {
                 throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
             }

@@ -4,6 +4,11 @@ import org.gradle.internal.os.OperatingSystem
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
+configurations.all {
+    // check for updates every build
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+}
+
 buildscript {
     repositories {
         if (System.getProperty("repos.mavenlocal") != null) {
@@ -19,7 +24,7 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
+        classpath group: 'org.elasticsearch.gradle', name: 'build-tools', version: "${elasticsearchVersion}", changing: true
     }
 }
 

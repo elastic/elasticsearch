@@ -187,7 +187,9 @@ public final class Numbers {
      *  value. */
     public static long toLongExact(Number n) {
         if (n instanceof Byte || n instanceof Short || n instanceof Integer
-                || n instanceof Long || n instanceof Float || n instanceof Double) {
+                || n instanceof Long) {
+            return n.longValue();
+        } else if (n instanceof Float || n instanceof Double) {
             double d = n.doubleValue();
             if (d != Math.round(d)) {
                 throw new IllegalArgumentException(n + " is not an integer value");

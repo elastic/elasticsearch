@@ -105,11 +105,11 @@ public class PlainHighlighter implements Highlighter {
 
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
+
             for (Object textToHighlight : textsToHighlight) {
                 String text;
                 if (textToHighlight instanceof BytesRef) {
-                    // keywords are internally stored as utf8 bytes
-                    text = ((BytesRef) textToHighlight).utf8ToString();
+                    text = mapper.fieldType().valueForDisplay(textToHighlight).toString();
                 } else {
                     text = textToHighlight.toString();
                 }

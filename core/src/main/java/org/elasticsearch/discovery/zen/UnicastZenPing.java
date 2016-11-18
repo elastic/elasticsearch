@@ -126,7 +126,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     private final Map<Integer, SendPingsHandler> receivedResponses = newConcurrentMap();
 
-    // a list of temporal responses a node will return for a request (holds requests from other configuredHosts)
+    // a list of temporal responses a node will return for a request (holds responses from other nodes)
     private final Queue<PingResponse> temporalResponses = ConcurrentCollections.newQueue();
 
     private final UnicastHostsProvider hostsProvider;

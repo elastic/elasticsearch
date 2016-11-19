@@ -19,8 +19,18 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.antlr.Walker;
+
+/**
+ * Implemented by {@link ANode}s that might be "null safe" like {@link PField} and {@link PCallInvoke}. Only implemented by
+ * {@linkplain ANodes}s that are returned by the {@link Walker} so nodes like {@link PSubNullSafeCallInvoke} don't implement it
+ */
 public interface IMaybeNullSafe {
-    public static boolean applyIfPossible(ANode node, EElvis defaultForNull) {
+    /**
+     * If the {@code node} implements {@linkplain IMaybeNullSafe} and is null safe then set {@code defaultForNull} so it can jump to the
+     * {@linkplain EElvis}'s right hand side rather than emit {@code null}.
+     */
+    static boolean applyIfPossible(ANode node, EElvis defaultForNull) {
         if (node instanceof IMaybeNullSafe) {
             IMaybeNullSafe maybeNullSafe = (IMaybeNullSafe) node;
             if (maybeNullSafe.isNullSafe()) {
@@ -31,6 +41,14 @@ public interface IMaybeNullSafe {
         return false;
     }
 
+    /**
+     * Has this node been configured to be null safe? Nodes like {@link PField} aren't null safe if specified like {@code params.a} but are
+     * if specified like {@code params?.a}.
+     */
     boolean isNullSafe();
+
+    /**
+     * Set {@code defaultForNull} so this node can jump to the {@linkplain EElvis}'s right hand side rather than emit {@code null}.
+     */
     void setDefaultForNull(EElvis defaultForNull);
 }

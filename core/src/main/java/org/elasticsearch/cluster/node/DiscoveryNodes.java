@@ -56,19 +56,17 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     private final String masterNodeId;
     private final String localNodeId;
-    private final Version minNodeVersion;
     private final Version minNonClientNodeVersion;
 
     private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes,
                            ImmutableOpenMap<String, DiscoveryNode> masterNodes, ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
-                           String masterNodeId, String localNodeId, Version minNodeVersion, Version minNonClientNodeVersion) {
+                           String masterNodeId, String localNodeId, Version minNonClientNodeVersion) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
         this.ingestNodes = ingestNodes;
         this.masterNodeId = masterNodeId;
         this.localNodeId = localNodeId;
-        this.minNodeVersion = minNodeVersion;
         this.minNonClientNodeVersion = minNonClientNodeVersion;
     }
 
@@ -173,7 +171,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return existing != null && existing.equals(node);
     }
 
-
     /**
      * Get the id of the master node
      *
@@ -228,16 +225,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     public boolean isAllNodes(String... nodesIds) {
         return nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_all"));
-    }
-
-
-    /**
-     * Returns the version of the node with the oldest version in the cluster
-     *
-     * @return the oldest version in the cluster
-     */
-    public Version getSmallestVersion() {
-        return minNodeVersion;
     }
 
     /**
@@ -677,7 +664,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
             return new DiscoveryNodes(
                 nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), ingestNodesBuilder.build(),
-                masterNodeId, localNodeId, minNodeVersion, minNonClientNodeVersion
+                masterNodeId, localNodeId, minNonClientNodeVersion
             );
         }
 

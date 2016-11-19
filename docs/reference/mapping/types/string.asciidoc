@@ -90,7 +90,7 @@ The following parameters are accepted by `string` fields:
 <<fielddata,`fielddata`>>::
 
     Can the field use in-memory fielddata for sorting, aggregations,
-    or scripting? Accepts `disabled` or `paged_bytes` (default).
+    or scripting? Accepts `{ "format": "disabled" }` or `{ "format": "paged_bytes" }` (default).
     Not analyzed fields will use <<doc-values,doc values>> in preference
     to fielddata.
 

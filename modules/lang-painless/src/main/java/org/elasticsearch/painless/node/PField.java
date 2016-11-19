@@ -38,11 +38,16 @@ import java.util.Set;
 /**
  * Represents a field load/store and defers to a child subnode.
  */
-public final class PField extends AStoreable {
+public final class PField extends AStoreable implements IMaybeNullSafe {
 
     private final boolean nullSafe;
     private final String value;
 
+    /**
+     * The {@link EElvis} operator containing this node to which we can emit a jump to put the replacement value for null on the stack.
+     * Null if there isn't such an operator or if this is not null safe.
+     */
+    private EElvis defaultForNull;
     private AStoreable sub = null;
 
     public PField(Location location, AExpression prefix, boolean nullSafe, String value) {
@@ -50,6 +55,17 @@ public final class PField extends AStoreable {
 
         this.nullSafe = nullSafe;
         this.value = Objects.requireNonNull(value);
+    }
+
+    @Override
+    public boolean isNullSafe() {
+        return nullSafe;
+    }
+
+    @Override
+    public void setDefaultForNull(EElvis defaultForNull) {
+        this.defaultForNull = defaultForNull;
+        IMaybeNullSafe.applyIfPossible(prefix, defaultForNull);
     }
 
     @Override
@@ -109,7 +125,7 @@ public final class PField extends AStoreable {
         }
 
         if (nullSafe) {
-            sub = new PSubNullSafeField(location, sub);
+            sub = new PSubNullSafeField(location, sub, defaultForNull);
         }
 
         sub.write = write;

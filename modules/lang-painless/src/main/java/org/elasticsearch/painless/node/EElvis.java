@@ -38,6 +38,8 @@ import static java.util.Objects.requireNonNull;
 public class EElvis extends AExpression {
     private AExpression lhs;
     private AExpression rhs;
+    private Label nullLabel;
+    private boolean lhsIsNullSafe = false;
 
     public EElvis(Location location, AExpression lhs, AExpression rhs) {
         super(location);
@@ -54,7 +56,15 @@ public class EElvis extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        if (expected != null && expected.sort.primitive) {
+        if (lhs instanceof IMaybeNullSafe) {
+            IMaybeNullSafe maybeNullSafe = (IMaybeNullSafe) lhs;
+            if (maybeNullSafe.isNullSafe()) {
+                lhsIsNullSafe = true;
+                maybeNullSafe.setDefaultForNull(this);
+            }
+        }
+        lhsIsNullSafe = IMaybeNullSafe.applyIfPossible(lhs, this);
+        if (false == lhsIsNullSafe && expected != null && expected.sort.primitive) {
             throw createError(new IllegalArgumentException("Evlis operator cannot return primitives"));
         }
         lhs.expected = expected;
@@ -73,7 +83,7 @@ public class EElvis extends AExpression {
         if (lhs.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
-        if (lhs.actual.sort.primitive) {
+        if (lhs.actual.sort.primitive && false == lhsIsNullSafe) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
         if (rhs.isNull) {
@@ -92,6 +102,13 @@ public class EElvis extends AExpression {
         rhs = rhs.cast(locals);
     }
 
+    Label nullLabel() {
+        if (nullLabel == null) {
+            nullLabel = new Label();
+        }
+        return nullLabel;
+    }
+
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
@@ -99,8 +116,18 @@ public class EElvis extends AExpression {
         Label end = new Label();
 
         lhs.write(writer, globals);
-        writer.dup();
-        writer.ifNonNull(end);
+        if (lhsIsNullSafe && lhs.actual.sort.primitive) {
+            /* If the lhs is null safe and primitive then it doesn't make sense to check it for null. The only way to get the rhs is if the
+             * lhs jumped there on its own. */
+            assert nullLabel != null;
+            writer.goTo(end);
+        } else {
+            writer.dup();
+            writer.ifNonNull(end);
+        }
+        if (nullLabel != null) {
+            writer.mark(nullLabel);
+        }
         writer.pop();
         rhs.write(writer, globals);
         writer.mark(end);

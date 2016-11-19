@@ -36,12 +36,17 @@ import java.util.Set;
 /**
  * Represents a method call and defers to a child subnode.
  */
-public final class PCallInvoke extends AExpression {
+public final class PCallInvoke extends AExpression implements IMaybeNullSafe {
 
     private final String name;
     private final boolean nullSafe;
     private final List<AExpression> arguments;
 
+    /**
+     * The {@link EElvis} operator containing this node to which we can emit a jump to put the replacement value for null on the stack.
+     * Null if there isn't such an operator or if this is not null safe.
+     */
+    private EElvis defaultForNull;
     private AExpression sub = null;
 
     public PCallInvoke(Location location, AExpression prefix, String name, boolean nullSafe, List<AExpression> arguments) {
@@ -50,6 +55,17 @@ public final class PCallInvoke extends AExpression {
         this.name = Objects.requireNonNull(name);
         this.nullSafe = nullSafe;
         this.arguments = Objects.requireNonNull(arguments);
+    }
+
+    @Override
+    public boolean isNullSafe() {
+        return nullSafe;
+    }
+
+    @Override
+    public void setDefaultForNull(EElvis defaultForNull) {
+        this.defaultForNull = defaultForNull;
+        IMaybeNullSafe.applyIfPossible(prefix, defaultForNull);
     }
 
     @Override
@@ -90,7 +106,7 @@ public final class PCallInvoke extends AExpression {
         }
 
         if (nullSafe) {
-            sub = new PSubNullSafeCallInvoke(location, sub);
+            sub = new PSubNullSafeCallInvoke(location, sub, defaultForNull);
         }
 
         sub.expected = expected;

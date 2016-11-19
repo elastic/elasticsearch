@@ -74,7 +74,25 @@ public class ElvisTests extends ScriptTestCase {
         assertEquals(1, exec("return params.a?.b ?: 1"));
         assertEquals(1, exec("return params.a?.b ?: 2", singletonMap("a", singletonMap("b", 1)), true));
 
-        // TODO This could be expanded to allow primitives where neither of the two operations allow them alone
+        assertEquals(1, exec("return params.a?.b?.c ?: 2", singletonMap("a", singletonMap("b", singletonMap("c", 1))), true));
+        assertEquals(1, exec("return (params.a ?: params.b)?.c ?: 2", singletonMap("b", singletonMap("c", 1)), true));
+
+        assertEquals(0, exec("String a = null; int i = a?.length() ?: 0; return i"));
+        assertEquals(2, exec("String a = 'ab'; int i = a?.length() ?: 0; return i"));
+
+        assertEquals(0, exec("int[] a = null;       int i = a?.length ?: 0; return i"));
+        assertEquals(1, exec("int[] a = new int[1]; int i = a?.length ?: 0; return i"));
+
+        // Funny casts work because we're not boxing at all
+        assertEquals(0.0, exec("int[] a = null;       double b = a?.length ?: 0; return b"));
+        assertEquals(1.0, exec("int[] a = new int[1]; double b = a?.length ?: 0; return b"));
+
+        // Check that only one branch statement is checked if a ?. is followed by a ?:
+        checkOneBranchIfFirstIsNull("params?.a ?: 0", true);
+        checkOneBranchIfFirstIsNull("params?.a?.c ?: 0", true);
+        checkOneBranchIfFirstIsNull("params?.a?.c ?: params.c", true);
+        checkOneBranchIfFirstIsNull("params?.a?.c ?: params.c ?: 0", true);
+        checkOneBranchIfFirstIsNull("(params?.a?.c ?: params.c) ?: 0", false);
     }
 
     public void testLazy() {
@@ -89,12 +107,12 @@ public class ElvisTests extends ScriptTestCase {
      * first one only needs one comparison if the {@code a} is non-null while the second one needs two.
      */
     public void testRightAssociative() {
-        checkOneBranch("params.a ?: (params.b ?: params.c)", true);
-        checkOneBranch("(params.a ?: params.b) ?: params.c", false);
-        checkOneBranch("params.a ?: params.b ?: params.c", true);
+        checkOneBranchIfFirstIsNull("params.a ?: (params.b ?: params.c)", true);
+        checkOneBranchIfFirstIsNull("(params.a ?: params.b) ?: params.c", false);
+        checkOneBranchIfFirstIsNull("params.a ?: params.b ?: params.c", true);
     }
 
-    private void checkOneBranch(String code, boolean expectOneBranch) {
+    private void checkOneBranchIfFirstIsNull(String code, boolean expectOneBranch) {
         /* Sadly this is a super finicky about the output of the disassembly but I think it is worth having because it makes sure that
          * the code generated for the elvis operator is as efficient as possible. */
         String disassembled = Debugger.toString(code);

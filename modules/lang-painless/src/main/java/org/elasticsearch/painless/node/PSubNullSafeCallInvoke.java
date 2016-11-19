@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -34,13 +35,19 @@ import static java.util.Objects.requireNonNull;
  */
 public class PSubNullSafeCallInvoke extends AExpression {
     /**
-     * The expression gaurded by the null check. Required at construction time and replaced at analysis time.
+     * The expression guarded by the null check.
      */
-    private AExpression guarded;
+    private final AExpression guarded;
+    /**
+     * The {@link EElvis} operator containing this node to which we can emit a jump to put the replacement value for null on the stack.
+     * Null if there isn't such an operator.
+     */
+    private final EElvis defaultForNull;
 
-    public PSubNullSafeCallInvoke(Location location, AExpression guarded) {
+    public PSubNullSafeCallInvoke(Location location, AExpression guarded, @Nullable EElvis defaultForNull) {
         super(location);
         this.guarded = requireNonNull(guarded);
+        this.defaultForNull = defaultForNull;
     }
 
     @Override
@@ -52,8 +59,8 @@ public class PSubNullSafeCallInvoke extends AExpression {
     void analyze(Locals locals) {
         guarded.analyze(locals);
         actual = guarded.actual;
-        if (actual.sort.primitive) {
-            throw new IllegalArgumentException("Result of null safe operator must be nullable");
+        if (actual.sort.primitive && defaultForNull == null) {
+            throw new IllegalArgumentException("Result of null safe dereference must be nullable unless followed by ?:");
         }
     }
 
@@ -61,10 +68,12 @@ public class PSubNullSafeCallInvoke extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Label end = new Label();
+        Label nullLabel = defaultForNull == null ? new Label() : defaultForNull.nullLabel();
         writer.dup();
-        writer.ifNull(end);
+        writer.ifNull(nullLabel);
         guarded.write(writer, globals);
-        writer.mark(end);
+        if (defaultForNull == null) {
+            writer.mark(nullLabel);
+        }
     }
 }

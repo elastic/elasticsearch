@@ -657,4 +657,25 @@ public class BytesStreamsTests extends ESTestCase {
         IntStream.range(0, size).forEach(i -> map.put(keyGenerator.get(), valueGenerator.get()));
         return map;
     }
+
+    public void testWriteRandomStrings() throws IOException {
+        final int iters = scaledRandomIntBetween(5, 20);
+        for (int iter = 0; iter < iters; iter++) {
+            List<String> strings = new ArrayList<>();
+            int numStrings = randomIntBetween(100, 1000);
+            BytesStreamOutput output = new BytesStreamOutput(0);
+            for (int i = 0; i < numStrings; i++) {
+                String s = randomRealisticUnicodeOfLengthBetween(0, 2048);
+                strings.add(s);
+                output.writeString(s);
+            }
+
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                for (int i = 0; i < numStrings; i++) {
+                    String s = streamInput.readString();
+                    assertEquals(strings.get(i), s);
+                }
+            }
+        }
+    }
 }

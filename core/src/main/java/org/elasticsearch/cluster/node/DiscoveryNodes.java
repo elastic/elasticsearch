@@ -38,7 +38,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -338,16 +337,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             }
             return resolvedNodesIds.toArray(String.class);
         }
-    }
-
-    public DiscoveryNodes removeDeadMembers(Set<String> newNodes, String masterNodeId) {
-        Builder builder = new Builder().masterNodeId(masterNodeId).localNodeId(localNodeId);
-        for (DiscoveryNode node : this) {
-            if (newNodes.contains(node.getId())) {
-                builder.add(node);
-            }
-        }
-        return builder.build();
     }
 
     public DiscoveryNodes newNode(DiscoveryNode node) {

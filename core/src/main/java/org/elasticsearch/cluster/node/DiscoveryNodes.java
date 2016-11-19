@@ -396,7 +396,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         private final List<DiscoveryNode> removed;
         private final List<DiscoveryNode> added;
 
-        public Delta(@Nullable DiscoveryNode previousMasterNode, @Nullable DiscoveryNode newMasterNode, String localNodeId,
+        private Delta(@Nullable DiscoveryNode previousMasterNode, @Nullable DiscoveryNode newMasterNode, String localNodeId,
                      List<DiscoveryNode> removed, List<DiscoveryNode> added) {
             this.previousMasterNode = previousMasterNode;
             this.newMasterNode = newMasterNode;

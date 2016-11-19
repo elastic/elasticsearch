@@ -38,8 +38,11 @@ import static java.util.Objects.requireNonNull;
 public class EElvis extends AExpression {
     private AExpression lhs;
     private AExpression rhs;
+    /**
+     * The label that null safe operations in the lhs can jump to if they encounter a null. Jumping there will pop the null off of the stack
+     * and push the rhs on the stack.
+     */
     private Label nullLabel;
-    private boolean lhsIsNullSafe = false;
 
     public EElvis(Location location, AExpression lhs, AExpression rhs) {
         super(location);
@@ -56,6 +59,7 @@ public class EElvis extends AExpression {
 
     @Override
     void analyze(Locals locals) {
+        boolean lhsIsNullSafe = false;
         if (lhs instanceof IMaybeNullSafe) {
             IMaybeNullSafe maybeNullSafe = (IMaybeNullSafe) lhs;
             if (maybeNullSafe.isNullSafe()) {
@@ -102,6 +106,10 @@ public class EElvis extends AExpression {
         rhs = rhs.cast(locals);
     }
 
+    /**
+     * Get the label that null safe operations in the lhs can jump to if they encounter a null. Jumping there will pop the null off the
+     * stack and push the rhs.
+     */
     Label nullLabel() {
         if (nullLabel == null) {
             nullLabel = new Label();
@@ -114,18 +122,21 @@ public class EElvis extends AExpression {
         writer.writeDebugInfo(location);
 
         Label end = new Label();
-
         lhs.write(writer, globals);
-        if (lhsIsNullSafe && lhs.actual.sort.primitive) {
-            /* If the lhs is null safe and primitive then it doesn't make sense to check it for null. The only way to get the rhs is if the
-             * lhs jumped there on its own. */
-            assert nullLabel != null;
+        if (lhs.actual.sort.primitive) {
+            /* If the lhs primitive then it doesn't make sense to check it for null. The only way to get the rhs is if the lhs jumped there
+             * on its own. We can only get here if the lhs is a null safe operation because we don't allow lhs to return a primitive
+             * otherwise. */
+            if (nullLabel == null) {
+                throw createError(new IllegalStateException("Expected nullLabel to be created and consumed. This is a bug."));
+            }
             writer.goTo(end);
         } else {
             writer.dup();
             writer.ifNonNull(end);
         }
         if (nullLabel != null) {
+            // If the nullLabel was created by the writing the lhs then we need to mark it so it can be jumped to.
             writer.mark(nullLabel);
         }
         writer.pop();

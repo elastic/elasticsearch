@@ -252,11 +252,15 @@ public class Node implements Closeable {
             }
 
             final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
-                tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeEnvironment.nodeId());
             Logger logger = Loggers.getLogger(Node.class, tmpSettings);
+            final String nodeId = nodeEnvironment.nodeId();
+            tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
+            // this must be captured after the node name is possibly added to the settings
+            final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
             if (hadPredefinedNodeName == false) {
-                logger.info("node name [{}] derived from node ID; set [{}] to override",
-                    NODE_NAME_SETTING.get(tmpSettings), NODE_NAME_SETTING.getKey());
+                logger.info("node name [{}] derived from node ID [{}]; set [{}] to override", nodeName, nodeId, NODE_NAME_SETTING.getKey());
+            } else {
+                logger.info("node name [{}], node ID [{}]", nodeName, nodeId);
             }
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
@@ -319,7 +323,7 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId(),
+            final TribeService tribeService = new TribeService(settings, clusterService, nodeId,
                 s -> newTribeClientNode(s, classpathPlugins));
             resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,

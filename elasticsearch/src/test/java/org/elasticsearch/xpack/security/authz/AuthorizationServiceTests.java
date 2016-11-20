@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
@@ -71,6 +72,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -396,6 +398,24 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessDenied(anonymousUser, "indices:a", request);
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService, times(1)).state();
+        verify(state, times(1)).metaData();
+    }
+
+    public void testAuditTrailIsRecordedWhenIndexWildcardThrowsError() {
+        IndicesOptions options = IndicesOptions.fromOptions(false, false, true, true);
+        TransportRequest request = new GetIndexRequest().indices("not-an-index-*").indicesOptions(options);
+        ClusterState state = mockEmptyMetaData();
+        User user = new User("test user", "a_all");
+        roleMap.put("a_all", Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
+
+        final IndexNotFoundException nfe = expectThrows(
+                IndexNotFoundException.class,
+                () -> authorize(createAuthentication(user), GetIndexAction.NAME, request));
+        assertThat(nfe.getIndex(), is(notNullValue()));
+        assertThat(nfe.getIndex().getName(), is("not-an-index-*"));
+        verify(auditTrail).accessDenied(user, GetIndexAction.NAME, request);
+        verifyNoMoreInteractions(auditTrail);
+        verify(clusterService).state();
         verify(state, times(1)).metaData();
     }
 

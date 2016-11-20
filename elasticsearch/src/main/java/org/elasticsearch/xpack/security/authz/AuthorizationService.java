@@ -216,7 +216,7 @@ public class AuthorizationService extends AbstractComponent {
 
         MetaData metaData = clusterService.state().metaData();
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getRunAsUser(), roles, action, metaData);
-        Set<String> indexNames = indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
+        Set<String> indexNames = resolveIndexNames(authentication, action, request, metaData, authorizedIndices);
         assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
         //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
@@ -263,6 +263,16 @@ public class AuthorizationService extends AbstractComponent {
         }
 
         grant(authentication, action, originalRequest);
+    }
+
+    private Set<String> resolveIndexNames(Authentication authentication, String action, TransportRequest request, MetaData metaData,
+                                          AuthorizedIndices authorizedIndices) {
+        try {
+            return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
+        } catch (Exception e) {
+            auditTrail.accessDenied(authentication.getUser(), action, request);
+            throw e;
+        }
     }
 
     private void setIndicesAccessControl(IndicesAccessControl accessControl) {

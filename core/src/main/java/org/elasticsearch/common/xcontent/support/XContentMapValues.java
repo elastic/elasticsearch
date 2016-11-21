@@ -24,6 +24,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
@@ -360,7 +361,7 @@ public class XContentMapValues {
 
     public static int nodeIntegerValue(Object node) {
         if (node instanceof Number) {
-            return ((Number) node).intValue();
+            return Numbers.toIntExact((Number) node);
         }
         return Integer.parseInt(node.toString());
     }
@@ -369,10 +370,7 @@ public class XContentMapValues {
         if (node == null) {
             return defaultValue;
         }
-        if (node instanceof Number) {
-            return ((Number) node).intValue();
-        }
-        return Integer.parseInt(node.toString());
+        return nodeIntegerValue(node);
     }
 
     public static short nodeShortValue(Object node, short defaultValue) {
@@ -384,7 +382,7 @@ public class XContentMapValues {
 
     public static short nodeShortValue(Object node) {
         if (node instanceof Number) {
-            return ((Number) node).shortValue();
+            return Numbers.toShortExact((Number) node);
         }
         return Short.parseShort(node.toString());
     }
@@ -398,7 +396,7 @@ public class XContentMapValues {
 
     public static byte nodeByteValue(Object node) {
         if (node instanceof Number) {
-            return ((Number) node).byteValue();
+            return Numbers.toByteExact((Number) node);
         }
         return Byte.parseByte(node.toString());
     }
@@ -412,7 +410,7 @@ public class XContentMapValues {
 
     public static long nodeLongValue(Object node) {
         if (node instanceof Number) {
-            return ((Number) node).longValue();
+            return Numbers.toLongExact((Number) node);
         }
         return Long.parseLong(node.toString());
     }

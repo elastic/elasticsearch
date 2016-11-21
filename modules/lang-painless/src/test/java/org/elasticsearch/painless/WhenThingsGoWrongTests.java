@@ -174,7 +174,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testIllegalDynamicMethod() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("def x = 'test'; return x.getClass().toString()");
+            exec("def x = 'test'; return x.getClass().getClassLoader()");
         });
         assertTrue(expected.getMessage().contains("Unable to find dynamic method"));
     }

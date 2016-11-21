@@ -11,6 +11,29 @@
 # `NVM_DIR` environment variable.
 #
 
+# Set the default gradle parameters for running tests
+gradleoptstring="--info check -Dtests.network=true -Dtests.badapples=true"
+
+while [ $# -ge 1 ]
+do
+key="$1"
+case $key in
+    -g|--gradleoptstring)
+        gradleoptstring="$2"
+        shift 2;;
+    -h|--help)
+        echo -e "Syntax:\n"
+        echo -e "$0 [-g|--gradleoptstring] \"override gradle parameters for tests\"\n"
+        exit 0;;
+    -*)
+        echo "Unknown argument: $key";
+        exit 1;;
+    *)
+        # Unknown option
+        ;;
+esac
+done
+
 # Turn on semi-strict mode
 set -e pipefail
 
@@ -89,6 +112,6 @@ set -xuf
 gradle --stacktrace clean
 
 # Actually run the tests
-gradle --info check -Dtests.network=true -Dtests.badapples=true
+gradle $gradleoptstring
 
 # ~*~ shell-script-mode ~*~

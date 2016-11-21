@@ -250,9 +250,20 @@ name - highly undesirable). Tagging elasticsearch ec2 nodes and then filtering b
 [[discovery-ec2-attributes]]
 ===== Automatic Node Attributes
 
-Though not dependent on actually using `ec2` as discovery (but still requires the cloud aws plugin installed), the
-plugin can automatically add node attributes relating to ec2 (for example, availability zone, that can be used with
-the awareness allocation feature). In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings.
+Though not dependent on actually using `ec2` as discovery (but still requires the `discovery-ec2` plugin installed), the
+plugin can automatically add node attributes relating to ec2. In the future this may support other attributes, but this will
+currently only add an `aws_availability_zone` node attribute, which is the availability zone of the current node. Attributes
+can be used to isolate primary and replica shards across availability zones by using the
+{ref}/allocation-awareness.html[Allocation Awareness] feature.
+
+In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings. For example:
+
+[source,yaml]
+----
+cloud.node.auto_attributes: true
+
+cluster.routing.allocation.awareness.attributes: aws_availability_zone
+----
 
 [[discovery-ec2-endpoint]]
 ===== Using other EC2 endpoint

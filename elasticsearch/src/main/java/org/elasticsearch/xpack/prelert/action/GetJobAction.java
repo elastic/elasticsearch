@@ -20,11 +20,15 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,13 +42,18 @@ import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
+import org.elasticsearch.xpack.prelert.job.results.PageParams;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.prelert.utils.SingleDocument;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Response, GetJobAction.RequestBuilder> {
 
@@ -67,20 +76,42 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
+        public static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
+        public static final ParseField METRIC = new ParseField("metric");
+
+        static {
+            PARSER.declareString(Request::setJobId, Job.ID);
+            PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
+            PARSER.declareString((request, metric) -> {
+                Set<String> stats = Strings.splitStringByCommaToSet(metric);
+                request.setStats(stats);
+            }, METRIC);
+        }
+
         private String jobId;
         private boolean config;
         private boolean dataCounts;
         private boolean modelSizeStats;
+        private PageParams pageParams = null;
 
-        Request() {
+        public Request() {
+
         }
 
-        public Request(String jobId) {
-            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+        public void setJobId(String jobId) {
+            this.jobId = jobId;
         }
 
         public String getJobId() {
             return jobId;
+        }
+
+        public PageParams getPageParams() {
+            return pageParams;
+        }
+
+        public void setPageParams(PageParams pageParams) {
+            this.pageParams = ExceptionsHelper.requireNonNull(pageParams, PageParams.PAGE.getPreferredName());
         }
 
         public Request all() {
@@ -117,6 +148,16 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
             return this;
         }
 
+        public void setStats(Set<String> stats) {
+            if (stats.contains("_all")) {
+                all();
+            }
+            else {
+                config(stats.contains("config"));
+                dataCounts(stats.contains("data_counts"));
+                modelSizeStats(stats.contains("model_size_stats"));
+            }
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -126,24 +167,26 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobId = in.readString();
+            jobId = in.readOptionalString();
             config = in.readBoolean();
             dataCounts = in.readBoolean();
             modelSizeStats = in.readBoolean();
+            pageParams = in.readOptionalWriteable(PageParams::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(jobId);
+            out.writeOptionalString(jobId);
             out.writeBoolean(config);
             out.writeBoolean(dataCounts);
             out.writeBoolean(modelSizeStats);
+            out.writeOptionalWriteable(pageParams);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, config, dataCounts, modelSizeStats);
+            return Objects.hash(jobId, config, dataCounts, modelSizeStats, pageParams);
         }
 
         @Override
@@ -155,8 +198,11 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && this.config == other.config
-                    && this.dataCounts == other.dataCounts && this.modelSizeStats == other.modelSizeStats;
+            return Objects.equals(jobId, other.jobId)
+                    && this.config == other.config
+                    && this.dataCounts == other.dataCounts
+                    && this.modelSizeStats == other.modelSizeStats
+                    && Objects.equals(this.pageParams, other.pageParams);
         }
     }
 
@@ -233,41 +279,43 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
             }
         }
 
-        private SingleDocument<JobInfo> jobResponse;
+        private QueryPage<JobInfo> jobs;
 
-        public Response() {
-            jobResponse = SingleDocument.empty(Job.TYPE);
+        public Response(QueryPage<JobInfo> jobs) {
+            this.jobs = jobs;
         }
 
-        public Response(JobInfo jobResponse) {
-            this.jobResponse = new SingleDocument<>(Job.TYPE, jobResponse);
+        public Response() {}
+
+        public QueryPage<JobInfo> getResponse() {
+            return jobs;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobResponse = new SingleDocument<>(in, JobInfo::new);
+            jobs = new QueryPage<>(in, JobInfo::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            jobResponse.writeTo(out);
+            jobs.writeTo(out);
         }
 
         @Override
         public RestStatus status() {
-            return jobResponse.status();
+            return jobs.hitCount() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return jobResponse.toXContent(builder, params);
+            return jobs.doXContentBody(builder, params);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobResponse);
+            return Objects.hash(jobs);
         }
 
         @Override
@@ -279,7 +327,7 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(jobResponse, other.jobResponse);
+            return Objects.equals(jobs, other.jobs);
         }
 
         @SuppressWarnings("deprecation")
@@ -332,21 +380,45 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
             logger.debug("Get job '{}', config={}, data_counts={}, model_size_stats={}",
                     request.getJobId(), request.config(), request.dataCounts(), request.modelSizeStats());
 
-            // always get the job regardless of the request.config param because if the job
-            // can't be found a different response is returned.
-            Optional<Job> optionalJob = jobManager.getJob(request.getJobId(), state);
-            if (optionalJob.isPresent() == false) {
-                logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", request.getJobId()));
-                listener.onResponse(new Response());
-                return;
+            QueryPage<Response.JobInfo> response;
+
+            // Single Job
+            if (request.jobId != null && !request.jobId.isEmpty()) {
+                // always get the job regardless of the request.config param because if the job
+                // can't be found a different response is returned.
+                QueryPage<Job> jobs = jobManager.getJob(request.getJobId(), state);
+                if (jobs.hitCount() == 0) {
+                    logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", request.getJobId()));
+                    response = new QueryPage<>(Collections.emptyList(), 0);
+                    listener.onResponse(new Response(response));
+                    return;
+                } else if (jobs.hitCount() > 1) {
+                    logger.error(String.format(Locale.ROOT, "More than one job found for jobId [%s]", request.getJobId()));
+                }
+
+                logger.debug("Returning job [" + request.getJobId() + "]");
+                Job jobConfig = request.config() ? jobs.hits().get(0) : null;
+                DataCounts dataCounts = readDataCounts(request.dataCounts(), request.getJobId());
+                ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), request.getJobId());
+
+                Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats);
+                response = new QueryPage<>(Collections.singletonList(jobInfo), 1);
+
+            } else {
+                // Multiple Jobs
+                QueryPage<Job> jobsPage = jobManager.getJobs(request.pageParams.getFrom(), request.pageParams.getSize(), state);
+                List<Response.JobInfo> jobInfoList = new ArrayList<>();
+                for (Job job : jobsPage.hits()) {
+                    Job jobConfig = request.config() ? job : null;
+                    DataCounts dataCounts = readDataCounts(request.dataCounts(), job.getJobId());
+                    ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), job.getJobId());
+                    Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats);
+                    jobInfoList.add(jobInfo);
+                }
+                response = new QueryPage<>(jobInfoList, jobsPage.hitCount());
             }
 
-            logger.debug("Returning job '" + optionalJob.get().getJobId() + "'");
-
-            Job job = request.config() && optionalJob.isPresent() ? optionalJob.get() : null;
-            DataCounts dataCounts = readDataCounts(request);
-            ModelSizeStats modelSizeStats = readModelSizeStats(request);
-            listener.onResponse(new Response(new Response.JobInfo(job, dataCounts, modelSizeStats)));
+            listener.onResponse(new Response(response));
         }
 
         @Override
@@ -354,21 +426,19 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         }
 
-        private DataCounts readDataCounts(Request request) {
-            if (request.dataCounts()) {
-                Optional<DataCounts> counts = processManager.getDataCounts(request.getJobId());
-                return counts.orElseGet(() -> jobProvider.dataCounts(request.getJobId()));
+        private DataCounts readDataCounts(boolean dataCounts, String jobId) {
+            if (dataCounts) {
+                Optional<DataCounts> counts = processManager.getDataCounts(jobId);
+                return counts.orElseGet(() -> jobProvider.dataCounts(jobId));
             }
-
             return null;
         }
 
-        private ModelSizeStats readModelSizeStats(Request request) {
-            if (request.modelSizeStats()) {
-                Optional<ModelSizeStats> sizeStats = processManager.getModelSizeStats(request.getJobId());
-                return sizeStats.orElseGet(() -> jobProvider.modelSizeStats(request.getJobId()).orElse(null));
+        private ModelSizeStats readModelSizeStats(boolean modelSizeStats, String jobId) {
+            if (modelSizeStats) {
+                Optional<ModelSizeStats> sizeStats = processManager.getModelSizeStats(jobId);
+                return sizeStats.orElseGet(() -> jobProvider.modelSizeStats(jobId).orElse(null));
             }
-
             return null;
         }
     }

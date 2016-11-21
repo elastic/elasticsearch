@@ -20,11 +20,11 @@ setup:
 "Test get job stats after uploading data prompting the creation of some stats":
   - do:
       xpack.prelert.get_job:
-        job_id: job-stats-test
+        jobId: job-stats-test
 
-  - is_true: document.config
-  - is_false: document.data_counts
-  - is_false: document.model_size_stats
+  - is_true: hits.0.config
+  - is_false: hits.0.data_counts
+  - is_false: hits.0.model_size_stats
 
   - do:
       xpack.prelert.post_data:
@@ -41,35 +41,35 @@ setup:
 
   - do:
       xpack.prelert.get_job:
-        job_id: job-stats-test
+        jobId: job-stats-test
         metric: data_counts
 
-  - match: { document.data_counts.processed_record_count: 2 }
-  - match: { document.data_counts.processed_field_count: 4}
-  - match: { document.data_counts.input_field_count: 4 }
+  - match: { hits.0.data_counts.processed_record_count: 2 }
+  - match: { hits.0.data_counts.processed_field_count: 4}
+  - match: { hits.0.data_counts.input_field_count: 4 }
 
 # Test filters
 # It's difficult to test for the presence of model_size_stats as they
 # won't be created with such a small data sample
   - do:
       xpack.prelert.get_job:
-        job_id: "job-stats-test"
+        jobId: "job-stats-test"
         metric: "data_counts"
-  - is_false: document.config
-  - is_true: document.data_counts
-  - is_false: document.model_size_stats
+  - is_false: hits.0.config
+  - is_true: hits.0.data_counts
+  - is_false: hits.0.model_size_stats
 
   - do:
       xpack.prelert.get_job:
-        job_id: "job-stats-test"
+        jobId: "job-stats-test"
         metric: "model_size_stats"
-  - is_false: document.config
-  - is_false: document.data_counts
+  - is_false: hits.0.config
+  - is_false: hits.0.data_counts
 
   - do:
       xpack.prelert.get_job:
-        job_id: "job-stats-test"
+        jobId: "job-stats-test"
         metric: "_all"
-  - is_true: document.config
-  - is_true: document.data_counts
+  - is_true: hits.0.config
+  - is_true: hits.0.data_counts
 

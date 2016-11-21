@@ -44,8 +44,7 @@ public class PrelertJobIT extends ESRestTestCase {
                 () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/non-existing-job"));
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(e.getMessage(), containsString("\"exists\":false"));
-        assertThat(e.getMessage(), containsString("\"type\":\"job\""));
+        assertThat(e.getMessage(), containsString("\"hitCount\":0"));
     }
 
     public void testGetJob_GivenJobExists() throws Exception {
@@ -55,8 +54,7 @@ public class PrelertJobIT extends ESRestTestCase {
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"exists\":true"));
-        assertThat(responseAsString, containsString("\"type\":\"job\""));
+        assertThat(responseAsString, containsString("\"hitCount\":1"));
         assertThat(responseAsString, containsString("\"jobId\":\"farequote\""));
     }
 

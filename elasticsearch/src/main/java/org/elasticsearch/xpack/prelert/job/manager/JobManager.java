@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -93,14 +94,14 @@ public class JobManager {
      *         with the given {@code jobId} exists, or an empty {@code Optional}
      *         otherwise
      */
-    public Optional<Job> getJob(String jobId, ClusterState clusterState) {
+    public QueryPage<Job> getJob(String jobId, ClusterState clusterState) {
         PrelertMetadata prelertMetadata = clusterState.getMetaData().custom(PrelertMetadata.TYPE);
         Job job = prelertMetadata.getJobs().get(jobId);
         if (job == null) {
-            return Optional.empty();
+            return new QueryPage<>(Collections.emptyList(), 0);
         }
 
-        return Optional.of(job);
+        return new QueryPage<>(Collections.singletonList(job), 1);
     }
 
     /**

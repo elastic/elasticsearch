@@ -24,18 +24,17 @@
   - is_true: "prelertresults-farequote"
 
   - do:
-      xpack.prelert.get_jobs:
+      xpack.prelert.get_job:
         from: 0
         size: 100
   - match: { hitCount: 1 }
-  - match: { hits.0.jobId: "farequote" }
+  - match: { hits.0.config.jobId: "farequote" }
 
   - do:
       xpack.prelert.get_job:
-        job_id: "farequote"
-  - match: { exists: true }
-  - match: { type: "job" }
-  - match: { document.config.jobId: "farequote" }
+        jobId: "farequote"
+  - match: { hitCount: 1 }
+  - match: { hits.0.config.jobId: "farequote" }
 
   - do:
       xpack.prelert.delete_job:
@@ -45,7 +44,7 @@
   - do:
       catch: missing
       xpack.prelert.get_job:
-        job_id: "farequote"
+        jobId: "farequote"
 
   - do:
       indices.exists:
@@ -57,7 +56,7 @@
   - do:
       catch: missing
       xpack.prelert.get_job:
-        job_id: "non-existing"
+        jobId: "non-existing"
 
 ---
 "Test put job with id that is already taken":

@@ -33,11 +33,11 @@ import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleter;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.Request,
         DeleteModelSnapshotAction.Response, DeleteModelSnapshotAction.RequestBuilder> {
@@ -171,9 +171,9 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
             //
             // NORELEASE: technically, this could be stale and refuse a delete, but I think that's acceptable
             // since it is non-destructive
-            Optional<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
-            if (job.isPresent()) {
-                String currentModelInUse = job.get().getModelSnapshotId();
+            QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
+            if (job.hitCount() > 0) {
+                String currentModelInUse = job.hits().get(0).getModelSnapshotId();
                 if (currentModelInUse != null && currentModelInUse.equals(request.getSnapshotId())) {
                     throw new IllegalArgumentException(Messages.getMessage(Messages.REST_CANNOT_DELETE_HIGHEST_PRIORITY,
                             request.getSnapshotId(), request.getJobId()));

@@ -6,16 +6,26 @@
 package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.xpack.prelert.action.GetJobAction.Request;
+import org.elasticsearch.xpack.prelert.job.results.PageParams;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
 public class GetJobActionRequestTests extends AbstractStreamableTestCase<GetJobAction.Request> {
 
     @Override
     protected Request createTestInstance() {
-        Request instance = new Request(randomAsciiOfLengthBetween(1, 20));
+        Request instance = new Request();
         instance.config(randomBoolean());
         instance.dataCounts(randomBoolean());
         instance.modelSizeStats(randomBoolean());
+        if (randomBoolean()) {
+            int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);
+            int maxSize = PageParams.MAX_FROM_SIZE_SUM - from;
+            int size = randomInt(maxSize);
+            instance.setPageParams(new PageParams(from, size));
+        }
+        if (randomBoolean()) {
+            instance.setJobId(randomAsciiOfLengthBetween(1, 20));
+        }
         return instance;
     }
 

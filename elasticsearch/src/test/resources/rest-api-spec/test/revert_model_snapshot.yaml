@@ -219,9 +219,9 @@ setup:
 
   - do:
       xpack.prelert.get_job:
-        job_id: foo
+        jobId: foo
         metric: data_counts
 
-  - match: { document.data_counts.latest_record_timestamp: 1464739200000 }
+  - match: { hits.0.data_counts.latest_record_timestamp: 1464739200000 }
 
 

@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.prelert.action.GetBucketAction;
 import org.elasticsearch.xpack.prelert.action.GetCategoryDefinitionAction;
 import org.elasticsearch.xpack.prelert.action.GetInfluencersAction;
 import org.elasticsearch.xpack.prelert.action.GetJobAction;
-import org.elasticsearch.xpack.prelert.action.GetJobsAction;
 import org.elasticsearch.xpack.prelert.action.GetListAction;
 import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.action.GetRecordsAction;
@@ -78,7 +77,6 @@ import org.elasticsearch.xpack.prelert.rest.data.RestPostDataFlushAction;
 import org.elasticsearch.xpack.prelert.rest.influencers.RestGetInfluencersAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobAction;
-import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPauseJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPutJobsAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestResumeJobAction;
@@ -187,7 +185,6 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
     public List<Class<? extends RestHandler>> getRestHandlers() {
         return Arrays.asList(
                 RestGetJobAction.class,
-                RestGetJobsAction.class,
                 RestPutJobsAction.class,
                 RestDeleteJobAction.class,
                 RestPauseJobAction.class,
@@ -217,7 +214,6 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
                 new ActionHandler<>(GetJobAction.INSTANCE, GetJobAction.TransportAction.class),
-                new ActionHandler<>(GetJobsAction.INSTANCE, GetJobsAction.TransportAction.class),
                 new ActionHandler<>(PutJobAction.INSTANCE, PutJobAction.TransportAction.class),
                 new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
                 new ActionHandler<>(PauseJobAction.INSTANCE, PauseJobAction.TransportAction.class),

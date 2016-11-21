@@ -1,13 +1,16 @@
 {
   "xpack.prelert.get_job": {
-    "methods": [ "GET" ],
+    "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/jobs/{job_id}",
-      "paths": [ "/_xpack/prelert/jobs/{job_id}", "/_xpack/prelert/jobs/{job_id}/{metric}"],
+      "path": "/_xpack/prelert/jobs/{jobId}",
+      "paths": [
+        "/_xpack/prelert/jobs",
+        "/_xpack/prelert/jobs/{jobId}",
+        "/_xpack/prelert/jobs/{jobId}/{metric}"
+      ],
       "parts": {
-        "job_id": {
+        "jobId": {
           "type": "string",
-          "required": true,
           "description": "The ID of the job to fetch"
         },
         "metric" : {
@@ -15,8 +18,20 @@
           "options" : ["_all", "config", "data_counts", "model_size_stats"],
           "description" : "Limit the information returned to the specified statistics"
         }
+      },
+      "params": {
+        "from": {
+          "type": "int",
+          "description": "skips a number of jobs"
+        },
+        "size": {
+          "type": "int",
+          "description": "specifies a max number of jobs to get"
+        }
       }
     },
-    "body": null
+    "body": {
+      "description" : "Job selection criteria"
+    }
   }
 }

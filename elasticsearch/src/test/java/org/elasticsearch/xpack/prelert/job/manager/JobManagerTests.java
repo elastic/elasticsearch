@@ -58,8 +58,9 @@ public class JobManagerTests extends ESTestCase {
         builder.putJob(buildJobBuilder("foo").build(), false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, builder.build())).build();
-        Optional<Job> doc = jobManager.getJob("foo", clusterState);
-        assertTrue(doc.isPresent());
+        QueryPage<Job> doc = jobManager.getJob("foo", clusterState);
+        assertTrue(doc.hitCount() > 0);
+        assertThat(doc.hits().get(0).getJobId(), equalTo("foo"));
     }
 
     public void testFilter() {

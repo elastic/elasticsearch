@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterF
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.OldDataRemover;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.prelert.utils.SingleDocument;
 
@@ -53,7 +54,6 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -338,9 +338,9 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                 throw new IllegalStateException(Messages.getMessage(Messages.REST_INVALID_REVERT_PARAMS));
             }
 
-            Optional<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
+            QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
             Allocation allocation = jobManager.getJobAllocation(request.getJobId());
-            if (job.isPresent() && allocation.getStatus().equals(JobStatus.RUNNING)) {
+            if (job.hitCount() > 0 && allocation.getStatus().equals(JobStatus.RUNNING)) {
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
             }
 

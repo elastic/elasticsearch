@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelDebugConfig;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformType;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
@@ -32,9 +33,10 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
     @Override
     protected Response createTestInstance() {
         final Response result;
-        if (randomBoolean()) {
-            result = new Response();
-        } else {
+
+        int listSize = randomInt(10);
+        List<Response.JobInfo> jobInfoList = new ArrayList<>(listSize);
+        for (int j = 0; j < listSize; j++) {
             String jobId = randomAsciiOfLength(10);
             String description = randomBoolean() ? randomAsciiOfLength(10) : null;
             Date createTime = new Date(randomPositiveLong());
@@ -71,7 +73,7 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
             ModelSizeStats sizeStats = null;
 
             if (randomBoolean()) {
-            dataCounts = new DataCounts(randomAsciiOfLength(10), randomIntBetween(1, 1_000_000),
+                dataCounts = new DataCounts(randomAsciiOfLength(10), randomIntBetween(1, 1_000_000),
                         randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                         randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                         new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate());
@@ -79,8 +81,11 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
             if (randomBoolean()) {
                 sizeStats = new ModelSizeStats.Builder("foo").build();
             }
-            result = new Response(new GetJobAction.Response.JobInfo(job, dataCounts, sizeStats));
+            Response.JobInfo jobInfo = new Response.JobInfo(job, dataCounts, sizeStats);
+            jobInfoList.add(jobInfo);
         }
+
+        result = new Response(new QueryPage<>(jobInfoList, jobInfoList.size()));
 
         return result;
     }

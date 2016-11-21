@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.elasticsearch.xpack.prelert.job.logs.JobLogs;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
@@ -245,37 +244,20 @@ public class JobManager {
     public void deleteJob(DeleteJobAction.Request request, ActionListener<DeleteJobAction.Response> actionListener) {
         String jobId = request.getJobId();
         LOGGER.debug("Deleting job '" + jobId + "'");
-        // NORELEASE: Should also delete the running process
+        // NORELEASE: Should first gracefully stop any running process
         ActionListener<Boolean> delegateListener = new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean jobDeleted) {
-                jobProvider.deleteJobRelatedIndices(request.getJobId(), new ActionListener<Boolean>() {
-                    @Override
-                    public void onResponse(Boolean indicesDeleted) {
-
-                        new JobLogs(settings).deleteLogs(env, jobId);
-                        // NORELEASE: This is not the place the audit
-                        // log
-                        // (indexes a document), because this method is
-                        // executed on
-                        // the cluster state update task thread and any
-                        // action performed on that thread should be
-                        // quick.
-                        // audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
-
-                        // Also I wonder if we need to audit log infra
-                        // structure in prelert as when we merge into
-                        // xpack
-                        // we can use its audit trailing. See:
-                        // https://github.com/elastic/prelert-legacy/issues/48
-                        actionListener.onResponse(new DeleteJobAction.Response(jobDeleted && indicesDeleted));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        actionListener.onFailure(e);
-                    }
-                });
+                if (jobDeleted) {
+                    jobProvider.deleteJobRelatedIndices(request.getJobId(), actionListener);
+                    // NORELEASE: This is not the place the audit log
+                    // (indexes a document), because this method is
+                    // executed on the cluster state update task thread and any
+                    // action performed on that thread should be quick.
+                    //audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
+                } else {
+                    actionListener.onResponse(new DeleteJobAction.Response(false));
+                }
             }
 
             @Override

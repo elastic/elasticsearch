@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.persistence;
 
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
@@ -116,5 +117,5 @@ public interface JobProvider extends JobResultsProvider {
      * Delete all the job related documents from the database.
      */
     // TODO: should live together with createJobRelatedIndices (in case it moves)?
-    void deleteJobRelatedIndices(String jobId, ActionListener<Boolean> listener);
+    void deleteJobRelatedIndices(String jobId, ActionListener<DeleteJobAction.Response> listener);
 }

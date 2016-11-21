@@ -13,9 +13,8 @@ import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutoDetectResultProcessor;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.StateReader;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.writer.DataToProcessWriter;
@@ -43,18 +42,13 @@ public class AutodetectCommunicator implements Closeable {
     private final DataToProcessWriter autoDetectWriter;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
 
-    private final StateReader stateReader;
-    private final Thread stateParserThread;
-
-
     public AutodetectCommunicator(ThreadPool threadPool, Job job, AutodetectProcess process, Logger jobLogger,
-                                  JobResultsPersister persister, StatusReporter statusReporter,
-                                  AutoDetectResultProcessor autoDetectResultProcessor) {
+                                  StatusReporter statusReporter, AutoDetectResultProcessor autoDetectResultProcessor,
+                                  StateProcessor stateParser) {
         this.autodetectProcess = process;
         this.jobLogger = jobLogger;
         this.statusReporter = statusReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;
-        this.stateReader = new StateReader(persister, process.getPersistStream(), this.jobLogger);
 
         // TODO norelease: prevent that we fail to start any of the required threads for interacting with analytical process:
         // We should before we start the analytical process (and scheduler) verify that have enough threads.
@@ -63,9 +57,9 @@ public class AutodetectCommunicator implements Closeable {
         threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() -> {
             this.autoDetectResultProcessor.process(jobLogger, process.getProcessOutStream(), usePerPartitionNormalization);
         });
-        // NORELEASE - use ES ThreadPool
-        stateParserThread = new Thread(stateReader, job.getId() + "-State-Parser");
-        stateParserThread.start();
+        threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() ->
+            stateParser.process(job.getId(), process.getPersistStream())
+        );
 
         this.autoDetectWriter = createProcessWriter(job, process, statusReporter);
     }

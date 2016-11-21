@@ -15,7 +15,8 @@ import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.TimeRange;
@@ -132,8 +133,9 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         Logger jobLogger = Mockito.mock(Logger.class);
         JobResultsPersister resultsPersister = mock(JobResultsPersister.class);
         StatusReporter statusReporter = mock(StatusReporter.class);
-        return new AutodetectCommunicator(threadPool, createJobDetails(), autodetectProcess, jobLogger, resultsPersister,
-                statusReporter, autoDetectResultProcessor);
+        StateProcessor stateProcessor = mock(StateProcessor.class);
+        return new AutodetectCommunicator(threadPool, createJobDetails(), autodetectProcess, jobLogger,
+                statusReporter, autoDetectResultProcessor, stateProcessor);
     }
 
 }

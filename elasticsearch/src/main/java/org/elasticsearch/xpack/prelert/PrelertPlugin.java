@@ -66,7 +66,7 @@ import org.elasticsearch.xpack.prelert.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.NativeAutodetectProcessFactory;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutodetectResultsParser;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobService;
 import org.elasticsearch.xpack.prelert.job.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;

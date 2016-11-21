@@ -27,8 +27,9 @@ import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectCommunicator;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessFactory;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutoDetectResultProcessor;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutodetectResultsParser;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.prelert.job.process.normalizer.noop.NoOpRenormaliser;
@@ -117,7 +118,8 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         JobResultsPersister persister = new ElasticsearchPersister(jobId, client);
         // TODO Port the normalizer from the old project
         AutoDetectResultProcessor processor =  new AutoDetectResultProcessor(new NoOpRenormaliser(), persister, parser);
-        return new AutodetectCommunicator(threadPool, job, process, jobLogger, persister, statusReporter, processor);
+        StateProcessor stateProcessor = new StateProcessor(settings, persister);
+        return new AutodetectCommunicator(threadPool, job, process, jobLogger, statusReporter, processor, stateProcessor);
     }
 
     @Override

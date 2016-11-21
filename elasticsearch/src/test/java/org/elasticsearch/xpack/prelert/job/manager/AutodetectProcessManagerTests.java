@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectCommunicator;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessFactory;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutodetectResultsParser;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.TimeRange;

@@ -3,13 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing;
+package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormaliser;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;

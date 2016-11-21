@@ -3,10 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing;
+package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.verify;
 /**
  * Tests for reading state from the native process.
  */
-public class StateReaderTests extends ESTestCase {
+public class StateProcessorTests extends ESTestCase {
 
     private static final String STATE_SAMPLE = "first header\n"
             + "first data\n"
@@ -42,8 +42,8 @@ public class StateReaderTests extends ESTestCase {
         ArgumentCaptor<BytesReference> bytesRefCaptor = ArgumentCaptor.forClass(BytesReference.class);
         JobResultsPersister persister = Mockito.mock(ElasticsearchPersister.class);
 
-        StateReader stateReader = new StateReader(persister, stream, Mockito.mock(Logger.class));
-        stateReader.run();
+        StateProcessor stateParser = new StateProcessor(Settings.EMPTY, persister);
+        stateParser.process("_id", stream);
 
         verify(persister, times(3)).persistBulkState(bytesRefCaptor.capture());
 

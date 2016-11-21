@@ -3,42 +3,37 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing;
+package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
 
-import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * A runnable class that reads the autodetect persisted state
- * and writes the results via the {@linkplain JobResultsPersister}
- * passed in the constructor.
+ * Reads the autodetect persisted state and writes the results via the {@linkplain JobResultsPersister} passed in the constructor.
  */
-public class StateReader implements Runnable {
+public class StateProcessor extends AbstractComponent {
 
     private static final int READ_BUF_SIZE = 8192;
-
-    private final InputStream stream;
-    private final Logger logger;
     private final JobResultsPersister persister;
 
-    public StateReader(JobResultsPersister persister, InputStream stream, Logger logger) {
-        this.stream = stream;
-        this.logger = logger;
+    public StateProcessor(Settings settings, JobResultsPersister persister) {
+        super(settings);
         this.persister = persister;
     }
 
-    @Override
-    public void run() {
+    public void process(String jobId, InputStream in) {
         try {
             BytesReference bytesRef = null;
             byte[] readBuf = new byte[READ_BUF_SIZE];
-            for (int bytesRead = stream.read(readBuf); bytesRead != -1; bytesRead = stream.read(readBuf)) {
+            for (int bytesRead = in.read(readBuf); bytesRead != -1; bytesRead = in.read(readBuf)) {
                 if (bytesRef == null) {
                     bytesRef = new BytesArray(readBuf, 0, bytesRead);
                 } else {
@@ -48,10 +43,9 @@ public class StateReader implements Runnable {
                 readBuf = new byte[READ_BUF_SIZE];
             }
         } catch (IOException e) {
-            logger.info("Error reading autodetect state output", e);
+            logger.info(new ParameterizedMessage("[{}] Error reading autodetect state output", jobId), e);
         }
-
-        logger.info("State output finished");
+        logger.info("[{}] State output finished", jobId);
     }
 
     /**

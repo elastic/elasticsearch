@@ -97,7 +97,7 @@ to a local Java truststore and pass the location to the script as follows:
 +
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://....
+sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
 -----------------------------------
 
 [[listing-removing-updating]]

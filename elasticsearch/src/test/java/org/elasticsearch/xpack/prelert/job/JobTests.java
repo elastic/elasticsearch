@@ -632,9 +632,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setCustomSettings(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
         }
         if (randomBoolean()) {
-            builder.setAverageBucketProcessingTimeMs(randomDouble());
-        }
-        if (randomBoolean()) {
             builder.setModelSnapshotId(randomAsciiOfLength(10));
         }
         return builder.build();

@@ -46,8 +46,8 @@ import java.util.regex.Pattern;
  */
 public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent {
 
-    public static final Job PROTO = new Job(null, null, null, null, null, 0L, null, null, null, null, null,
-            null, null, null, null, null, null, null, null, null);
+    public static final Job PROTO =
+            new Job(null, null, null, null, null, 0L, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
     public static final long DEFAULT_BUCKETSPAN = 300;
 
@@ -74,7 +74,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("resultsRetentionDays");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField TRANSFORMS = new ParseField("transforms");
-    public static final ParseField AVERAGE_BUCKET_PROCESSING_TIME = new ParseField("averageBucketProcessingTimeMs");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("modelSnapshotId");
 
     public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("job_details", Builder::new);
@@ -121,7 +120,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
-        PARSER.declareDouble(Builder::setAverageBucketProcessingTimeMs, AVERAGE_BUCKET_PROCESSING_TIME);
         PARSER.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
     }
 
@@ -144,7 +142,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final Long modelSnapshotRetentionDays;
     private final Long resultsRetentionDays;
     private final Map<String, Object> customSettings;
-    private final Double averageBucketProcessingTimeMs;
     private final String modelSnapshotId;
 
     public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime, long timeout,
@@ -152,7 +149,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                DataDescription dataDescription, List<TransformConfig> transforms,
                ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime, Long renormalizationWindowDays,
                Long backgroundPersistInterval, Long modelSnapshotRetentionDays, Long resultsRetentionDays,
-               Map<String, Object> customSettings, Double averageBucketProcessingTimeMs, String modelSnapshotId) {
+               Map<String, Object> customSettings, String modelSnapshotId) {
         this.jobId = jobId;
         this.description = description;
         this.createTime = createTime;
@@ -171,7 +168,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
         this.resultsRetentionDays = resultsRetentionDays;
         this.customSettings = customSettings;
-        this.averageBucketProcessingTimeMs = averageBucketProcessingTimeMs;
         this.modelSnapshotId = modelSnapshotId;
     }
 
@@ -194,7 +190,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         customSettings = in.readMap();
-        averageBucketProcessingTimeMs = in.readOptionalDouble();
         modelSnapshotId = in.readOptionalString();
     }
 
@@ -356,10 +351,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         return customSettings;
     }
 
-    public Double getAverageBucketProcessingTimeMs() {
-        return averageBucketProcessingTimeMs;
-    }
-
     public String getModelSnapshotId() {
         return modelSnapshotId;
     }
@@ -432,7 +423,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(resultsRetentionDays);
         out.writeMap(customSettings);
-        out.writeOptionalDouble(averageBucketProcessingTimeMs);
         out.writeOptionalString(modelSnapshotId);
     }
 
@@ -488,9 +478,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
         if (customSettings != null) {
             builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
-        }
-        if (averageBucketProcessingTimeMs != null) {
-            builder.field(AVERAGE_BUCKET_PROCESSING_TIME.getPreferredName(), averageBucketProcessingTimeMs);
         }
         if (modelSnapshotId != null){
             builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
@@ -576,7 +563,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         private Long resultsRetentionDays;
         private IgnoreDowntime ignoreDowntime;
         private Map<String, Object> customSettings;
-        private Double averageBucketProcessingTimeMs;
         private String modelSnapshotId;
 
         public Builder() {
@@ -603,7 +589,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.resultsRetentionDays = job.getResultsRetentionDays();
             this.ignoreDowntime = job.getIgnoreDowntime();
             this.customSettings = job.getCustomSettings();
-            this.averageBucketProcessingTimeMs = job.getAverageBucketProcessingTimeMs();
             this.modelSnapshotId = job.getModelSnapshotId();
         }
 
@@ -696,10 +681,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.ignoreDowntime = ignoreDowntime;
         }
 
-        public void setAverageBucketProcessingTimeMs(Double averageBucketProcessingTimeMs) {
-            this.averageBucketProcessingTimeMs = averageBucketProcessingTimeMs;
-        }
-
         public void setModelSnapshotId(String modelSnapshotId) {
             this.modelSnapshotId = modelSnapshotId;
         }
@@ -757,21 +738,18 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             Date createTime;
             Date finishedTime;
             Date lastDataTime;
-            Double averageBucketProcessingTimeMs;
             String modelSnapshotId;
             if (fromApi) {
                 id = this.id == null ? UUIDs.base64UUID().toLowerCase(Locale.ROOT): this.id;
                 createTime = this.createTime == null ? new Date() : this.createTime;
                 finishedTime = null;
                 lastDataTime = null;
-                averageBucketProcessingTimeMs = null;
                 modelSnapshotId = null;
             } else {
                 id = this.id;
                 createTime = this.createTime;
                 finishedTime = this.finishedTime;
                 lastDataTime = this.lastDataTime;
-                averageBucketProcessingTimeMs = this.averageBucketProcessingTimeMs;
                 modelSnapshotId = this.modelSnapshotId;
             }
             if (id.length() > MAX_JOB_ID_LENGTH) {
@@ -783,8 +761,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig, analysisLimits,
                     schedulerConfig, dataDescription, transforms, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
-                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                    averageBucketProcessingTimeMs, modelSnapshotId
+                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId
             );
         }
 

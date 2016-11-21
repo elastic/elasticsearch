@@ -60,12 +60,11 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
             Long resultsRetentionDays = randomBoolean() ? randomLong() : null;
             Map<String, Object> customConfig = randomBoolean() ? Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10))
                     : null;
-            Double averageBucketProcessingTimeMs = randomBoolean() ? randomDouble() : null;
             String modelSnapshotId = randomBoolean() ? randomAsciiOfLength(10) : null;
             Job job = new Job(jobId, description, createTime, finishedTime, lastDataTime,
                     timeout, analysisConfig, analysisLimits, schedulerConfig.build(), dataDescription, transformConfigList,
                     modelDebugConfig, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,
-                    modelSnapshotRetentionDays, resultsRetentionDays, customConfig, averageBucketProcessingTimeMs, modelSnapshotId);
+                    modelSnapshotRetentionDays, resultsRetentionDays, customConfig, modelSnapshotId);
 
 
             DataCounts dataCounts = null;

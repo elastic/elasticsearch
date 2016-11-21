@@ -53,7 +53,9 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
                     token.term, suggestion.getShardSize(), indexReader, suggestion.getDirectSpellCheckerSettings().suggestMode()
             );
             Text key = new Text(new BytesArray(token.term.bytes()));
-            TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
+            int tokenLength = token.endOffset - token.startOffset;
+            boolean inIndex = indexReader.docFreq(token.term) > 0;
+            TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, tokenLength, inIndex);
             for (SuggestWord suggestWord : suggestedWords) {
                 Text word = new Text(suggestWord.string);
                 resultEntry.addOption(new TermSuggestion.Entry.Option(word, suggestWord.freq, suggestWord.score));
@@ -76,7 +78,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             @Override
             public void nextToken() {
                 Term term = new Term(field, BytesRef.deepCopyOf(fillBytesRef(new BytesRefBuilder())));
-                result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset())); 
+                result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset()));
             }
         }, spare);
        return result;

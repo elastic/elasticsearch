@@ -130,11 +130,32 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     public static class Entry extends
             org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
 
-        Entry(Text text, int offset, int length) {
+        private boolean inIndex;
+
+        Entry(Text text, int offset, int length, boolean inIndex) {
             super(text, offset, length);
+            this.inIndex = inIndex;
         }
 
         Entry() {
+        }
+
+        @Override
+        protected void readFieldsFrom(StreamInput in) throws IOException {
+            super.readFieldsFrom(in);
+            inIndex = in.readBoolean();
+        }
+
+        @Override
+        protected void writeFieldsTo(StreamOutput out) throws IOException {
+            super.writeFieldsTo(out);
+            out.writeBoolean(inIndex);
+        }
+
+        @Override
+        protected void writeFields(XContentBuilder builder) throws IOException {
+            super.writeFields(builder);
+            builder.field("inIndex", inIndex);
         }
 
         @Override

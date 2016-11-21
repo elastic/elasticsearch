@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.prelert.job.process;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
@@ -72,7 +73,7 @@ public class ProcessCtrlTests extends ESTestCase {
         assertTrue(command.contains(ProcessCtrl.maxAnomalyRecordsArg(settings)));
 
         assertTrue(command.contains(ProcessCtrl.TIME_FIELD_ARG + "tf"));
-        assertTrue(command.contains(ProcessCtrl.LOG_ID_ARG + "unit-test-job"));
+        assertTrue(hasValidLicense(command));
         assertTrue(command.contains(ProcessCtrl.JOB_ID_ARG + "unit-test-job"));
 
         assertTrue(command.contains(ProcessCtrl.PER_PARTITION_NORMALIZATION));
@@ -143,8 +144,26 @@ public class ProcessCtrlTests extends ESTestCase {
         assertEquals(5, command.size());
         assertTrue(command.contains(ProcessCtrl.NORMALIZE_PATH));
         assertTrue(command.contains(ProcessCtrl.BUCKET_SPAN_ARG + "300"));
-        assertTrue(command.contains(ProcessCtrl.LOG_ID_ARG + jobId));
+        assertTrue(hasValidLicense(command));
         assertTrue(command.contains(ProcessCtrl.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(ProcessCtrl.PER_PARTITION_NORMALIZATION));
+    }
+
+    private boolean hasValidLicense(List<String> command) throws NumberFormatException {
+        int matches = 0;
+        for (String arg : command) {
+            if (arg.startsWith(ProcessCtrl.LICENSE_VALIDATION_ARG)) {
+                ++matches;
+                String[] argAndVal = arg.split("=");
+                if (argAndVal.length != 2) {
+                    return false;
+                }
+                long val = Long.parseLong(argAndVal[1]);
+                if ((val % ProcessCtrl.VALIDATION_NUMBER) != (JvmInfo.jvmInfo().pid() % ProcessCtrl.VALIDATION_NUMBER)) {
+                    return false;
+                }
+            }
+        }
+        return matches == 1;
     }
 }

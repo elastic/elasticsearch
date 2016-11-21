@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.prelert.job.process;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
@@ -60,14 +62,16 @@ public class ProcessCtrl {
     public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING = Setting.intSetting("max.anomaly.records", DEFAULT_MAX_NUM_RECORDS,
             Property.NodeScope);
 
-    // TODO: remove once the C++ logger no longer needs it
-    static final String LOG_ID_ARG = "--logid=";
+    /**
+     * This must match the value defined in CLicenseValidator::validate() in the C++ code
+     */
+    static final long VALIDATION_NUMBER = 926213;
 
     /*
      * General arguments
      */
     static final String JOB_ID_ARG = "--jobid=";
-
+    static final String LICENSE_VALIDATION_ARG = "--licenseValidation=";
 
     /*
      * Arguments used by both prelert_autodetect and prelert_normalize
@@ -156,9 +160,7 @@ public class ProcessCtrl {
         String jobId = JOB_ID_ARG + job.getId();
         command.add(jobId);
 
-        // the logging id is the job id
-        String logId = LOG_ID_ARG + job.getId();
-        command.add(logId);
+        command.add(makeLicenseArg());
 
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         if (analysisConfig != null) {
@@ -256,13 +258,13 @@ public class ProcessCtrl {
     /**
      * Build the command to start the normalizer process.
      */
-    public static List<String>  buildNormaliserCommand(Environment env, String jobId, String quantilesState, Integer bucketSpan,
+    public static List<String> buildNormaliserCommand(Environment env, String jobId, String quantilesState, Integer bucketSpan,
             boolean perPartitionNormalization, Logger logger) throws IOException {
 
         List<String> command = new ArrayList<>();
         command.add(NORMALIZE_PATH);
         addIfNotNull(bucketSpan, BUCKET_SPAN_ARG, command);
-        command.add(LOG_ID_ARG + jobId);
+        command.add(makeLicenseArg());
         command.add(LENGTH_ENCODED_INPUT_ARG);
         if (perPartitionNormalization) {
             command.add(PER_PARTITION_NORMALIZATION);
@@ -300,5 +302,15 @@ public class ProcessCtrl {
         }
 
         return stateFile;
+    }
+
+    /**
+     * The number must be equal to the JVM PID modulo a magic number.
+     */
+    private static String makeLicenseArg() {
+        // Get a random int rather than long so we don't overflow when multiplying by VALIDATION_NUMBER
+        long rand = Randomness.get().nextInt();
+        long val = JvmInfo.jvmInfo().pid() + (((rand < 0) ? -rand : rand) + 1) * VALIDATION_NUMBER;
+        return LICENSE_VALIDATION_ARG + val;
     }
 }

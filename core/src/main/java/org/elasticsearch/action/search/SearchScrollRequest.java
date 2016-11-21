@@ -142,4 +142,10 @@ public class SearchScrollRequest extends ActionRequest {
                 ", scroll=" + scroll +
                 '}';
     }
+
+    @Override
+    public String getDescription() {
+        return "scrollId[" + scrollId + "], scroll[" + scroll + "]";
+    }
+
 }

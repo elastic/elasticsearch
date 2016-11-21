@@ -75,4 +75,10 @@ public class InternalScrollSearchRequest extends TransportRequest {
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
+
+    @Override
+    public String getDescription() {
+        return "id[" + id + "], scroll[" + scroll + "]";
+    }
+
 }

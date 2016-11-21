@@ -486,14 +486,11 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path platformBinDir = platformNameDir.resolve("bin");
         Files.createDirectories(platformBinDir);
         Path programFile = Files.createFile(platformBinDir.resolve("someprogram"));
-        try (PosixPermissionsResetter binAttrs = new PosixPermissionsResetter(programFile)) {
-            Set<PosixFilePermission> perms = binAttrs.getCopyPermissions();
-            // make sure execute permissions are missing (they should be by default but just in case)
-            perms.remove(PosixFilePermission.OWNER_EXECUTE);
-            perms.remove(PosixFilePermission.GROUP_EXECUTE);
-            perms.remove(PosixFilePermission.OTHERS_EXECUTE);
-            binAttrs.setPermissions(perms);
-        }
+        // a file created with Files.createFile() should not have execute permissions
+        Set<PosixFilePermission> sourcePerms = Files.getPosixFilePermissions(programFile);
+        assertFalse(sourcePerms.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertFalse(sourcePerms.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertFalse(sourcePerms.contains(PosixFilePermission.OTHERS_EXECUTE));
         String pluginZip = createPlugin("fake", pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
@@ -502,10 +499,10 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(Files.isDirectory(installedPlatformBinDir));
         Path installedProgramFile = installedPlatformBinDir.resolve("someprogram");
         assertTrue(Files.isRegularFile(installedProgramFile));
-        Set<PosixFilePermission> perms = Files.getPosixFilePermissions(installedProgramFile);
-        assertTrue(perms.contains(PosixFilePermission.OWNER_EXECUTE));
-        assertTrue(perms.contains(PosixFilePermission.GROUP_EXECUTE));
-        assertTrue(perms.contains(PosixFilePermission.OTHERS_EXECUTE));
+        Set<PosixFilePermission> installedPerms = Files.getPosixFilePermissions(installedProgramFile);
+        assertTrue(installedPerms.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertTrue(installedPerms.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertTrue(installedPerms.contains(PosixFilePermission.OTHERS_EXECUTE));
     }
 
     public void testConfig() throws Exception {

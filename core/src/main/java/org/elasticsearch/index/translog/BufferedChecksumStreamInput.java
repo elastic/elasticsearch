@@ -22,6 +22,7 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.BufferedChecksum;
 import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -121,5 +122,10 @@ public final class BufferedChecksumStreamInput extends StreamInput {
 
     public void resetDigest() {
         digest.reset();
+    }
+
+    @Override
+    public void ensureCanReadBytes(int length) throws EOFException {
+        in.ensureCanReadBytes(length);
     }
 }

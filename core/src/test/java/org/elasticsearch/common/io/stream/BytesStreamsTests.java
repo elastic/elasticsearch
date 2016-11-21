@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -693,6 +694,71 @@ public class BytesStreamsTests extends ESTestCase {
             output.writeString(largeString);
             try (StreamInput streamInput = output.bytes().streamInput()) {
                 assertEquals(largeString, streamInput.readString());
+            }
+        }
+    }
+
+    public void testReadTooLargeArraySize() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeVInt(10);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+
+            output.writeVInt(Integer.MAX_VALUE);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                int[] ints = streamInput.readIntArray();
+                for (int i = 0; i < 10; i ++) {
+                    assertEquals(i, ints[i]);
+                }
+                expectThrows(IllegalStateException.class, () -> streamInput.readIntArray());
+            }
+        }
+    }
+
+    public void testReadCorruptedArraySize() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeVInt(10);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+
+            output.writeVInt(100);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                int[] ints = streamInput.readIntArray();
+                for (int i = 0; i < 10; i ++) {
+                    assertEquals(i, ints[i]);
+                }
+                EOFException eofException = expectThrows(EOFException.class, () -> streamInput.readIntArray());
+                assertEquals("tried to read: 100 bytes but only 40 remaining", eofException.getMessage());
+            }
+        }
+    }
+
+    public void testReadNegativeArraySize() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeVInt(10);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+
+            output.writeVInt(Integer.MIN_VALUE);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                int[] ints = streamInput.readIntArray();
+                for (int i = 0; i < 10; i ++) {
+                    assertEquals(i, ints[i]);
+                }
+                NegativeArraySizeException exception = expectThrows(NegativeArraySizeException.class, () -> streamInput.readIntArray());
+                assertEquals("array size must be positive but was: -2147483648", exception.getMessage());
             }
         }
     }

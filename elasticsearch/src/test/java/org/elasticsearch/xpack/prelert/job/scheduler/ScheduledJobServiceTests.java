@@ -70,6 +70,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
     public void setUpTests() {
         client = mock(Client.class);
         jobProvider = mock(JobProvider.class);
+        when(jobProvider.dataCounts(anyString())).thenReturn(new DataCounts("foo"));
         jobManager = mock(JobManager.class);
         dataProcessor = mock(DataProcessor.class);
         dataExtractorFactory = mock(DataExtractorFactory.class);

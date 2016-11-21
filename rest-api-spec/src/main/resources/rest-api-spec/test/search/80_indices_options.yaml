@@ -1,0 +1,63 @@
+---
+"Missing index date math with catch":
+
+  - do:
+      catch:   /logstash-\d{4}\.\d{2}\.\d{2}/
+      search:
+        index: <logstash-{now/M}>
+
+---
+"Missing index":
+
+  - do:
+      catch:   missing
+      search:
+        index: missing_index
+
+  - do:
+      search:
+        index: missing_index
+        ignore_unavailable: true
+
+  - match: {hits.total: 0}
+
+---
+"Closed index":
+
+  - do:
+      indices.create:
+          index:  index_closed
+
+  - do:
+      indices.close:
+          index:  index_closed
+
+  - do:
+      catch:  /index_closed_exception/
+      search:
+        index: index_closed
+
+  - do:
+      search:
+        index: index_closed
+        ignore_unavailable: true
+
+  - match: {hits.total: 0}
+
+  - do:
+      search:
+        index: index*
+
+  - match: {hits.total: 0}
+
+  - do:
+      catch: missing
+      search:
+        index: index*
+        allow_no_indices: false
+
+  - do:
+      catch:  /index_closed_exception/
+      search:
+        index: index*
+        expand_wildcards: ["open","closed"]

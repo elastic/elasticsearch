@@ -166,4 +166,10 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
+
+    @Override
+    public String getDescription() {
+        // Shard id is enough here, the request itself can be found by looking at the parent task description
+        return "shardId[" + shardSearchLocalRequest.shardId() + "]";
+    }
 }

@@ -55,11 +55,14 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         final ClusterSearchShardsRequest clusterSearchShardsRequest = Requests.clusterSearchShardsRequest(indices);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
 
-        clusterSearchShardsRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        if (request.hasParam("type")) {
+            String type = request.param("type");
+            deprecationLogger.deprecated("type [" + type + "] doesn't have any effect in the search shards api, " +
+                    "it should be rather omitted");
+        }
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
-
         return channel -> client.admin().cluster().searchShards(clusterSearchShardsRequest, new RestToXContentListener<>(channel));
     }
 }

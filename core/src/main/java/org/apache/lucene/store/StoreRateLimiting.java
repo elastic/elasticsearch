@@ -20,11 +20,15 @@ package org.apache.lucene.store;
 
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 /**
  */
 public class StoreRateLimiting {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(StoreRateLimiting.class));
 
     public interface Provider {
 
@@ -85,9 +89,12 @@ public class StoreRateLimiting {
 
     public void setType(Type type) {
         this.type = type;
+        if (type != Type.NONE) {
+            DEPRECATION_LOGGER.deprecated("Store rate limiting is deprecated and will be removed in 6.0");
+        }
     }
 
     public void setType(String type) {
-        this.type = Type.fromString(type);
+        setType(Type.fromString(type));
     }
 }

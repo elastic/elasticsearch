@@ -492,8 +492,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException::new, 26, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_CREATION_EXCEPTION(org.elasticsearch.snapshots.SnapshotCreationException.class,
                 org.elasticsearch.snapshots.SnapshotCreationException::new, 27, UNKNOWN_VERSION_ADDED),
-        DELETE_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.DeleteFailedEngineException.class,
-                org.elasticsearch.index.engine.DeleteFailedEngineException::new, 28, UNKNOWN_VERSION_ADDED),// deprecated in 6.0, remove in 7.0
+        DELETE_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.DeleteFailedEngineException.class, // deprecated in 6.0, remove in 7.0
+                org.elasticsearch.index.engine.DeleteFailedEngineException::new, 28, UNKNOWN_VERSION_ADDED),
         DOCUMENT_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentMissingException.class,
                 org.elasticsearch.index.engine.DocumentMissingException::new, 29, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_EXCEPTION(org.elasticsearch.snapshots.SnapshotException.class,

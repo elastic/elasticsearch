@@ -319,7 +319,6 @@ public class StatusReporter {
 
     public synchronized DataCounts runningTotalStats() {
         totalRecordStats.calcProcessedFieldCount(getAnalysedFieldsPerRecord());
-        DataCounts tempResonse = new DataCounts(totalRecordStats);
         return totalRecordStats;
     }
 }

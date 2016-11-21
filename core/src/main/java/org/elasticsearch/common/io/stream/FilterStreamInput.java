@@ -29,7 +29,7 @@ import java.io.IOException;
  */
 public abstract class FilterStreamInput extends StreamInput {
 
-    private final StreamInput delegate;
+    protected final StreamInput delegate;
 
     protected FilterStreamInput(StreamInput delegate) {
         this.delegate = delegate;

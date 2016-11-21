@@ -897,6 +897,6 @@ public abstract class StreamInput extends InputStream {
      * This method throws an {@link EOFException} if the given number of bytes can not be read from the this stream. This method might
      * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
      */
-    public abstract void ensureCanReadBytes(int length) throws EOFException;
+    protected abstract void ensureCanReadBytes(int length) throws EOFException;
 
 }

@@ -97,7 +97,7 @@ public class InputStreamStreamInput extends StreamInput {
     }
 
     @Override
-    public void ensureCanReadBytes(int length) throws EOFException {
+    protected void ensureCanReadBytes(int length) throws EOFException {
         // TODO what can we do here?
     }
 }

@@ -115,7 +115,7 @@ final class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
-    public void ensureCanReadBytes(int bytesToRead) throws EOFException {
+    protected void ensureCanReadBytes(int bytesToRead) throws EOFException {
         int bytesAvailable = length - offset;
         if (bytesAvailable < bytesToRead) {
             throw new EOFException("tried to read: " + bytesToRead + " bytes but only " + bytesAvailable + " remaining");

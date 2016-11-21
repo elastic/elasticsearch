@@ -216,6 +216,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
      * that way.
      */
     private static final class MarkSupportingStreamInputWrapper extends StreamInput {
+        // can't use FilterStreamInput it needs to reset the delegate
         private final BytesReference reference;
         private BytesReferenceStreamInput input;
         private int mark = 0;
@@ -256,7 +257,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         }
 
         @Override
-        public void ensureCanReadBytes(int length) throws EOFException {
+        protected void ensureCanReadBytes(int length) throws EOFException {
             input.ensureCanReadBytes(length);
         }
 

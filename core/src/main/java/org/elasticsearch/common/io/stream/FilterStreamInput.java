@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.Version;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 /**
@@ -28,7 +29,7 @@ import java.io.IOException;
  */
 public abstract class FilterStreamInput extends StreamInput {
 
-    private final StreamInput delegate;
+    protected final StreamInput delegate;
 
     protected FilterStreamInput(StreamInput delegate) {
         this.delegate = delegate;
@@ -72,5 +73,10 @@ public abstract class FilterStreamInput extends StreamInput {
     @Override
     public void setVersion(Version version) {
         delegate.setVersion(version);
+    }
+
+    @Override
+    protected void ensureCanReadBytes(int length) throws EOFException {
+        delegate.ensureCanReadBytes(length);
     }
 }

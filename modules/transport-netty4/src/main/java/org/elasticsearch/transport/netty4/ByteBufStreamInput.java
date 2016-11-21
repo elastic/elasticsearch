@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 /**
@@ -65,6 +66,14 @@ class ByteBufStreamInput extends StreamInput {
     @Override
     public int available() throws IOException {
         return endIndex - buffer.readerIndex();
+    }
+
+    @Override
+    protected void ensureCanReadBytes(int length) throws EOFException {
+        int bytesAvailable = endIndex - buffer.readerIndex();
+        if (bytesAvailable < length) {
+            throw new EOFException("tried to read: " + length + " bytes but only " + bytesAvailable + " remaining");
+        }
     }
 
     @Override

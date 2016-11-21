@@ -98,4 +98,9 @@ public class InputStreamStreamInput extends StreamInput {
     public long skip(long n) throws IOException {
         return is.skip(n);
     }
+
+    @Override
+    protected void ensureCanReadBytes(int length) throws EOFException {
+        // TODO what can we do here?
+    }
 }

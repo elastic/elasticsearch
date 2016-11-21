@@ -1,3 +1,4 @@
 rootProject.name = 'prelert'
 include ':elasticsearch'
 include ':docs'
+include ':kibana'

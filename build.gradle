@@ -83,7 +83,6 @@ task cppAll {
 subprojects {
     apply plugin: 'eclipse'
     apply plugin: 'idea'
-    apply plugin: 'maven'
     
     buildscript {
         repositories {

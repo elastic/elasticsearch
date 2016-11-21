@@ -1,7 +1,7 @@
 [[discovery-file]]
 === File-Based Discovery Plugin
 
-The file-based discovery plugin uses a list of hosts/ports in a `unicast_hosts.txt` file 
+The file-based discovery plugin uses a list of hosts/ports in a `unicast_hosts.txt` file
 in the `config/discovery-file` directory for unicast discovery.
 
 [[discovery-file-install]]
@@ -20,6 +20,10 @@ be restarted after installation. Note that installing the plugin will add a
 `discovery-file` directory to the `config` folder, and a default `unicast_hosts.txt`
 file that must be edited with the correct unicast hosts list before starting the node.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/discovery-file/discovery-file-{version}.zip.
+
+
 [[discovery-file-remove]]
 [float]
 ==== Removal
@@ -37,7 +41,7 @@ The node must be stopped before removing the plugin.
 [float]
 ==== Using the file-based discovery plugin
 
-The file-based discovery plugin provides the ability to specify the 
+The file-based discovery plugin provides the ability to specify the
 unicast hosts list through a simple `unicast_hosts.txt` file that can
 be dynamically updated at any time. To enable, add the following in `elasticsearch.yml`:
 
@@ -47,12 +51,12 @@ discovery.zen.hosts_provider: file
 ----
 
 This plugin simply provides a facility to supply the unicast hosts list for
-zen discovery through an external file that can be updated at any time by a side process.  
+zen discovery through an external file that can be updated at any time by a side process.
 
-For example, this gives a convenient mechanism for an Elasticsearch instance 
-that is  run in docker containers to be dynamically supplied a list of IP 
-addresses to connect to for zen discovery when those IP addresses may not be 
-known at node startup.  
+For example, this gives a convenient mechanism for an Elasticsearch instance
+that is  run in docker containers to be dynamically supplied a list of IP
+addresses to connect to for zen discovery when those IP addresses may not be
+known at node startup.
 
 Note that the file-based discovery plugin is meant to augment the unicast
 hosts list in `elasticsearch.yml` (if specified), not replace it.  Therefore,
@@ -73,11 +77,11 @@ cannot start in the middle of a line).
 [float]
 ==== unicast_hosts.txt file format
 
-The format of the file is to specify one unicast host entry per line.  
+The format of the file is to specify one unicast host entry per line.
 Each unicast host entry consists of the host (host name or IP address) and
-an optional transport port number.  If the port number is specified, is must 
-come immediately after the host (on the same line) separated by a `:`. 
-If the port number is not specified, a default value of 9300 is used.  
+an optional transport port number.  If the port number is specified, is must
+come immediately after the host (on the same line) separated by a `:`.
+If the port number is not specified, a default value of 9300 is used.
 
 For example, this is an example of `unicast_hosts.txt` for a cluster with
 four nodes that participate in unicast discovery, some of which are not
@@ -92,6 +96,6 @@ running on the default port:
 [2001:0db8:85a3:0000:0000:8a2e:0370:7334]:9301
 ----------------------------------------------------------------
 
-Host names are allowed instead of IP addresses (similar to 
+Host names are allowed instead of IP addresses (similar to
 `discovery.zen.ping.unicast.hosts`), and IPv6 addresses must be
-specified in brackets with the port coming after the brackets. 
+specified in brackets with the port coming after the brackets.

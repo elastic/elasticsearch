@@ -802,7 +802,7 @@ public abstract class StreamOutput extends OutputStream {
                 writeVInt(17);
             } else {
                 ElasticsearchException ex;
-                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass())) {
+                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
                     ex = (ElasticsearchException) throwable;
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);

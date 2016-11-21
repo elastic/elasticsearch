@@ -454,6 +454,12 @@ class Character.UnicodeBlock -> java.lang.Character$UnicodeBlock extends Charact
   Character.UnicodeBlock of(int)
 }
 
+class Class -> java.lang.Class extends Object {
+  # We only allow innocuous things like toString and equals. No reflection
+  String getName()
+  String getSimpleName()
+}
+
 # Class: skipped for obvious reasons
 # ClassLoader: ...
 # ClassValue: ...
@@ -661,6 +667,7 @@ class Number -> java.lang.Number extends Object {
 }
 
 class Object -> java.lang.Object {
+  Class getClass()
   boolean equals(Object)
   int hashCode()
   String toString()
@@ -1101,4 +1108,3 @@ class UnsupportedOperationException -> java.lang.UnsupportedOperationException e
   UnsupportedOperationException <init>()
   UnsupportedOperationException <init>(String)
 }
-

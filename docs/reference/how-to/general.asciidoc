@@ -21,9 +21,11 @@ that. You might decide to increase that particular setting, but Lucene still
 has a limit at about 2GB.
 
 But even without considering hard limits, large documents are usually not
-practical. Large documents put more stress on network, disk and on memory usage
-since their content will need to be retrieved by the `_search` API to build
-the response. Inverting this document can use an amount of memory that is a
+practical. Large documents put more stress on network, memory usage and disk,
+even for search requests that do not request the `_source` since Elasticsearch
+needs to fetch the `_id` of the document in all cases, and the cost of getting
+this field is bigger for large documents due to how the filesystem cache works.
+Inverting this document can use an amount of memory that is a
 multiplier of the original size of the document. Proximity search (phrase
 queries for instance) and <<search-request-highlighting,highlighting>> also
 become more expensive since their cost directly depends on the size of the

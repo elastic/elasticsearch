@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.13',
+  'tika': '1.14',
   'pdfbox': '2.0.3',
   'bouncycastle': '1.55',
   'poi': '3.15'
@@ -526,7 +526,9 @@ thirdPartyAudit.excludes = [
   'org.apache.http.StatusLine',
   'org.apache.http.client.HttpClient',
   'org.apache.http.client.methods.HttpGet',
+  'org.apache.http.client.methods.HttpPost',
   'org.apache.http.client.utils.URIBuilder',
+  'org.apache.http.entity.ByteArrayEntity',
   'org.apache.http.impl.client.DefaultHttpClient',
   'org.apache.james.mime4j.MimeException',
   'org.apache.james.mime4j.codec.DecodeMonitor',

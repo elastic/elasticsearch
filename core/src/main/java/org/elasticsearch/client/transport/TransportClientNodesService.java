@@ -35,8 +35,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -66,9 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-
-public class TransportClientNodesService extends AbstractComponent implements Closeable {
+final class TransportClientNodesService extends AbstractComponent implements Closeable {
 
     private final TimeValue nodesSamplerInterval;
 
@@ -104,16 +100,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     private final TransportClient.HostFailureListener hostFailureListener;
 
-    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
-        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), Property.NodeScope);
-    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT =
-        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), Property.NodeScope);
-    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME =
-        Setting.boolSetting("client.transport.ignore_cluster_name", false, Property.NodeScope);
-    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
-        Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
-
-    public TransportClientNodesService(Settings settings, TransportService transportService,
+    TransportClientNodesService(Settings settings, TransportService transportService,
                                        ThreadPool threadPool, TransportClient.HostFailureListener hostFailureListener) {
         super(settings);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -121,15 +108,15 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         this.threadPool = threadPool;
         this.minCompatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
 
-        this.nodesSamplerInterval = CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
-        this.pingTimeout = CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();
-        this.ignoreClusterName = CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(this.settings);
+        this.nodesSamplerInterval = TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
+        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();
+        this.ignoreClusterName = TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(this.settings);
 
         if (logger.isDebugEnabled()) {
             logger.debug("node_sampler_interval[{}]", nodesSamplerInterval);
         }
 
-        if (CLIENT_TRANSPORT_SNIFF.get(this.settings)) {
+        if (TransportClient.CLIENT_TRANSPORT_SNIFF.get(this.settings)) {
             this.nodesSampler = new SniffNodesSampler();
         } else {
             this.nodesSampler = new SimpleNodeSampler();
@@ -296,8 +283,6 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                 hostFailureListener.onNodeDisconnected(node, ex);
             }
         }
-
-
     }
 
     @Override

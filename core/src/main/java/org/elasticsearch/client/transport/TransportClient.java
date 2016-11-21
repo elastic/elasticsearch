@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
@@ -65,6 +65,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
@@ -73,6 +75,15 @@ import java.util.stream.Collectors;
  * started in client mode (only connects, no bind).
  */
 public abstract class TransportClient extends AbstractClient {
+
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
+        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT =
+        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), Setting.Property.NodeScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME =
+        Setting.boolSetting("client.transport.ignore_cluster_name", false, Setting.Property.NodeScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
+        Setting.boolSetting("client.transport.sniff", false, Setting.Property.NodeScope);
 
     private static PluginsService newPluginService(final Settings settings, Collection<Class<? extends Plugin>> plugins) {
         final Settings.Builder settingsBuilder = Settings.builder()
@@ -165,7 +176,7 @@ public abstract class TransportClient extends AbstractClient {
             Injector injector = modules.createInjector();
             final TransportClientNodesService nodesService =
                 new TransportClientNodesService(settings, transportService, threadPool, failureListner == null
-                    ? (t,e) -> {} :failureListner);
+                    ? (t, e) -> {} : failureListner);
             final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
                 actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
 
@@ -352,6 +363,4 @@ public abstract class TransportClient extends AbstractClient {
     TransportClientNodesService getNodesService() {
         return nodesService;
     }
-
-
 }

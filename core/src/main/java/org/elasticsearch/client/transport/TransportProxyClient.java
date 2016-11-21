@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport.support;
+package org.elasticsearch.client.transport;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -26,9 +26,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.TransportActionNodeProxy;
-import org.elasticsearch.client.transport.TransportClientNodesService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
@@ -38,12 +35,12 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class TransportProxyClient {
+final class TransportProxyClient {
 
     private final TransportClientNodesService nodesService;
     private final Map<Action, TransportActionNodeProxy> proxies;
 
-    public TransportProxyClient(Settings settings, TransportService transportService,
+    TransportProxyClient(Settings settings, TransportService transportService,
                                 TransportClientNodesService nodesService, List<GenericAction> actions) {
         this.nodesService = nodesService;
         Map<Action, TransportActionNodeProxy> proxies = new HashMap<>();

@@ -24,8 +24,10 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -323,15 +325,16 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
-    private final CharsRefBuilder spare = new CharsRefBuilder();
+    // we don't use a CharsRefBuilder since we exactly know the size of the character array up front
+    // this prevents calling grow for every character since we don't need this
+    private final CharsRef spare = new CharsRef();
 
     public String readString() throws IOException {
         final int charCount = readVInt();
-        spare.clear();
-        spare.grow(charCount);
-        int c;
-        while (spare.length() < charCount) {
-            c = readByte() & 0xff;
+        spare.length = charCount;
+        spare.chars = ArrayUtil.grow(spare.chars, charCount);
+        for (int i = 0; i < charCount; i++) {
+            final int c = readByte() & 0xff;
             switch (c >> 4) {
                 case 0:
                 case 1:
@@ -341,15 +344,17 @@ public abstract class StreamInput extends InputStream {
                 case 5:
                 case 6:
                 case 7:
-                    spare.append((char) c);
+                    spare.chars[i] = (char) c;
                     break;
                 case 12:
                 case 13:
-                    spare.append((char) ((c & 0x1F) << 6 | readByte() & 0x3F));
+                    spare.chars[i] = ((char) ((c & 0x1F) << 6 | readByte() & 0x3F));
                     break;
                 case 14:
-                    spare.append((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
+                    spare.chars[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
+                default:
+                    new AssertionError("unexpected character: " + c + " hex: " + Integer.toHexString(c));
             }
         }
         return spare.toString();

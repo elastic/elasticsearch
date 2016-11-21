@@ -45,6 +45,8 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -100,6 +102,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     private volatile boolean closed;
 
+    private final TransportClient.HostFailureListener hostFailureListener;
 
     public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
         Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), Property.NodeScope);
@@ -110,8 +113,8 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
     public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
         Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
 
-    public TransportClientNodesService(Settings settings,TransportService transportService,
-                                       ThreadPool threadPool) {
+    public TransportClientNodesService(Settings settings, TransportService transportService,
+                                       ThreadPool threadPool, TransportClient.HostFailureListener hostFailureListener) {
         super(settings);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
@@ -131,6 +134,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         } else {
             this.nodesSampler = new SimpleNodeSampler();
         }
+        this.hostFailureListener = hostFailureListener;
         this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, new ScheduledNodeSampler());
     }
 
@@ -224,13 +228,17 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         }
         ensureNodesAreAvailable(nodes);
         int index = getNodeNumber();
-        RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index);
-        DiscoveryNode node = nodes.get((index) % nodes.size());
+        RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index, hostFailureListener);
+        DiscoveryNode node = retryListener.getNode(0);
         try {
             callback.doWithNode(node, retryListener);
         } catch (Exception e) {
-            //this exception can't come from the TransportService as it doesn't throw exception at all
-            listener.onFailure(e);
+            try {
+                //this exception can't come from the TransportService as it doesn't throw exception at all
+                listener.onFailure(e);
+            } finally {
+                retryListener.maybeNodeFailed(node, e);
+            }
         }
     }
 
@@ -239,15 +247,17 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         private final ActionListener<Response> listener;
         private final List<DiscoveryNode> nodes;
         private final int index;
+        private final TransportClient.HostFailureListener hostFailureListener;
 
         private volatile int i;
 
         public RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener,
-                             List<DiscoveryNode> nodes, int index) {
+                             List<DiscoveryNode> nodes, int index, TransportClient.HostFailureListener hostFailureListener) {
             this.callback = callback;
             this.listener = listener;
             this.nodes = nodes;
             this.index = index;
+            this.hostFailureListener = hostFailureListener;
         }
 
         @Override
@@ -257,13 +267,15 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
         @Override
         public void onFailure(Exception e) {
-            if (ExceptionsHelper.unwrapCause(e) instanceof ConnectTransportException) {
+            Throwable throwable = ExceptionsHelper.unwrapCause(e);
+            if (throwable instanceof ConnectTransportException) {
+                maybeNodeFailed(getNode(this.i), (ConnectTransportException) throwable);
                 int i = ++this.i;
                 if (i >= nodes.size()) {
                     listener.onFailure(new NoNodeAvailableException("None of the configured nodes were available: " + nodes, e));
                 } else {
                     try {
-                        callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
+                        callback.doWithNode(getNode(i), this);
                     } catch(final Exception inner) {
                         inner.addSuppressed(e);
                         // this exception can't come from the TransportService as it doesn't throw exceptions at all
@@ -272,6 +284,16 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                 }
             } else {
                 listener.onFailure(e);
+            }
+        }
+
+        final DiscoveryNode getNode(int i) {
+            return nodes.get((index + i) % nodes.size());
+        }
+
+        final void maybeNodeFailed(DiscoveryNode node, Exception ex) {
+            if (ex instanceof NodeDisconnectedException || ex instanceof NodeNotConnectedException) {
+                hostFailureListener.onNodeDisconnected(node, ex);
             }
         }
 
@@ -377,6 +399,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                         logger.debug(
                             (Supplier<?>)
                                 () -> new ParameterizedMessage("failed to connect to node [{}], removed from nodes list", listedNode), e);
+                        hostFailureListener.onNodeDisconnected(listedNode, e);
                         newFilteredNodes.add(listedNode);
                         continue;
                     }
@@ -411,6 +434,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                     logger.info(
                         (Supplier<?>) () -> new ParameterizedMessage("failed to get node info for {}, disconnecting...", listedNode), e);
                     transportService.disconnectFromNode(listedNode);
+                    hostFailureListener.onNodeDisconnected(listedNode, e);
                 }
             }
 
@@ -489,6 +513,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                                     "failed to get local cluster state for {}, disconnecting...", listedNode), e);
                                             transportService.disconnectFromNode(listedNode);
                                             latch.countDown();
+                                            hostFailureListener.onNodeDisconnected(listedNode, e);
                                         }
                                     });
                         } catch (Exception e) {
@@ -497,6 +522,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                     "failed to get local cluster state info for {}, disconnecting...", listedNode), e);
                             transportService.disconnectFromNode(listedNode);
                             latch.countDown();
+                            hostFailureListener.onNodeDisconnected(listedNode, e);
                         }
                     }
                 });
@@ -530,5 +556,10 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
     public interface NodeListenerCallback<Response> {
 
         void doWithNode(DiscoveryNode node, ActionListener<Response> listener);
+    }
+
+    // pkg private for testing
+    void doSample() {
+        nodesSampler.doSample();
     }
 }

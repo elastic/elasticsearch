@@ -61,7 +61,10 @@ public class PreBuiltTransportClient extends TransportClient {
     }
 
     public PreBuiltTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        super(settings, Settings.EMPTY, addPlugins(plugins, PRE_INSTALLED_PLUGINS));
+        this(settings, plugins, null);
+    }
+    public PreBuiltTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins, HostFailureListener hostFailureListener) {
+        super(settings, Settings.EMPTY, addPlugins(plugins, PRE_INSTALLED_PLUGINS), hostFailureListener);
     }
 
     @Override

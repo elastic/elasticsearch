@@ -101,7 +101,7 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     private static ClientTemplate buildTemplate(Settings providedSettings, Settings defaultSettings,
-                                                Collection<Class<? extends Plugin>> plugins) {
+                                                Collection<Class<? extends Plugin>> plugins, HostFailureListener failureListner) {
         if (Node.NODE_NAME_SETTING.exists(providedSettings) == false) {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
@@ -164,7 +164,8 @@ public abstract class TransportClient extends AbstractClient {
 
             Injector injector = modules.createInjector();
             final TransportClientNodesService nodesService =
-                new TransportClientNodesService(settings, transportService, threadPool);
+                new TransportClientNodesService(settings, transportService, threadPool, failureListner == null
+                    ? (t,e) -> {} :failureListner);
             final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
                 actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
 
@@ -222,7 +223,7 @@ public abstract class TransportClient extends AbstractClient {
      * Creates a new TransportClient with the given settings and plugins
      */
     public TransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        this(buildTemplate(settings, Settings.EMPTY, plugins));
+        this(buildTemplate(settings, Settings.EMPTY, plugins, null));
     }
 
     /**
@@ -231,8 +232,9 @@ public abstract class TransportClient extends AbstractClient {
      * @param defaultSettings default settings that are merged after the plugins have added it's additional settings.
      * @param plugins the client plugins
      */
-    protected TransportClient(Settings settings, Settings defaultSettings, Collection<Class<? extends Plugin>> plugins) {
-        this(buildTemplate(settings, defaultSettings, plugins));
+    protected TransportClient(Settings settings, Settings defaultSettings, Collection<Class<? extends Plugin>> plugins,
+                              HostFailureListener hostFailureListener) {
+        this(buildTemplate(settings, defaultSettings, plugins, hostFailureListener));
     }
 
     private TransportClient(ClientTemplate template) {
@@ -332,4 +334,24 @@ public abstract class TransportClient extends AbstractClient {
     protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
+
+    /**
+     * Listener that allows to be notified whenever a node failure / disconnect happens
+     */
+    @FunctionalInterface
+    public interface HostFailureListener {
+        /**
+         * Called once a node disconnect is detected.
+         * @param node the node that has been disconnected
+         * @param ex the exception causing the disconnection
+         */
+        void onNodeDisconnected(DiscoveryNode node, Exception ex);
+    }
+
+    // pkg private for testing
+    TransportClientNodesService getNodesService() {
+        return nodesService;
+    }
+
+
 }

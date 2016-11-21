@@ -126,13 +126,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         registerPrototype(RestoreInProgress.TYPE, RestoreInProgress.PROTO);
     }
 
-    @Nullable
     public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
-    }
-
-    public static <T extends Custom> T lookupPrototypeSafe(String type) {
         @SuppressWarnings("unchecked")
         T proto = (T) customPrototypes.get(type);
         if (proto == null) {
@@ -338,7 +332,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         private final String value;
 
-        private Metric(String value) {
+        Metric(String value) {
             this.value = value;
         }
 
@@ -660,10 +654,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             return this;
         }
 
-        public Custom getCustom(String type) {
-            return customs.get(type);
-        }
-
         public Builder putCustom(String type, Custom custom) {
             customs.put(type, custom);
             return this;
@@ -737,7 +727,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
             String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
+            Custom customIndexMetaData = lookupPrototype(type).readFrom(in);
             builder.putCustom(type, customIndexMetaData);
         }
         return builder.build();
@@ -809,12 +799,12 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                     @Override
                     public Custom read(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readFrom(in);
+                        return lookupPrototype(key).readFrom(in);
                     }
 
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readDiffFrom(in);
+                        return lookupPrototype(key).readDiffFrom(in);
                     }
                 });
         }

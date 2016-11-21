@@ -19,16 +19,25 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -44,13 +53,23 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -71,11 +90,147 @@ public class SearchTransportService extends AbstractComponent {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
-    private final TransportService transportService;
+    //TODO what should the setting name be?
+    public static final Setting<Settings> REMOTE_CLUSTERS_SEEDS = Setting.groupSetting("action.search.remote.",
+            SearchTransportService::validateRemoteClustersSeeds,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic);
 
-    public SearchTransportService(Settings settings, TransportService transportService) {
+    private final TransportService transportService;
+    private volatile Map<String, List<DiscoveryNode>> remoteClustersSeeds;
+
+    public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
+        setRemoteClustersSeeds(REMOTE_CLUSTERS_SEEDS.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTERS_SEEDS, this::setRemoteClustersSeeds,
+                SearchTransportService::validateRemoteClustersSeeds);
+    }
+
+    private static void validateRemoteClustersSeeds(Settings settings) {
+        //TODO add a static whitelist like in reindex from remote
+        for (String clusterName : settings.names()) {
+            String[] remoteHosts = settings.getAsArray(clusterName);
+            if (remoteHosts.length == 0) {
+                throw new IllegalArgumentException("no hosts set for remote cluster [" + clusterName + "], at least one host is required");
+            }
+            for (String remoteHost : remoteHosts) {
+                String[] strings = remoteHost.split(":");
+                if (strings.length != 2) {
+                    throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] " +
+                            "instead for remote cluster [" + clusterName + "]");
+                }
+                try {
+                    Integer.valueOf(strings[1]);
+                } catch(NumberFormatException e) {
+                    throw new IllegalArgumentException("port must be a number, found [" + strings[1] + "] instead for remote cluster [" +
+                            clusterName + "]");
+                }
+            }
+        }
+    }
+
+    private void setRemoteClustersSeeds(Settings settings) {
+        Map<String, List<DiscoveryNode>> remoteClustersNodes = new HashMap<>();
+        for (String clusterName : settings.names()) {
+            String[] remoteHosts = settings.getAsArray(clusterName);
+            for (String remoteHost : remoteHosts) {
+                String[] strings = remoteHost.split(":");
+                String host = strings[0];
+                int port = Integer.valueOf(strings[1]);
+                DiscoveryNode node = new DiscoveryNode(clusterName + "#" + remoteHost,
+                        new TransportAddress(new InetSocketAddress(host, port)), Version.CURRENT.minimumCompatibilityVersion());
+                //don't connect yet as that would require the remote node to be up and would fail the local node startup otherwise
+                List<DiscoveryNode> nodes = remoteClustersNodes.get(clusterName);
+                if (nodes == null) {
+                    nodes = new ArrayList<>();
+                    remoteClustersNodes.put(clusterName, nodes);
+                }
+                nodes.add(node);
+            }
+        }
+        remoteClustersSeeds = remoteClustersNodes;
+    }
+
+    private DiscoveryNode connectToRemoteCluster(String clusterName) {
+        List<DiscoveryNode> nodes = remoteClustersSeeds.get(clusterName);
+        if (nodes == null) {
+            throw new IllegalArgumentException("no remote cluster configured with name [" + clusterName + "]");
+        }
+        DiscoveryNode node = nodes.get(Randomness.get().nextInt(nodes.size()));
+        //TODO we just take a random host for now, implement fallback in case of connect failure
+        try {
+            //TODO we should call liveness api and get back an updated discovery node. that would have the updated version
+            // and would make the search shards call more future-proof. Also validating the cluster name may be a thing.
+            connectToRemoteNode(node);
+        } catch(ConnectTransportException e) {
+            throw new ConnectTransportException(node, "unable to connect to remote cluster [" + clusterName + "]", e);
+        }
+        return node;
+    }
+
+    void connectToRemoteNode(DiscoveryNode remoteNode) {
+        //TODO should the list of seeds get updated based on nodes that we get back from the remote cluster through search_shards?
+        transportService.connectToNode(remoteNode);
+        //TODO is it ok to connect and leave the node connected? It will be pinged from now on?
+    }
+
+    void sendSearchShards(SearchRequest searchRequest, Map<String, List<String>> remoteIndicesByCluster,
+                          ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
+        final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
+        final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
+        final AtomicReference<TransportException> transportException = new AtomicReference<>();
+        for (Map.Entry<String, List<String>> entry : remoteIndicesByCluster.entrySet()) {
+            final String clusterName = entry.getKey();
+            final DiscoveryNode node = connectToRemoteCluster(clusterName);
+            final List<String> indices = entry.getValue();
+            //local true so we don't go to the master for each single remote search
+            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices.toArray(new String[indices.size()]))
+                    .indicesOptions(searchRequest.indicesOptions()).local(true).preference(searchRequest.preference())
+                    .routing(searchRequest.routing());
+
+            transportService.sendRequest(node, ClusterSearchShardsAction.NAME, searchShardsRequest,
+                    new TransportResponseHandler<ClusterSearchShardsResponse>() {
+
+                        @Override
+                        public ClusterSearchShardsResponse newInstance() {
+                            return new ClusterSearchShardsResponse();
+                        }
+
+                        @Override
+                        public void handleResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
+                            searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
+                            if (responsesCountDown.countDown()) {
+                                TransportException exception = transportException.get();
+                                if (exception == null) {
+                                    listener.onResponse(searchShardsResponses);
+                                } else {
+                                    listener.onFailure(transportException.get());
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void handleException(TransportException e) {
+                            TransportException exception = new TransportException("unable to communicate with remote cluster [" +
+                                    clusterName + "]", e);
+                            if (transportException.compareAndSet(null, exception) == false) {
+                                exception = transportException.accumulateAndGet(exception, (previous, current) -> {
+                                    current.addSuppressed(previous);
+                                    return current;
+                                });
+                            }
+                            if (responsesCountDown.countDown()) {
+                                listener.onFailure(exception);
+                            }
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SEARCH;
+                        }
+                    });
+        }
     }
 
     public void sendFreeContext(DiscoveryNode node, final long contextId, SearchRequest request) {

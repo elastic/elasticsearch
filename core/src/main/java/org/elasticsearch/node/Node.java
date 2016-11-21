@@ -426,7 +426,8 @@ public class Node implements Closeable {
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
                         threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase()));
-                    b.bind(SearchTransportService.class).toInstance(new SearchTransportService(settings, transportService));
+                    b.bind(SearchTransportService.class).toInstance(new SearchTransportService(settings,
+                            settingsModule.getClusterSettings(), transportService));
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings, bigArrays,
                             scriptModule.getScriptService()));
                     b.bind(Transport.class).toInstance(transport);

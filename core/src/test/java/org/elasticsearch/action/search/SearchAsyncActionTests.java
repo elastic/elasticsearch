@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -76,7 +77,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator shardsIter = getShardsIter("idx", randomIntBetween(1, 10), randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
-        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null) {
+        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(SearchTransportService.REMOTE_CLUSTERS_SEEDS)), null) {
             @Override
             public void sendFreeContext(DiscoveryNode node, long contextId, SearchRequest request) {
                 numFreedContext.incrementAndGet();

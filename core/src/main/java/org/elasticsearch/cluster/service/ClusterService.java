@@ -590,9 +590,6 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     void runTasks(TaskInputs taskInputs) {
-        if (taskInputs.skipProcessing()) {
-            return;
-        }
         if (!lifecycle.started()) {
             logger.debug("processing [{}]: ignoring, cluster service not started", taskInputs.summary);
             return;
@@ -651,10 +648,10 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterServiceState previousClusterServiceState, long startTimeNS) {
         ClusterState previousClusterState = previousClusterServiceState.getClusterState();
-        List<UpdateTask> nonFailedTasks = new ArrayList<>();
         BatchResult<Object> batchResult = executeTasks(taskInputs, startTimeNS, previousClusterState);
         ClusterState newClusterState = batchResult.resultingState;
         // extract those that are waiting for results
+        List<UpdateTask> nonFailedTasks = new ArrayList<>();
         for (UpdateTask updateTask : taskInputs.updateTasks) {
             assert batchResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask;
             final ClusterStateTaskExecutor.TaskResult taskResult =
@@ -841,10 +838,6 @@ public class ClusterService extends AbstractLifecycleComponent {
             this.summary = summary;
             this.executor = executor;
             this.updateTasks = updateTasks;
-        }
-
-        public boolean skipProcessing() {
-            return updateTasks.isEmpty();
         }
 
         public boolean runOnlyOnMaster() {
@@ -1077,12 +1070,14 @@ public class ClusterService extends AbstractLifecycleComponent {
                     }
                 }
 
-                final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
-                    String tasks = executor.describeTasks(entry.getValue());
-                    return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-                }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
+                if (toExecute.isEmpty() == false) {
+                    final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
+                        String tasks = executor.describeTasks(entry.getValue());
+                        return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
+                    }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
 
-                runTasks(new TaskInputs(executor, toExecute, tasksSummary));
+                    runTasks(new TaskInputs(executor, toExecute, tasksSummary));
+                }
             }
         }
 
@@ -1250,12 +1245,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             countDown = Math.max(1, countDown);
             logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, clusterStateVersion);
             this.countDown = new CountDown(countDown);
-            this.ackTimeoutCallback = threadPool.schedule(ackedTaskListener.ackTimeout(), ThreadPool.Names.GENERIC, new Runnable() {
-                @Override
-                public void run() {
-                    onTimeout();
-                }
-            });
+            this.ackTimeoutCallback = threadPool.schedule(ackedTaskListener.ackTimeout(), ThreadPool.Names.GENERIC, () -> onTimeout());
         }
 
         @Override

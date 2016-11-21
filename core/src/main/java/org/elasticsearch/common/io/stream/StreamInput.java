@@ -330,9 +330,15 @@ public abstract class StreamInput extends InputStream {
     private final CharsRef spare = new CharsRef();
 
     public String readString() throws IOException {
+        // TODO it would be nice to not call readByte() for every character but we don't know how much to read up-front
+        // we can make the loop much more complicated but that won't buy us much compared to the bounds checks in readByte()
         final int charCount = readVInt();
+        if (spare.chars.length < charCount) {
+            // we don't use ArrayUtils.grow since there is no need to copy the array
+            spare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
+        }
         spare.length = charCount;
-        spare.chars = ArrayUtil.grow(spare.chars, charCount);
+        final char[] buffer = spare.chars;
         for (int i = 0; i < charCount; i++) {
             final int c = readByte() & 0xff;
             switch (c >> 4) {
@@ -344,14 +350,14 @@ public abstract class StreamInput extends InputStream {
                 case 5:
                 case 6:
                 case 7:
-                    spare.chars[i] = (char) c;
+                    buffer[i] = (char) c;
                     break;
                 case 12:
                 case 13:
-                    spare.chars[i] = ((char) ((c & 0x1F) << 6 | readByte() & 0x3F));
+                    buffer[i] = ((char) ((c & 0x1F) << 6 | readByte() & 0x3F));
                     break;
                 case 14:
-                    spare.chars[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
+                    buffer[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
                 default:
                     new AssertionError("unexpected character: " + c + " hex: " + Integer.toHexString(c));

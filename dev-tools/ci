@@ -25,12 +25,9 @@ case $key in
         echo -e "Syntax:\n"
         echo -e "$0 [-g|--gradleoptstring] \"override gradle parameters for tests\"\n"
         exit 0;;
-    -*)
+    *)
         echo "Unknown argument: $key";
         exit 1;;
-    *)
-        # Unknown option
-        ;;
 esac
 done
 

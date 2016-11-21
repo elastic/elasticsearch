@@ -5,18 +5,22 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
+import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
+import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
-import org.elasticsearch.xpack.notification.email.EmailTemplate;
-import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
-import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplate;
+
+import java.util.Map;
 
 public final class ActionBuilders {
 
@@ -33,6 +37,14 @@ public final class ActionBuilders {
 
     public static IndexAction.Builder indexAction(String index, String type) {
         return IndexAction.builder(index, type);
+    }
+
+    public static JiraAction.Builder jiraAction(String account, MapBuilder<String, Object> fields) {
+        return jiraAction(account, fields.immutableMap());
+    }
+
+    public static JiraAction.Builder jiraAction(String account, Map<String, Object> fields) {
+        return JiraAction.builder(account, fields);
     }
 
     public static WebhookAction.Builder webhookAction(HttpRequestTemplate.Builder httpRequest) {
@@ -58,7 +70,6 @@ public final class ActionBuilders {
     public static HipChatAction.Builder hipchatAction(String account, String body) {
         return hipchatAction(account, new TextTemplate(body));
     }
-
 
     public static HipChatAction.Builder hipchatAction(TextTemplate body) {
         return hipchatAction(null, body);

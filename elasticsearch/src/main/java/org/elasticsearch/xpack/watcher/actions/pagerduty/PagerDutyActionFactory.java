@@ -9,9 +9,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.ActionFactory;
-import org.elasticsearch.xpack.watcher.actions.hipchat.ExecutableHipChatAction;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 
 import java.io.IOException;
 
@@ -21,7 +20,7 @@ public class PagerDutyActionFactory extends ActionFactory {
     private final PagerDutyService pagerDutyService;
 
     public PagerDutyActionFactory(Settings settings, TextTemplateEngine templateEngine, PagerDutyService pagerDutyService) {
-        super(Loggers.getLogger(ExecutableHipChatAction.class, settings));
+        super(Loggers.getLogger(ExecutablePagerDutyAction.class, settings));
         this.templateEngine = templateEngine;
         this.pagerDutyService = pagerDutyService;
     }

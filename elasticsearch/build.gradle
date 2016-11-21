@@ -1,9 +1,10 @@
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.test.NodeInfo
+
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.test.NodeInfo
 
 group 'org.elasticsearch.plugin'
 
@@ -247,3 +248,4 @@ thirdPartyAudit.excludes = [
     'javax.activation.URLDataSource',
     'javax.activation.UnsupportedDataTypeException'
 ]
+

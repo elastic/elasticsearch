@@ -6,6 +6,10 @@ dependencies {
 }
 
 integTest {
+  // JIRA integration tests are ignored until a JIRA server is available for testing
+  // see https://github.com/elastic/infra/issues/1498
+  systemProperty 'tests.rest.blacklist', 'actions/20_jira/*'
+
   cluster {
     plugin ':x-plugins:elasticsearch'
     setting 'xpack.security.enabled', 'false'
@@ -13,5 +17,16 @@ integTest {
     setting 'http.port', '9400'
     setting 'script.inline', 'true'
     setting 'script.stored', 'true'
+    // Need to allow more compilations per minute because of the integration tests
+    setting 'script.max_compilations_per_minute', '100'
+
+    // JIRA integration test settings
+    setting 'xpack.notification.jira.account.test.url', 'http://localhost:8080'
+    setting 'xpack.notification.jira.account.test.allow_http', 'true'
+    setting 'xpack.notification.jira.account.test.user', 'jira_user'
+    setting 'xpack.notification.jira.account.test.password', 'secret'
+    setting 'xpack.notification.jira.account.test.issue_defaults.project.key', 'BAS'
+    setting 'xpack.notification.jira.account.test.issue_defaults.labels', ['integration-tests']
+
   }
 }

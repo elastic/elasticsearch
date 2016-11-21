@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.email.EmailService;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.notification.jira.JiraService;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -53,6 +54,8 @@ import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatActionFactory;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexActionFactory;
+import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
+import org.elasticsearch.xpack.watcher.actions.jira.JiraActionFactory;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingActionFactory;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
@@ -238,6 +241,8 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
         actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine,
                 getService(HipChatService.class, components)));
+        actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine,
+                getService(JiraService.class, components)));
         actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine,
                 getService(SlackService.class, components)));
         actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine,

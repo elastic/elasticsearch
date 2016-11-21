@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -675,6 +677,22 @@ public class BytesStreamsTests extends ESTestCase {
                     String s = streamInput.readString();
                     assertEquals(strings.get(i), s);
                 }
+            }
+        }
+    }
+
+    /*
+     * tests the extreme case where characters use more than 2 bytes
+     */
+    public void testWriteLargeSurrogateOnlyString() throws IOException {
+        String deseretLetter = "\uD801\uDC00";
+        assertEquals(2, deseretLetter.length());
+        String largeString = IntStream.range(0, 2048).mapToObj(s -> deseretLetter).collect(Collectors.joining("")).trim();
+        assertEquals("expands to 4 bytes", 4, new BytesRef(deseretLetter).length);
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeString(largeString);
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                assertEquals(largeString, streamInput.readString());
             }
         }
     }

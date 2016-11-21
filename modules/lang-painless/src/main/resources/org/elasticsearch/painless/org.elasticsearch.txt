@@ -57,6 +57,13 @@ class def -> java.lang.Object {
   String toString()
 }
 
+
+#### Painless debugging API
+
+class Debug -> org.elasticsearch.painless.Debug extends Object {
+  void explain(Object)
+}
+
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint -> org.elasticsearch.common.geo.GeoPoint extends Object {

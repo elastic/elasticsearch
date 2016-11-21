@@ -6,6 +6,7 @@ List projects = [
   'core',
   'docs',
   'client:rest',
+  'client:advanced-rest',
   'client:sniffer',
   'client:transport',
   'client:highlevel-rest',

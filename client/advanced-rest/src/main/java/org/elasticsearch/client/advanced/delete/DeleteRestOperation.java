@@ -1,0 +1,66 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.client.advanced.delete;
+
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.advanced.RestOperation;
+import org.elasticsearch.client.advanced.RestResponseListener;
+
+import java.io.IOException;
+import java.util.Map;
+
+/**
+ * Delete a document
+ */
+public class DeleteRestOperation extends RestOperation<DeleteRestRequest, DeleteRestResponse, RestResponseListener> {
+
+    @Override
+    protected Response doExecute(RestClient client, DeleteRestRequest request) throws IOException {
+        return client.performRequest("DELETE",
+            "/" + request.getIndex() + "/" + request.getType() + "/" + request.getId());
+    }
+
+    @Override
+    protected void doExecute(RestClient client, DeleteRestRequest request, ResponseListener listener) throws IOException {
+        client.performRequestAsync("DELETE",
+            "/" + request.getIndex() + "/" + request.getType() + "/" + request.getId(), listener);
+    }
+
+    @Override
+    protected Map<String, Object> toMap(Response response) throws IOException {
+        throw new RuntimeException("Not implemented yet...");
+    }
+
+    @Override
+    protected String toString(Response response) throws IOException {
+        return EntityUtils.toString(response.getEntity());
+    }
+
+    @Override
+    protected DeleteRestResponse toRestResponse(Response response) throws IOException {
+        DeleteRestResponse restResponse = new DeleteRestResponse();
+        // TODO Parse the response as a map then transform to object?
+        // Or use Jackson to parse it as object?
+        return restResponse;
+    }
+}

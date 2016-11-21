@@ -307,7 +307,7 @@ public abstract class StreamOutput extends OutputStream {
     public void writeString(String str) throws IOException {
         final int charCount = str.length();
         final int bufferSize = Math.min(3 * charCount, 1024); // at most 3 bytes per character is needed here
-        if (convertStringBuffer.length < bufferSize) {
+        if (convertStringBuffer.length < bufferSize) { // we don't use ArrayUtils.grow since copying the bytes is unnecessary
             convertStringBuffer = new byte[ArrayUtil.oversize(bufferSize, Byte.BYTES)];
         }
         byte[] buffer = convertStringBuffer;

@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -107,6 +108,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
 
@@ -160,10 +162,10 @@ public class ExceptionSerializationTests extends ESTestCase {
                 if (isEsException(clazz) == false) {
                     return;
                 }
-                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class)) == false
+                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT) == false
                         && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
                     notRegistered.add(clazz);
-                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class))) {
+                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT)) {
                     registered.add(clazz);
                     try {
                         if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
@@ -218,10 +220,17 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     private <T extends Exception> T serialize(T exception) throws IOException {
-        ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), exception);
+       return serialize(exception, VersionUtils.randomVersion(random()));
+    }
+
+    private <T extends Exception> T serialize(T exception, Version version) throws IOException {
+        ElasticsearchAssertions.assertVersionSerializable(version, exception);
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
         out.writeException(exception);
+
         StreamInput in = out.bytes().streamInput();
+        in.setVersion(version);
         return in.readException();
     }
 
@@ -769,6 +778,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
         ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
+        ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
@@ -826,4 +836,28 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
     }
+
+    public void testShardLockObtainFailedException() throws IOException {
+        ShardId shardId = new ShardId("foo", "_na_", 1);
+        ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
+        Version version = VersionUtils.randomVersionBetween(random(),
+            Version.V_5_0_0, Version.CURRENT);
+        if (version.before(ElasticsearchException.V_5_1_0_UNRELEASED)) {
+            // remove this once 5_1_0 is released randomVersionBetween asserts that this version is in the constant table..
+            version = ElasticsearchException.V_5_1_0_UNRELEASED;
+        }
+        ShardLockObtainFailedException ex = serialize(orig, version);
+        assertEquals(orig.getMessage(), ex.getMessage());
+        assertEquals(orig.getShardId(), ex.getShardId());
+    }
+
+    public void testBWCShardLockObtainFailedException() throws IOException {
+        ShardId shardId = new ShardId("foo", "_na_", 1);
+        ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
+        Exception ex = serialize((Exception)orig, Version.V_5_0_0);
+        assertThat(ex, instanceOf(NotSerializableExceptionWrapper.class));
+        assertEquals("shard_lock_obtain_failed_exception: [foo][1]: boom", ex.getMessage());
+    }
+
+
 }

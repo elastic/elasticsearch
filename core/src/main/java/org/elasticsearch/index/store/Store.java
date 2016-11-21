@@ -388,8 +388,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot");
-        } catch (ShardLockObtainFailedException ex) {
-            logger.info((Supplier<?>) () -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
         }
         return MetadataSnapshot.EMPTY;
     }

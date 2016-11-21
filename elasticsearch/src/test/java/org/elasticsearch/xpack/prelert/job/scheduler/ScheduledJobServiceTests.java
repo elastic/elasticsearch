@@ -95,7 +95,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
         Allocation allocation =
                 new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STARTING, 0L, 60000L));
         DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
-        builder.setCounts(dataCounts);
+
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation);
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
@@ -118,7 +118,6 @@ public class ScheduledJobServiceTests extends ESTestCase {
         Allocation allocation =
                 new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STARTING, 0L, null));
         DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
-        builder.setCounts(dataCounts);
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation);
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
@@ -148,9 +147,6 @@ public class ScheduledJobServiceTests extends ESTestCase {
         Job.Builder builder = createScheduledJob();
         Allocation allocation1 =
                 new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STARTED, 0, null));
-        DataCounts dataCounts = new DataCounts("foo");
-        dataCounts.setLatestRecordTimeStamp(new Date(0));
-        builder.setCounts(dataCounts);
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation1);
 
         DataExtractor dataExtractor = mock(DataExtractor.class);

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
+import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectCommunicator;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.parsing.AutodetectResultsParser;
@@ -51,10 +52,12 @@ import static org.mockito.Mockito.spy;
 public class AutodetectProcessManagerTests extends ESTestCase {
 
     private JobManager jobManager;
+    private JobProvider jobProvider;
 
     @Before
     public void initMocks() {
         jobManager = Mockito.mock(JobManager.class);
+        jobProvider = Mockito.mock(JobProvider.class);
         givenAllocationWithStatus(JobStatus.CLOSED);
     }
 
@@ -187,8 +190,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
-        AutodetectProcessManager manager =
-                new AutodetectProcessManager(Settings.EMPTY, client, environment, threadPool, jobManager, parser, autodetectProcessFactory);
+        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, environment, threadPool,
+                                                    jobManager, jobProvider, parser, autodetectProcessFactory);
         manager = spy(manager);
         doReturn(communicator).when(manager).create(any(), anyBoolean());
         return manager;

@@ -60,7 +60,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getIgnoreDowntime());
         assertNull(job.getLastDataTime());
         assertNull(job.getModelDebugConfig());
-        assertNull(job.getModelSizeStats());
         assertNull(job.getRenormalizationWindowDays());
         assertNull(job.getBackgroundPersistInterval());
         assertNull(job.getModelSnapshotRetentionDays());
@@ -595,9 +594,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         if (randomBoolean()) {
             builder.setDataDescription(new DataDescription.Builder());
         }
-        if (randomBoolean()) {
-            builder.setModelSizeStats(new ModelSizeStats.Builder("foo"));
-        }
         String[] outputs;
         TransformType[] transformTypes ;
         AnalysisConfig ac = analysisConfig.build();
@@ -619,7 +615,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         if (randomBoolean()) {
             builder.setModelDebugConfig(new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)));
         }
-        builder.setCounts(new DataCounts(jobId));
         builder.setIgnoreDowntime(randomFrom(IgnoreDowntime.values()));
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomPositiveLong());

@@ -35,12 +35,12 @@ import org.elasticsearch.xpack.prelert.job.logs.JobLogs;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,10 +52,7 @@ import java.util.stream.Collectors;
  * <ul>
  * <li>creation</li>
  * <li>deletion</li>
- * <li>flushing</li>
  * <li>updating</li>
- * <li>sending of data</li>
- * <li>fetching jobs and results</li>
  * <li>starting/stopping of scheduled jobs</li>
  * </ul>
  */
@@ -70,18 +67,22 @@ public class JobManager {
 
     public static final String DEFAULT_RECORD_SORT_FIELD = AnomalyRecord.PROBABILITY.getPreferredName();
     private final JobProvider jobProvider;
+    private final JobDataCountsPersister jobDataCountsPersister;
     private final ClusterService clusterService;
     private final Environment env;
     private final Settings settings;
 
+
     /**
      * Create a JobManager
      */
-    public JobManager(Environment env, Settings settings, JobProvider jobProvider, ClusterService clusterService) {
+    public JobManager(Environment env, Settings settings, JobProvider jobProvider,
+                      JobDataCountsPersister jobDataCountsPersister, ClusterService clusterService) {
         this.env = env;
         this.settings = settings;
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.clusterService = clusterService;
+        this.jobDataCountsPersister = jobDataCountsPersister;
     }
 
     /**
@@ -458,12 +459,11 @@ public class JobManager {
                 builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
                 if (request.getDeleteInterveningResults()) {
                     builder.setIgnoreDowntime(IgnoreDowntime.NEVER);
-                    Date latestRecordTime = modelSnapshot.getLatestResultTimeStamp();
-                    LOGGER.info("Resetting latest record time to '" + latestRecordTime + "'");
-                    builder.setLastDataTime(latestRecordTime);
-                    DataCounts counts = job.getCounts();
-                    counts.setLatestRecordTimeStamp(latestRecordTime);
-                    builder.setCounts(counts);
+                    DataCounts counts = jobProvider.dataCounts(request.getJobId());
+                    counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
+                    // NORELEASE This update should be async. See #127
+                    jobDataCountsPersister.persistDataCounts(request.getJobId(), counts);
+
                 } else {
                     builder.setIgnoreDowntime(IgnoreDowntime.ONCE);
                 }

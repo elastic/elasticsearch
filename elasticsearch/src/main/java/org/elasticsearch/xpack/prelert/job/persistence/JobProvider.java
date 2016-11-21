@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.persistence;
 
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
@@ -79,6 +80,13 @@ public interface JobProvider extends JobResultsProvider {
      * Get the job's model size stats.
      */
     Optional<ModelSizeStats> modelSizeStats(String jobId);
+
+    /**
+     * Get the job's data counts
+     * @param jobId The job id
+     * @return The dataCounts or default constructed object if not found
+     */
+    DataCounts dataCounts(String jobId);
 
     /**
      * Retrieves the list with the given {@code listId} from the datastore.

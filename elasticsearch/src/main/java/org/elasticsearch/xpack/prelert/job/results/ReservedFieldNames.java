@@ -122,6 +122,7 @@ public final class ReservedFieldNames {
             DataCounts.MISSING_FIELD_COUNT.getPreferredName(),
             DataCounts.OUT_OF_ORDER_TIME_COUNT.getPreferredName(),
             DataCounts.LATEST_RECORD_TIME.getPreferredName(),
+            DataCounts.EARLIEST_RECORD_TIME.getPreferredName(),
 
             Influence.INFLUENCER_FIELD_NAME.getPreferredName(),
             Influence.INFLUENCER_FIELD_VALUES.getPreferredName(),

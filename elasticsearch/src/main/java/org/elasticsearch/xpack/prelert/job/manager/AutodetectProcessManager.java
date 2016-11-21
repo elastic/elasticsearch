@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobDataCount
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchUsagePersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
+import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectCommunicator;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
@@ -51,13 +52,15 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     private final Environment env;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
+    private final JobProvider jobProvider;
     private final AutodetectResultsParser parser;
     private final AutodetectProcessFactory autodetectProcessFactory;
 
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
 
     public AutodetectProcessManager(Settings settings, Client client, Environment env, ThreadPool threadPool, JobManager jobManager,
-                                    AutodetectResultsParser parser, AutodetectProcessFactory autodetectProcessFactory) {
+                                    JobProvider jobProvider, AutodetectResultsParser parser,
+                                    AutodetectProcessFactory autodetectProcessFactory) {
         super(settings);
         this.client = client;
         this.env = env;
@@ -65,6 +68,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         this.parser = parser;
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.jobManager = jobManager;
+        this.jobProvider = jobProvider;
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
     }
 
@@ -105,9 +109,9 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         ElasticsearchUsagePersister usagePersister = new ElasticsearchUsagePersister(client, jobLogger);
         UsageReporter usageReporter = new UsageReporter(settings, job.getJobId(), usagePersister, jobLogger);
 
-        JobDataCountsPersister jobDataCountsPersister = new ElasticsearchJobDataCountsPersister(client, jobLogger);
-        StatusReporter statusReporter = new StatusReporter(env, settings, job.getJobId(), job.getCounts(), usageReporter,
-                jobDataCountsPersister, jobLogger, job.getAnalysisConfig().getBucketSpanOrDefault());
+        JobDataCountsPersister jobDataCountsPersister = new ElasticsearchJobDataCountsPersister(client);
+        StatusReporter statusReporter = new StatusReporter(env, settings, job.getJobId(), jobProvider.dataCounts(jobId),
+                usageReporter, jobDataCountsPersister, jobLogger, job.getAnalysisConfig().getBucketSpanOrDefault());
 
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, ignoreDowntime);
         JobResultsPersister persister = new ElasticsearchPersister(jobId, client);

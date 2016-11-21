@@ -216,3 +216,12 @@ setup:
   - match: { hitCount: 1 }
   - match: { hits.0.jobId: "foo" }
   - match: { hits.0.timestamp: 1462060800000 }
+
+  - do:
+      xpack.prelert.get_job:
+        job_id: foo
+        metric: data_counts
+
+  - match: { document.data_counts.latest_record_timestamp: 1464739200000 }
+
+

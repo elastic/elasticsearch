@@ -47,14 +47,12 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
             SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(SchedulerConfig.DataSource.FILE);
             schedulerConfig.setFilePath("/file/path");
             DataDescription dataDescription = randomBoolean() ? new DataDescription.Builder().build() : null;
-            ModelSizeStats modelSizeStats = randomBoolean() ? new ModelSizeStats.Builder("foo").build() : null;
             int numTransformers = randomIntBetween(0, 32);
             List<TransformConfig> transformConfigList = new ArrayList<>(numTransformers);
             for (int i = 0; i < numTransformers; i++) {
                 transformConfigList.add(new TransformConfig(TransformType.UPPERCASE.prettyName()));
             }
             ModelDebugConfig modelDebugConfig = randomBoolean() ? new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)) : null;
-            DataCounts counts = randomBoolean() ? new DataCounts(jobId) : null;
             IgnoreDowntime ignoreDowntime = randomFrom(IgnoreDowntime.values());
             Long normalizationWindowDays = randomBoolean() ? randomLong() : null;
             Long backgroundPersistInterval = randomBoolean() ? randomLong() : null;
@@ -65,8 +63,8 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
             Double averageBucketProcessingTimeMs = randomBoolean() ? randomDouble() : null;
             String modelSnapshotId = randomBoolean() ? randomAsciiOfLength(10) : null;
             Job job = new Job(jobId, description, createTime, finishedTime, lastDataTime,
-                    timeout, analysisConfig, analysisLimits, schedulerConfig.build(), dataDescription, modelSizeStats, transformConfigList,
-                    modelDebugConfig, counts, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,
+                    timeout, analysisConfig, analysisLimits, schedulerConfig.build(), dataDescription, transformConfigList,
+                    modelDebugConfig, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customConfig, averageBucketProcessingTimeMs, modelSnapshotId);
 
 

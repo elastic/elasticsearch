@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.junit.Before;
@@ -39,12 +40,14 @@ public class JobManagerTests extends ESTestCase {
 
     private ClusterService clusterService;
     private JobProvider jobProvider;
+    private JobDataCountsPersister jobDataCountsPersister;
     private Auditor auditor;
 
     @Before
     public void setupMocks() {
         clusterService = mock(ClusterService.class);
         jobProvider = mock(JobProvider.class);
+        jobDataCountsPersister = mock(JobDataCountsPersister.class);
         auditor = mock(Auditor.class);
         when(jobProvider.audit(anyString())).thenReturn(auditor);
     }
@@ -188,7 +191,7 @@ public class JobManagerTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = new Environment(
                 settings);
-        return new JobManager(env, settings, jobProvider, clusterService);
+        return new JobManager(env, settings, jobProvider, jobDataCountsPersister, clusterService);
     }
 
     private ClusterState createClusterState() {

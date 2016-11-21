@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
+import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
@@ -176,7 +177,7 @@ public class ScheduledJobService extends AbstractComponent {
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(job);
         ScheduledJob scheduledJob =  new ScheduledJob(job.getJobId(), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractor, dataProcessor, auditor, currentTimeSupplier, getLatestFinalBucketEndTimeMs(job),
-                getLatestRecordTimestamp(job));
+                getLatestRecordTimestamp(job.getJobId()));
         return new Holder(scheduledJob, new ProblemTracker(() -> auditor));
     }
 
@@ -200,10 +201,11 @@ public class ScheduledJobService extends AbstractComponent {
         return latestFinalBucketEndMs;
     }
 
-    private long getLatestRecordTimestamp(Job job) {
+    private long getLatestRecordTimestamp(String jobId) {
         long latestRecordTimeMs = -1L;
-        if (job.getCounts() != null && job.getCounts().getLatestRecordTimeStamp() != null) {
-            latestRecordTimeMs = job.getCounts().getLatestRecordTimeStamp().getTime();
+        DataCounts dataCounts = jobProvider.dataCounts(jobId);
+        if (dataCounts.getLatestRecordTimeStamp() != null) {
+            latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
         }
         return latestRecordTimeMs;
     }

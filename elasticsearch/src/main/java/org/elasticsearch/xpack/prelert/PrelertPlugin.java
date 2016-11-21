@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.prelert.job.metadata.JobAllocator;
 import org.elasticsearch.xpack.prelert.job.metadata.JobLifeCycleService;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
+import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
 import org.elasticsearch.xpack.prelert.job.process.NativeController;
 import org.elasticsearch.xpack.prelert.job.process.ProcessCtrl;
@@ -154,8 +155,9 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         // For this reason we can't use interfaces in the constructor of transport actions.
         // This ok for now as we will remove Guice soon
         ElasticsearchJobProvider jobProvider = new ElasticsearchJobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());
+        ElasticsearchJobDataCountsPersister jobDataCountsPersister = new ElasticsearchJobDataCountsPersister(client);
 
-        JobManager jobManager = new JobManager(env, settings, jobProvider, clusterService);
+        JobManager jobManager = new JobManager(env, settings, jobProvider, jobDataCountsPersister, clusterService);
         AutodetectProcessFactory processFactory;
         if (USE_NATIVE_PROCESS_OPTION.get(settings)) {
             try {
@@ -169,8 +171,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
             processFactory = (JobDetails, ignoreDowntime) -> new BlackHoleAutodetectProcess();
         }
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
-        DataProcessor dataProcessor =
-                new AutodetectProcessManager(settings, client, env, threadPool, jobManager, autodetectResultsParser, processFactory);
+        DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, env, threadPool,
+                                            jobManager, jobProvider, autodetectResultsParser, processFactory);
         ScheduledJobService scheduledJobService = new ScheduledJobService(threadPool, client, jobProvider, dataProcessor,
                 new HttpDataExtractorFactory(), System::currentTimeMillis);
         return Arrays.asList(

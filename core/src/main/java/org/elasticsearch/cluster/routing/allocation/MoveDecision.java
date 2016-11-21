@@ -20,47 +20,87 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Represents a decision to move a started shard because it is no longer allowed to remain on its current node.
  */
 public final class MoveDecision extends RelocationDecision {
     /** a constant representing no decision taken */
-    public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, null, null, null);
+    public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, null, null);
     /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
-    private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(Decision.YES, Decision.Type.NO, null, null, null);
-    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(Decision.NO, Decision.Type.NO, null, null, null);
+    private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(Decision.YES, Type.NO, null, null);
+    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(Decision.NO, Type.NO, null, null);
 
     @Nullable
     private final Decision canRemainDecision;
     @Nullable
     private final Map<String, NodeAllocationResult> nodeDecisions;
 
-    private MoveDecision(Decision canRemainDecision, Decision.Type finalDecision, String finalExplanation,
+    private MoveDecision(Decision canRemainDecision, Type finalDecision,
                          String assignedNodeId, Map<String, NodeAllocationResult> nodeDecisions) {
-        super(finalDecision, finalExplanation, assignedNodeId);
+        super(finalDecision, assignedNodeId);
         this.canRemainDecision = canRemainDecision;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
+    }
+
+    public MoveDecision(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            canRemainDecision = Decision.readFrom(in);
+        } else {
+            canRemainDecision = null;
+        }
+        Map<String, NodeAllocationResult> nodeDecisionsMap = null;
+        if (in.readBoolean()) {
+            final int size = in.readVInt();
+            nodeDecisionsMap = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                nodeDecisionsMap.put(in.readString(), new NodeAllocationResult(in));
+            }
+        }
+        nodeDecisions = nodeDecisionsMap == null ? null : Collections.unmodifiableMap(nodeDecisionsMap);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (canRemainDecision != null) {
+            out.writeBoolean(true);
+            Decision.writeTo(canRemainDecision, out);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (nodeDecisions != null) {
+            out.writeBoolean(true);
+            out.writeVInt(nodeDecisions.size());
+            for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     /**
      * Creates a move decision for the shard being able to remain on its current node, so not moving.
      */
-    public static MoveDecision stay(Decision canRemainDecision, boolean explain) {
-        assert canRemainDecision.type() != Decision.Type.NO;
-        if (explain) {
-            final String explanation;
-            if (explain) {
-                explanation = "shard is allowed to remain on its current node, so no reason to move";
-            } else {
-                explanation = null;
-            }
-            return new MoveDecision(Objects.requireNonNull(canRemainDecision), Decision.Type.NO, explanation, null, null);
+    public static MoveDecision stay(Decision canRemainDecision) {
+        if (canRemainDecision != null) {
+            assert canRemainDecision.type() != Type.NO;
+            return new MoveDecision(canRemainDecision, Type.NO, null, null);
         } else {
             return CACHED_STAY_DECISION;
         }
@@ -71,34 +111,20 @@ public final class MoveDecision extends RelocationDecision {
      *
      * @param canRemainDecision the decision for whether the shard is allowed to remain on its current node
      * @param finalDecision the decision of whether to move the shard to another node
-     * @param explain true if in explain mode
-     * @param currentNodeId the current node id where the shard is assigned
      * @param assignedNodeId the node id for where the shard can move to
      * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
      * @return the {@link MoveDecision} for moving the shard to another node
      */
-    public static MoveDecision decision(Decision canRemainDecision, Decision.Type finalDecision, boolean explain, String currentNodeId,
-                                        String assignedNodeId, Map<String, NodeAllocationResult> nodeDecisions) {
+    public static MoveDecision decision(Decision canRemainDecision, Type finalDecision, String assignedNodeId,
+                                        Map<String, NodeAllocationResult> nodeDecisions) {
         assert canRemainDecision != null;
-        assert canRemainDecision.type() != Decision.Type.YES : "create decision with MoveDecision#stay instead";
-        String finalExplanation = null;
-        if (explain) {
-            assert currentNodeId != null;
-            if (finalDecision == Decision.Type.YES) {
-                assert assignedNodeId != null;
-                finalExplanation = "shard cannot remain on node [" + currentNodeId + "], moving to node [" + assignedNodeId + "]";
-            } else if (finalDecision == Decision.Type.THROTTLE) {
-                finalExplanation = "shard cannot remain on node [" + currentNodeId + "], throttled on moving to another node";
-            } else {
-                finalExplanation = "shard cannot remain on node [" + currentNodeId + "], but cannot be assigned to any other node";
-            }
-        }
-        if (finalExplanation == null && finalDecision == Decision.Type.NO) {
+        assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
+        if (nodeDecisions == null && finalDecision == Type.NO) {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
-            assert ((assignedNodeId == null) == (finalDecision != Decision.Type.YES));
-            return new MoveDecision(canRemainDecision, finalDecision, finalExplanation, assignedNodeId, nodeDecisions);
+            assert ((assignedNodeId == null) == (finalDecision != Type.YES));
+            return new MoveDecision(canRemainDecision, finalDecision, assignedNodeId, nodeDecisions);
         }
     }
 
@@ -106,14 +132,14 @@ public final class MoveDecision extends RelocationDecision {
      * Returns {@code true} if the shard cannot remain on its current node and can be moved, returns {@code false} otherwise.
      */
     public boolean move() {
-        return cannotRemain() && getFinalDecisionType() == Decision.Type.YES;
+        return cannotRemain() && getFinalDecisionType() == Type.YES;
     }
 
     /**
      * Returns {@code true} if the shard cannot remain on its current node.
      */
     public boolean cannotRemain() {
-        return isDecisionTaken() && canRemainDecision.type() == Decision.Type.NO;
+        return isDecisionTaken() && canRemainDecision.type() == Type.NO;
     }
 
     /**
@@ -124,4 +150,48 @@ public final class MoveDecision extends RelocationDecision {
     public Map<String, NodeAllocationResult> getNodeDecisions() {
         return nodeDecisions;
     }
+
+    /**
+     * Gets the final explanation for the decision to move a shard.
+     */
+    @Override
+    public String getFinalExplanation() {
+        String explanation;
+        if (cannotRemain() == false) {
+            explanation = "shard is allowed to remain on its current node, so no reason to move";
+        } else if (getFinalDecisionType() == Type.YES) {
+            explanation = "shard cannot remain on its current node, moving to node [" + getAssignedNodeId() + "]";
+        } else if (getFinalDecisionType() == Type.THROTTLE) {
+            explanation = "shard cannot remain on its current node, but throttled on moving to another node";
+        } else {
+            assert getFinalDecisionType() == Type.NO;
+            explanation = "shard cannot remain on its current node, but cannot be assigned to any other node";
+        }
+        return explanation;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        super.toXContent(builder, params);
+        builder.startObject("can_remain_decision");
+        {
+            builder.field("final_decision", canRemainDecision.type().toString());
+            canRemainDecision.toXContent(builder, params);
+        }
+        builder.endObject();
+        if (nodeDecisions != null) {
+            builder.startObject("nodes");
+            {
+                List<String> nodeIds = new ArrayList<>(nodeDecisions.keySet());
+                Collections.sort(nodeIds);
+                for (String nodeId : nodeIds) {
+                    NodeAllocationResult nodeAllocationResult = nodeDecisions.get(nodeId);
+                    nodeAllocationResult.toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+        }
+        return builder;
+    }
+
 }

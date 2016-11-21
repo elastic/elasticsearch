@@ -21,22 +21,46 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Represents a decision to relocate a started shard from its current node.
  */
-public abstract class RelocationDecision {
+public abstract class RelocationDecision implements ToXContent, Writeable {
     @Nullable
     private final Decision.Type finalDecision;
     @Nullable
-    private final String finalExplanation;
-    @Nullable
     private final String assignedNodeId;
 
-    protected RelocationDecision(Decision.Type finalDecision, String finalExplanation, String assignedNodeId) {
+    protected RelocationDecision(Decision.Type finalDecision, String assignedNodeId) {
         this.finalDecision = finalDecision;
-        this.finalExplanation = finalExplanation;
         this.assignedNodeId = assignedNodeId;
+    }
+
+    public RelocationDecision(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            finalDecision = Decision.Type.readFrom(in);
+        } else {
+            finalDecision = null;
+        }
+        assignedNodeId = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (finalDecision != null) {
+            out.writeBoolean(true);
+            Decision.Type.writeTo(finalDecision, out);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalString(assignedNodeId);
     }
 
     /**
@@ -56,14 +80,6 @@ public abstract class RelocationDecision {
     }
 
     /**
-     * Returns the free-text explanation for the reason behind the decision taken in {@link #getFinalDecisionType()}.
-     */
-    @Nullable
-    public String getFinalExplanation() {
-        return finalExplanation;
-    }
-
-    /**
      * Get the node id that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */
@@ -71,4 +87,21 @@ public abstract class RelocationDecision {
     public String getAssignedNodeId() {
         return assignedNodeId;
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (finalDecision != null) {
+            builder.field("final_decision", finalDecision);
+        }
+        builder.field("final_explanation", getFinalExplanation());
+        if (assignedNodeId != null) {
+            builder.field("assigned_node_id", assignedNodeId);
+        }
+        return builder;
+    }
+
+    /**
+     * Gets the final explanation for the decision taken.
+     */
+    public abstract String getFinalExplanation();
 }

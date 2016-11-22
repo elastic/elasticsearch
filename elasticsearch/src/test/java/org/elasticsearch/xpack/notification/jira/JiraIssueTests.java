@@ -99,8 +99,11 @@ public class JiraIssueTests extends ESTestCase {
 
         final Map<String, Object> fields = new HashMap<>(issue1.getFields());
         if (equals == false) {
-            String key = randomFrom(fields.keySet());
-            fields.remove(key);
+            if (fields.isEmpty()) {
+                fields.put(randomAsciiOfLength(5), randomAsciiOfLength(10));
+            } else {
+                fields.remove(randomFrom(fields.keySet()));
+            }
         }
 
         JiraIssue issue2 = new JiraIssue(fields, issue1.getRequest(), issue1.getResponse(), issue1.getFailureReason());

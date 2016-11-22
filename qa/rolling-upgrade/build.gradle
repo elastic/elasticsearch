@@ -53,7 +53,7 @@ task oldClusterTest(type: RestIntegTestTask) {
         plugin ':x-plugins:elasticsearch'
         distribution = 'zip'
         bwcVersion = '6.0.0-alpha1-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
-        numBwcNodes = 1
+        numBwcNodes = 2
         numNodes = 2
         clusterName = 'rolling-upgrade'
         waitCondition = waitWithAuth

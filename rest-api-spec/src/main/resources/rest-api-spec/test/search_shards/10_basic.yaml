@@ -10,3 +10,23 @@
         routing: foo
 
   - match: { shards.0.0.index: test_1 }
+
+---
+"Search shards with type":
+  - skip:
+    features: "warnings"
+    version: " - 5.0.99"
+    reason: type was deprecated in 5.1.0
+
+  - do:
+      indices.create:
+        index: test_1
+
+  - do:
+      warnings:
+        - type [whatever] doesn't have any effect in the search shards api, it should be rather omitted
+      search_shards:
+        index:  test_1
+        type: whatever
+
+  - match: { shards.0.0.index: test_1 }

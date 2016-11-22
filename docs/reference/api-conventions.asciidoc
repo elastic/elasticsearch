@@ -586,12 +586,82 @@ generates an edit distance based on the length of the term. For lengths:
 --
 
 [float]
-=== Result Casing
+[[common-options-error-options]]
+=== Enabling stack traces
 
-All REST APIs accept the `case` parameter. When set to `camelCase`, all
-field names in the result will be returned in camel casing, otherwise,
-underscore casing will be used. Note, this does not apply to the source
-document indexed.
+By default when a request returns an error Elasticsearch doesn't include the
+stack trace of the error. You can enable that behavior by setting the
+`error_trace` url parameter to `true`. For example, by default when you send an
+invalid `size` parameter to the `_search` API:
+
+[source,js]
+----------------------------------------------------------------------
+POST /twitter/_search?size=surprise_me
+----------------------------------------------------------------------
+// CONSOLE
+// TEST[catch:request]
+
+The response looks like:
+
+[source,js]
+----------------------------------------------------------------------
+{
+  "error" : {
+    "root_cause" : [
+      {
+        "type" : "illegal_argument_exception",
+        "reason" : "Failed to parse int parameter [size] with value [surprise_me]"
+      }
+    ],
+    "type" : "illegal_argument_exception",
+    "reason" : "Failed to parse int parameter [size] with value [surprise_me]",
+    "caused_by" : {
+      "type" : "number_format_exception",
+      "reason" : "For input string: \"surprise_me\""
+    }
+  },
+  "status" : 400
+}
+----------------------------------------------------------------------
+// TESTRESPONSE
+
+But if you set `error_trace=true`:
+
+[source,js]
+----------------------------------------------------------------------
+POST /twitter/_search?size=surprise_me&error_trace=true
+----------------------------------------------------------------------
+// CONSOLE
+// TEST[catch:request]
+
+The response looks like:
+
+[source,js]
+----------------------------------------------------------------------
+{
+  "error": {
+    "root_cause": [
+      {
+        "type": "illegal_argument_exception",
+        "reason": "Failed to parse int parameter [size] with value [surprise_me]",
+        "stack_trace": "Failed to parse int parameter [size] with value [surprise_me]]; nested: IllegalArgumentException..."
+      }
+    ],
+    "type": "illegal_argument_exception",
+    "reason": "Failed to parse int parameter [size] with value [surprise_me]",
+    "stack_trace": "java.lang.IllegalArgumentException: Failed to parse int parameter [size] with value [surprise_me]\n    at org.elasticsearch.rest.RestRequest.paramAsInt(RestRequest.java:175)...",
+    "caused_by": {
+      "type": "number_format_exception",
+      "reason": "For input string: \"surprise_me\"",
+      "stack_trace": "java.lang.NumberFormatException: For input string: \"surprise_me\"\n    at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)..."
+    }
+  },
+  "status": 400
+}
+----------------------------------------------------------------------
+// TESTRESPONSE[s/"stack_trace": "Failed to parse int parameter.+\.\.\."/"stack_trace": $body.error.root_cause.0.stack_trace/]
+// TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
+// TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
 
 [float]
 === Request body in query string

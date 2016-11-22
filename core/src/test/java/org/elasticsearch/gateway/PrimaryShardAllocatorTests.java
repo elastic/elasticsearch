@@ -203,6 +203,42 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     }
 
     /**
+     * Tests that when one node returns a ShardLockObtainFailedException and another properly loads the store, it will
+     * select the second node as target
+     */
+    public void testShardLockObtainFailedExceptionPreferOtherValidCopies() {
+        final RoutingAllocation allocation;
+        boolean useAllocationIds = randomBoolean();
+        String allocId1 = randomAsciiOfLength(10);
+        String allocId2 = randomAsciiOfLength(10);
+        if (useAllocationIds) {
+            allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), CLUSTER_RECOVERED,
+                randomFrom(Version.V_2_0_0, Version.CURRENT), allocId1, allocId2);
+            testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, allocId1, randomBoolean(),
+                new ShardLockObtainFailedException(shardId, "test"));
+            testAllocator.addData(node2, ShardStateMetaData.NO_VERSION, allocId2, randomBoolean(), null);
+        } else {
+            allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), CLUSTER_RECOVERED, Version.V_2_1_1);
+            testAllocator.addData(node1, 3, null, randomBoolean(), new ShardLockObtainFailedException(shardId, "test"));
+            if (randomBoolean()) {
+                testAllocator.addData(node2, randomIntBetween(2, 4), null, randomBoolean(), null);
+            } else {
+                testAllocator.addData(node2, ShardStateMetaData.NO_VERSION, "some alloc id", randomBoolean(), null);
+            }
+        }
+        testAllocator.allocateUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node2.getId()));
+        if (useAllocationIds) {
+            // check that allocation id is reused
+            assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(), equalTo(allocId2));
+        }
+        assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    /**
      * Tests that when there is a node to allocate the shard to, it will be allocated to it.
      */
     public void testFoundAllocationAndAllocating() {

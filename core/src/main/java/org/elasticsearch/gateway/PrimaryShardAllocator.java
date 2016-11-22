@@ -257,6 +257,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         return nodeDecisions;
     }
 
+    private static final Comparator<NodeGatewayStartedShards> NO_STORE_EXCEPTION_FIRST_COMPARATOR =
+        Comparator.comparing((NodeGatewayStartedShards state) -> state.storeException() == null).reversed();
+    private static final Comparator<NodeGatewayStartedShards> PRIMARY_FIRST_COMPARATOR =
+        Comparator.comparing(NodeGatewayStartedShards::primary).reversed();
+
     /**
      * Builds a list of nodes. If matchAnyShard is set to false, only nodes that have an allocation id matching
      * inSyncAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
@@ -266,8 +271,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                                                                              Set<String> ignoreNodes, Set<String> inSyncAllocationIds,
                                                                              FetchResult<NodeGatewayStartedShards> shardState,
                                                                              Logger logger) {
-        LinkedList<NodeGatewayStartedShards> matchingNodeShardStates = new LinkedList<>();
-        LinkedList<NodeGatewayStartedShards> nonMatchingNodeShardStates = new LinkedList<>();
+        List<NodeGatewayStartedShards> nodeShardStates = new ArrayList<>();
         int numberOfAllocationsFound = 0;
         for (NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
             DiscoveryNode node = nodeShardState.getNode();
@@ -297,28 +301,27 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
 
             if (allocationId != null) {
+                assert nodeShardState.storeException() == null ||
+                    nodeShardState.storeException() instanceof ShardLockObtainFailedException :
+                    "only allow store that can be opened or that throws a ShardLockObtainFailedException while being opened but got a store throwing " + nodeShardState.storeException();
                 numberOfAllocationsFound++;
-                if (inSyncAllocationIds.contains(allocationId)) {
-                    // put shards that were primary before and that didn't throw a ShardLockObtainFailedException first
-                    if (nodeShardState.primary() && nodeShardState.storeException() == null) {
-                        matchingNodeShardStates.addFirst(nodeShardState);
-                    } else {
-                        matchingNodeShardStates.addLast(nodeShardState);
-                    }
-                } else if (matchAnyShard) {
-                    // put shards that were primary before and that didn't throw a ShardLockObtainFailedException first
-                    if (nodeShardState.primary() && nodeShardState.storeException() == null) {
-                        nonMatchingNodeShardStates.addFirst(nodeShardState);
-                    } else {
-                        nonMatchingNodeShardStates.addLast(nodeShardState);
-                    }
+                if (matchAnyShard || inSyncAllocationIds.contains(nodeShardState.allocationId())) {
+                    nodeShardStates.add(nodeShardState);
                 }
             }
         }
 
-        List<NodeGatewayStartedShards> nodeShardStates = new ArrayList<>();
-        nodeShardStates.addAll(matchingNodeShardStates);
-        nodeShardStates.addAll(nonMatchingNodeShardStates);
+        final Comparator<NodeGatewayStartedShards> comparator; // allocation preference
+        if (matchAnyShard) {
+            // prefer shards with matching allocation ids
+            Comparator<NodeGatewayStartedShards> matchingAllocationsFirst = Comparator.comparing(
+                (NodeGatewayStartedShards state) -> inSyncAllocationIds.contains(state.allocationId())).reversed();
+            comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR).thenComparing(PRIMARY_FIRST_COMPARATOR);
+        } else {
+            comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR);
+        }
+
+        nodeShardStates.sort(comparator);
 
         if (logger.isTraceEnabled()) {
             logger.trace("{} candidates for allocation: {}", shard, nodeShardStates.stream().map(s -> s.getNode().getName()).collect(Collectors.joining(", ")));

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -166,12 +167,15 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         private final String allocationId;
         private final long version;
         private final long matchingBytes;
+        @Nullable
+        private final Exception storeException;
 
-        public ShardStore(StoreStatus storeStatus, String allocationId, long version) {
+        public ShardStore(StoreStatus storeStatus, String allocationId, long version, Exception storeException) {
             this.storeStatus = storeStatus;
             this.allocationId = allocationId;
             this.version = version;
             this.matchingBytes = -1;
+            this.storeException = storeException;
         }
 
         public ShardStore(StoreStatus storeStatus, long matchingBytes) {
@@ -179,6 +183,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             this.allocationId = null;
             this.version = -1;
             this.matchingBytes = matchingBytes;
+            this.storeException = null;
         }
 
         public ShardStore(StreamInput in) throws IOException {
@@ -186,6 +191,11 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             this.allocationId = in.readOptionalString();
             this.version = in.readLong();
             this.matchingBytes = in.readLong();
+            if (in.readBoolean()) {
+                this.storeException = in.readException();
+            } else {
+                this.storeException = null;
+            }
         }
 
         /** Gets the store status for the shard copy. */
@@ -217,12 +227,27 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             return matchingBytes;
         }
 
+        /**
+         * Gets the store exception, if one exists.  Otherwise, {@code null} is returned.  A store
+         * exception will only exist if {@link ShardStore#getStoreStatus()} returns
+         * {@link StoreStatus#CORRUPT} or {@link StoreStatus#IO_ERROR}.
+         */
+        public Exception getStoreException() {
+            return storeException;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             storeStatus.writeTo(out);
             out.writeOptionalString(allocationId);
             out.writeLong(version);
             out.writeLong(matchingBytes);
+            if (storeException != null) {
+                out.writeBoolean(true);
+                out.writeException(storeException);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override
@@ -238,6 +263,9 @@ public class NodeAllocationResult implements ToXContent, Writeable {
                 }
                 if (matchingBytes >= 0) {
                     builder.field("matching_bytes", new ByteSizeValue(matchingBytes).toString());
+                }
+                if (storeException != null) {
+                    builder.field("store_exception", ExceptionsHelper.detailedMessage(storeException));
                 }
             }
             builder.endObject();

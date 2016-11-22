@@ -286,7 +286,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             storeStatus = StoreStatus.STALE;
         }
 
-        return new ShardStore(storeStatus, startedShards.allocationId(), startedShards.legacyVersion());
+        return new ShardStore(storeStatus, startedShards.allocationId(), startedShards.legacyVersion(), storeErr);
     }
 
     /**

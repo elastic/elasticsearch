@@ -43,8 +43,6 @@ List projects = [
   'plugins:ingest-geoip',
   'plugins:ingest-attachment',
   'plugins:ingest-user-agent',
-  'plugins:lang-javascript',
-  'plugins:lang-python',
   'plugins:mapper-murmur3',
   'plugins:mapper-size',
   'plugins:repository-azure',

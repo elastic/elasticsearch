@@ -33,6 +33,7 @@ import org.elasticsearch.node.NodeValidationException;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.security.Permission;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -69,6 +70,14 @@ class Elasticsearch extends SettingCommand {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) throws Exception {
+        // we want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
+        // presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy)
+        System.setSecurityManager(new SecurityManager() {
+            @Override
+            public void checkPermission(Permission perm) {
+                // grant all permissions so that we can later set the security manager to the one that we want
+            }
+        });
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {

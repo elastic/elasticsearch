@@ -78,7 +78,7 @@ import java.util.Map;
  * when they are so dangerous that general code should not be granted the
  * permission, but there are extenuating circumstances.
  * <p>
- * Scripts (groovy, javascript, python) are assigned minimal permissions. This does not provide adequate
+ * Scripts (groovy) are assigned minimal permissions. This does not provide adequate
  * sandboxing, as these scripts still have access to ES classes, and could
  * modify members, etc that would cause bad things to happen later on their
  * behalf (no package protections are yet in place, this would need some

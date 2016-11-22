@@ -30,14 +30,6 @@ and give the most flexibility.
     |<<modules-scripting-security, no>>
     |built-in
 
-|{plugins}/lang-javascript.html[`javascript`]
-    |<<modules-scripting-security, no>>
-    |{plugins}/lang-javascript.html[`lang-javascript`]
-
-|{plugins}/lang-python.html[`python`]
-    |<<modules-scripting-security, no>>
-    |{plugins}/lang-python.html[`lang-python`]
-
 |=======================================================================
 
 [float]
@@ -98,4 +90,3 @@ include::scripting/expression.asciidoc[]
 include::scripting/native.asciidoc[]
 
 include::scripting/advanced-scripting.asciidoc[]
-

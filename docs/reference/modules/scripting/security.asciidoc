@@ -150,7 +150,7 @@ The benefit of doing this is that it severely limits the attack vectors
 available to a hacker.
 
 Restricting permissions is particularly important with scripting languages
-like Groovy and Javascript which are designed to do anything that can be done
+like Groovy which is designed to do anything that can be done
 in Java itself, including writing to the file system, opening sockets to
 remote servers, etc.
 
@@ -287,4 +287,3 @@ doing so.
 ======================================
 
 See http://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html for more information.
-

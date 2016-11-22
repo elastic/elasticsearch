@@ -142,7 +142,7 @@ public class TribeService extends AbstractLifecycleComponent {
      *
      * @param <T> type of custom meta data
      */
-    interface MergableCustomMetaData<T extends MetaData.Custom> {
+    public interface MergableCustomMetaData<T extends MetaData.Custom> {
 
         /**
          * Merges this custom metadata with other, returning either this or <code>other</code> custom metadata

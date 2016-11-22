@@ -50,6 +50,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VAL
 public class ElasticsearchException extends RuntimeException implements ToXContent, Writeable {
 
     public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
+    public static final Version V_5_0_2_UNRELEASED = Version.fromId(5000299);
     public static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
     public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
@@ -709,9 +710,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
-            org.elasticsearch.tasks.TaskCancelledException::new, 146, UNKNOWN_VERSION_ADDED),
+            org.elasticsearch.tasks.TaskCancelledException::new, 146, V_5_1_0_UNRELEASED),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
-                                           org.elasticsearch.env.ShardLockObtainFailedException::new, 147, V_5_1_0_UNRELEASED);
+                                           org.elasticsearch.env.ShardLockObtainFailedException::new, 147, V_5_0_2_UNRELEASED);
 
 
         final Class<? extends ElasticsearchException> exceptionClass;

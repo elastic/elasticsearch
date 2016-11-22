@@ -55,13 +55,36 @@ public class PreBuiltTransportClient extends TransportClient {
                             PercolatorPlugin.class,
                             MustachePlugin.class));
 
+
+    /**
+     * Creates a new transport client with pre-installed plugins.
+     * @param settings the settings passed to this transport client
+     * @param plugins an optional array of additional plugins to run with this client
+     */
     @SafeVarargs
     public PreBuiltTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
         this(settings, Arrays.asList(plugins));
     }
 
+
+    /**
+     * Creates a new transport client with pre-installed plugins.
+     * @param settings the settings passed to this transport client
+     * @param plugins a collection of additional plugins to run with this client
+     */
     public PreBuiltTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        super(settings, Settings.EMPTY, addPlugins(plugins, PRE_INSTALLED_PLUGINS));
+        this(settings, plugins, null);
+    }
+
+    /**
+     * Creates a new transport client with pre-installed plugins.
+     * @param settings the settings passed to this transport client
+     * @param plugins a collection of additional plugins to run with this client
+     * @param hostFailureListener a failure listener that is invoked if a node is disconnected. This can be <code>null</code>
+     */
+    public PreBuiltTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins,
+                                   HostFailureListener hostFailureListener) {
+        super(settings, Settings.EMPTY, addPlugins(plugins, PRE_INSTALLED_PLUGINS), hostFailureListener);
     }
 
     @Override

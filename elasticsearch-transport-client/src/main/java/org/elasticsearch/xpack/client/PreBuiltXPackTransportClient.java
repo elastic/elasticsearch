@@ -35,7 +35,7 @@ public class PreBuiltXPackTransportClient extends PreBuiltTransportClient {
     }
 
     public PreBuiltXPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        this(settings, addPlugins(plugins, Collections.singletonList(XPackPlugin.class)), null);
+        this(settings, plugins, null);
     }
 
     public PreBuiltXPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins,

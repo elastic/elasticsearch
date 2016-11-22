@@ -88,10 +88,8 @@ public class MoveDecisionTests extends ESTestCase {
         Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
-                                                               randomFloat()));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
-                                                               randomFloat()));
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 2));
         MoveDecision decision = MoveDecision.decision(Decision.NO, Type.NO, null, nodeDecisions);
         assertNotNull(decision.getFinalDecisionType());
         assertNotNull(decision.getFinalExplanation());

@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -44,20 +43,20 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     @Nullable
     private final ShardStore shardStore;
     private final Decision canAllocateDecision;
-    private final float weight;
+    private final int weightRanking;
 
     public NodeAllocationResult(DiscoveryNode node, ShardStore shardStore, Decision decision) {
         this.node = node;
         this.shardStore = shardStore;
         this.canAllocateDecision = decision;
-        this.weight = Float.POSITIVE_INFINITY;
+        this.weightRanking = -1;
     }
 
-    public NodeAllocationResult(DiscoveryNode node, Decision decision, float weight) {
+    public NodeAllocationResult(DiscoveryNode node, Decision decision, int weightRanking) {
         this.node = node;
         this.shardStore = null;
         this.canAllocateDecision = decision;
-        this.weight = weight;
+        this.weightRanking = weightRanking;
     }
 
     public NodeAllocationResult(StreamInput in) throws IOException {
@@ -68,7 +67,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             shardStore = null;
         }
         canAllocateDecision = Decision.readFrom(in);
-        weight = in.readFloat();
+        weightRanking = in.readInt();
     }
 
     @Override
@@ -81,7 +80,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             out.writeBoolean(false);
         }
         Decision.writeTo(canAllocateDecision, out);
-        out.writeFloat(weight);
+        out.writeInt(weightRanking);
     }
 
     /**
@@ -109,16 +108,21 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     /**
      * Is the weight assigned for the node?
      */
-    public boolean isWeightAssigned() {
-        return weight != Float.POSITIVE_INFINITY;
+    public boolean isWeightRanked() {
+        return weightRanking != -1;
     }
 
     /**
-     * The calculated weight for allocating a shard to the node.  A value of {@link Float#POSITIVE_INFINITY}
-     * means the weight was not calculated or factored into the decision.
+     * The weight ranking for allocating a shard to the node.  Each node will have
+     * a unique weight ranking that is relative to the other nodes against which the
+     * deciders ran.  For example, suppose there are 3 nodes which the allocation deciders
+     * decided upon: node1, node2, and node3.  If node2 had the best weight for holding the
+     * shard, followed by node3, followed by node1, then node2's weight will be 1, node3's
+     * weight will be 2, and node1's weight will be 1.  A value of -1 means the weight was
+     * not calculated or factored into the decision.
      */
-    public float getWeight() {
-        return weight;
+    public float getWeightRanking() {
+        return weightRanking;
     }
 
     /**
@@ -144,8 +148,8 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             if (shardStore != null) {
                 shardStore.toXContent(builder, params);
             }
-            if (isWeightAssigned()) {
-                builder.field("weight", String.format(Locale.ROOT, "%.4f", getWeight()));
+            if (isWeightRanked()) {
+                builder.field("weight_ranking", getWeightRanking());
             }
             innerToXContent(builder, params);
             getCanAllocateDecision().toXContent(builder, params);

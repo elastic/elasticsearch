@@ -49,12 +49,14 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PriorityComparator;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -362,6 +364,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             Map<String, NodeRebalanceResult> nodeDecisions = new HashMap<>(modelNodes.length - 1);
             Type rebalanceDecisionType = Type.NO;
             DiscoveryNode assignedNode = null;
+            int weightRanking = 0;
             for (ModelNode node : modelNodes) {
                 if (node == currentNode) {
                     continue; // skip over node we're currently allocated to
@@ -378,23 +381,23 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 final boolean betterWeightThanCurrent = nodeWeight <= currentWeight;
                 boolean rebalanceConditionsMet = false;
                 boolean deltaAboveThreshold = false;
-                float weightWithShardAdded = Float.POSITIVE_INFINITY;
-                float currentDelta = Float.POSITIVE_INFINITY;
+                boolean betterWeightWithShardAdded = false;
                 float proposedDelta = Float.POSITIVE_INFINITY;
                 if (betterWeightThanCurrent) {
                     // get the delta between the weights of the node we are checking and the node that holds the shard
-                    currentDelta = absDelta(nodeWeight, currentWeight);
+                    float currentDelta = absDelta(nodeWeight, currentWeight);
                     // checks if the weight delta is above a certain threshold; if it is not above a certain threshold,
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
                     deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
                     // simulate the weight of the node if we were to relocate the shard to it
-                    weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
+                    float weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
                     proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
-                    rebalanceConditionsMet = deltaAboveThreshold && proposedDelta < currentDelta;
+                    betterWeightWithShardAdded = proposedDelta < currentDelta;
+                    rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
                     // node in question, then allow the rebalance
@@ -409,12 +412,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     node.routingNode.node(),
                     rebalanceConditionsMet ? canAllocate.type() : Type.NO,
                     canAllocate,
+                    ++weightRanking,
                     betterWeightThanCurrent,
-                    currentDelta,
                     deltaAboveThreshold,
-                    nodeWeight,
-                    weightWithShardAdded,
-                    proposedDelta)
+                    betterWeightWithShardAdded)
                 );
             }
 
@@ -677,6 +678,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             Type bestDecision = Type.NO;
             RoutingNode targetNode = null;
             final Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
+            int weightRanking = 0;
             for (ModelNode currentNode : sorter.modelNodes) {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
@@ -684,7 +686,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                     if (explain) {
                         nodeExplanationMap.put(currentNode.getNodeId(),
-                            new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, sorter.weight(currentNode)));
+                            new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
                     // TODO maybe we can respect throttling here too?
                     if (allocationDecision.type().higherThan(bestDecision)) {
@@ -882,6 +884,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             /* Don't iterate over an identity hashset here the
              * iteration order is different for each run and makes testing hard */
             Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
+            List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
             for (ModelNode node : nodes.values()) {
                 if ((throttledNodes.contains(node) || node.containsShard(shard)) && explain == false) {
                     // decision is NO without needing to check anything further, so short circuit
@@ -898,7 +901,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 Decision currentDecision = allocation.deciders().canAllocate(shard, node.getRoutingNode(), allocation);
                 if (explain) {
                     nodeExplanationMap.put(node.getNodeId(),
-                        new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, currentWeight));
+                        new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
+                    nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
                 }
                 if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
                     final boolean updateMinNode;
@@ -938,6 +942,16 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (decision == null) {
                 // decision was not set and a node was not assigned, so treat it as a NO decision
                 decision = Decision.NO;
+            }
+            if (nodeExplanationMap != null) {
+                // fill in the correct weight ranking, once we've been through all nodes
+                nodeWeights.sort((nodeWeight1, nodeWeight2) -> Float.compare(nodeWeight1.v2(), nodeWeight2.v2()));
+                int weightRanking = 0;
+                for (Tuple<String, Float> nodeWeight : nodeWeights) {
+                    NodeAllocationResult current = nodeExplanationMap.get(nodeWeight.v1());
+                    nodeExplanationMap.put(nodeWeight.v1(),
+                        new NodeAllocationResult(current.getNode(), current.getCanAllocateDecision(), ++weightRanking));
+                }
             }
             return AllocateUnassignedDecision.fromDecision(
                 decision,

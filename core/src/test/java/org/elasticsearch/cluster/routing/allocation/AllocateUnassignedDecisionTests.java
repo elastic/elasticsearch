@@ -76,8 +76,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertNull(noDecision.getAllocationId());
 
         Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, randomFloat()));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.NO, randomFloat()));
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 1));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.NO, 2));
         final boolean reuseStore = randomBoolean();
         noDecision = AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, nodeDecisions, reuseStore);
         assertTrue(noDecision.isDecisionTaken());
@@ -99,8 +99,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
 
     public void testThrottleDecision() {
         Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, randomFloat()));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.THROTTLE, randomFloat()));
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 1));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.THROTTLE, 2));
         AllocateUnassignedDecision throttleDecision = AllocateUnassignedDecision.throttle(nodeDecisions);
         assertTrue(throttleDecision.isDecisionTaken());
         assertEquals(Decision.Type.THROTTLE, throttleDecision.getDecision());
@@ -113,8 +113,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
 
     public void testYesDecision() {
         Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.YES, randomFloat()));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.NO, randomFloat()));
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.YES, 1));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.NO, 2));
         String allocId = randomBoolean() ? "allocId" : null;
         AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(
             node1, allocId, nodeDecisions, randomBoolean());

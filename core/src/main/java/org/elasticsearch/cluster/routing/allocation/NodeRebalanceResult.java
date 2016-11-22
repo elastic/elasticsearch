@@ -35,31 +35,24 @@ import java.util.Objects;
 public final class NodeRebalanceResult extends NodeAllocationResult {
     private final Decision.Type nodeDecisionType;
     private final boolean betterWeightThanCurrent;
-    private final float delta;
     private final boolean deltaAboveThreshold;
-    private final float weightWithShardAdded;
-    private final float deltaWithShardAdded;
+    private final boolean betterWeightWithShardAdded;
 
-    public NodeRebalanceResult(DiscoveryNode node, Decision.Type nodeDecisionType, Decision canAllocate, boolean betterWeightThanCurrent,
-                               float delta, boolean deltaAboveThreshold, float currentWeight, float weightWithShardAdded,
-                               float deltaWithShardAdded) {
-        super(node, canAllocate, currentWeight);
+    public NodeRebalanceResult(DiscoveryNode node, Decision.Type nodeDecisionType, Decision canAllocate, int weightRanking,
+                               boolean betterWeightThanCurrent, boolean deltaAboveThreshold, boolean betterWeightWithShardAdded) {
+        super(node, canAllocate, weightRanking);
         this.nodeDecisionType = Objects.requireNonNull(nodeDecisionType);
         this.betterWeightThanCurrent = betterWeightThanCurrent;
-        this.delta = delta;
         this.deltaAboveThreshold = deltaAboveThreshold;
-        this.weightWithShardAdded = weightWithShardAdded;
-        this.deltaWithShardAdded = deltaWithShardAdded;
+        this.betterWeightWithShardAdded = betterWeightWithShardAdded;
     }
 
     public NodeRebalanceResult(StreamInput in) throws IOException {
         super(in);
         nodeDecisionType = Decision.Type.readFrom(in);
         betterWeightThanCurrent = in.readBoolean();
-        delta = in.readFloat();
         deltaAboveThreshold = in.readBoolean();
-        weightWithShardAdded = in.readFloat();
-        deltaWithShardAdded = in.readFloat();
+        betterWeightWithShardAdded = in.readBoolean();
     }
 
     @Override
@@ -82,24 +75,19 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
     }
 
     /**
-     * Returns the weight of the node if the shard is added to the node.
+     * Returns if the simulated weight of the shard after assigning the node to it would be better than the current node's weight.
+     * If {@code true}, then the shard should be rebalanced to the node, assuming allocation is allowed to the node.
      */
-    public float getWeightWithShardAdded() {
-        return weightWithShardAdded;
+    public boolean isBetterWeightWithShardAdded() {
+        return betterWeightWithShardAdded;
     }
 
     @Override
     protected void innerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field("better_weight_than_current", betterWeightThanCurrent);
-        if (delta != Float.POSITIVE_INFINITY) {
-            builder.field("delta", delta);
+        if (betterWeightThanCurrent) {
             builder.field("delta_above_threshold", deltaAboveThreshold);
-        }
-        if (weightWithShardAdded != Float.POSITIVE_INFINITY) {
-            builder.field("weight_with_shard_added", weightWithShardAdded);
-        }
-        if (deltaWithShardAdded != Float.POSITIVE_INFINITY) {
-            builder.field("delta_with_shard_added", deltaWithShardAdded);
+            builder.field("better_weight_with_shard_added", betterWeightWithShardAdded);
         }
     }
 
@@ -108,9 +96,7 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
         super.writeTo(out);
         Decision.Type.writeTo(nodeDecisionType, out);
         out.writeBoolean(betterWeightThanCurrent);
-        out.writeFloat(delta);
         out.writeBoolean(deltaAboveThreshold);
-        out.writeFloat(weightWithShardAdded);
-        out.writeFloat(deltaWithShardAdded);
+        out.writeBoolean(betterWeightWithShardAdded);
     }
 }

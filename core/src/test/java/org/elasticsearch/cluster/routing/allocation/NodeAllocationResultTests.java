@@ -40,8 +40,7 @@ public class NodeAllocationResultTests extends ESTestCase {
     public void testSerialization() throws IOException {
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Decision decision = randomFrom(Decision.YES, Decision.THROTTLE, Decision.NO);
-        float weight = randomFloat();
-        NodeAllocationResult explanation = new NodeAllocationResult(node, decision, weight);
+        NodeAllocationResult explanation = new NodeAllocationResult(node, decision, 1);
         BytesStreamOutput output = new BytesStreamOutput();
         explanation.writeTo(output);
         NodeAllocationResult readExplanation = new NodeAllocationResult(output.bytes().streamInput());
@@ -65,7 +64,7 @@ public class NodeAllocationResultTests extends ESTestCase {
 
         String allocId = randomAsciiOfLength(5);
         long version = (long) randomIntBetween(1, 1000);
-        shardStore = new ShardStore(storeStatus, allocId, version);
+        shardStore = new ShardStore(storeStatus, allocId, version, randomBoolean() ? new Exception("bad stuff") : null);
         explanation = new NodeAllocationResult(node, shardStore, decision);
         output = new BytesStreamOutput();
         explanation.writeTo(output);
@@ -80,7 +79,7 @@ public class NodeAllocationResultTests extends ESTestCase {
     private void assertNodeExplanationEquals(NodeAllocationResult expl1, NodeAllocationResult expl2) {
         assertEquals(expl1.getNode(), expl2.getNode());
         assertEquals(expl1.getCanAllocateDecision(), expl2.getCanAllocateDecision());
-        assertEquals(0, Float.compare(expl1.getWeight(), expl2.getWeight()));
+        assertEquals(0, Float.compare(expl1.getWeightRanking(), expl2.getWeightRanking()));
         if (expl1.getShardStore() != null) {
             assertEquals(expl1.getShardStore().getStoreStatus(), expl2.getShardStore().getStoreStatus());
             assertEquals(expl1.getShardStore().getVersion(), expl2.getShardStore().getVersion());

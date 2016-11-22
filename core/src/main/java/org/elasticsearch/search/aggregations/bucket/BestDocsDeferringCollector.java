@@ -215,7 +215,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         PerSegmentCollects(LeafReaderContext readerContext) throws IOException {
             // The publisher behaviour for Reader/Scorer listeners triggers a
             // call to this constructor with a null scorer so we can't call
-            // scorer.getWeight() and pass the Weight to our base class.
+            // scorer.getWeightRanking() and pass the Weight to our base class.
             // However, passing null seems to have no adverse effects here...
             super(null);
             this.readerContext = readerContext;

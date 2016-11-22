@@ -26,6 +26,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.advanced.delete.DeleteRestOperation;
 import org.elasticsearch.client.advanced.delete.DeleteRestRequest;
 import org.elasticsearch.client.advanced.delete.DeleteRestResponse;
+import org.elasticsearch.client.advanced.get.GetRestOperation;
+import org.elasticsearch.client.advanced.get.GetRestRequest;
+import org.elasticsearch.client.advanced.get.GetRestResponse;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,7 +59,7 @@ public class AdvancedRestClient {
             throw new IllegalArgumentException("Request can not be null");
         }
         request.validate();
-        return DeleteRestOperation.toRestResponse(toMap(DeleteRestOperation.doExecute(lowLevelClient, request)));
+        return toRestResponse(toMap(DeleteRestOperation.doExecute(lowLevelClient, request)));
     }
 
     /**
@@ -77,7 +80,52 @@ public class AdvancedRestClient {
             @Override
             public void onSuccess(Response response) {
                 try {
-                    responseConsumer.accept(toRestResponse(toMap(response)));
+                    responseConsumer.accept(DeleteRestOperation.toRestResponse(toMap(response)));
+                } catch (IOException e) {
+                    failureConsumer.accept(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                failureConsumer.accept(exception);
+            }
+        });
+    }
+
+    /**
+     * Get a single document
+     * @param request The document to be deleted
+     * @return Elasticsearch response
+     * @throws IOException In case something is wrong. Can be a ResponseException as well.
+     */
+    public GetRestResponse get(GetRestRequest request) throws IOException {
+        if (request == null) {
+            throw new IllegalArgumentException("Request can not be null");
+        }
+        request.validate();
+        return GetRestOperation.toRestResponse(toMap(GetRestOperation.doExecute(lowLevelClient, request)));
+    }
+
+    /**
+     * Delete a single document and call a listener when done
+     * @param request The document to be deleted
+     * @param responseConsumer Listener to call when operation is done or in case of failure.
+     * @param failureConsumer Listener to call in case of failure.
+     * @throws IOException In case something is wrong.
+     */
+    public void get(GetRestRequest request,
+                       Consumer<GetRestResponse> responseConsumer,
+                       Consumer<Exception> failureConsumer) throws IOException {
+        if (request == null) {
+            throw new IllegalArgumentException("Request can not be null");
+        }
+        request.validate();
+        GetRestOperation.doExecute(lowLevelClient, request, new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                try {
+                    responseConsumer.accept(GetRestOperation.toRestResponse(toMap(response)));
                 } catch (IOException e) {
                     failureConsumer.accept(e);
                 }

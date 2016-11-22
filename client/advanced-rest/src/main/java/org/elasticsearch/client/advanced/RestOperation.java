@@ -26,34 +26,44 @@ import org.elasticsearch.client.RestClient;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Delete a document
  */
-public abstract class RestOperation<Req extends RestRequest, Resp extends RestResponse, L extends RestResponseListener<Resp>> {
+public abstract class RestOperation<Req extends RestRequest, Resp extends RestResponse> {
 
     protected abstract Response doExecute(RestClient client, Req request) throws IOException;
-    protected abstract void doExecute(RestClient client, Req request, ResponseListener responseListener) throws IOException;
-    protected abstract Resp toRestResponse(Response response) throws IOException;
+    protected abstract void doExecute(RestClient client, Req request, ResponseListener listener) throws IOException;
+    protected abstract Resp toRestResponse(Map<String, Object> response) throws IOException;
 
     public static Map<String, Object> toMap(Response response) throws IOException {
         return JSON.std.mapFrom(response.getEntity().getContent());
     }
 
-    public Map<String, Object> executeAsMap(RestClient client, Req request) throws IOException {
+    public Resp execute(RestClient client, Req request) throws IOException {
         validate(request);
-        return toMap(doExecute(client, request));
+        return toRestResponse(toMap(doExecute(client, request)));
     }
 
-    public Resp executeAsObject(RestClient client, Req request) throws IOException {
+    public void execute(RestClient client, Req request, Consumer<Resp> responseConsumer, Consumer<Exception> failureConsumer)
+        throws IOException {
         validate(request);
-        return toRestResponse(doExecute(client, request));
-    }
+        doExecute(client, request, new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                try {
+                    responseConsumer.accept(toRestResponse(toMap(response)));
+                } catch (IOException e) {
+                    failureConsumer.accept(e);
+                }
+            }
 
-    public void execute(RestClient client, Req request, L responseListener) throws IOException {
-        validate(request);
-        RestResponseInternalListener internalListener = new RestResponseInternalListener(responseListener);
-        doExecute(client, request, internalListener);
+            @Override
+            public void onFailure(Exception exception) {
+                failureConsumer.accept(exception);
+            }
+        });
     }
 
     private void validate(Req request) {
@@ -61,29 +71,5 @@ public abstract class RestOperation<Req extends RestRequest, Resp extends RestRe
             throw new IllegalArgumentException("Request can not be null");
         }
         request.validate();
-    }
-
-    class RestResponseInternalListener implements ResponseListener {
-
-        private final L listener;
-
-        public RestResponseInternalListener(L listener) {
-            this.listener = listener;
-        }
-
-        @Override
-        public void onSuccess(Response response) {
-            try {
-                listener.onSuccess(toRestResponse(response));
-            } catch (IOException e) {
-                onFailure(e);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception exception) {
-            listener.onFailure(exception);
-        }
-
     }
 }

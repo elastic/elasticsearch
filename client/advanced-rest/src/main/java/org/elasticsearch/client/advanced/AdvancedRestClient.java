@@ -25,7 +25,7 @@ import org.elasticsearch.client.advanced.delete.DeleteRestRequest;
 import org.elasticsearch.client.advanced.delete.DeleteRestResponse;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.function.Consumer;
 
 public class AdvancedRestClient {
 
@@ -40,33 +40,23 @@ public class AdvancedRestClient {
     }
 
     /**
-     * TODO replace with delete(DeleteRestRequest)
-     * Delete a single document
-     * @param request The document to be deleted
-     * @return Elasticsearch response
-     * @throws IOException In case something is wrong. Can be a ResponseException as well.
-     */
-    public Map<String, Object> deleteAsMap(DeleteRestRequest request) throws IOException {
-        return new DeleteRestOperation().executeAsMap(lowLevelClient, request);
-    }
-
-    /**
      * Delete a single document
      * @param request The document to be deleted
      * @return Elasticsearch response
      * @throws IOException In case something is wrong. Can be a ResponseException as well.
      */
     public DeleteRestResponse delete(DeleteRestRequest request) throws IOException {
-        return new DeleteRestOperation().executeAsObject(lowLevelClient, request);
+        return new DeleteRestOperation().execute(lowLevelClient, request);
     }
 
     /**
      * Delete a single document and call a listener when done
      * @param request The document to be deleted
-     * @param listener Listener to call when operation is done or in case of failure.
+     * @param response Listener to call when operation is done or in case of failure.
+     * @param failure Listener to call in case of failure.
      * @throws IOException In case something is wrong.
      */
-    public void delete(DeleteRestRequest request, RestResponseListener<DeleteRestResponse> listener) throws IOException {
-        new DeleteRestOperation().execute(lowLevelClient, request, listener);
+    public void delete(DeleteRestRequest request, Consumer<DeleteRestResponse> response, Consumer<Exception> failure) throws IOException {
+        new DeleteRestOperation().execute(lowLevelClient, request, response, failure);
     }
 }

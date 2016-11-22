@@ -25,39 +25,17 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.advanced.AdvancedRestClient;
 import org.elasticsearch.client.advanced.RequestTestUtil;
-import org.elasticsearch.client.advanced.RestOperation;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
-import static org.hamcrest.Matchers.hasEntry;
+import static org.elasticsearch.client.advanced.RestOperation.toMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DeleteApiIT extends ESRestTestCase {
-
-    public void testDeleteRequestAsMap() throws IOException {
-        client().performRequest("PUT", "foo");
-        client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
-            new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
-
-        AdvancedRestClient client = new AdvancedRestClient(client());
-        Map<String, Object> delete = client.deleteAsMap(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
-        assertThat(delete, hasEntry("found", true));
-
-        try {
-            client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
-            fail("A 404 ResponseException should have been raised.");
-        } catch (ResponseException e) {
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
-
-            Map<String, Object> error = RestOperation.toMap(e.getResponse());
-            assertThat(error, hasEntry("found", false));
-        }
-    }
 
     public void testDeleteRequestAsRestResponse() throws IOException {
         client().performRequest("PUT", "foo");
@@ -74,7 +52,7 @@ public class DeleteApiIT extends ESRestTestCase {
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
 
-            DeleteRestResponse error = new DeleteRestOperation().toRestResponse(e.getResponse());
+            DeleteRestResponse error = new DeleteRestOperation().toRestResponse(toMap(e.getResponse()));
             assertThat(error.isFound(), is(false));
         }
     }
@@ -85,20 +63,22 @@ public class DeleteApiIT extends ESRestTestCase {
             new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
 
         AdvancedRestClient client = new AdvancedRestClient(client());
-        RequestTestUtil.MockResponseListener<DeleteRestResponse> listener1 = new RequestTestUtil.MockResponseListener<>();
-        client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listener1);
+        RequestTestUtil.MockConsumerResponse<DeleteRestResponse> listenerResponse1 = new RequestTestUtil.MockConsumerResponse<>();
+        RequestTestUtil.MockConsumerException listenerException1 = new RequestTestUtil.MockConsumerException();
+        client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse1, listenerException1);
 
-        awaitBusy(() -> listener1.getResponse() != null);
-        assertThat(listener1.getException(), nullValue());
+        awaitBusy(() -> listenerResponse1.getResponse() != null);
+        assertThat(listenerException1.getException(), nullValue());
 
-        DeleteRestResponse response = listener1.getResponse();
+        DeleteRestResponse response = listenerResponse1.getResponse();
         assertThat(response.isFound(), is(true));
 
-        RequestTestUtil.MockResponseListener<DeleteRestResponse> listener2 = new RequestTestUtil.MockResponseListener<>();
-        client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listener2);
+        RequestTestUtil.MockConsumerResponse<DeleteRestResponse> listenerResponse2 = new RequestTestUtil.MockConsumerResponse<>();
+        RequestTestUtil.MockConsumerException listenerException2 = new RequestTestUtil.MockConsumerException();
+        client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse2, listenerException2);
 
-        awaitBusy(() -> listener2.getException() != null);
-        Exception exception = listener2.getException();
+        awaitBusy(() -> listenerException2.getException() != null);
+        Exception exception = listenerException2.getException();
         assertThat(exception, instanceOf(ResponseException.class));
         assertThat(((ResponseException)exception).getResponse().getStatusLine().getStatusCode(), is(404));
     }

@@ -23,7 +23,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.advanced.RestOperation;
-import org.elasticsearch.client.advanced.RestResponseListener;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,7 +30,7 @@ import java.util.Map;
 /**
  * Delete a document
  */
-public class DeleteRestOperation extends RestOperation<DeleteRestRequest, DeleteRestResponse, RestResponseListener<DeleteRestResponse>> {
+public class DeleteRestOperation extends RestOperation<DeleteRestRequest, DeleteRestResponse> {
 
     @Override
     protected Response doExecute(RestClient client, DeleteRestRequest request) throws IOException {
@@ -46,11 +45,10 @@ public class DeleteRestOperation extends RestOperation<DeleteRestRequest, Delete
     }
 
     @Override
-    protected DeleteRestResponse toRestResponse(Response response) throws IOException {
+    protected DeleteRestResponse toRestResponse(Map<String, Object> response) throws IOException {
         // Read from the map as we don't want to use reflection
-        Map<String, Object> map = toMap(response);
         DeleteRestResponse restResponse = new DeleteRestResponse();
-        boolean found = (boolean) map.get("found");
+        boolean found = (boolean) response.get("found");
         restResponse.setFound(found);
         return restResponse;
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.client.advanced;
 import org.junit.Assert;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -56,19 +57,28 @@ public class RequestTestUtil {
     /**
      * Utility Mock which helps checking asynchronous calls
      */
-    public static class MockResponseListener<R extends RestResponse> implements RestResponseListener<R> {
+    public static class MockConsumerResponse<R extends RestResponse> implements Consumer<R> {
         private final AtomicReference<R> response = new AtomicReference<>();
-        private final AtomicReference<Exception> exception = new AtomicReference<>();
-
         @Override
-        public void onSuccess(R response) {
+        public void accept(R response) {
             if (this.response.compareAndSet(null, response) == false) {
                 throw new IllegalStateException("onSuccess was called multiple times");
             }
         }
 
+        public R getResponse() {
+            return response.get();
+        }
+    }
+
+    /**
+     * Utility Mock which helps checking asynchronous calls
+     */
+    public static class MockConsumerException implements Consumer<Exception> {
+        private final AtomicReference<Exception> exception = new AtomicReference<>();
+
         @Override
-        public void onFailure(Exception exception) {
+        public void accept(Exception exception) {
             if (this.exception.compareAndSet(null, exception) == false) {
                 throw new IllegalStateException("onFailure was called multiple times");
             }
@@ -76,10 +86,6 @@ public class RequestTestUtil {
 
         public Exception getException() {
             return exception.get();
-        }
-
-        public R getResponse() {
-            return response.get();
         }
     }
 }

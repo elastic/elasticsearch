@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client.advanced.delete;
 
-import org.elasticsearch.client.advanced.Strings;
 import org.elasticsearch.client.advanced.RestRequest;
+import org.elasticsearch.client.advanced.Strings;
 
 /**
  * Delete a document request

@@ -81,7 +81,6 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         }
         Decision.writeTo(canAllocateDecision, out);
         out.writeFloat(weight);
-        innerWriteTo(out);
     }
 
     /**
@@ -152,12 +151,6 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         }
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * Sub-classes should override this to add any extra serialization.
-     */
-    protected void innerWriteTo(StreamOutput out) throws IOException {
     }
 
     /**

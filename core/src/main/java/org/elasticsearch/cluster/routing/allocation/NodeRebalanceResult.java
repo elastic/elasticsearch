@@ -104,7 +104,8 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         Decision.Type.writeTo(nodeDecisionType, out);
         out.writeBoolean(betterWeightThanCurrent);
         out.writeFloat(delta);

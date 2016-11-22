@@ -43,7 +43,7 @@ import java.util.Objects;
 public class AllocateUnassignedDecision implements ToXContent, Writeable {
     /** a constant representing a shard decision where no decision was taken */
     public static final AllocateUnassignedDecision NOT_TAKEN =
-        new AllocateUnassignedDecision(null, null, null, null, null, false, false);
+        new AllocateUnassignedDecision(null, null, null, null, null, false, 0);
     /**
      * a map of cached common no/throttle decisions that don't need explanations,
      * this helps prevent unnecessary object allocations for the non-explain API case
@@ -52,15 +52,15 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     static {
         Map<AllocationStatus, AllocateUnassignedDecision> cachedDecisions = new HashMap<>();
         cachedDecisions.put(AllocationStatus.FETCHING_SHARD_DATA,
-            new AllocateUnassignedDecision(Type.NO, AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, false));
+            new AllocateUnassignedDecision(Type.NO, AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0));
         cachedDecisions.put(AllocationStatus.NO_VALID_SHARD_COPY,
-            new AllocateUnassignedDecision(Type.NO, AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, false));
+            new AllocateUnassignedDecision(Type.NO, AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, 0));
         cachedDecisions.put(AllocationStatus.DECIDERS_NO,
-            new AllocateUnassignedDecision(Type.NO, AllocationStatus.DECIDERS_NO, null, null, null, false, false));
+            new AllocateUnassignedDecision(Type.NO, AllocationStatus.DECIDERS_NO, null, null, null, false, 0));
         cachedDecisions.put(AllocationStatus.DECIDERS_THROTTLED,
-            new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, false));
+            new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0));
         cachedDecisions.put(AllocationStatus.DELAYED_ALLOCATION,
-            new AllocateUnassignedDecision(Type.NO, AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, false));
+            new AllocateUnassignedDecision(Type.NO, AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, 0));
         CACHED_DECISIONS = Collections.unmodifiableMap(cachedDecisions);
     }
 
@@ -74,16 +74,16 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     private final String allocationId;
     @Nullable
     private final Map<String, NodeAllocationResult> nodeDecisions;
-    private final boolean forceAllocated;
     private final boolean reuseStore;
+    private final long remainingDelayInMillis;
 
     private AllocateUnassignedDecision(Type finalDecision,
                                        AllocationStatus allocationStatus,
                                        String assignedNodeId,
                                        String allocationId,
                                        Map<String, NodeAllocationResult> nodeDecisions,
-                                       boolean forceAllocated,
-                                       boolean reuseStore) {
+                                       boolean reuseStore,
+                                       long remainingDelayInMillis) {
         assert assignedNodeId != null || finalDecision == null || finalDecision != Type.YES :
             "a yes decision must have a node to assign the shard to";
         assert allocationStatus != null || finalDecision == null || finalDecision == Type.YES :
@@ -95,8 +95,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         this.assignedNodeId = assignedNodeId;
         this.allocationId = allocationId;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
-        this.forceAllocated = forceAllocated;
         this.reuseStore = reuseStore;
+        this.remainingDelayInMillis = remainingDelayInMillis;
     }
 
     /**
@@ -108,13 +108,27 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     /**
+     * Returns a NO decision for a delayed shard allocation on a replica shard, with the individual node-level
+     * decisions that comprised the final NO decision, if in explain mode.  Instances created with this
+     * method will return {@link AllocationStatus#DELAYED_ALLOCATION} for {@link #getAllocationStatus()}.
+     */
+    public static AllocateUnassignedDecision delayed(long remainingDelay, @Nullable Map<String, NodeAllocationResult> decisions) {
+        return no(AllocationStatus.DELAYED_ALLOCATION, decisions, false, remainingDelay);
+    }
+
+    /**
      * Returns a NO decision with the given {@link AllocationStatus}, and the individual node-level
      * decisions that comprised the final NO decision if in explain mode.
      */
     public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Map<String, NodeAllocationResult> decisions,
                                                 boolean reuseStore) {
+        return no(allocationStatus, decisions, reuseStore, 0L);
+    }
+
+    private static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Map<String, NodeAllocationResult> decisions,
+                                                 boolean reuseStore, long remainingDelay) {
         if (decisions != null) {
-            return new AllocateUnassignedDecision(Type.NO, allocationStatus, null, null, decisions, false, reuseStore);
+            return new AllocateUnassignedDecision(Type.NO, allocationStatus, null, null, decisions, reuseStore, remainingDelay);
         } else {
             return getCachedDecision(allocationStatus);
         }
@@ -126,8 +140,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
      */
     public static AllocateUnassignedDecision throttle(@Nullable Map<String, NodeAllocationResult> decisions) {
         if (decisions != null) {
-            return new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null,
-                                                     decisions, false, false);
+            return new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, decisions, false, 0);
         } else {
             return getCachedDecision(AllocationStatus.DECIDERS_THROTTLED);
         }
@@ -139,9 +152,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
      * the allocation id for the shard, if available.
      */
     public static AllocateUnassignedDecision yes(String assignedNodeId, @Nullable String allocationId,
-                                                 @Nullable Map<String, NodeAllocationResult> decisions, boolean forceAllocated,
-                                                 boolean reuseStore) {
-        return new AllocateUnassignedDecision(Type.YES, null, assignedNodeId, allocationId, decisions, forceAllocated, reuseStore);
+                                                 @Nullable Map<String, NodeAllocationResult> decisions, boolean reuseStore) {
+        return new AllocateUnassignedDecision(Type.YES, null, assignedNodeId, allocationId, decisions, reuseStore, 0);
     }
 
     /**
@@ -151,7 +163,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
                                                           @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
         final Type decisionType = decision.type();
         AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
-        return new AllocateUnassignedDecision(decisionType, allocationStatus, assignedNodeId, null, nodeDecisions, false, false);
+        return new AllocateUnassignedDecision(decisionType, allocationStatus, assignedNodeId, null, nodeDecisions, false, 0L);
     }
 
     private static AllocateUnassignedDecision getCachedDecision(AllocationStatus allocationStatus) {
@@ -228,12 +240,13 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Returns {@code true} if the deciders returned a NO decision, but because the shard is a primary
-     * and a prior copy of it exists, the allocators allocated the primary to a node that has a copy
-     * of the shard, despite the NO decision from the deciders.
+     * Gets the remaining delay for allocating the replica shard when a node holding the replica left
+     * the cluster and the deciders are waiting to see if the node returns before allocating the replica
+     * elsewhere.  Only returns a meaningful positive value if {@link #getAllocationStatus()} returns
+     * {@link AllocationStatus#DELAYED_ALLOCATION}.
      */
-    public boolean isForceAllocated() {
-        return forceAllocated;
+    public long getRemainingDelayInMillis() {
+        return remainingDelayInMillis;
     }
 
     /**
@@ -244,36 +257,31 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         if (finalDecision == Type.NO) {
             assert allocationStatus != null : "if the decision is NO, it must have an AllocationStatus";
             if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
-                explanation = "still fetching shard state from the nodes in the cluster";
+                explanation = "cannot allocate because information about existing shard data is still being retrieved from " +
+                                  "some of the nodes";
             } else if (allocationStatus == AllocationStatus.NO_VALID_SHARD_COPY) {
-                explanation = "shard was previously allocated, but no valid shard copy could be found amongst the nodes in the cluster";
+                if (nodeDecisions != null && nodeDecisions.size() > 0) {
+                    explanation = "cannot allocate because all existing copies of the shard are unreadable";
+                } else {
+                    explanation = "cannot allocate because a previous copy of the shard existed, but could not be found";
+                }
             } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-                explanation = "delaying allocation of the replica because there are no other shard copies to use; waiting to see if " +
-                                  "the node that held the replica rejoins the cluster";
+                explanation = "cannot allocate because the cluster is waiting " + Long.toString(remainingDelayInMillis / 1000L) +
+                                  " seconds for the departed node holding a replica to rejoin";
             } else {
                 assert allocationStatus == AllocationStatus.DECIDERS_NO;
                 if (reuseStore) {
-                    explanation = "all nodes that hold a valid shard copy returned a NO decision";
+                    explanation = "cannot allocate because allocation is not permitted to any of the nodes that hold a valid shard copy";
                 } else {
-                    explanation = "shard cannot be assigned to any node in the cluster";
+                    explanation = "cannot allocate because allocation is not permitted to any of the nodes";
                 }
             }
         } else if (finalDecision == Type.YES) {
-            if (forceAllocated) {
-                explanation = "allocating the primary shard to node [" + assignedNodeId + "], which has a complete copy of " +
-                                  "the shard data with allocationId [" + allocationId + "]";
-            } else if (allocationId != null) {
-                explanation = "the allocation deciders returned a YES decision to allocate to node [" + assignedNodeId + "] " +
-                                  "with allocation id [" + allocationId + "]";
-            } else if (reuseStore) {
-                explanation = "allocating replica to node [" + assignedNodeId + "] in order to re-use its unallocated persistent store";
-            } else {
-                explanation = "shard assigned to node [" + assignedNodeId + "]";
-            }
+            explanation = "can allocate the shard";
         } else if (finalDecision == Type.THROTTLE) {
-            explanation = "allocation throttled as each node with an existing copy of the shard is busy with other recoveries";
+            explanation = "allocation temporarily throttled";
         } else {
-            explanation = "decision not taken";
+            throw new IllegalStateException("unhandled decision [" + finalDecision + "]");
         }
         return explanation;
     }
@@ -290,6 +298,9 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         }
         if (allocationId != null) {
             builder.field("allocation_id", allocationId);
+        }
+        if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
+            builder.field("remaining_delay_in_millis", remainingDelayInMillis);
         }
         if (nodeDecisions != null) {
             builder.startObject("nodes");
@@ -334,11 +345,11 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
             return CACHED_DECISIONS.get(allocationStatus);
         }
 
-        boolean forceAllocated = in.readBoolean();
         boolean reuseStore = in.readBoolean();
+        long remainingDelay = in.readVLong();
 
         return new AllocateUnassignedDecision(finalDecision, allocationStatus, assignedNodeId, allocationId,
-                                                 nodeDecisions, forceAllocated, reuseStore);
+                                                 nodeDecisions, reuseStore, remainingDelay);
     }
 
     @Override
@@ -367,8 +378,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeBoolean(forceAllocated);
         out.writeBoolean(reuseStore);
+        out.writeVLong(remainingDelayInMillis);
     }
 
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,23 +38,22 @@ import java.util.Map;
  */
 public final class RebalanceDecision extends RelocationDecision {
     /** a constant representing no decision taken */
-    public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, null, Float.POSITIVE_INFINITY, null);
+    public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, null, Float.POSITIVE_INFINITY, false);
 
     @Nullable
     private final Decision canRebalanceDecision;
     @Nullable
-    private final String explanation;
-    @Nullable
     private final Map<String, NodeRebalanceResult> nodeDecisions;
-    private float currentWeight;
+    private final float currentWeight;
+    private final boolean fetchPending;
 
-    private RebalanceDecision(Decision canRebalanceDecision, Decision.Type finalDecision, String assignedNodeId,
-                              Map<String, NodeRebalanceResult> nodeDecisions, float currentWeight, String explanation) {
+    private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String assignedNodeId,
+                              Map<String, NodeRebalanceResult> nodeDecisions, float currentWeight, boolean fetchPending) {
         super(finalDecision, assignedNodeId);
         this.canRebalanceDecision = canRebalanceDecision;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
         this.currentWeight = currentWeight;
-        this.explanation = explanation;
+        this.fetchPending = fetchPending;
     }
 
     public RebalanceDecision(StreamInput in) throws IOException {
@@ -73,7 +73,7 @@ public final class RebalanceDecision extends RelocationDecision {
         }
         nodeDecisions = nodeDecisionsMap == null ? null : Collections.unmodifiableMap(nodeDecisionsMap);
         currentWeight = in.readFloat();
-        explanation = in.readOptionalString();
+        fetchPending = in.readBoolean();
     }
 
     @Override
@@ -96,23 +96,23 @@ public final class RebalanceDecision extends RelocationDecision {
             out.writeBoolean(false);
         }
         out.writeFloat(currentWeight);
-        out.writeOptionalString(explanation);
+        out.writeBoolean(fetchPending);
     }
 
     /**
      * Creates a new NO {@link RebalanceDecision}.
      */
     public static RebalanceDecision no(Decision canRebalanceDecision, Map<String, NodeRebalanceResult> nodeDecisions,
-                                       float currentWeight, String explanation) {
-        return new RebalanceDecision(canRebalanceDecision, Decision.Type.NO, null, nodeDecisions, currentWeight, explanation);
+                                       float currentWeight, boolean fetchPending) {
+        return new RebalanceDecision(canRebalanceDecision, Type.NO, null, nodeDecisions, currentWeight, fetchPending);
     }
 
     /**
      * Creates a new {@link RebalanceDecision}.
      */
-    public static RebalanceDecision decision(Decision canRebalanceDecision, Decision.Type finalDecision, String assignedNodeId,
-                                             Map<String, NodeRebalanceResult> nodeDecisions, float currentWeight, String explanation) {
-        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNodeId, nodeDecisions, currentWeight, explanation);
+    public static RebalanceDecision decision(Decision canRebalanceDecision, Type finalDecision, String assignedNodeId,
+                                             Map<String, NodeRebalanceResult> nodeDecisions, float currentWeight) {
+        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNodeId, nodeDecisions, currentWeight, false);
     }
 
     /**
@@ -134,6 +134,25 @@ public final class RebalanceDecision extends RelocationDecision {
 
     @Override
     public String getFinalExplanation() {
+        String explanation;
+        if (fetchPending) {
+            explanation = "cannot rebalance because information about existing shard data is still being retrieved from " +
+                              "some of the nodes, otherwise allocation may prematurely rebalance a shard to a node that will be soon" +
+                              "be imbalanced once shard data retrieval is completed";
+        } else if (canRebalanceDecision.type() != Type.YES) {
+            explanation = "cannot rebalance because rebalancing is not allowed";
+        } else {
+            if (getAssignedNodeId() != null) {
+                if (getFinalDecisionType() == Type.THROTTLE) {
+                    explanation = "throttled on rebalancing shard to another node";
+                } else {
+                    explanation = "can rebalance shard";
+                }
+            } else {
+                explanation = "cannot rebalance because no other node exists where moving the shard " +
+                                  "to it would form a more balanced cluster";
+            }
+        }
         return explanation;
     }
 

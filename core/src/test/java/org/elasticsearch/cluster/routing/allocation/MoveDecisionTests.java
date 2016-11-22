@@ -77,7 +77,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertFalse(stay.move());
         assertTrue(stay.isDecisionTaken());
         assertNull(stay.getNodeDecisions());
-        assertEquals("shard is allowed to remain on its current node, so no reason to move", stay.getFinalExplanation());
+        assertEquals("shard can remain on its current node", stay.getFinalExplanation());
         assertEquals(Type.NO, stay.getFinalDecisionType());
     }
 

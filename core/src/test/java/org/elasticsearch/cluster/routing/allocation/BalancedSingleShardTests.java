@@ -71,7 +71,8 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertNotNull(rebalanceDecision.getCanRebalanceDecision());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
-        assertThat(rebalanceDecision.getFinalExplanation(), startsWith("cannot rebalance due to in-flight shard store fetches"));
+        assertThat(rebalanceDecision.getFinalExplanation(),
+            startsWith("cannot rebalance because information about existing shard data is still being retrieved"));
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getAssignedNodeId());
 
@@ -94,7 +95,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         RebalanceDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertEquals(canRebalanceDecision.type(), rebalanceDecision.getCanRebalanceDecision().type());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
-        assertEquals("rebalancing of the shard is not allowed in the cluster", rebalanceDecision.getFinalExplanation());
+        assertThat(rebalanceDecision.getFinalExplanation(), startsWith("cannot rebalance"));
         assertNotNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getAssignedNodeId());
         assertEquals(1, rebalanceDecision.getCanRebalanceDecision().getDecisions().size());
@@ -132,7 +133,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         RebalanceDecision rebalanceDecision = rebalance.v2();
         assertEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
         assertEquals(Type.NO, rebalanceDecision.getFinalDecisionType());
-        assertThat(rebalanceDecision.getFinalExplanation(), startsWith("cannot rebalance shard"));
+        assertThat(rebalanceDecision.getFinalExplanation(), startsWith("cannot rebalance"));
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getAssignedNodeId());
     }

@@ -32,7 +32,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -50,9 +49,9 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertNull(allocateUnassignedDecision.getAllocationStatus());
         assertNull(allocateUnassignedDecision.getAllocationId());
         assertNull(allocateUnassignedDecision.getAssignedNodeId());
-        assertEquals("decision not taken", allocateUnassignedDecision.getFinalExplanation());
         assertNull(allocateUnassignedDecision.getNodeDecisions());
         expectThrows(IllegalArgumentException.class, () -> allocateUnassignedDecision.getFinalDecisionSafe());
+        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getFinalExplanation());
     }
 
     public void testNoDecision() {
@@ -64,12 +63,13 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(Decision.Type.NO, noDecision.getFinalDecisionType());
         assertEquals(allocationStatus, noDecision.getAllocationStatus());
         if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
-            assertEquals("still fetching shard state from the nodes in the cluster", noDecision.getFinalExplanation());
+            assertEquals("cannot allocate because information about existing shard data is still being retrieved from " +
+                             "some of the nodes", noDecision.getFinalExplanation());
         } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            assertThat(noDecision.getFinalExplanation(), startsWith("delaying allocation of the replica"));
+            assertThat(noDecision.getFinalExplanation(), startsWith("cannot allocate because the cluster is waiting"));
         } else {
             assertThat(noDecision.getFinalExplanation(),
-                startsWith("shard was previously allocated, but no valid shard copy could be found"));
+                startsWith("cannot allocate because a previous copy of the shard existed"));
         }
         assertNull(noDecision.getNodeDecisions());
         assertNull(noDecision.getAssignedNodeId());
@@ -84,9 +84,10 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(Decision.Type.NO, noDecision.getFinalDecisionType());
         assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
         if (reuseStore) {
-            assertEquals("all nodes that hold a valid shard copy returned a NO decision", noDecision.getFinalExplanation());
+            assertEquals("cannot allocate because allocation is not permitted to any of the nodes that hold a valid shard copy",
+                noDecision.getFinalExplanation());
         } else {
-            assertEquals("shard cannot be assigned to any node in the cluster", noDecision.getFinalExplanation());
+            assertEquals("cannot allocate because allocation is not permitted to any of the nodes", noDecision.getFinalExplanation());
         }
         assertEquals(nodeDecisions, noDecision.getNodeDecisions());
         assertNull(noDecision.getAssignedNodeId());
@@ -104,7 +105,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertTrue(throttleDecision.isDecisionTaken());
         assertEquals(Decision.Type.THROTTLE, throttleDecision.getFinalDecisionType());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
-        assertThat(throttleDecision.getFinalExplanation(), startsWith("allocation throttled"));
+        assertThat(throttleDecision.getFinalExplanation(), startsWith("allocation temporarily throttled"));
         assertEquals(nodeDecisions, throttleDecision.getNodeDecisions());
         assertNull(throttleDecision.getAssignedNodeId());
         assertNull(throttleDecision.getAllocationId());
@@ -115,22 +116,12 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.YES, randomFloat()));
         nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.NO, randomFloat()));
         String allocId = randomBoolean() ? "allocId" : null;
-        boolean reuseStore = randomBoolean();
-        boolean forceAllocatePrimary = randomBoolean();
         AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(
-            "node1", allocId, nodeDecisions, forceAllocatePrimary, reuseStore);
+            "node1", allocId, nodeDecisions, randomBoolean());
         assertTrue(yesDecision.isDecisionTaken());
         assertEquals(Decision.Type.YES, yesDecision.getFinalDecisionType());
         assertNull(yesDecision.getAllocationStatus());
-        if (forceAllocatePrimary) {
-            assertThat(yesDecision.getFinalExplanation(), startsWith("allocating the primary shard to node"));
-        } else if (allocId != null) {
-            assertThat(yesDecision.getFinalExplanation(), containsString("with allocation id"));
-        } else if (reuseStore) {
-            assertThat(yesDecision.getFinalExplanation(), containsString("re-use its unallocated persistent store"));
-        } else {
-            assertThat(yesDecision.getFinalExplanation(), startsWith("shard assigned to node"));
-        }
+        assertEquals("can allocate the shard", yesDecision.getFinalExplanation());
         assertEquals(nodeDecisions, yesDecision.getNodeDecisions());
         assertEquals("node1", yesDecision.getAssignedNodeId());
         assertEquals(allocId, yesDecision.getAllocationId());
@@ -159,8 +150,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
 
         // yes decisions are not precomputed and cached
         Map<String, NodeAllocationResult> dummyMap = emptyMap();
-        AllocateUnassignedDecision first = AllocateUnassignedDecision.yes("node1", "abc", dummyMap, randomBoolean(), randomBoolean());
-        AllocateUnassignedDecision second = AllocateUnassignedDecision.yes("node1", "abc", dummyMap, randomBoolean(), randomBoolean());
+        AllocateUnassignedDecision first = AllocateUnassignedDecision.yes("node1", "abc", dummyMap, randomBoolean());
+        AllocateUnassignedDecision second = AllocateUnassignedDecision.yes("node1", "abc", dummyMap, randomBoolean());
         // same fields for the ShardAllocationDecision, but should be different instances
         assertNotSame(first, second);
     }

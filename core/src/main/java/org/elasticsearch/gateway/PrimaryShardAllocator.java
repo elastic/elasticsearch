@@ -195,7 +195,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         );
         String nodeId = null;
         String allocationId = null;
-        boolean forceAllocated = false;
         boolean throttled = false;
         if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
             DecidedNode decidedNode = nodesToAllocate.yesNodeShards.get(0);
@@ -214,7 +213,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                              unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeShardState.getNode());
                 nodeId = nodeShardState.getNode().getId();
                 allocationId = nodeShardState.allocationId();
-                forceAllocated = true;
             } else if (nodesToAllocate.throttleNodeShards.isEmpty() == false) {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on forced primary allocation",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard, nodesToAllocate.throttleNodeShards);
@@ -238,7 +236,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         if (allocation.hasPendingAsyncFetch()) {
             return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeResults);
         } else if (nodeId != null) {
-            return AllocateUnassignedDecision.yes(nodeId, allocationId, nodeResults, forceAllocated, false);
+            return AllocateUnassignedDecision.yes(nodeId, allocationId, nodeResults, false);
         } else if (throttled) {
             return AllocateUnassignedDecision.throttle(nodeResults);
         } else {

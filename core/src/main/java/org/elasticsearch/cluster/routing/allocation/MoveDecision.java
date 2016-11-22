@@ -158,14 +158,14 @@ public final class MoveDecision extends RelocationDecision {
     public String getFinalExplanation() {
         String explanation;
         if (cannotRemain() == false) {
-            explanation = "shard is allowed to remain on its current node, so no reason to move";
+            explanation = "shard can remain on its current node";
         } else if (getFinalDecisionType() == Type.YES) {
-            explanation = "shard cannot remain on its current node, moving to node [" + getAssignedNodeId() + "]";
+            explanation = "can move shard to another node";
         } else if (getFinalDecisionType() == Type.THROTTLE) {
-            explanation = "shard cannot remain on its current node, but throttled on moving to another node";
+            explanation = "throttled on moving shard to another node";
         } else {
             assert getFinalDecisionType() == Type.NO;
-            explanation = "shard cannot remain on its current node, but cannot be assigned to any other node";
+            explanation = "cannot move shard to another node, even though it is not allowed to remain on its current node";
         }
         return explanation;
     }

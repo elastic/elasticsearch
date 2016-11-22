@@ -420,29 +420,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                String explanation;
-                if (allocation.hasPendingAsyncFetch()) {
-                    explanation = "cannot rebalance due to in-flight shard store fetches, otherwise allocation may prematurely " +
-                                      "rebalance a shard to a node that is soon to receive another shard assignment upon completion " +
-                                      "of the shard store fetch, rendering the cluster imbalanced again";
-                } else {
-                    explanation = "rebalancing of the shard is not allowed in the cluster";
-                }
-                return RebalanceDecision.no(canRebalance, nodeDecisions, currentWeight, explanation);
+                return RebalanceDecision.no(canRebalance, nodeDecisions, currentWeight, allocation.hasPendingAsyncFetch());
             } else {
-                String explanation;
-                if (assignedNodeId != null) {
-                    if (rebalanceDecisionType == Type.THROTTLE) {
-                        explanation = "throttle moving shard to node [" + assignedNodeId + "], as it is " +
-                                          "currently busy with other shard relocations";
-                    } else {
-                        explanation = "moving shard to node [" + assignedNodeId + "] to form a more balanced cluster";
-                    }
-                } else {
-                    explanation = "cannot rebalance shard, no other node exists where moving the shard to it would form a more balanced " +
-                                      "cluster within the defined threshold [" + threshold + "]";
-                }
-                return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNodeId, nodeDecisions, currentWeight, explanation);
+                return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNodeId, nodeDecisions, currentWeight);
             }
         }
 

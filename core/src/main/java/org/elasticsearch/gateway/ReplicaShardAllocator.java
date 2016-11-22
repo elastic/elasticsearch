@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
@@ -210,14 +212,22 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store",
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
                 // we found a match
-                return AllocateUnassignedDecision.yes(nodeWithHighestMatch.nodeId(), null, matchingNodes.nodeDecisions, false, true);
+                return AllocateUnassignedDecision.yes(nodeWithHighestMatch.nodeId(), null, matchingNodes.nodeDecisions, true);
             }
         } else if (matchingNodes.hasAnyData() == false && unassignedShard.unassignedInfo().isDelayed()) {
             // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
             // unassigned due to a node leaving, so we delay allocation of this replica to see if the
             // node with the shard copy will rejoin so we can re-use the copy it has
             logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
-            return AllocateUnassignedDecision.no(AllocationStatus.DELAYED_ALLOCATION, matchingNodes.nodeDecisions);
+            long remainingDelayMillis = 0L;
+            if (explain) {
+                UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
+                MetaData metadata = allocation.metaData();
+                IndexMetaData indexMetaData = metadata.index(unassignedShard.index());
+                long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), indexMetaData.getSettings());
+                remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
+            }
+            return AllocateUnassignedDecision.delayed(remainingDelayMillis, matchingNodes.nodeDecisions);
         }
 
         return AllocateUnassignedDecision.NOT_TAKEN;

@@ -26,6 +26,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
@@ -112,6 +114,7 @@ import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
@@ -208,8 +211,12 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode) {
+        return copy(config, openMode, config.getAnalyzer());
+    }
+
+    public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode, Analyzer analyzer) {
         return new EngineConfig(openMode, config.getShardId(), config.getThreadPool(), config.getIndexSettings(), config.getWarmer(),
-            config.getStore(), config.getDeletionPolicy(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
+            config.getStore(), config.getDeletionPolicy(), config.getMergePolicy(), analyzer, config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(), config.getQueryCache(),
             config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners(),
             config.getMaxUnsafeAutoIdTimestamp());
@@ -2521,4 +2528,40 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue(internalEngine.failedEngine.get() instanceof MockDirectoryWrapper.FakeIOException);
         }
     }
+
+    public void testTragicEventErrorBubblesUp() throws IOException {
+        engine.close();
+        final AtomicBoolean failWithFatalError = new AtomicBoolean(true);
+        final VirtualMachineError error = randomFrom(
+            new InternalError(),
+            new OutOfMemoryError(),
+            new StackOverflowError(),
+            new UnknownError());
+        engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                return new TokenStreamComponents(new Tokenizer() {
+                    @Override
+                    public boolean incrementToken() throws IOException {
+                        if (failWithFatalError.get()) {
+                            throw error;
+                        } else {
+                            throw new AssertionError("should not get to this point");
+                        }
+                    }
+                });
+            }
+        }));
+        final Document document = testDocument();
+        document.add(new TextField("value", "test", Field.Store.YES));
+        final ParsedDocument firstDoc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        final Engine.Index first = new Engine.Index(newUid("1"), firstDoc);
+        expectThrows(error.getClass(), () -> engine.index(first));
+        failWithFatalError.set(false);
+        final ParsedDocument secondDoc = testParsedDocument("2", "2", "test", null, -1, -1, document, B_1, null);
+        final Engine.Index second = new Engine.Index(newUid("2"), secondDoc);
+        expectThrows(error.getClass(), () -> engine.index(second));
+        assertNull(engine.failedEngine.get());
+    }
+
 }

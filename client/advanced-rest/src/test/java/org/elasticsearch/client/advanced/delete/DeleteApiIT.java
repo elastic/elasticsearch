@@ -26,6 +26,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.advanced.AdvancedRestClient;
 import org.elasticsearch.client.advanced.RequestTestUtil;
+import org.elasticsearch.client.advanced.RestOperation;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -39,24 +40,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DeleteApiIT extends ESRestTestCase {
-
-    public void testDeleteRequestAsString() throws IOException {
-        client().performRequest("PUT", "foo");
-        client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
-            new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
-
-        AdvancedRestClient client = new AdvancedRestClient(client());
-        String delete = client.deleteAsString(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
-        assertThat(delete, containsString("\"found\":true"));
-
-        try {
-            client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
-            fail("A 404 ResponseException should have been raised.");
-        } catch (ResponseException e) {
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
-            assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("\"found\":false"));
-        }
-    }
 
     public void testDeleteRequestAsMap() throws IOException {
         client().performRequest("PUT", "foo");
@@ -73,7 +56,7 @@ public class DeleteApiIT extends ESRestTestCase {
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
 
-            Map<String, Object> error = new DeleteRestOperation().toMap(e.getResponse());
+            Map<String, Object> error = RestOperation.toMap(e.getResponse());
             assertThat(error, hasEntry("found", false));
         }
     }
@@ -111,7 +94,7 @@ public class DeleteApiIT extends ESRestTestCase {
         assertThat(listener1.getException(), nullValue());
 
         DeleteRestResponse response = listener1.getResponse();
-        assertThat(response.isFound(), is(false));
+        assertThat(response.isFound(), is(true));
 
         RequestTestUtil.MockResponseListener<DeleteRestResponse> listener2 = new RequestTestUtil.MockResponseListener<>();
         client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listener2);

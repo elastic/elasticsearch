@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.advanced.delete;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -32,7 +31,7 @@ import java.util.Map;
 /**
  * Delete a document
  */
-public class DeleteRestOperation extends RestOperation<DeleteRestRequest, DeleteRestResponse, RestResponseListener> {
+public class DeleteRestOperation extends RestOperation<DeleteRestRequest, DeleteRestResponse, RestResponseListener<DeleteRestResponse>> {
 
     @Override
     protected Response doExecute(RestClient client, DeleteRestRequest request) throws IOException {
@@ -47,20 +46,12 @@ public class DeleteRestOperation extends RestOperation<DeleteRestRequest, Delete
     }
 
     @Override
-    protected Map<String, Object> toMap(Response response) throws IOException {
-        throw new RuntimeException("Not implemented yet...");
-    }
-
-    @Override
-    protected String toString(Response response) throws IOException {
-        return EntityUtils.toString(response.getEntity());
-    }
-
-    @Override
     protected DeleteRestResponse toRestResponse(Response response) throws IOException {
+        // Read from the map as we don't want to use reflection
+        Map<String, Object> map = toMap(response);
         DeleteRestResponse restResponse = new DeleteRestResponse();
-        // TODO Parse the response as a map then transform to object?
-        // Or use Jackson to parse it as object?
+        boolean found = (boolean) map.get("found");
+        restResponse.setFound(found);
         return restResponse;
     }
 }

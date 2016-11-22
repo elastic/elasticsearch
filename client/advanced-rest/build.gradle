@@ -37,6 +37,8 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  compile "com.fasterxml.jackson.jr:jackson-jr-objects:${versions.jackson}"
 
   testCompile "org.elasticsearch.test:framework:${version}"
   testCompile "org.elasticsearch.client:test:${version}"
@@ -68,6 +70,7 @@ dependencyLicenses {
   } - project.configurations.provided
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /commons-.*/, to: 'commons'
+  mapping from: /jackson-.*/, to: 'jackson'
 }
 
 //JarHell is part of es core, which we don't want to pull in

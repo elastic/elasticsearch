@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.advanced;
 
+import com.fasterxml.jackson.jr.ob.JSON;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -29,17 +30,14 @@ import java.util.Map;
 /**
  * Delete a document
  */
-public abstract class RestOperation<Req extends RestRequest, Resp extends RestResponse, L extends RestResponseListener> {
+public abstract class RestOperation<Req extends RestRequest, Resp extends RestResponse, L extends RestResponseListener<Resp>> {
 
     protected abstract Response doExecute(RestClient client, Req request) throws IOException;
     protected abstract void doExecute(RestClient client, Req request, ResponseListener responseListener) throws IOException;
-    protected abstract Map<String, Object> toMap(Response response) throws IOException;
-    protected abstract String toString(Response response) throws IOException;
     protected abstract Resp toRestResponse(Response response) throws IOException;
 
-    public String executeAsString(RestClient client, Req request) throws IOException {
-        validate(request);
-        return toString(doExecute(client, request));
+    public static Map<String, Object> toMap(Response response) throws IOException {
+        return JSON.std.mapFrom(response.getEntity().getContent());
     }
 
     public Map<String, Object> executeAsMap(RestClient client, Req request) throws IOException {

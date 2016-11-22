@@ -40,17 +40,6 @@ public class AdvancedRestClient {
     }
 
     /**
-     * TODO remove
-     * Delete a single document
-     * @param request The document to be deleted
-     * @return Elasticsearch response
-     * @throws IOException In case something is wrong. Can be a ResponseException as well.
-     */
-    public String deleteAsString(DeleteRestRequest request) throws IOException {
-        return new DeleteRestOperation().executeAsString(lowLevelClient, request);
-    }
-
-    /**
      * TODO replace with delete(DeleteRestRequest)
      * Delete a single document
      * @param request The document to be deleted

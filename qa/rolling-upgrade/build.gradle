@@ -1,0 +1,112 @@
+import org.elasticsearch.gradle.test.NodeInfo
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+import java.nio.charset.StandardCharsets
+
+apply plugin: 'elasticsearch.standalone-test'
+
+Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    // wait up to twenty seconds
+    final long stopTime = System.currentTimeMillis() + 20000L;
+    Exception lastException = null;
+    while (System.currentTimeMillis() < stopTime) {
+        lastException = null;
+        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
+        HttpURLConnection httpURLConnection = null;
+        try {
+            // TODO this sucks having to hardcode number of nodes, but node.config.numNodes isn't necessarily accurate for rolling
+            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=2").openConnection();
+            httpURLConnection.setRequestProperty("Authorization", "Basic " +
+                    Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8)));
+            httpURLConnection.setRequestMethod("GET");
+            httpURLConnection.setConnectTimeout(1000);
+            httpURLConnection.setReadTimeout(30000); // read needs to wait for nodes!
+            httpURLConnection.connect();
+            if (httpURLConnection.getResponseCode() == 200) {
+                tmpFile.withWriter StandardCharsets.UTF_8.name(), {
+                    it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
+                }
+                break;
+            }
+        } catch (Exception e) {
+            logger.debug("failed to call cluster health", e)
+            lastException = e
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
+        }
+
+        // did not start, so wait a bit before trying again
+        Thread.sleep(500L);
+    }
+    if (tmpFile.exists() == false && lastException != null) {
+        logger.error("final attempt of calling cluster health failed", lastException)
+    }
+    return tmpFile.exists()
+}
+
+task oldClusterTest(type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+    cluster {
+        plugin ':x-plugins:elasticsearch'
+        distribution = 'zip'
+        bwcVersion = '6.0.0-alpha1-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
+        numBwcNodes = 1
+        numNodes = 2
+        clusterName = 'rolling-upgrade'
+        waitCondition = waitWithAuth
+        systemProperty 'es.logger.org.elasticsearch.xpack.security', 'TRACE'
+    }
+    systemProperty 'tests.rest.suite', 'old_cluster'
+}
+
+task mixedClusterTest(type: RestIntegTestTask) {
+    dependsOn(oldClusterTest, 'oldClusterTest#node1.stop')
+    cluster {
+        plugin ':x-plugins:elasticsearch'
+        distribution = 'zip'
+        clusterName = 'rolling-upgrade'
+        unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+        dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
+        waitCondition = waitWithAuth
+    }
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    finalizedBy 'oldClusterTest#node0.stop'
+}
+
+task upgradedClusterTest(type: RestIntegTestTask) {
+    dependsOn(mixedClusterTest, 'oldClusterTest#node0.stop')
+    cluster {
+        plugin ':x-plugins:elasticsearch'
+        distribution = 'zip'
+        clusterName = 'rolling-upgrade'
+        unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+        dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
+        waitCondition = waitWithAuth
+    }
+    systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
+    finalizedBy 'mixedClusterTest#stop'
+}
+
+task integTest {
+    dependsOn = [upgradedClusterTest]
+}
+
+test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+
+check.dependsOn(integTest)
+
+repositories {
+    maven {
+        url "https://oss.sonatype.org/content/repositories/snapshots/"
+    }
+    maven {
+        url "https://artifacts.elastic.co/maven"
+    }
+    maven {
+        url "https://snapshots.elastic.co/maven"
+    }
+}

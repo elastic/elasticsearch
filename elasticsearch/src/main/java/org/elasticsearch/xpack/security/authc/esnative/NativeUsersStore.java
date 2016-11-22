@@ -67,6 +67,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateSufficientToRead;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
@@ -96,6 +97,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     private final boolean isTribeNode;
 
     private volatile boolean securityIndexExists = false;
+    private volatile boolean canWrite = false;
 
     public NativeUsersStore(Settings settings, InternalClient client) {
         super(settings);
@@ -239,8 +241,15 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
         assert SystemUser.NAME.equals(username) == false && XPackUser.NAME.equals(username) == false : username + "is internal!";
-        if (isTribeNode) {
+        if (state() != State.STARTED) {
+            listener.onFailure(new IllegalStateException("password cannot be changed as user service has not been started"));
+            return;
+        } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
+            return;
+        } else if (canWrite == false) {
+            listener.onFailure(new IllegalStateException("password cannot be changed as user service cannot write until template and " +
+                    "mappings are up to date"));
             return;
         }
 
@@ -313,6 +322,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             return;
         } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
+            return;
+        }  else if (canWrite == false) {
+            listener.onFailure(new IllegalStateException("user cannot be created or changed as the user service cannot write until " +
+                    "template and mappings are up to date"));
             return;
         }
 
@@ -403,6 +416,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
+        }  else if (canWrite == false) {
+            listener.onFailure(new IllegalStateException("enabled status cannot be changed as user service cannot write until template " +
+                    "and mappings are up to date"));
+            return;
         }
 
         if (ReservedRealm.isReserved(username, settings)) {
@@ -477,6 +494,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be deleted using a tribe node"));
             return;
+        }  else if (canWrite == false) {
+            listener.onFailure(new IllegalStateException("user cannot be deleted as user service cannot write until template and " +
+                    "mappings are up to date"));
+            return;
         }
 
         try {
@@ -519,7 +540,12 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             return true;
         }
 
-        if (securityIndexMappingAndTemplateUpToDate(clusterState, logger) == false) {
+        if (securityIndexMappingAndTemplateUpToDate(clusterState, logger)) {
+            canWrite = true;
+        } else if (securityIndexMappingAndTemplateSufficientToRead(clusterState, logger)) {
+            canWrite = false;
+        } else {
+            canWrite = false;
             return false;
         }
 
@@ -721,16 +747,8 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean exists = event.state().metaData().indices().get(SecurityTemplateService.SECURITY_INDEX_NAME) != null;
-        // make sure all the primaries are active
-        if (exists && event.state().routingTable().index(SecurityTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug("security index [{}] all primary shards started, so polling can start",
-                    SecurityTemplateService.SECURITY_INDEX_NAME);
-            securityIndexExists = true;
-        } else {
-            // always set the value - it may have changed...
-            securityIndexExists = false;
-        }
+        securityIndexExists = event.state().metaData().indices().get(SecurityTemplateService.SECURITY_INDEX_NAME) != null;
+        canWrite = securityIndexMappingAndTemplateUpToDate(event.state(), logger);
     }
 
     public State state() {
@@ -744,6 +762,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             throw new IllegalStateException("can only reset if stopped!!!");
         }
         this.securityIndexExists = false;
+        this.canWrite = false;
         this.state.set(State.INITIALIZED);
     }
 

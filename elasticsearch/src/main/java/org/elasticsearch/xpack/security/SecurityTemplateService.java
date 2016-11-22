@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.template.TemplateUtils;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -48,6 +49,7 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
     private static final String SECURITY_VERSION_STRING = "security-version";
     static final String SECURITY_INDEX_TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
+    static final Version MIN_READ_VERSION = Version.V_5_0_0;
 
     private final InternalClient client;
     final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
@@ -178,6 +180,10 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     }
 
     static boolean securityIndexMappingUpToDate(ClusterState clusterState, Logger logger) {
+        return securityIndexMappingVersionMatches(clusterState, logger, Version.CURRENT::equals);
+    }
+
+    static boolean securityIndexMappingVersionMatches(ClusterState clusterState, Logger logger, Predicate<Version> predicate) {
         IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(SECURITY_INDEX_NAME);
         if (indexMetaData != null) {
             for (Object object : indexMetaData.getMappings().values().toArray()) {
@@ -186,7 +192,7 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
                     continue;
                 }
                 try {
-                    if (containsCorrectVersion(mappingMetaData.sourceAsMap()) == false) {
+                    if (containsCorrectVersion(mappingMetaData.sourceAsMap(), predicate) == false) {
                         return false;
                     }
                 } catch (IOException e) {
@@ -202,6 +208,10 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     }
 
     static boolean securityTemplateExistsAndIsUpToDate(ClusterState state, Logger logger) {
+        return securityTemplateExistsAndVersionMatches(state, logger, Version.CURRENT::equals);
+    }
+
+    static boolean securityTemplateExistsAndVersionMatches(ClusterState state, Logger logger, Predicate<Version> predicate) {
         IndexTemplateMetaData templateMeta = state.metaData().templates().get(SECURITY_TEMPLATE_NAME);
         if (templateMeta == null) {
             return false;
@@ -220,7 +230,7 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
                 // get the actual mapping entries
                 @SuppressWarnings("unchecked")
                 Map<String, Object> mappingMap = (Map<String, Object>) typeMappingMap.get(key);
-                if (containsCorrectVersion(mappingMap) == false) {
+                if (containsCorrectVersion(mappingMap, predicate) == false) {
                     return false;
                 }
             } catch (IOException e) {
@@ -231,27 +241,36 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
         return true;
     }
 
-    private static boolean containsCorrectVersion(Map<String, Object> typeMappingMap) {
+    private static boolean containsCorrectVersion(Map<String, Object> typeMappingMap, Predicate<Version> predicate) {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) typeMappingMap.get("_meta");
         if (meta == null) {
             // pre 5.0, cannot be up to date
             return false;
         }
-        if (Version.CURRENT.toString().equals(meta.get(SECURITY_VERSION_STRING)) == false) {
-            // wrong version
-            return false;
-        }
-        return true;
+        return predicate.test(Version.fromString((String) meta.get(SECURITY_VERSION_STRING)));
     }
 
     public static boolean securityIndexMappingAndTemplateUpToDate(ClusterState clusterState, Logger logger) {
-        if (SecurityTemplateService.securityTemplateExistsAndIsUpToDate(clusterState, logger) == false) {
+        if (securityTemplateExistsAndIsUpToDate(clusterState, logger) == false) {
             logger.debug("security template [{}] does not exist or is not up to date, so service cannot start",
                     SecurityTemplateService.SECURITY_TEMPLATE_NAME);
             return false;
         }
         if (SecurityTemplateService.securityIndexMappingUpToDate(clusterState, logger) == false) {
+            logger.debug("mapping for security index not up to date, so service cannot start");
+            return false;
+        }
+        return true;
+    }
+
+    public static boolean securityIndexMappingAndTemplateSufficientToRead(ClusterState clusterState, Logger logger) {
+        if (securityTemplateExistsAndVersionMatches(clusterState, logger, MIN_READ_VERSION::onOrBefore) == false) {
+            logger.debug("security template [{}] does not exist or is not up to date, so service cannot start",
+                    SecurityTemplateService.SECURITY_TEMPLATE_NAME);
+            return false;
+        }
+        if (securityIndexMappingVersionMatches(clusterState, logger, MIN_READ_VERSION::onOrBefore) == false) {
             logger.debug("mapping for security index not up to date, so service cannot start");
             return false;
         }

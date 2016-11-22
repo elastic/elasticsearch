@@ -43,6 +43,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_TEMPLATE_VERSION_PATTERN;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingVersionMatches;
+import static org.elasticsearch.xpack.security.SecurityTemplateService.securityTemplateExistsAndVersionMatches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -107,6 +109,13 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
         assertFalse(SecurityTemplateService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
         checkTemplateUpdateWorkCorrectly(clusterStateBuilder);
+    }
+
+    public void testIndexTemplateVersionMatching() throws Exception {
+        String templateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
+        assertTrue(securityTemplateExistsAndVersionMatches(clusterStateBuilder.build(), logger, Version.V_5_0_0::before));
+        assertFalse(securityTemplateExistsAndVersionMatches(clusterStateBuilder.build(), logger, Version.V_5_0_0::after));
     }
 
     private void checkTemplateUpdateWorkCorrectly(ClusterState.Builder clusterStateBuilder) throws IOException {
@@ -232,6 +241,13 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(0));
+    }
+
+    public void testMappingVersionMatching() throws IOException {
+        String templateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString);
+        assertTrue(securityIndexMappingVersionMatches(clusterStateBuilder.build(), logger, Version.V_5_0_0::before));
+        assertFalse(securityIndexMappingVersionMatches(clusterStateBuilder.build(), logger, Version.V_5_0_0::after));
     }
 
     public void testMissingVersionMappingIsIdentifiedAsNotUpToDate() throws IOException {

@@ -70,6 +70,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateSufficientToRead;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
@@ -120,6 +121,7 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
     private final AtomicLong numInvalidation = new AtomicLong(0);
 
     private volatile boolean securityIndexExists = false;
+    private volatile boolean canWrite = false;
 
     public NativeRolesStore(Settings settings, InternalClient client) {
         super(settings);
@@ -148,7 +150,12 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
             return true;
         }
 
-        if (securityIndexMappingAndTemplateUpToDate(clusterState, logger) == false) {
+        if (securityIndexMappingAndTemplateUpToDate(clusterState, logger)) {
+            canWrite = true;
+        } else if (securityIndexMappingAndTemplateSufficientToRead(clusterState, logger)) {
+            canWrite = false;
+        } else {
+            canWrite = false;
             return false;
         }
 
@@ -229,6 +236,10 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("roles may not be deleted using a tribe node"));
             return;
+        } else if (canWrite == false) {
+            listener.onFailure(new IllegalStateException("role cannot be deleted as service cannot write until template and " +
+                    "mappings are up to date"));
+            return;
         }
 
         try {
@@ -262,6 +273,10 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
             listener.onResponse(false);
         } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("roles may not be created or modified using a tribe node"));
+            return;
+        }  else if (canWrite == false) {
+            listener.onFailure(new IllegalStateException("role cannot be created or modified as service cannot write until template and " +
+                    "mappings are up to date"));
             return;
         }
 
@@ -474,6 +489,7 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         }
         invalidateAll();
         this.securityIndexExists = false;
+        this.canWrite = false;
         this.state.set(State.INITIALIZED);
     }
 
@@ -514,16 +530,8 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
     // TODO abstract this code rather than duplicating...
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean exists = event.state().metaData().indices().get(SecurityTemplateService.SECURITY_INDEX_NAME) != null;
-        // make sure all the primaries are active
-        if (exists && event.state().routingTable().index(SecurityTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug(
-                    "security index [{}] all primary shards started, so polling can start", SecurityTemplateService.SECURITY_INDEX_NAME);
-            securityIndexExists = true;
-        } else {
-            // always set the value - it may have changed...
-            securityIndexExists = false;
-        }
+        securityIndexExists = event.state().metaData().indices().get(SecurityTemplateService.SECURITY_INDEX_NAME) != null;
+        canWrite = securityIndexMappingAndTemplateUpToDate(event.state(), logger);
     }
 
     public State state() {

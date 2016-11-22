@@ -161,7 +161,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     }
 
     @FunctionalInterface
-    private static interface LimitPredicate<Integer>{
+    private interface LimitPredicate<Integer>{
         boolean test(Integer count, Integer limit);
     }
 }

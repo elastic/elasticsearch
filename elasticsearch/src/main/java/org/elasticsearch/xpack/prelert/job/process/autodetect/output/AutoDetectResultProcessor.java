@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A runnable class that reads the autodetect process output
@@ -37,7 +38,7 @@ public class AutoDetectResultProcessor {
     private final JobResultsPersister persister;
     private final AutodetectResultsParser parser;
 
-    private final CountDownLatch latch = new CountDownLatch(1);
+    private final CountDownLatch completionLatch = new CountDownLatch(1);
     private final FlushListener flushListener;
 
     private volatile ModelSizeStats latestModelSizeStats;
@@ -72,7 +73,7 @@ public class AutoDetectResultProcessor {
         } catch (Exception e) {
             jobLogger.info("Error parsing autodetect output", e);
         } finally {
-            latch.countDown();
+            completionLatch.countDown();
             flushListener.clear();
             renormaliser.shutdown(jobLogger);
         }
@@ -152,7 +153,7 @@ public class AutoDetectResultProcessor {
 
     public void awaitCompletion() {
         try {
-            latch.await();
+            completionLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);

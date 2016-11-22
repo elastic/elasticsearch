@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
@@ -238,16 +239,20 @@ PostDataFlushAction.RequestBuilder> {
 
         @Override
         protected final void doExecute(PostDataFlushAction.Request request, ActionListener<PostDataFlushAction.Response> listener) {
-
-            TimeRange timeRange = TimeRange.builder().startTime(request.getStart()).endTime(request.getEnd()).build();
-            InterimResultsParams params = InterimResultsParams.builder()
-                    .calcInterim(request.getCalcInterim())
-                    .forTimeRange(timeRange)
-                    .advanceTime(request.getAdvanceTime())
-                    .build();
-
-            processManager.flushJob(request.getJobId(), params);
-            listener.onResponse(new Response(true));
+            threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() -> {
+                try {
+                    TimeRange timeRange = TimeRange.builder().startTime(request.getStart()).endTime(request.getEnd()).build();
+                    InterimResultsParams params = InterimResultsParams.builder()
+                            .calcInterim(request.getCalcInterim())
+                            .forTimeRange(timeRange)
+                            .advanceTime(request.getAdvanceTime())
+                            .build();
+                    processManager.flushJob(request.getJobId(), params);
+                    listener.onResponse(new Response(true));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 }

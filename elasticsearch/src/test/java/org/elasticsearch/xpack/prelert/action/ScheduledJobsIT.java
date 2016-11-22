@@ -10,6 +10,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -55,28 +56,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
 
     @After
     public void clearPrelertMetadata() throws Exception {
-        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
-        PrelertMetadata prelertMetadata = metaData.custom(PrelertMetadata.TYPE);
-        for (Map.Entry<String, Job> entry : prelertMetadata.getJobs().entrySet()) {
-            String jobId = entry.getKey();
-            try {
-                StopJobSchedulerAction.Response response =
-                        client().execute(StopJobSchedulerAction.INSTANCE, new StopJobSchedulerAction.Request(jobId)).get();
-                assertTrue(response.isAcknowledged());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                PostDataCloseAction.Response response =
-                        client().execute(PostDataCloseAction.INSTANCE, new PostDataCloseAction.Request(jobId)).get();
-                assertTrue(response.isAcknowledged());
-            } catch (Exception e) {
-                // ignore
-            }
-            DeleteJobAction.Response response =
-                    client().execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).get();
-            assertTrue(response.isAcknowledged());
-        }
+        clearPrelertMetadata(client());
     }
 
     public void testLookbackOnly() throws Exception {
@@ -205,6 +185,31 @@ public class ScheduledJobsIT extends ESIntegTestCase {
             return DataCounts.PARSER.apply(parser, () -> ParseFieldMatcher.EMPTY);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static void clearPrelertMetadata(Client client) throws Exception {
+        MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
+        PrelertMetadata prelertMetadata = metaData.custom(PrelertMetadata.TYPE);
+        for (Map.Entry<String, Job> entry : prelertMetadata.getJobs().entrySet()) {
+            String jobId = entry.getKey();
+            try {
+                StopJobSchedulerAction.Response response =
+                        client.execute(StopJobSchedulerAction.INSTANCE, new StopJobSchedulerAction.Request(jobId)).get();
+                assertTrue(response.isAcknowledged());
+            } catch (Exception e) {
+                // ignore
+            }
+            try {
+                PostDataCloseAction.Response response =
+                        client.execute(PostDataCloseAction.INSTANCE, new PostDataCloseAction.Request(jobId)).get();
+                assertTrue(response.isAcknowledged());
+            } catch (Exception e) {
+                // ignore
+            }
+            DeleteJobAction.Response response =
+                    client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).get();
+            assertTrue(response.isAcknowledged());
         }
     }
 

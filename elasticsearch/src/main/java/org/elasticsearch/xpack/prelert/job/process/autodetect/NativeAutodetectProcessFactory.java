@@ -6,9 +6,12 @@
 package org.elasticsearch.xpack.prelert.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
@@ -30,16 +33,19 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 
 public class NativeAutodetectProcessFactory implements AutodetectProcessFactory {
 
     private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
     private static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(2);
+
+    private final Environment env;
+    private final Settings settings;
     private final JobProvider jobProvider;
-    private Environment env;
-    private Settings settings;
-    private NativeController nativeController;
+    private final NativeController nativeController;
 
     public NativeAutodetectProcessFactory(JobProvider jobProvider, Environment env, Settings settings, NativeController nativeController) {
         this.env = Objects.requireNonNull(env);
@@ -49,7 +55,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     @Override
-    public AutodetectProcess createAutodetectProcess(Job job, boolean ignoreDowntime) {
+    public AutodetectProcess createAutodetectProcess(Job job, boolean ignoreDowntime, ExecutorService executorService) {
         List<Path> filesToDelete = new ArrayList<>();
         List<ModelSnapshot> modelSnapshots = jobProvider.modelSnapshots(job.getId(), 0, 1).results();
         ModelSnapshot modelSnapshot = (modelSnapshots != null && !modelSnapshots.isEmpty()) ? modelSnapshots.get(0) : null;
@@ -58,32 +64,32 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                 true, false, true, true, modelSnapshot != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
         createNativeProcess(job, processPipes, ignoreDowntime, filesToDelete);
         int numberOfAnalysisFields = job.getAnalysisConfig().analysisFields().size();
-        NativeAutodetectProcess autodetect = new NativeAutodetectProcess(job.getId(), processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(),
-                processPipes.getPersistStream().get(), numberOfAnalysisFields, filesToDelete);
-        autodetect.tailLogsInThread();
-        if (modelSnapshot != null) {
-            restoreStateInThread(job.getId(), modelSnapshot, processPipes.getRestoreStream().get());
-        }
-        return autodetect;
-    }
 
-    private void restoreStateInThread(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) {
-        new Thread(() -> {
-            try {
-                jobProvider.restoreStateToStream(jobId, modelSnapshot, restoreStream);
-            } catch (Exception e) {
-                LOGGER.error("Error restoring model state for job " + jobId, e);
+        NativeAutodetectProcess autodetect = null;
+        try {
+            autodetect = new NativeAutodetectProcess(job.getId(), processPipes.getLogStream().get(),
+                    processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(),
+                    processPipes.getPersistStream().get(), numberOfAnalysisFields, filesToDelete, executorService);
+            if (modelSnapshot != null) {
+                // TODO (norelease): I don't think we should do this in the background. If this happens then we should wait
+                // until restore it is done before we can accept data.
+                executorService.execute(() -> {
+                    try (OutputStream r = processPipes.getRestoreStream().get()) {
+                        jobProvider.restoreStateToStream(job.getJobId(), modelSnapshot, r);
+                    } catch (Exception e) {
+                        LOGGER.error("Error restoring model state for job " + job.getId(), e);
+                    }
+                });
             }
-            // The restore stream will not be needed again.  If an error occurred getting state to restore then
-            // it's critical to close the restore stream so that the C++ code can realise that it will never
-            // receive any state to restore.  If restoration went smoothly then this is just good practice.
+            return autodetect;
+        } catch (EsRejectedExecutionException e) {
             try {
-                restoreStream.close();
-            } catch (IOException e) {
-                LOGGER.error("Error closing restore stream for job " + jobId, e);
+                IOUtils.close(autodetect);
+            } catch (IOException ioe) {
+                LOGGER.error("Can't close autodetect", ioe);
             }
-        }).start();
+            throw e;
+        }
     }
 
     private void createNativeProcess(Job job, ProcessPipes processPipes, boolean ignoreDowntime, List<Path> filesToDelete) {

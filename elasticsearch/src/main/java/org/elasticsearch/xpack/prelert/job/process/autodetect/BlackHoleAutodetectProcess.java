@@ -44,8 +44,14 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess, Closeable 
         processOutStream = new PipedInputStream();
         persistStream = new PipedInputStream();
         try {
+            // jackson tries to read the first 4 bytes:
+            // if we don't do this the autodetect communication would fail starting
             pipedProcessOutStream = new PipedOutputStream(processOutStream);
+            pipedProcessOutStream.write(' ');
+            pipedProcessOutStream.write(' ');
+            pipedProcessOutStream.write(' ');
             pipedProcessOutStream.write('[');
+            pipedProcessOutStream.flush();
             pipedPersistStream = new PipedOutputStream(persistStream);
         } catch (IOException e) {
             LOGGER.error("Error connecting PipedOutputStream", e);

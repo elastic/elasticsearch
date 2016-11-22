@@ -242,11 +242,8 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
 
         @Override
         protected final void doExecute(Request request, ActionListener<Response> listener) {
-
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, request.isIgnoreDowntime());
-
-            // NORELEASE Make this all async so we don't need to pass off to another thread pool and block
             threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() -> {
                 try {
                     DataCounts dataCounts = processManager.processData(request.getJobId(), request.content.streamInput(), params);

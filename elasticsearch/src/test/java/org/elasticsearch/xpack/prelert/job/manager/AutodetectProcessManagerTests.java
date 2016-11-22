@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.prelert.job.manager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectCommunicator;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
@@ -33,13 +35,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doThrow;
+import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -75,11 +80,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectCommunicator communicator = Mockito.mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManager(communicator);
 
+        DataLoadParams params = mock(DataLoadParams.class);
         InputStream inputStream = createInputStream("");
-        doThrow(new IOException("blah")).when(communicator).writeToJob(inputStream);
+        doThrow(new IOException("blah")).when(communicator).writeToJob(inputStream, params);
 
         ESTestCase.expectThrows(ElasticsearchException.class,
-                () -> manager.processData("foo", inputStream, mock(DataLoadParams.class)));
+                () -> manager.processData("foo", inputStream, params));
     }
 
     public void testCloseJob() {
@@ -103,9 +109,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1000").endTime("2000").build(), true);
         InputStream inputStream = createInputStream("");
         manager.processData("foo", inputStream, params);
-
-        verify(communicator).writeResetBucketsControlMessage(params);
-        verify(communicator).writeToJob(inputStream);
+        verify(communicator).writeToJob(inputStream, params);
     }
 
     public void testFlush() throws IOException {
@@ -176,6 +180,26 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         DataCounts dataCounts = manager.processData("foo", inputStream, mock(DataLoadParams.class));
 
         assertThat(dataCounts, equalTo(new DataCounts("foo")));
+    }
+
+    public void testCreate_notEnoughThreads() throws IOException {
+        Client client = mock(Client.class);
+        Environment environment = mock(Environment.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        doThrow(new EsRejectedExecutionException("")).when(executorService).execute(any());
+        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(jobManager.getJobOrThrowIfUnknown("_id")).thenReturn(createJobDetails("_id"));
+        when(jobProvider.dataCounts("_id")).thenReturn(new DataCounts("_id"));
+
+        AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
+        AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
+        AutodetectProcessFactory autodetectProcessFactory = (j, i, e) -> autodetectProcess;
+        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, environment, threadPool,
+                jobManager, jobProvider, parser, autodetectProcessFactory);
+
+        expectThrows(EsRejectedExecutionException.class, () -> manager.create("_id", false));
+        verify(autodetectProcess, times(1)).close();
     }
 
     private void givenAllocationWithStatus(JobStatus status) {

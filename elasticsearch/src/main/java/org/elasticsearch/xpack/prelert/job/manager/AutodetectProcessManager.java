@@ -6,12 +6,17 @@
 package org.elasticsearch.xpack.prelert.job.manager;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
@@ -45,12 +50,18 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 public class AutodetectProcessManager extends AbstractComponent implements DataProcessor {
 
+    // TODO (norelease) to be reconsidered
+    public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
+            Setting.intSetting("max_running_jobs", 10, Setting.Property.NodeScope);
+
     private final Client client;
     private final Environment env;
+    private final int maxRunningJobs;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
     private final JobProvider jobProvider;
@@ -66,6 +77,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         this.client = client;
         this.env = env;
         this.threadPool = threadPool;
+        this.maxRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
         this.parser = parser;
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.jobManager = jobManager;
@@ -80,17 +92,11 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
             return new DataCounts(jobId);
         }
 
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
-        if (communicator == null) {
-            communicator = create(jobId, params.isIgnoreDowntime());
-            autoDetectCommunicatorByJob.put(jobId, communicator);
-        }
-
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
+            return create(id, params.isIgnoreDowntime());
+        });
         try {
-            if (params.isResettingBuckets()) {
-                communicator.writeResetBucketsControlMessage(params);
-            }
-            return communicator.writeToJob(input);
+            return communicator.writeToJob(input, params);
             // TODO check for errors from autodetect
         } catch (IOException e) {
             String msg = String.format(Locale.ROOT, "Exception writing to process for job %s", jobId);
@@ -102,24 +108,41 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         }
     }
 
-    // TODO (norelease) : here we must validate whether we have enough threads in TP in order start analytical process
-    // Otherwise we are not able to communicate via all the named pipes and we can run into deadlock
     AutodetectCommunicator create(String jobId, boolean ignoreDowntime) {
+        if (autoDetectCommunicatorByJob.size() == maxRunningJobs) {
+            throw new ElasticsearchStatusException("max running job capacity [" + maxRunningJobs + "] reached",
+                    RestStatus.TOO_MANY_REQUESTS);
+        }
+
+        // TODO norelease, once we remove black hole process and all persisters are singletons then we can
+        // remove this method and move not enough threads logic to the auto detect process factory
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         Logger jobLogger = Loggers.getLogger(job.getJobId());
+        // A TP with no queue, so that we fail immediately if there are no threads available
+        ExecutorService executorService = threadPool.executor(PrelertPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME);
+
         ElasticsearchUsagePersister usagePersister = new ElasticsearchUsagePersister(client, jobLogger);
         UsageReporter usageReporter = new UsageReporter(settings, job.getJobId(), usagePersister, jobLogger);
-
         JobDataCountsPersister jobDataCountsPersister = new ElasticsearchJobDataCountsPersister(client);
+        JobResultsPersister persister = new ElasticsearchPersister(jobId, client);
         StatusReporter statusReporter = new StatusReporter(env, settings, job.getJobId(), jobProvider.dataCounts(jobId),
                 usageReporter, jobDataCountsPersister, jobLogger, job.getAnalysisConfig().getBucketSpanOrDefault());
-
-        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, ignoreDowntime);
-        JobResultsPersister persister = new ElasticsearchPersister(jobId, client);
-        // TODO Port the normalizer from the old project
         AutoDetectResultProcessor processor =  new AutoDetectResultProcessor(new NoOpRenormaliser(), persister, parser);
         StateProcessor stateProcessor = new StateProcessor(settings, persister);
-        return new AutodetectCommunicator(threadPool, job, process, jobLogger, statusReporter, processor, stateProcessor);
+
+        AutodetectProcess process = null;
+        try {
+            process = autodetectProcessFactory.createAutodetectProcess(job, ignoreDowntime, executorService);
+            // TODO Port the normalizer from the old project
+            return new AutodetectCommunicator(executorService, job, process, jobLogger, statusReporter, processor, stateProcessor);
+        } catch (Exception e) {
+            try {
+                IOUtils.close(process);
+            } catch (IOException ioe) {
+                logger.error("Can't close autodetect", ioe);
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -153,7 +176,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     @Override
     public void closeJob(String jobId) {
         logger.debug("Closing job {}", jobId);
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobId);
         if (communicator == null) {
             logger.debug("Cannot close: no active autodetect process for job {}", jobId);
             return;
@@ -161,13 +184,12 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
 
         try {
             communicator.close();
+            setJobFinishedTimeAndStatus(jobId, JobStatus.CLOSED);
             // TODO check for errors from autodetect
             // TODO delete associated files (model config etc)
-        } catch (IOException e) {
-            logger.info("Exception closing stopped process input stream", e);
-        } finally {
-            autoDetectCommunicatorByJob.remove(jobId);
-            setJobFinishedTimeAndStatus(jobId, JobStatus.CLOSED);
+        } catch (Exception e) {
+            logger.warn("Exception closing stopped process input stream", e);
+            throw ExceptionsHelper.serverError("Exception closing stopped process input stream", e);
         }
     }
 

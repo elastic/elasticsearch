@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.prelert.job.process.autodetect;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.ZonedDateTime;
@@ -15,7 +16,7 @@ import java.time.ZonedDateTime;
 /**
  * Interface representing the native C++ autodetect process
  */
-public interface AutodetectProcess {
+public interface AutodetectProcess extends Closeable {
 
     /**
      * Write the record to autodetect. The record parameter should not be encoded
@@ -57,11 +58,6 @@ public interface AutodetectProcess {
      * Flush the output data stream
      */
     void flushStream() throws IOException;
-
-    /**
-     * Close
-     */
-    void close() throws IOException;
 
     /**
      * Autodetect's output stream

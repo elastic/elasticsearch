@@ -77,7 +77,7 @@ public class ScheduledJobService extends AbstractComponent {
         Holder holder = createJobScheduler(job);
         registry.put(job.getId(), holder);
 
-        threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() -> {
+        threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME).execute(() -> {
             try {
                 Long next = holder.scheduledJob.runLookBack(allocation.getSchedulerState());
                 if (next != null) {
@@ -136,7 +136,7 @@ public class ScheduledJobService extends AbstractComponent {
         if (holder.scheduledJob.isRunning()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            threadPool.schedule(delay, PrelertPlugin.THREAD_POOL_NAME, () -> {
+            threadPool.schedule(delay, PrelertPlugin.SCHEDULER_THREAD_POOL_NAME, () -> {
                 long nextDelayInMsSinceEpoch;
                 try {
                     nextDelayInMsSinceEpoch = holder.scheduledJob.runRealtime();

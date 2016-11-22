@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.prelert.job.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
@@ -22,11 +23,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Autodetect process using native code.
  */
-public class NativeAutodetectProcess implements AutodetectProcess {
+class NativeAutodetectProcess implements AutodetectProcess {
     private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcess.class);
 
     private final CppLogMessageHandler cppLogHandler;
@@ -37,11 +43,11 @@ public class NativeAutodetectProcess implements AutodetectProcess {
     private final ZonedDateTime startTime;
     private final int numberOfAnalysisFields;
     private final List<Path> filesToDelete;
-    private Thread logTailThread;
+    private Future<?> logTailThread;
 
-    public NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream,
-                                   InputStream processOutStream, InputStream persistStream,
-                                   int numberOfAnalysisFields, List<Path> filesToDelete) {
+    NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
+                            InputStream persistStream, int numberOfAnalysisFields, List<Path> filesToDelete,
+                            ExecutorService executorService) throws EsRejectedExecutionException {
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
         this.processInStream = new BufferedOutputStream(processInStream);
         this.processOutStream = processOutStream;
@@ -50,18 +56,13 @@ public class NativeAutodetectProcess implements AutodetectProcess {
         startTime = ZonedDateTime.now();
         this.numberOfAnalysisFields = numberOfAnalysisFields;
         this.filesToDelete = filesToDelete;
-    }
-
-    void tailLogsInThread() {
-        logTailThread = new Thread(() -> {
-            try {
-                cppLogHandler.tailStream();
-                cppLogHandler.close();
+        logTailThread = executorService.submit(() -> {
+            try (CppLogMessageHandler h = cppLogHandler) {
+                h.tailStream();
             } catch (IOException e) {
                 LOGGER.error("Error tailing C++ process logs", e);
             }
         });
-        logTailThread.start();
     }
 
     @Override
@@ -98,16 +99,15 @@ public class NativeAutodetectProcess implements AutodetectProcess {
         try {
             // closing its input causes the process to exit
             processInStream.close();
-
             // wait for the process to exit by waiting for end-of-file on the named pipe connected to its logger
-            if (logTailThread != null) {
-                logTailThread.join();
-            }
-
+            // this may take a long time as it persists the model state
+            logTailThread.get(30, TimeUnit.MINUTES);
             if (cppLogHandler.seenFatalError()) {
                 throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
             }
             LOGGER.info("Process exited");
+        } catch (ExecutionException | TimeoutException e) {
+            LOGGER.warn("Exception closing the running native process", e);
         } catch (InterruptedException e) {
             LOGGER.warn("Exception closing the running native process");
             Thread.currentThread().interrupt();

@@ -7,9 +7,8 @@ package org.elasticsearch.xpack.prelert.job.process.autodetect;
 
 import org.apache.logging.log4j.core.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
@@ -23,13 +22,18 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.mockito.Mockito;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
+import static org.elasticsearch.mock.orig.Mockito.never;
+import static org.elasticsearch.mock.orig.Mockito.times;
+import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,7 +44,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build());
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            communicator.writeResetBucketsControlMessage(params);
+            communicator.writeToJob(new ByteArrayInputStream(new byte[0]), params);
             Mockito.verify(process).writeResetBucketsControlMessage(params);
         }
     }
@@ -123,19 +127,70 @@ public class AutodetectCommunicatorTests extends ESTestCase {
 
     private AutodetectCommunicator createAutodetectCommunicator(AutodetectProcess autodetectProcess,
                                                                 AutoDetectResultProcessor autoDetectResultProcessor) throws IOException {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = Mockito.mock(ExecutorService.class);
+        ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));
-        Mockito.when(threadPool.executor(PrelertPlugin.THREAD_POOL_NAME)).thenReturn(executorService);
         Logger jobLogger = Mockito.mock(Logger.class);
         JobResultsPersister resultsPersister = mock(JobResultsPersister.class);
         StatusReporter statusReporter = mock(StatusReporter.class);
         StateProcessor stateProcessor = mock(StateProcessor.class);
-        return new AutodetectCommunicator(threadPool, createJobDetails(), autodetectProcess, jobLogger,
-                statusReporter, autoDetectResultProcessor, stateProcessor);
+        return new AutodetectCommunicator(executorService, createJobDetails(), autodetectProcess, jobLogger, statusReporter,
+                autoDetectResultProcessor, stateProcessor);
+    }
+
+    public void testWriteToJobInUse() throws IOException {
+        InputStream in = mock(InputStream.class);
+        when(in.read(any(byte[].class), anyInt(), anyInt())).thenReturn(-1);
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
+
+        communicator.inUse.set(true);
+        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeToJob(in, mock(DataLoadParams.class)));
+
+        communicator.inUse.set(false);
+        communicator.writeToJob(in, mock(DataLoadParams.class));
+    }
+
+    public void testFlushInUse() throws IOException {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
+        when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
+
+        communicator.inUse.set(true);
+        InterimResultsParams params = mock(InterimResultsParams.class);
+        expectThrows(ElasticsearchStatusException.class, () -> communicator.flushJob(params));
+
+        communicator.inUse.set(false);
+        communicator.flushJob(params);
+    }
+
+    public void testCloseInUse() throws IOException {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
+        when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
+
+        communicator.inUse.set(true);
+        expectThrows(ElasticsearchStatusException.class, communicator::close);
+
+        communicator.inUse.set(false);
+        communicator.close();
+    }
+
+    public void testWriteUpdateConfigMessageInUse() throws Exception {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
+        when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
+
+        communicator.inUse.set(true);
+        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateConfigMessage(""));
+
+        communicator.inUse.set(false);
+        communicator.writeUpdateConfigMessage("");
     }
 
 }

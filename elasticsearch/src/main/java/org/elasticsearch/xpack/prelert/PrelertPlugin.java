@@ -16,7 +16,6 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -107,6 +106,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "prelert";
     public static final String BASE_PATH = "/_xpack/prelert/";
     public static final String THREAD_POOL_NAME = NAME;
+    public static final String SCHEDULER_THREAD_POOL_NAME = NAME + "_scheduler";
+    public static final String AUTODETECT_PROCESS_THREAD_POOL_NAME = NAME + "_autodetect_process";
 
     // NORELEASE - temporary solution
     static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", false, Property.NodeScope,
@@ -164,7 +165,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 throw new ElasticsearchException("Failed to create native process factory", e);
             }
         } else {
-            processFactory = (JobDetails, ignoreDowntime) -> new BlackHoleAutodetectProcess();
+            processFactory = (JobDetails, ignoreDowntime, executorService) -> new BlackHoleAutodetectProcess();
         }
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, env, threadPool,
@@ -251,8 +252,19 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        final FixedExecutorBuilder builder = new FixedExecutorBuilder(settings, THREAD_POOL_NAME,
-                5 * EsExecutors.boundedNumberOfProcessors(settings), 1000, "xpack.prelert.thread_pool");
-        return Collections.singletonList(builder);
+        int maxNumberOfJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
+        FixedExecutorBuilder prelert = new FixedExecutorBuilder(settings, THREAD_POOL_NAME,
+                maxNumberOfJobs, 1000, "xpack.prelert.thread_pool");
+
+        // fail quick to start autodetect process / scheduler, so no queues
+        // 4 threads: for c++ logging, result processing, state processing and restore state
+        FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_PROCESS_THREAD_POOL_NAME,
+                maxNumberOfJobs * 4, 4, "xpack.prelert.autodetect_process_thread_pool");
+
+        // TODO: if scheduled and non scheduled jobs are considered more equal and the scheduler and
+        // autodetect process are created at the same time then these two different TPs can merge.
+        FixedExecutorBuilder scheduler = new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME,
+                maxNumberOfJobs, 1, "xpack.prelert.scheduler_thread_pool");
+        return Arrays.asList(prelert, autoDetect, scheduler);
     }
 }

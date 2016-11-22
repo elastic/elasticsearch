@@ -81,7 +81,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));
-        when(threadPool.executor(PrelertPlugin.THREAD_POOL_NAME)).thenReturn(executorService);
+        when(threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME)).thenReturn(executorService);
 
         scheduledJobService =
                 new ScheduledJobService(threadPool, client, jobProvider, dataProcessor, dataExtractorFactory, () -> currentTime);
@@ -108,7 +108,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
         scheduledJobService.start(builder.build(), allocation);
 
         verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
-        verify(threadPool, times(1)).executor(PrelertPlugin.THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STARTED)), any());
         verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STOPPING)), any());
@@ -130,8 +130,8 @@ public class ScheduledJobServiceTests extends ESTestCase {
         scheduledJobService.start(builder.build(), allocation);
 
         verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
-        verify(threadPool, times(1)).executor(PrelertPlugin.THREAD_POOL_NAME);
-        verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(PrelertPlugin.THREAD_POOL_NAME), any());
+        verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME), any());
 
         allocation = new Allocation(allocation.getNodeId(), allocation.getJobId(), allocation.getStatus(),
                 new SchedulerState(JobSchedulerStatus.STOPPING, 0L, 60000L));

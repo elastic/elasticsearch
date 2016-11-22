@@ -5,7 +5,7 @@ The search shards api returns the indices and shards that a search request would
 be executed against. This can give useful feedback for working out issues or
 planning optimizations with routing and shard preferences.
 
-The `index` and `type` parameters may be single values, or comma-separated.
+The `index` may be a single value, or comma-separated.
 
 [float]
 === Usage

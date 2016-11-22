@@ -1097,6 +1097,7 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @SuppressWarnings("finally")
     private void failOnTragicEvent(AlreadyClosedException ex) {
         // if we are already closed due to some tragic exception
         // we need to fail the engine. it might have already been failed before

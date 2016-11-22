@@ -229,7 +229,7 @@ public class MultiMatchQuery extends MatchQuery {
 
         @Override
         public Query blendTerms(Term[] terms, MappedFieldType fieldType) {
-            if (blendedFields == null) {
+            if (blendedFields == null || blendedFields.length == 1) {
                 return super.blendTerms(terms, fieldType);
             }
             BytesRef[] values = new BytesRef[terms.length];

@@ -28,6 +28,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -188,17 +189,30 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     public void testMultiMatchCrossFieldsWithSynonyms() throws IOException {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> { throw new UnsupportedOperationException(); });
+
+        // check that synonym query is used for a single field
         Query parsedQuery =
+            multiMatchQuery("quick").field("name.first")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
+        Term[] terms = new Term[2];
+        terms[0] = new Term("name.first", "quick");
+        terms[1] = new Term("name.first", "fast");
+        Query expectedQuery = new SynonymQuery(terms);
+        assertThat(parsedQuery, equalTo(expectedQuery));
+
+        // check that blended term query is used for multiple fields
+        parsedQuery =
             multiMatchQuery("quick").field("name.first").field("name.last")
                 .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
-        Term[] terms = new Term[4];
+        terms = new Term[4];
         terms[0] = new Term("name.first", "quick");
         terms[1] = new Term("name.first", "fast");
         terms[2] = new Term("name.last", "quick");
         terms[3] = new Term("name.last", "fast");
         float[] boosts = new float[4];
         Arrays.fill(boosts, 1.0f);
-        BlendedTermQuery expectedQuery = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
+        expectedQuery = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
         assertThat(parsedQuery, equalTo(expectedQuery));
+
     }
 }

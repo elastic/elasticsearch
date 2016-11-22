@@ -281,6 +281,15 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         }
     }
 
+    /**
+     * Sends three rounds of pings notifying the specified {@link PingListener} when pinging is complete. Pings are sent after resolving
+     * configured unicast hosts to their IP address (subject to DNS caching within the JVM). A batch of pings is sent, then another batch
+     * of pings is sent at half the specified {@link TimeValue}, and then another batch of pings is sent at the specified {@link TimeValue}.
+     * The pings that are sent carry a timeout of 1.25 times the {@link TimeValue}.
+     *
+     * @param listener the callback when pinging is complete
+     * @param duration the timeout for various components of the pings
+     */
     @Override
     public void ping(final PingListener listener, final TimeValue duration) {
         final List<DiscoveryNode> resolvedDiscoveryNodes;

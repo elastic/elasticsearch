@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.Bootstrap;

@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -186,16 +185,6 @@ public class ElasticsearchJobProvider implements JobProvider
         }
     }
 
-    private boolean indexExists(String jobId)
-    {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
-        LOGGER.trace("ES API CALL: index exists? " + indexName);
-        IndicesExistsResponse res =
-                client.admin().indices().exists(new IndicesExistsRequest(indexName)).actionGet();
-
-        return res.isExists();
-    }
-
     /**
      * Build the Elasticsearch index settings that we want to apply to Prelert
      * indexes.  It's better to do this in code rather than in elasticsearch.yml
@@ -283,10 +272,6 @@ public class ElasticsearchJobProvider implements JobProvider
 
     @Override
     public void deleteJobRelatedIndices(String jobId, ActionListener<DeleteJobAction.Response> listener) {
-        if (indexExists(jobId) == false) {
-            listener.onFailure(ExceptionsHelper.missingJobException(jobId));
-            return;
-        }
         String indexName = ElasticsearchPersister.getJobIndexName(jobId);
         LOGGER.trace("ES API CALL: delete index " + indexName);
 

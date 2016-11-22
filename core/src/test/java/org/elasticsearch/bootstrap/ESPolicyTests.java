@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FilePermission;
+import java.net.SocketPermission;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.AllPermission;
@@ -35,15 +36,15 @@ import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
 import java.util.Collections;
 
-/** 
+/**
  * Tests for ESPolicy
  * <p>
- * Most unit tests won't run under security manager, since we don't allow 
+ * Most unit tests won't run under security manager, since we don't allow
  * access to the policy (you cannot construct it)
  */
 public class ESPolicyTests extends ESTestCase {
 
-    /** 
+    /**
      * Test policy with null codesource.
      * <p>
      * This can happen when restricting privileges with doPrivileged,
@@ -62,7 +63,7 @@ public class ESPolicyTests extends ESTestCase {
         assertFalse(policy.implies(new ProtectionDomain(null, noPermissions), new FilePermission("foo", "read")));
     }
 
-    /** 
+    /**
      * test with null location
      * <p>
      * its unclear when/if this happens, see https://bugs.openjdk.java.net/browse/JDK-8129972
@@ -74,7 +75,7 @@ public class ESPolicyTests extends ESTestCase {
         assertFalse(policy.implies(new ProtectionDomain(new CodeSource(null, (Certificate[])null), noPermissions), new FilePermission("foo", "read")));
     }
 
-    /** 
+    /**
      * test restricting privileges to no permissions actually works
      */
     public void testRestrictPrivileges() {
@@ -103,4 +104,15 @@ public class ESPolicyTests extends ESTestCase {
             // expected exception
         }
     }
+
+    public void testListen() {
+        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
+        final PermissionCollection noPermissions = new Permissions();
+        final ESPolicy policy = new ESPolicy(noPermissions, Collections.<String, Policy>emptyMap(), true);
+        assertFalse(
+            policy.implies(
+                new ProtectionDomain(ESPolicyTests.class.getProtectionDomain().getCodeSource(), noPermissions),
+                new SocketPermission("localhost:" + randomFrom(0, randomIntBetween(49152, 65535)), "listen")));
+    }
+
 }

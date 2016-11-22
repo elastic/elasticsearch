@@ -44,10 +44,12 @@ public class GetRestOperation {
     public static GetRestResponse toRestResponse(Map<String, Object> response) throws IOException {
         // Read from the map as we don't want to use reflection
         GetRestResponse restResponse = new GetRestResponse();
-        boolean found = (boolean) response.get("found");
-        restResponse.setFound(found);
-        Map<String, Object> source = (Map<String, Object>) response.get("_source");
-        restResponse.setSource(source);
+        restResponse.setFound((boolean) response.get("found"));
+        restResponse.setSource((Map<String, Object>) response.get("_source"));
+        restResponse.setIndex((String) response.get("_index"));
+        restResponse.setType((String) response.get("_type"));
+        restResponse.setId((String) response.get("_id"));
+        restResponse.setVersion((Integer) response.get("_version"));
         return restResponse;
     }
 }

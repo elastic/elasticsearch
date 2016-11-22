@@ -52,14 +52,22 @@ public class GetApiIT extends ESRestTestCase {
             GetRestResponse error = GetRestOperation.toRestResponse(toMap(e.getResponse()));
             assertThat(error.isFound(), is(false));
             assertThat(error.getSource(), nullValue());
+            assertThat(error.getIndex(), is("foo"));
+            assertThat(error.getType(), is("bar"));
+            assertThat(error.getId(), is("1"));
+            assertThat(error.getVersion(), nullValue());
         }
 
         client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
             new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
 
-        GetRestResponse get = client.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
-        assertThat(get.isFound(), is(true));
-        assertThat(get.getSource(), hasEntry("foo", "bar"));
+        GetRestResponse response = client.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
+        assertThat(response.isFound(), is(true));
+        assertThat(response.getIndex(), is("foo"));
+        assertThat(response.getType(), is("bar"));
+        assertThat(response.getId(), is("1"));
+        assertThat(response.getVersion(), is(1));
+        assertThat(response.getSource(), hasEntry("foo", "bar"));
     }
 
     public void testGetRequestAsync() throws IOException, InterruptedException {
@@ -88,5 +96,9 @@ public class GetApiIT extends ESRestTestCase {
         GetRestResponse response = listenerResponse1.get();
         assertThat(response.isFound(), is(true));
         assertThat(response.getSource(), hasEntry("foo", "bar"));
+        assertThat(response.getIndex(), is("foo"));
+        assertThat(response.getType(), is("bar"));
+        assertThat(response.getId(), is("1"));
+        assertThat(response.getVersion(), is(1));
     }
 }

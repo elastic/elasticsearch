@@ -38,10 +38,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -126,9 +126,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(scriptQuery(
-                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length > 15", Collections.emptyMap())))
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length > 15", emptyMap())))
                 .addScriptField("sbinaryData",
-                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length", Collections.emptyMap()))
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length", emptyMap()))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(1L));
@@ -139,7 +139,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
     private byte[] getRandomBytes(int len) {
         final byte[] randomBytes = new byte[len];
-        new Random().nextBytes(randomBytes);
+        random().nextBytes(randomBytes);
         return randomBytes;
     }
 

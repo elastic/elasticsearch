@@ -340,11 +340,6 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
             }
         }
 
-        if (nodeDecisions == null && allocationStatus != null) {
-            // use cached version - there are no detailed decisions or explanations
-            return CACHED_DECISIONS.get(allocationStatus);
-        }
-
         boolean reuseStore = in.readBoolean();
         long remainingDelay = in.readVLong();
 

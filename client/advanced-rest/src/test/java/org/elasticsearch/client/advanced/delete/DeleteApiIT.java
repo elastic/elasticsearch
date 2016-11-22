@@ -22,7 +22,6 @@ package org.elasticsearch.client.advanced.delete;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.advanced.AdvancedRestClient;
 import org.elasticsearch.client.advanced.RequestTestUtil;
@@ -33,7 +32,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

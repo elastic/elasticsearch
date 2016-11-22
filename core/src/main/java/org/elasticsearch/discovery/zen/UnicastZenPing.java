@@ -58,7 +58,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -176,40 +175,6 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             threadPool.getThreadContext());
     }
 
-    private static class ResolvedHostname {
-
-        private final TransportAddress[] addresses;
-        private final UnknownHostException failure;
-
-        public static ResolvedHostname success(final TransportAddress[] addresses) {
-            return new ResolvedHostname(addresses, null);
-        }
-
-        public static ResolvedHostname failure(final UnknownHostException failure) {
-            return new ResolvedHostname(null, failure);
-        }
-
-        private ResolvedHostname(final TransportAddress[] addresses, UnknownHostException failure) {
-            assert addresses != null && failure == null || addresses == null && failure != null;
-            this.addresses = addresses;
-            this.failure = failure;
-        }
-
-        public boolean isSuccess() {
-            return addresses != null;
-        }
-
-        public TransportAddress[] addresses() {
-            return addresses;
-        }
-
-        public UnknownHostException failure() {
-            assert !isSuccess();
-            return failure;
-        }
-
-    }
-
     /**
      * Resolves a list of hosts to a list of discovery nodes. Each host is resolved into a transport address (or a collection of addresses
      * if the number of ports is greater than one) and the transport addresses are used to created discovery nodes. Host lookups are done
@@ -242,64 +207,43 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             throw new IllegalArgumentException("resolve timeout must be non-negative but was [" + resolveTimeout + "]");
         }
         // create tasks to submit to the executor service; we will wait up to resolveTimeout for these tasks to complete
-        final List<Callable<ResolvedHostname>> callables =
-            hosts.stream().map(hn -> lookup(hn, transportService, limitPortCounts)).collect(Collectors.toList());
-        final List<Future<ResolvedHostname>> futures =
+        final List<Callable<TransportAddress[]>> callables =
+            hosts
+                .stream()
+                .map(hn -> (Callable<TransportAddress[]>)() -> transportService.addressesFromString(hn, limitPortCounts))
+                .collect(Collectors.toList());
+        final List<Future<TransportAddress[]>> futures =
             executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS);
         final List<DiscoveryNode> discoveryNodes = new ArrayList<>();
         // ExecutorService#invokeAll guarantees that the futures are returned in the iteration order of the tasks so we can associate the
         // hostname with the corresponding task by iterating together
         final Iterator<String> it = hosts.iterator();
-        for (final Future<ResolvedHostname> future : futures) {
+        for (final Future<TransportAddress[]> future : futures) {
             final String hostname = it.next();
             if (!future.isCancelled()) {
+                assert future.isDone();
                 try {
-                    final ResolvedHostname resolvedHostname = future.get();
-                    if (resolvedHostname.isSuccess()) {
-                        logger.trace("resolved host [{}] to {}", hostname, resolvedHostname.addresses());
-                        for (final TransportAddress address : resolvedHostname.addresses()) {
-                            discoveryNodes.add(
-                                new DiscoveryNode(
-                                    idGenerator.get(),
-                                    address,
-                                    emptyMap(),
-                                    emptySet(),
-                                    Version.CURRENT.minimumCompatibilityVersion()));
-                        }
-                    } else {
-                        final String message = "failed to resolve host [" + hostname + "]";
-                        logger.warn(message, resolvedHostname.failure());
+                    final TransportAddress[] addresses = future.get();
+                    logger.trace("resolved host [{}] to {}", hostname, addresses);
+                    for (final TransportAddress address : addresses) {
+                        discoveryNodes.add(
+                            new DiscoveryNode(
+                                idGenerator.get(),
+                                address,
+                                emptyMap(),
+                                emptySet(),
+                                Version.CURRENT.minimumCompatibilityVersion()));
                     }
                 } catch (final ExecutionException e) {
+                    assert e.getCause() != null;
                     final String message = "failed to resolve host [" + hostname + "]";
-                    logger.warn(message, e);
+                    logger.warn(message, e.getCause());
                 }
             } else {
                 logger.warn("timed out after [{}] resolving host [{}]", resolveTimeout, hostname);
             }
         }
         return discoveryNodes;
-    }
-
-    /**
-     * Creates a callable for looking up the specified host.
-     *
-     * @param host             the host to lookup
-     * @param transportService the transport service to use for lookups
-     * @param limitPortCounts  the port count limit
-     * @return a callable that can be used to submit to an executor service
-     */
-    private static Callable<ResolvedHostname> lookup(
-        final String host,
-        final TransportService transportService,
-        final int limitPortCounts) {
-        return () -> {
-            try {
-                return ResolvedHostname.success(transportService.addressesFromString(host, limitPortCounts));
-            } catch (final UnknownHostException e) {
-                return ResolvedHostname.failure(e);
-            }
-        };
     }
 
     @Override

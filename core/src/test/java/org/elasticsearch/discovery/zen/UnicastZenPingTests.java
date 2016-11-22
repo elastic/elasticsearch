@@ -484,7 +484,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         closeables.push(transportService);
         final AtomicInteger idGenerator = new AtomicInteger();
-        final TimeValue resolveTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 100));
+        final TimeValue resolveTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 200));
         try {
             final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
                 executorService,

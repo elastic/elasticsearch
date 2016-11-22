@@ -83,16 +83,17 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return doDecide(shardRouting, node, allocation, true);
+        return doDecide(shardRouting, node, allocation, (count, limit) -> { return count >= limit;});
     }
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return doDecide(shardRouting, node, allocation, false);
+        return doDecide(shardRouting, node, allocation, (count, limit) -> {return count > limit;});
 
     }
 
-    private Decision doDecide(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean isAllocate) {
+    private Decision doDecide(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
+                              LimitPredicate<Integer> predictor) {
         IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
         final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
         // Capture the limit here in case it changes during this method's
@@ -118,11 +119,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
         // when it is allocate, checks >=
         // when it is remain, checks >
-        if (clusterShardLimit > 0 && ((nodeShardCount > clusterShardLimit) || (isAllocate && nodeShardCount == clusterShardLimit))) {
+        if (clusterShardLimit > 0 && predictor.test(nodeShardCount, clusterShardLimit)) {
             return allocation.decision(Decision.NO, NAME, "too many shards for this node [%d], cluster-level limit per node: [%d]",
                 nodeShardCount, clusterShardLimit);
         }
-        if (indexShardLimit > 0 && ((indexShardCount > indexShardLimit) || (isAllocate && indexShardCount == indexShardLimit))) {
+        if (indexShardLimit > 0 && predictor.test(indexShardCount, indexShardLimit)) {
             return allocation.decision(Decision.NO, NAME,
                 "too many shards for this index [%s] on node [%d], index-level limit per node: [%d]",
                 shardRouting.index(), indexShardCount, indexShardLimit);
@@ -158,5 +159,10 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
         return allocation.decision(Decision.YES, NAME, "the shard count is under node limit [%d] of total shards per node",
                 clusterShardLimit);
+    }
+
+    @FunctionalInterface
+    private static interface LimitPredicate<Integer>{
+        boolean test(Integer count, Integer limit);
     }
 }

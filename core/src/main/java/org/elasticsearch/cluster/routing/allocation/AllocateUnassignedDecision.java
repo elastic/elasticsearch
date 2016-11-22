@@ -66,7 +66,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     @Nullable
-    private final Type finalDecision;
+    private final Type decision;
     @Nullable
     private final AllocationStatus allocationStatus;
     @Nullable
@@ -80,20 +80,20 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     private final boolean reuseStore;
     private final long remainingDelayInMillis;
 
-    private AllocateUnassignedDecision(Type finalDecision,
+    private AllocateUnassignedDecision(Type decision,
                                        AllocationStatus allocationStatus,
                                        DiscoveryNode assignedNode,
                                        String allocationId,
                                        Map<String, NodeAllocationResult> nodeDecisions,
                                        boolean reuseStore,
                                        long remainingDelayInMillis) {
-        assert assignedNode != null || finalDecision == null || finalDecision != Type.YES :
+        assert assignedNode != null || decision == null || decision != Type.YES :
             "a yes decision must have a node to assign the shard to";
-        assert allocationStatus != null || finalDecision == null || finalDecision == Type.YES :
+        assert allocationStatus != null || decision == null || decision == Type.YES :
             "only a yes decision should not have an allocation status";
         assert allocationId == null || assignedNode != null :
             "allocation id can only be null if the assigned node is null";
-        this.finalDecision = finalDecision;
+        this.decision = decision;
         this.allocationStatus = allocationStatus;
         if (assignedNode != null) {
             this.assignedNodeId = assignedNode.getId();
@@ -110,9 +110,9 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
 
     public AllocateUnassignedDecision(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            finalDecision = Type.readFrom(in);
+            decision = Type.readFrom(in);
         } else {
-            finalDecision = null;
+            decision = null;
         }
         if (in.readBoolean()) {
             allocationStatus = AllocationStatus.readFrom(in);
@@ -214,28 +214,28 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
      * If no decision was taken, then the rest of the fields in this object are meaningless and return {@code null}.
      */
     public boolean isDecisionTaken() {
-        return finalDecision != null;
+        return decision != null;
     }
 
     /**
-     * Returns the final decision made by the allocator on whether to assign the shard.
+     * Returns the decision made by the allocator on whether to assign the shard.
      * This value can only be {@code null} if {@link #isDecisionTaken()} returns {@code false}.
      */
     @Nullable
-    public Type getFinalDecisionType() {
-        return finalDecision;
+    public Type getDecision() {
+        return decision;
     }
 
     /**
-     * Returns the final decision made by the allocator on whether to assign the shard.
+     * Returns the decision made by the allocator on whether to assign the shard.
      * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
      * throw an {@code IllegalArgumentException}.
      */
-    public Type getFinalDecisionSafe() {
+    public Type getDecisionSafe() {
         if (isDecisionTaken() == false) {
             throw new IllegalArgumentException("decision must have been taken in order to return the final decision");
         }
-        return finalDecision;
+        return decision;
     }
 
     /**
@@ -248,7 +248,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Get the node id that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
+     * Get the node id that the allocator will assign the shard to, unless {@link #getDecision()} returns
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */
     @Nullable
@@ -257,7 +257,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Get the node name that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
+     * Get the node name that the allocator will assign the shard to, unless {@link #getDecision()} returns
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */
     @Nullable
@@ -278,7 +278,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
 
     /**
      * Gets the individual node-level decisions that went into making the final decision as represented by
-     * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link Decision}
+     * {@link #getDecision()}.  The map that is returned has the node id as the key and a {@link Decision}
      * as the decision for the given node.
      */
     @Nullable
@@ -297,11 +297,11 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Returns the explanation behind the {@link #getFinalDecisionType()} that is returned for this decision.
+     * Returns the explanation behind the {@link #getDecision()} that is returned for this decision.
      */
     public String getFinalExplanation() {
         String explanation;
-        if (finalDecision == Type.NO) {
+        if (decision == Type.NO) {
             assert allocationStatus != null : "if the decision is NO, it must have an AllocationStatus";
             if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
                 explanation = "cannot allocate because information about existing shard data is still being retrieved from " +
@@ -323,20 +323,20 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
                     explanation = "cannot allocate because allocation is not permitted to any of the nodes";
                 }
             }
-        } else if (finalDecision == Type.YES) {
+        } else if (decision == Type.YES) {
             explanation = "can allocate the shard";
-        } else if (finalDecision == Type.THROTTLE) {
+        } else if (decision == Type.THROTTLE) {
             explanation = "allocation temporarily throttled";
         } else {
-            throw new IllegalStateException("unhandled decision [" + finalDecision + "]");
+            throw new IllegalStateException("unhandled decision [" + decision + "]");
         }
         return explanation;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("final_decision", finalDecision.toString());
-        builder.field("final_explanation", getFinalExplanation());
+        builder.field("decision", decision.toString());
+        builder.field("explanation", getFinalExplanation());
         if (allocationStatus != null) {
             builder.field("allocation_status", allocationStatus.value());
         }
@@ -353,7 +353,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
             builder.field("remaining_delay_in_millis", remainingDelayInMillis);
         }
         if (nodeDecisions != null) {
-            builder.startObject("nodes");
+            builder.startObject("node_decisions");
             {
                 List<String> nodeIds = new ArrayList<>(nodeDecisions.keySet());
                 Collections.sort(nodeIds);
@@ -369,9 +369,9 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (finalDecision != null) {
+        if (decision != null) {
             out.writeBoolean(true);
-            Type.writeTo(finalDecision, out);
+            Type.writeTo(decision, out);
         } else {
             out.writeBoolean(false);
         }

@@ -121,9 +121,9 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     }
 
     /**
-     * Gets the final decision type for allocating to this node.
+     * Gets the decision type for allocating to this node.
      */
-    public Decision.Type getFinalDecisionType() {
+    public Decision.Type getNodeDecisionType() {
         return canAllocateDecision.type();
     }
 
@@ -139,7 +139,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
                 }
             }
             builder.endObject(); // end attributes
-            builder.field("final_decision", getFinalDecisionType());
+            builder.field("node_decision", getNodeDecisionType());
             if (shardStore != null) {
                 shardStore.toXContent(builder, params);
             }
@@ -154,7 +154,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     }
 
     /**
-     * Sub-classes should override this to add any extra x-content generation.
+     * Sub-classes should override this to add any extra x-content.
      */
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
     }

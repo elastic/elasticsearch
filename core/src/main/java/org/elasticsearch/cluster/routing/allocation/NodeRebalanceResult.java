@@ -63,7 +63,7 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
     }
 
     @Override
-    public Decision.Type getFinalDecisionType() {
+    public Decision.Type getNodeDecisionType() {
         return nodeDecisionType;
     }
 

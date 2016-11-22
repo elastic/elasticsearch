@@ -153,7 +153,9 @@ public class HttpRequest implements ToXContent {
             builder.field(Field.HEADERS.getPreferredName(), headers);
         }
         if (auth != null) {
-            builder.field(Field.AUTH.getPreferredName(), auth, params);
+            builder.startObject(Field.AUTH.getPreferredName())
+                        .field(auth.type(), auth, params)
+                    .endObject();
         }
         if (body != null) {
             builder.field(Field.BODY.getPreferredName(), body);
@@ -218,6 +220,9 @@ public class HttpRequest implements ToXContent {
                 first = false;
             }
             sb.append("], ");
+        }
+        if (auth != null) {
+            sb.append("auth=[").append(auth.type()).append("], ");
         }
         sb.append("connection_timeout=[").append(connectionTimeout).append("], ");
         sb.append("read_timeout=[").append(readTimeout).append("], ");

@@ -18,11 +18,13 @@ import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
@@ -33,11 +35,9 @@ import static org.elasticsearch.xpack.notification.jira.JiraIssue.resolveFailure
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 public class JiraIssueTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/4153")
     public void testToXContent() throws Exception {
         final JiraIssue issue = randomJiraIssue();
 
@@ -68,7 +68,8 @@ public class JiraIssueTests extends ESTestCase {
                 } else if ("result".equals(currentFieldName)) {
                     parsedResult = parser.map();
                 } else if ("request".equals(currentFieldName)) {
-                    HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(mock(HttpAuthRegistry.class));
+                    HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
+                    HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);
                     parsedRequest = httpRequestParser.parse(parser);
                 } else if ("response".equals(currentFieldName)) {
                     parsedResponse = HttpResponse.parse(parser);

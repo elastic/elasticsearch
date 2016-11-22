@@ -5,23 +5,24 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.http.HttpRequest;
-import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 
-import java.util.HashMap;
-import java.util.Map;
-
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -116,7 +117,25 @@ public class HttpRequestTests extends ESTestCase {
             builder.proxy(new HttpProxy(randomAsciiOfLength(10), randomIntBetween(1024, 65000)));
         }
 
-        builder.build().toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
+        final HttpRequest httpRequest = builder.build();
+        assertNotNull(httpRequest);
+
+        BytesReference bytes = null;
+        try (XContentBuilder xContentBuilder = randomFrom(jsonBuilder(), smileBuilder(), yamlBuilder(), cborBuilder())) {
+            httpRequest.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            bytes = xContentBuilder.bytes();
+        }
+
+        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
+        HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);
+
+        try (XContentParser parser = XContentHelper.createParser(bytes)) {
+            assertNull(parser.currentToken());
+            parser.nextToken();
+
+            HttpRequest parsedRequest = httpRequestParser.parse(parser);
+            assertEquals(httpRequest, parsedRequest);
+        }
     }
 
     private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequest.Builder builder) throws Exception {

@@ -272,7 +272,7 @@ final class Security {
      * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
      * @param settings the {@link Settings} instance to read the HTTP and transport settings from
      */
-    static void addBindPermissions(Permissions policy, Settings settings) {
+    private static void addBindPermissions(Permissions policy, Settings settings) {
         addSocketPermissionForHttp(policy, settings);
         addSocketPermissionForTransportProfiles(policy, settings);
         addSocketPermissionForTribeNodes(policy, settings);

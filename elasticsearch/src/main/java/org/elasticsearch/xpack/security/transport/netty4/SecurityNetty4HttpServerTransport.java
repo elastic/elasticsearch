@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
@@ -42,6 +43,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
 
     @Override
     protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        Netty4Utils.maybeDie(cause);
         if (!lifecycle.started()) {
             return;
         }

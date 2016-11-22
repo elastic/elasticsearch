@@ -20,11 +20,9 @@ package org.elasticsearch.cluster.shards;
 
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -35,7 +33,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -156,15 +153,5 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         } finally {
             disableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
         }
-    }
-
-    public void testClusterSearchShardsWithAliases() {
-        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("field", "value");
-        assertAcked(prepareCreate("index")
-                .addAlias(new Alias("alias1").filter(termQueryBuilder)).addAlias(new Alias("alias2")));
-        ClusterSearchShardsResponse clusterSearchShardsResponse = client().admin().cluster().prepareSearchShards("alias1").get();
-        assertEquals(termQueryBuilder, clusterSearchShardsResponse.getIndicesAndFilters().get("index").getQueryBuilder());
-        clusterSearchShardsResponse = client().admin().cluster().prepareSearchShards("alias2").get();
-        assertNull(clusterSearchShardsResponse.getIndicesAndFilters().get("index").getQueryBuilder());
     }
 }

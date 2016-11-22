@@ -117,8 +117,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                 indexShardCount++;
             }
         }
-        // when it is allocate, checks >=
-        // when it is remain, checks >
+
         if (clusterShardLimit > 0 && predictor.test(nodeShardCount, clusterShardLimit)) {
             return allocation.decision(Decision.NO, NAME, "too many shards for this node [%d], cluster-level limit per node: [%d]",
                 nodeShardCount, clusterShardLimit);

@@ -31,10 +31,14 @@ public class MockTransportClient extends TransportClient {
 
 
     public MockTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
-        super(settings, DEFAULT_SETTINGS, Arrays.asList(plugins));
+        this(settings, Arrays.asList(plugins), null);
     }
 
     public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        super(settings, DEFAULT_SETTINGS, plugins);
+        this(settings, plugins, null);
+    }
+
+    public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins, HostFailureListener listener) {
+        super(settings, DEFAULT_SETTINGS, plugins, listener);
     }
 }

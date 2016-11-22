@@ -3,7 +3,8 @@
 
 The search shards api returns the indices and shards that a search request would
 be executed against. This can give useful feedback for working out issues or
-planning optimizations with routing and shard preferences.
+planning optimizations with routing and shard preferences. When filtered aliases
+are used, the filter is returned as part of the `indices` section added[5.1.0].
 
 The `index` and `type` parameters may be single values, or comma-separated.
 
@@ -27,6 +28,9 @@ This will yield the following result:
 --------------------------------------------------
 {
   "nodes": ...,
+  "indices" : {
+    "twitter": { }
+  },
   "shards": [
     [
       {
@@ -109,6 +113,9 @@ This will yield the following result:
 --------------------------------------------------
 {
   "nodes": ...,
+  "indices" : {
+      "twitter": { }
+  },
   "shards": [
     [
       {

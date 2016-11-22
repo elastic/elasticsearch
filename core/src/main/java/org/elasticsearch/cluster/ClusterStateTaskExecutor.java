@@ -21,7 +21,6 @@ package org.elasticsearch.cluster;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 public interface ClusterStateTaskExecutor<T> {
     /**
@@ -148,19 +147,6 @@ public interface ClusterStateTaskExecutor<T> {
         public Exception getFailure() {
             assert !isSuccess();
             return failure;
-        }
-
-        /**
-         * Handle the execution result with the provided consumers
-         * @param onSuccess handler to invoke on success
-         * @param onFailure handler to invoke on failure; the throwable passed through will not be null
-         */
-        public void handle(Runnable onSuccess, Consumer<Exception> onFailure) {
-            if (failure == null) {
-                onSuccess.run();
-            } else {
-                onFailure.accept(failure);
-            }
         }
     }
 }

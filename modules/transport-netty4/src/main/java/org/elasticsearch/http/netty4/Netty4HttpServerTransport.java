@@ -53,9 +53,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -576,6 +576,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
                 ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(transport.pipeliningMaxEvents));
             }
             ch.pipeline().addLast("handler", requestHandler);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            Netty4Utils.maybeDie(cause);
+            super.exceptionCaught(ctx, cause);
         }
 
     }

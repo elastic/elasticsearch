@@ -67,4 +67,9 @@ public class PSubNullSafeCallInvoke extends AExpression {
         guarded.write(writer, globals);
         writer.mark(end);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(guarded);
+    }
 }

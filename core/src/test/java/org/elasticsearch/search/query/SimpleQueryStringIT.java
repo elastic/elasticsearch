@@ -564,6 +564,18 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 1L);
     }
 
+    public void testAllFieldsWithSpecifiedLeniency() throws IOException {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        prepareCreate("test").setSource(indexBody).get();
+        ensureGreen("test");
+
+        Exception e = expectThrows(Exception.class, () ->
+                client().prepareSearch("test").setQuery(
+                        simpleQueryStringQuery("foo123").lenient(false)).get());
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("NumberFormatException[For input string: \"foo123\"]"));
+    }
+
     private void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.totalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();

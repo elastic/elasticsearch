@@ -96,4 +96,9 @@ public class PSubNullSafeField extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         throw createError(new IllegalArgumentException("Can't write to null safe field"));
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(guarded);
+    }
 }

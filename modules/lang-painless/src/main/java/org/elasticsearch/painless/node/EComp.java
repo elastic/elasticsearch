@@ -568,4 +568,9 @@ public final class EComp extends AExpression {
             writer.mark(end);
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(left, operation.symbol, right);
+    }
 }

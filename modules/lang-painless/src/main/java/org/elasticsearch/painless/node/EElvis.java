@@ -105,4 +105,9 @@ public class EElvis extends AExpression {
         rhs.write(writer, globals);
         writer.mark(end);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(lhs, rhs);
+    }
 }

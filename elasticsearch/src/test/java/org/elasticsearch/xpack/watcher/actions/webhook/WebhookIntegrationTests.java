@@ -10,23 +10,18 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 import org.junit.Before;
-
-import java.net.BindException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -40,24 +35,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase {
-    private int webPort;
+
     private MockWebServer webServer;
 
     @Before
     public void startWebservice() throws Exception {
-        for (webPort = 9250; webPort < 9300; webPort++) {
-            try {
-                webServer = new MockWebServer();
-                QueueDispatcher dispatcher = new QueueDispatcher();
-                dispatcher.setFailFast(true);
-                webServer.setDispatcher(dispatcher);
-                webServer.start(webPort);
-                return;
-            } catch (BindException be) {
-                logger.warn("port [{}] was already in use trying next port", webPort);
-            }
-        }
-        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
+        webServer = new MockWebServer();
+        QueueDispatcher dispatcher = new QueueDispatcher();
+        dispatcher.setFailFast(true);
+        webServer.setDispatcher(dispatcher);
+        webServer.start();
     }
 
     @After
@@ -67,7 +54,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
+        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
                 .path(new TextTemplate("/test/_id"))
                 .putParam("param1", new TextTemplate("value1"))
                 .putParam("watch_id", new TextTemplate("_id"))
@@ -92,12 +79,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("_body"));
 
-        SearchResponse response = searchWatchRecords(new Callback<SearchRequestBuilder>() {
-            @Override
-            public void handle(SearchRequestBuilder builder) {
-                QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed");
-            }
-        });
+        SearchResponse response = searchWatchRecords(b -> QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed"));
 
         assertNoFailures(response);
         XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
@@ -111,7 +93,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
     public void testWebhookWithBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
+        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
                 .auth(new BasicAuth("_username", "_password".toCharArray()))
                 .path(new TextTemplate("/test/_id"))
                 .putParam("param1", new TextTemplate("value1"))

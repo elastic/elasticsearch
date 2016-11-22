@@ -8,19 +8,16 @@ package org.elasticsearch.xpack.watcher.history;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;
 import org.junit.Before;
-
-import java.net.BindException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -37,24 +34,16 @@ import static org.hamcrest.Matchers.notNullValue;
  * not analyzed so they can be used in aggregations
  */
 public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegrationTestCase {
-    private int webPort;
+
     private MockWebServer webServer;
 
     @Before
     public void init() throws Exception {
-        for (webPort = 9200; webPort < 9300; webPort++) {
-            try {
-                webServer = new MockWebServer();
-                QueueDispatcher dispatcher = new QueueDispatcher();
-                dispatcher.setFailFast(true);
-                webServer.setDispatcher(dispatcher);
-                webServer.start(webPort);
-                return;
-            } catch (BindException be) {
-                logger.warn("port [{}] was already in use trying next port", webPort);
-            }
-        }
-        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
+        QueueDispatcher dispatcher = new QueueDispatcher();
+        dispatcher.setFailFast(true);
+        webServer = new MockWebServer();
+        webServer.setDispatcher(dispatcher);
+        webServer.start();
     }
 
     @After
@@ -75,9 +64,9 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
     public void testHttpFields() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
-                .input(httpInput(HttpRequestTemplate.builder("localhost", webPort).path("/input/path")))
+                .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort()).path("/input/path")))
                 .condition(AlwaysCondition.INSTANCE)
-                .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webPort)
+                .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .path("/webhook/path")
                         .body("_body"))))
                 .get();

@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import okio.Buffer;
-
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
+import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
-
+import okio.Buffer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -71,13 +70,11 @@ import static org.hamcrest.Matchers.startsWith;
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class HttpExporterIT extends MonitoringIntegTestCase {
 
-    private MockWebServerContainer webServerContainer;
     private MockWebServer webServer;
 
     @Before
-    public void startWebServer() {
-        webServerContainer = new MockWebServerContainer();
-        webServer = webServerContainer.getWebServer();
+    public void startWebServer() throws IOException {
+        webServer = createMockWebServer();
     }
 
     @After
@@ -102,7 +99,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         final Settings.Builder builder = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServerContainer.getFormattedAddress());
+                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer));
 
         internalCluster().startNode(builder);
 
@@ -134,7 +131,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         Settings.Builder builder = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServerContainer.getFormattedAddress())
+                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
                 .put("xpack.monitoring.exporters._http.headers.X-Cloud-Cluster", headerValue)
                 .put("xpack.monitoring.exporters._http.headers.X-Found-Cluster", headerValue)
                 .putArray("xpack.monitoring.exporters._http.headers.Array-Check", array);
@@ -186,7 +183,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         final Settings.Builder builder = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServerContainer.getFormattedAddress())
+                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
                 .put("xpack.monitoring.exporters._http.proxy.base_path", basePath + (randomBoolean() ? "/" : ""));
 
         if (useHeaders) {
@@ -213,7 +210,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         Settings.Builder builder = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServerContainer.getFormattedAddress());
+                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer));
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer, templatesExistsAlready, pipelineExistsAlready, bwcIndexesExist, bwcAliasesExist);
@@ -226,11 +223,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertMonitorResources(webServer, templatesExistsAlready, pipelineExistsAlready, bwcIndexesExist, bwcAliasesExist);
         assertBulk(webServer);
 
-        try (final MockWebServerContainer secondWebServerContainer = new MockWebServerContainer(webServerContainer.getPort() + 1)) {
-            final MockWebServer secondWebServer = secondWebServerContainer.getWebServer();
-
+        final MockWebServer secondWebServer = createMockWebServer();
+        try {
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().putArray("xpack.monitoring.exporters._http.host", secondWebServerContainer.getFormattedAddress())));
+                    Settings.builder().putArray("xpack.monitoring.exporters._http.host", getFormattedAddress(secondWebServer))));
 
             enqueueGetClusterVersionResponse(secondWebServer, Version.CURRENT);
             // pretend that one of the templates is missing
@@ -267,13 +263,15 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             assertMonitorPipelines(secondWebServer, !pipelineExistsAlready, null, null);
             assertMonitorBackwardsCompatibilityAliases(secondWebServer, false, null, null);
             assertBulk(secondWebServer);
+        } finally {
+            secondWebServer.shutdown();
         }
     }
 
     public void testUnsupportedClusterVersion() throws Exception {
         Settings.Builder builder = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServerContainer.getFormattedAddress());
+                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer));
 
         // returning an unsupported cluster version
         enqueueGetClusterVersionResponse(randomFrom(Version.fromString("0.18.0"), Version.fromString("1.0.0"), Version.fromString("1.4.0"),
@@ -297,7 +295,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         Settings.Builder builder = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServerContainer.getFormattedAddress());
+                .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer));
 
         internalCluster().startNode(builder);
 
@@ -641,5 +639,18 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             assertThat(actionRequest, instanceOf(IndexRequest.class));
         }
+    }
+
+    private String getFormattedAddress(MockWebServer server) {
+        return server.getHostName() + ":" + server.getPort();
+    }
+
+    private MockWebServer createMockWebServer() throws IOException {
+        MockWebServer server = new MockWebServer();
+        server.start();
+        final QueueDispatcher dispatcher = new QueueDispatcher();
+        dispatcher.setFailFast(true);
+        server.setDispatcher(dispatcher);
+        return server;
     }
 }

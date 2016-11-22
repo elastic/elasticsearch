@@ -39,7 +39,6 @@ public class HttpReadTimeoutTests extends ESTestCase {
     @After
     public void cleanup() throws Exception {
         webServer.shutdown();
-
     }
 
     public void testDefaultTimeout() throws Exception {

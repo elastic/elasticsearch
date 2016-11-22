@@ -706,6 +706,43 @@ public class CacheTests extends ESTestCase {
         barrier.await();
     }
 
+    public void testExceptionThrownDuringConcurrentComputeIfAbsent() throws BrokenBarrierException, InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 32);
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().build();
+
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+
+        final String key = randomAsciiOfLengthBetween(2, 32);
+        for (int i = 0; i < numberOfThreads; i++) {
+            Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        try {
+                            String value = cache.computeIfAbsent(key, k -> {
+                                throw new RuntimeException("failed to load");
+                            });
+                            fail("expected exception but got: " + value);
+                        } catch (ExecutionException e) {
+                            assertNotNull(e.getCause());
+                            assertThat(e.getCause(), instanceOf(RuntimeException.class));
+                            assertEquals(e.getCause().getMessage(), "failed to load");
+                        }
+                    }
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            thread.start();
+        }
+
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
+    }
+
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key
     // here be dragons: this test did catch one subtle bug during development; do not remove lightly
     public void testTorture() throws BrokenBarrierException, InterruptedException {

@@ -52,7 +52,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
     public static final Version V_5_0_2_UNRELEASED = Version.fromId(5000299);
     public static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
+    /**
+     * Passed in the {@link Params} of {@link #toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
+     * to control if the {@code caused_by} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
+     * internal only and not available as a URL parameter.
+     */
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
+    /**
+     * Passed in the {@link Params} of {@link #toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
+     * to control if the {@code stack_trace} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
+     * internal only and not available as a URL parameter. Use the {@code error_trace} parameter instead.
+     */
     public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
     public static final boolean REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT = true;
     public static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
@@ -308,7 +318,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Statis toXContent helper method that also renders non {@link org.elasticsearch.ElasticsearchException} instances as XContent.
+     * Static toXContent helper method that also renders non {@link org.elasticsearch.ElasticsearchException} instances as XContent.
      */
     public static void toXContent(XContentBuilder builder, Params params, Throwable ex) throws IOException {
         ex = ExceptionsHelper.unwrapCause(ex);

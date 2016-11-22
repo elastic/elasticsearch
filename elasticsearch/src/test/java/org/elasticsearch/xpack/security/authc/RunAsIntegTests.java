@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class RunAsIntegTests extends SecurityIntegTestCase {
@@ -75,9 +76,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         try (TransportClient client = getTransportClient(Settings.builder()
                 .put(Security.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":" + SecuritySettingsSource.DEFAULT_PASSWORD).build())) {
             //ensure the client can connect
-            awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            });
+            assertBusy(() -> assertThat(client.connectedNodes().size(), greaterThan(0)));
 
             // make sure the client can't get health
             try {

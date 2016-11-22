@@ -13,6 +13,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -237,5 +241,42 @@ public class FieldPermissionTests extends ESTestCase {
         FieldPermissions readFieldPermissions = in.readOptionalWriteable(FieldPermissions::new);
         // order should be preserved in any case
         assertEquals(readFieldPermissions, fieldPermissions);
+    }
+
+    public void testFieldPermissionsHashCodeThreadSafe() throws Exception {
+        final int numThreads = scaledRandomIntBetween(4, 16);
+        final FieldPermissions fieldPermissions = randomBoolean() ?
+                new FieldPermissions(new String[] { "*" }, new String[] { "foo" }) :
+                FieldPermissions.merge(new FieldPermissions(new String[] { "f*" }, new String[] { "foo" }),
+                        new FieldPermissions(new String[] { "b*" }, new String[] { "bar" }));
+        final CountDownLatch latch = new CountDownLatch(numThreads + 1);
+        final AtomicReferenceArray<Integer> hashCodes = new AtomicReferenceArray<>(numThreads);
+        List<Thread> threads = new ArrayList<>(numThreads);
+        for (int i = 0; i < numThreads; i++) {
+            final int threadNum = i;
+            threads.add(new Thread(() -> {
+                latch.countDown();
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                final int hashCode = fieldPermissions.hashCode();
+                hashCodes.set(threadNum, hashCode);
+            }));
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        final int hashCode = fieldPermissions.hashCode();
+        for (int i = 0; i < numThreads; i++) {
+            assertEquals((Integer) hashCode, hashCodes.get(i));
+        }
     }
 }

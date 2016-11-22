@@ -161,6 +161,8 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
         try {
             UserWithHash userWithHash = cache.computeIfAbsent(username, callback);
+            assert userWithHash != null : "the cache contract requires that a value returned from computeIfAbsent be non-null or an " +
+                    "ExecutionException should be thrown";
             return userWithHash.user;
         } catch (ExecutionException ee) {
             if (ee.getCause() instanceof ElasticsearchSecurityException) {

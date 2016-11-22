@@ -10,9 +10,11 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
@@ -48,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -704,5 +707,48 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                         basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
+    }
+
+    /**
+     * Tests that multiple concurrent run as requests can be authenticated successfully. There was a bug in the Cache implementation used
+     * for our internal realms that caused some run as requests to fail even when the authentication was valid and the run as user existed.
+     *
+     * The issue was that when iterating the realms there would be failed lookups and under heavy concurrency, requests will wait for an
+     * existing load attempt in the cache. The original caller was thrown an ExecutionException with a nested NullPointerException since
+     * the loader returned a null value, while the other caller(s) would get a null value unexpectedly
+     */
+    public void testConcurrentRunAs() throws Exception {
+        securityClient().preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.DEFAULT_ROLE).get();
+        securityClient().preparePutUser("executor", "s3krit".toCharArray(), "superuser").get();
+        final String token = basicAuthHeaderValue("executor", new SecuredString("s3krit".toCharArray()));
+        final Client client = client().filterWithHeader(MapBuilder.<String, String>newMapBuilder()
+                .put("Authorization", token)
+                .put("es-security-runas-user", "joe")
+                .immutableMap());
+        final CountDownLatch latch = new CountDownLatch(1);
+        final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
+        final int numberOfThreads = scaledRandomIntBetween(numberOfProcessors, numberOfProcessors * 3);
+        final int numberOfIterations = scaledRandomIntBetween(20, 100);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < numberOfThreads; i++) {
+            threads.add(new Thread(() -> {
+                try {
+                    latch.await();
+                    for (int j = 0; j < numberOfIterations; j++) {
+                        ClusterHealthResponse response = client.admin().cluster().prepareHealth().get();
+                        assertNoTimeout(response);
+                    }
+                } catch (InterruptedException e) {
+                }
+            }));
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
     }
 }

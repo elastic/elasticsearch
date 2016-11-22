@@ -239,6 +239,59 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
     }
 
+    public void testUserLookupConcurrency() throws Exception {
+        final String username = "username";
+
+        RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings);
+        final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
+            @Override
+            protected User doAuthenticate(UsernamePasswordToken token) {
+                throw new UnsupportedOperationException("authenticate should not be called!");
+            }
+
+            @Override
+            protected User doLookupUser(String username) {
+                return new User(username, new String[]{"r1", "r2", "r3"});
+            }
+
+            @Override
+            public boolean userLookupSupported() {
+                return true;
+            }
+        };
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
+        final int numberOfThreads = scaledRandomIntBetween(numberOfProcessors, numberOfProcessors * 3);
+        final int numberOfIterations = scaledRandomIntBetween(10000, 100000);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < numberOfThreads; i++) {
+            threads.add(new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        latch.await();
+                        for (int i = 0; i < numberOfIterations; i++) {
+                            User user = realm.lookupUser(username);
+                            if (user == null) {
+                                throw new RuntimeException("failed to lookup user");
+                            }
+                        }
+
+                    } catch (InterruptedException e) {}
+                }
+            });
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+    }
+
     static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         FailingAuthenticationRealm(Settings settings, Settings global) {

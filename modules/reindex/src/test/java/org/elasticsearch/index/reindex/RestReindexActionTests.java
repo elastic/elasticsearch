@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+
 public class RestReindexActionTests extends ESTestCase {
     public void testBuildRemoteInfoNoRemote() throws IOException {
         assertNull(RestReindexAction.buildRemoteInfo(new HashMap<>()));
@@ -52,6 +54,8 @@ public class RestReindexActionTests extends ESTestCase {
         remote.put("username", "testuser");
         remote.put("password", "testpass");
         remote.put("headers", headers);
+        remote.put("socket_timeout", "90s");
+        remote.put("connect_timeout", "10s");
 
         Map<String, Object> query = new HashMap<>();
         query.put("a", "b");
@@ -68,6 +72,8 @@ public class RestReindexActionTests extends ESTestCase {
         assertEquals("testuser", remoteInfo.getUsername());
         assertEquals("testpass", remoteInfo.getPassword());
         assertEquals(headers, remoteInfo.getHeaders());
+        assertEquals(timeValueSeconds(90), remoteInfo.getSocketTimeout());
+        assertEquals(timeValueSeconds(10), remoteInfo.getConnectTimeout());
     }
 
     public void testBuildRemoteInfoWithoutAllParts() throws IOException {
@@ -76,16 +82,20 @@ public class RestReindexActionTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://example.com"));
     }
 
-    public void testBuildRemoteInfoWithAllParts() throws IOException {
+    public void testBuildRemoteInfoWithAllHostParts() throws IOException {
         RemoteInfo info = buildRemoteInfoHostTestCase("http://example.com:9200");
         assertEquals("http", info.getScheme());
         assertEquals("example.com", info.getHost());
         assertEquals(9200, info.getPort());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout()); // Didn't set the timeout so we should get the default
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout()); // Didn't set the timeout so we should get the default
 
         info = buildRemoteInfoHostTestCase("https://other.example.com:9201");
         assertEquals("https", info.getScheme());
         assertEquals("other.example.com", info.getHost());
         assertEquals(9201, info.getPort());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
     }
 
     public void testReindexFromRemoteRequestParsing() throws IOException {

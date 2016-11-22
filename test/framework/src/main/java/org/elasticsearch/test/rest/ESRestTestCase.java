@@ -272,10 +272,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return "http";
     }
 
-    private static RestClient buildClient(Settings settings) throws IOException {
-        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()]))
-                .setMaxRetryTimeoutMillis(30000)
-                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
+    private RestClient buildClient(Settings settings) throws IOException {
+        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);

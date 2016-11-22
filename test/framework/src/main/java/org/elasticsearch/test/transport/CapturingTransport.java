@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -208,7 +209,7 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
         return new TransportAddress[0];
     }
 

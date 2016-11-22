@@ -193,14 +193,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         NodesToAllocate nodesToAllocate = buildNodesToAllocate(
             allocation, nodeShardsResult.orderedAllocationCandidates, unassignedShard, false
         );
-        String nodeId = null;
+        DiscoveryNode node = null;
         String allocationId = null;
         boolean throttled = false;
         if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
             DecidedNode decidedNode = nodesToAllocate.yesNodeShards.get(0);
             logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation",
                          unassignedShard.index(), unassignedShard.id(), unassignedShard, decidedNode.nodeShardState.getNode());
-            nodeId = decidedNode.nodeShardState.getNode().getId();
+            node = decidedNode.nodeShardState.getNode();
             allocationId = decidedNode.nodeShardState.allocationId();
         } else if (nodesToAllocate.throttleNodeShards.isEmpty() && !nodesToAllocate.noNodeShards.isEmpty()) {
             // The deciders returned a NO decision for all nodes with shard copies, so we check if primary shard
@@ -211,7 +211,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 final NodeGatewayStartedShards nodeShardState = decidedNode.nodeShardState;
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on forced primary allocation",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeShardState.getNode());
-                nodeId = nodeShardState.getNode().getId();
+                node = nodeShardState.getNode();
                 allocationId = nodeShardState.allocationId();
             } else if (nodesToAllocate.throttleNodeShards.isEmpty() == false) {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on forced primary allocation",
@@ -235,8 +235,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
         if (allocation.hasPendingAsyncFetch()) {
             return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeResults);
-        } else if (nodeId != null) {
-            return AllocateUnassignedDecision.yes(nodeId, allocationId, nodeResults, false);
+        } else if (node != null) {
+            return AllocateUnassignedDecision.yes(node, allocationId, nodeResults, false);
         } else if (throttled) {
             return AllocateUnassignedDecision.throttle(nodeResults);
         } else {

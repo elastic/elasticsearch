@@ -117,7 +117,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.NO, randomFloat()));
         String allocId = randomBoolean() ? "allocId" : null;
         AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(
-            "node1", allocId, nodeDecisions, randomBoolean());
+            node1, allocId, nodeDecisions, randomBoolean());
         assertTrue(yesDecision.isDecisionTaken());
         assertEquals(Decision.Type.YES, yesDecision.getDecision());
         assertNull(yesDecision.getAllocationStatus());
@@ -150,8 +150,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
 
         // yes decisions are not precomputed and cached
         Map<String, NodeAllocationResult> dummyMap = emptyMap();
-        AllocateUnassignedDecision first = AllocateUnassignedDecision.yes("node1", "abc", dummyMap, randomBoolean());
-        AllocateUnassignedDecision second = AllocateUnassignedDecision.yes("node1", "abc", dummyMap, randomBoolean());
+        AllocateUnassignedDecision first = AllocateUnassignedDecision.yes(node1, "abc", dummyMap, randomBoolean());
+        AllocateUnassignedDecision second = AllocateUnassignedDecision.yes(node1, "abc", dummyMap, randomBoolean());
         // same fields for the ShardAllocationDecision, but should be different instances
         assertNotSame(first, second);
     }

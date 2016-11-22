@@ -212,7 +212,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store",
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
                 // we found a match
-                return AllocateUnassignedDecision.yes(nodeWithHighestMatch.nodeId(), null, matchingNodes.nodeDecisions, true);
+                return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, matchingNodes.nodeDecisions, true);
             }
         } else if (matchingNodes.hasAnyData() == false && unassignedShard.unassignedInfo().isDelayed()) {
             // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is

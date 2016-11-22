@@ -36,6 +36,9 @@ import static java.util.Collections.emptySet;
  */
 public class MoveDecisionTests extends ESTestCase {
 
+    private DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+    private DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+
     public void testCachedDecisions() {
         // cached stay decision
         MoveDecision stay1 = MoveDecision.stay(null);
@@ -50,8 +53,8 @@ public class MoveDecisionTests extends ESTestCase {
         stay2 = MoveDecision.decision(Decision.NO, Type.NO, null, null);
         assertSame(stay1, stay2);
         // final decision is YES, so shouldn't use cached decision
-        stay1 = MoveDecision.decision(Decision.NO, Type.YES, "node1", null);
-        stay2 = MoveDecision.decision(Decision.NO, Type.YES, "node1", null);
+        stay1 = MoveDecision.decision(Decision.NO, Type.YES, node1, null);
+        stay2 = MoveDecision.decision(Decision.NO, Type.YES, node2, null);
         assertNotSame(stay1, stay2);
         assertEquals(stay1.getAssignedNodeId(), stay2.getAssignedNodeId());
         // final decision is NO, but in explain mode, so shouldn't use cached decision
@@ -95,7 +98,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertNotNull(decision.getNodeDecisions());
         assertEquals(2, decision.getNodeDecisions().size());
 
-        decision = MoveDecision.decision(Decision.NO, Type.YES, "node2", null);
+        decision = MoveDecision.decision(Decision.NO, Type.YES, node2, null);
         assertEquals("node2", decision.getAssignedNodeId());
     }
 }

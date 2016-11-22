@@ -29,7 +29,13 @@ public class Licensing implements ActionPlugin {
     private final boolean isTribeNode;
 
     static {
-        MetaData.registerPrototype(LicensesMetaData.TYPE, LicensesMetaData.PROTO);
+        // we have to make sure we don't override the prototype, if we already
+        // registered. This causes class cast exceptions while casting license
+        // meta data on tribe node, as the registration happens for every tribe
+        // client nodes and the tribe node itself
+        if (MetaData.lookupPrototype(LicensesMetaData.TYPE) == null) {
+            MetaData.registerPrototype(LicensesMetaData.TYPE, LicensesMetaData.PROTO);
+        }
     }
 
     public Licensing(Settings settings) {
@@ -41,7 +47,7 @@ public class Licensing implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (isTribeNode) {
-            return emptyList();
+            return Collections.singletonList(new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
         }
         return Arrays.asList(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class),
                 new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class),
@@ -51,7 +57,7 @@ public class Licensing implements ActionPlugin {
     @Override
     public List<Class<? extends RestHandler>> getRestHandlers() {
         if (isTribeNode) {
-            return emptyList();
+            return Collections.singletonList(RestGetLicenseAction.class);
         }
         return Arrays.asList(RestPutLicenseAction.class,
                 RestGetLicenseAction.class,

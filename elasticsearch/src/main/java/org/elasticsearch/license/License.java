@@ -72,14 +72,27 @@ public class License implements ToXContent {
      * Decouples operation mode of a license from the license type value.
      * <p>
      * Note: The mode indicates features that should be made available, but it does not indicate whether the license is active!
+     *
+     * The id byte is used for ordering operation modes (used for merging license md in tribe node)
      */
     public enum OperationMode {
-        MISSING,
-        TRIAL,
-        BASIC,
-        STANDARD,
-        GOLD,
-        PLATINUM;
+        MISSING((byte) 0),
+        TRIAL((byte) 1),
+        BASIC((byte) 2),
+        STANDARD((byte) 3),
+        GOLD((byte) 4),
+        PLATINUM((byte) 5);
+
+        private final byte id;
+
+        OperationMode(byte id) {
+            this.id = id;
+        }
+
+        /** Returns non-zero positive number when <code>opMode1</code> is greater than <code>opMode2</code> */
+        public static int compare(OperationMode opMode1, OperationMode opMode2) {
+            return Integer.compare(opMode1.id, opMode2.id);
+        }
 
         public static OperationMode resolve(String type) {
             switch (type.toLowerCase(Locale.ROOT)) {

@@ -2884,7 +2884,7 @@ public class InternalEngineTests extends ESTestCase {
         document.add(new TextField("value", "test", Field.Store.YES));
         final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         final Engine.Index first = new Engine.Index(newUid("1"), doc);
-        expectThrows(error.getClass(), () ->  engine.index(first));
+        expectThrows(error.getClass(), () -> engine.index(first));
         failWithFatalError.set(false);
         expectThrows(error.getClass(), () -> engine.index(first));
         assertNull(engine.failedEngine.get());

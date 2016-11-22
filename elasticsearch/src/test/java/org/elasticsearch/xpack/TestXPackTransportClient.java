@@ -25,6 +25,6 @@ public class TestXPackTransportClient extends TransportClient {
     }
 
     public TestXPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        super(settings, Settings.EMPTY, addPlugins(plugins, XPackPlugin.class, MockTcpTransportPlugin.class));
+        super(settings, Settings.EMPTY, addPlugins(plugins, XPackPlugin.class, MockTcpTransportPlugin.class), null);
     }
 }

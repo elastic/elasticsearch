@@ -805,7 +805,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
         final TransportClient transportClient = new TransportClient(Settings.builder()
                 .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
-                .put(theClientSetting).build(), Settings.EMPTY, Collections.singletonList(XPackPlugin.class)) {};
+                .put(theClientSetting).build(), Settings.EMPTY, Collections.singletonList(XPackPlugin.class), null) {};
         for (Tuple<String, Integer> pair : hostPortPairs) {
             try {
                 transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));

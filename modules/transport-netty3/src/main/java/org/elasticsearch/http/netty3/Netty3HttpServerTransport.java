@@ -489,6 +489,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+        Netty3Utils.maybeDie(e.getCause());
         if (e.getCause() instanceof ReadTimeoutException) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Connection timeout [{}]", ctx.getChannel().getRemoteAddress());
@@ -536,9 +537,9 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             ChannelPipeline pipeline = Channels.pipeline();
             pipeline.addLast("openChannels", transport.serverOpenChannels);
             HttpRequestDecoder requestDecoder = new HttpRequestDecoder(
-                    (int) transport.maxInitialLineLength.getBytes(),
-                    (int) transport.maxHeaderSize.getBytes(),
-                    (int) transport.maxChunkSize.getBytes()
+                (int) transport.maxInitialLineLength.getBytes(),
+                (int) transport.maxHeaderSize.getBytes(),
+                (int) transport.maxChunkSize.getBytes()
             );
             if (transport.maxCumulationBufferCapacity.getBytes() >= 0) {
                 if (transport.maxCumulationBufferCapacity.getBytes() > Integer.MAX_VALUE) {
@@ -571,4 +572,5 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             return pipeline;
         }
     }
+
 }

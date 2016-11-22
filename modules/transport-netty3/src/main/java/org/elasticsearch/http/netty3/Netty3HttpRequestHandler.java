@@ -21,6 +21,7 @@ package org.elasticsearch.http.netty3;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty3.pipelining.OrderedUpstreamMessageEvent;
+import org.elasticsearch.transport.netty3.Netty3Utils;
 import org.jboss.netty.channel.ChannelHandler;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ExceptionEvent;
@@ -64,6 +65,7 @@ public class Netty3HttpRequestHandler extends SimpleChannelUpstreamHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+        Netty3Utils.maybeDie(e.getCause());
         serverTransport.exceptionCaught(ctx, e);
     }
 }

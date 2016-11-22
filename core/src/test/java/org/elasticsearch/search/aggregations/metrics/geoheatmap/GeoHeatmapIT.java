@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -115,24 +116,56 @@ public class GeoHeatmapIT extends ESIntegTestCase {
         ShapeBuilder query = ShapeBuilders.newEnvelope(new Coordinate(50, 90), new Coordinate(180, 20));
         GeoShapeQueryBuilder geo = QueryBuilders.geoShapeQuery("location", query).relation(ShapeRelation.WITHIN);
         
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
-                .addAggregation(heatmap("heatmap1").geom(geo).field("location").gridLevel(4).maxCells(100_000)).execute().actionGet();
-
-        assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        searchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        String responseString = builder.string();
-
         String expected = "\"aggregations\":{\"heatmap1\":{\"grid_level\":4,\"rows\":7,\"columns\":6,\"min_x\":45.0,\"min_y\":11.25,"+
              "\"max_x\":180.0,\"max_y\":90.0,\"counts\":[[0,0,2,1,0,0],[0,0,1,1,0,0],[0,1,1,1,0,0],[0,0,1,1,0,0],[0,0,1,1,0,0],[],[]]}}}";
 
-        assertThat(responseString, containsString(expected));
+        assertHeatmapContents(geo, expected, 4, "test");
     }
     
+    /**
+     * Check to make sure that the heatmap can be selectively built from multiple indexes
+     * @throws Exception
+     */
+    public void testMultipleIndexes() throws Exception {
+        for (String index : Arrays.asList("test1", "test2")) {
+            client().admin().indices().prepareCreate(index)
+                .addMapping("type1", "location", "type=geo_shape,tree=quadtree").execute()
+                .actionGet();
+        }
+
+        // on right side
+        client().prepareIndex("test1", "type1", "1")
+                .setSource(jsonBuilder().startObject().field("name", "Document 1").startObject("location").field("type", "envelope")
+                .startArray("coordinates").startArray().value(100).value(80).endArray().startArray().value(120).value(40).endArray()
+                .endArray().endObject().endObject())
+                .setRefreshPolicy(IMMEDIATE).get();
+        
+        // just left of BOX 0
+        client().prepareIndex("test2", "type1", "2")
+                .setSource(jsonBuilder().startObject().field("name", "Document 2").startObject("location").field("type", "point")
+                .startArray("coordinates").value(70).value(60).endArray().endObject().endObject())
+                .setRefreshPolicy(IMMEDIATE).get();
+        
+        ShapeBuilder query = ShapeBuilders.newEnvelope(new Coordinate(50, 90), new Coordinate(180, 20));
+        GeoShapeQueryBuilder geo = QueryBuilders.geoShapeQuery("location", query).relation(ShapeRelation.WITHIN);
+
+        // check the first index
+        String expected = "\"counts\":[[0,0,1,1,0,0],[0,0,1,1,0,0],[0,0,1,1,0,0],[0,0,1,1,0,0],[0,0,1,1,0,0],[],[]]}}}";
+        assertHeatmapContents(geo, expected, 1, "test1");
+
+        // check the second index
+        expected = "\"counts\":[[],[],[0,1,0,0,0,0],[],[],[],[]]}}}";
+        assertHeatmapContents(geo, expected, 1, "test2");
+
+        // check both indexes
+        expected = "\"counts\":[[0,0,1,1,0,0],[0,0,1,1,0,0],[0,1,1,1,0,0],[0,0,1,1,0,0],[0,0,1,1,0,0],[],[]]}}}";
+        assertHeatmapContents(geo, expected, 2, "test1", "test2");
+
+        // check all indexes
+        expected = "\"counts\":[[0,0,1,1,0,0],[0,0,1,1,0,0],[0,1,1,1,0,0],[0,0,1,1,0,0],[0,0,1,1,0,0],[],[]]}}}";
+        assertHeatmapContents(geo, expected, 2);
+    }
+
     /**
      * Tests the various ways grid_level is calculated
      */
@@ -213,6 +246,24 @@ public class GeoHeatmapIT extends ESIntegTestCase {
     private void assertGridLevel(String aggName, int expected, SearchResponse actual) {
         GeoHeatmap heatmap = actual.getAggregations().get(aggName);
         assertEquals(expected, heatmap.getGridLevel());
+    }
+    
+    private void assertHeatmapContents(GeoShapeQueryBuilder geo, String expected, int count, String... indices) throws IOException {
+        SearchResponse searchResponse = client().prepareSearch(indices).setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(heatmap("heatmap1").geom(geo).field("location").gridLevel(4).maxCells(100_000))
+                .execute().actionGet();
+
+        assertSearchResponse(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(new Long(count)));
+        assertThat(searchResponse.getHits().hits().length, equalTo(count));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        searchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String responseString = builder.string();
+
+        assertThat(responseString, containsString(expected));
     }
     
 }

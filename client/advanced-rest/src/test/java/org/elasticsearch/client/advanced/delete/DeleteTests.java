@@ -19,22 +19,52 @@
 
 package org.elasticsearch.client.advanced.delete;
 
-import org.elasticsearch.client.advanced.RequestTestUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DeleteTests extends ESTestCase {
 
     public void testDelete() {
-        RequestTestUtil.assertThrows(DeleteRestRequest.builder().build(),
+        assertThrows(DeleteRestRequest.builder().build(),
             IllegalArgumentException.class,
             "Index can not be null");
-        RequestTestUtil.assertThrows(DeleteRestRequest.builder().setIndex("foo").build(),
+        assertThrows(DeleteRestRequest.builder().setIndex("foo").build(),
             IllegalArgumentException.class,
             "Type can not be null");
-        RequestTestUtil.assertThrows(DeleteRestRequest.builder().setIndex("foo").setType("bar").build(),
+        assertThrows(DeleteRestRequest.builder().setIndex("foo").setType("bar").build(),
             IllegalArgumentException.class,
             "Id can not be null");
-        RequestTestUtil.assertNoException(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("id").build());
+        assertNoException(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("id").build());
     }
+
+    /**
+     * TODO: move that to a generic test util class
+     * Check the validation of a request
+     * @param request   Request to validate
+     * @param exception Expected exception (null if we don't expect any)
+     * @param message   Expected error message (can be a sub part of the full message)
+     */
+    public static void assertThrows(DeleteRestRequest request, Class<? extends Exception> exception, String message) {
+        try {
+            request.validate();
+            Assert.fail("We were excepting an " + IllegalArgumentException.class.getName());
+        } catch (Exception e) {
+            Assert.assertThat(e, instanceOf(exception));
+            Assert.assertThat(e.getMessage(), containsString(message));
+        }
+    }
+
+    /**
+     * TODO: move that to a generic test util class
+     * Check the validation of a request
+     * @param request   Request to validate
+     */
+    public static void assertNoException(DeleteRestRequest request) {
+        request.validate();
+    }
+
 
 }

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.client.advanced.delete;
 
-import org.elasticsearch.client.advanced.RestResponse;
-
-public class DeleteRestResponse implements RestResponse {
+public class DeleteRestResponse {
 
     private boolean found;
 

@@ -22,7 +22,6 @@ package org.elasticsearch.client.advanced.delete;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.advanced.RestOperation;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,22 +29,19 @@ import java.util.Map;
 /**
  * Delete a document
  */
-public class DeleteRestOperation extends RestOperation<DeleteRestRequest, DeleteRestResponse> {
+public class DeleteRestOperation {
 
-    @Override
-    protected Response doExecute(RestClient client, DeleteRestRequest request) throws IOException {
+    public static Response doExecute(RestClient client, DeleteRestRequest request) throws IOException {
         return client.performRequest("DELETE",
             "/" + request.getIndex() + "/" + request.getType() + "/" + request.getId());
     }
 
-    @Override
-    protected void doExecute(RestClient client, DeleteRestRequest request, ResponseListener listener) throws IOException {
+    public static void doExecute(RestClient client, DeleteRestRequest request, ResponseListener listener) throws IOException {
         client.performRequestAsync("DELETE",
             "/" + request.getIndex() + "/" + request.getType() + "/" + request.getId(), listener);
     }
 
-    @Override
-    protected DeleteRestResponse toRestResponse(Map<String, Object> response) throws IOException {
+    public static DeleteRestResponse toRestResponse(Map<String, Object> response) throws IOException {
         // Read from the map as we don't want to use reflection
         DeleteRestResponse restResponse = new DeleteRestResponse();
         boolean found = (boolean) response.get("found");

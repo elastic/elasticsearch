@@ -19,13 +19,19 @@
 
 package org.elasticsearch.client.advanced;
 
+import com.fasterxml.jackson.jr.ob.JSON;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.advanced.delete.DeleteRestOperation;
 import org.elasticsearch.client.advanced.delete.DeleteRestRequest;
 import org.elasticsearch.client.advanced.delete.DeleteRestResponse;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.client.advanced.delete.DeleteRestOperation.toRestResponse;
 
 public class AdvancedRestClient {
 
@@ -46,17 +52,45 @@ public class AdvancedRestClient {
      * @throws IOException In case something is wrong. Can be a ResponseException as well.
      */
     public DeleteRestResponse delete(DeleteRestRequest request) throws IOException {
-        return new DeleteRestOperation().execute(lowLevelClient, request);
+        if (request == null) {
+            throw new IllegalArgumentException("Request can not be null");
+        }
+        request.validate();
+        return DeleteRestOperation.toRestResponse(toMap(DeleteRestOperation.doExecute(lowLevelClient, request)));
     }
 
     /**
      * Delete a single document and call a listener when done
      * @param request The document to be deleted
-     * @param response Listener to call when operation is done or in case of failure.
-     * @param failure Listener to call in case of failure.
+     * @param responseConsumer Listener to call when operation is done or in case of failure.
+     * @param failureConsumer Listener to call in case of failure.
      * @throws IOException In case something is wrong.
      */
-    public void delete(DeleteRestRequest request, Consumer<DeleteRestResponse> response, Consumer<Exception> failure) throws IOException {
-        new DeleteRestOperation().execute(lowLevelClient, request, response, failure);
+    public void delete(DeleteRestRequest request,
+                       Consumer<DeleteRestResponse> responseConsumer,
+                       Consumer<Exception> failureConsumer) throws IOException {
+        if (request == null) {
+            throw new IllegalArgumentException("Request can not be null");
+        }
+        request.validate();
+        DeleteRestOperation.doExecute(lowLevelClient, request, new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                try {
+                    responseConsumer.accept(toRestResponse(toMap(response)));
+                } catch (IOException e) {
+                    failureConsumer.accept(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                failureConsumer.accept(exception);
+            }
+        });
+    }
+
+    public static Map<String, Object> toMap(Response response) throws IOException {
+        return JSON.std.mapFrom(response.getEntity().getContent());
     }
 }

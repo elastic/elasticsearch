@@ -19,13 +19,12 @@
 
 package org.elasticsearch.client.advanced.delete;
 
-import org.elasticsearch.client.advanced.RestRequest;
 import org.elasticsearch.client.advanced.Strings;
 
 /**
  * Delete a document request
  */
-public class DeleteRestRequest implements RestRequest {
+public class DeleteRestRequest {
 
     private String index;
     private String type;

@@ -338,7 +338,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                 }
                 final ClusterState nodeSpecificClusterState = newNodeSpecificClusterState;
 
-                nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().getLocalNode() != null) {
                     assert nodeSpecificClusterState.nodes().getMasterNode() != null : "received a cluster state without a master";

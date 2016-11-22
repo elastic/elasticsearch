@@ -66,9 +66,9 @@ these documents. In case a search or bulk request got rejected, `_delete_by_quer
  exponential back off). Reaching the maximum retries limit causes the `_delete_by_query`
  to abort and all failures are returned in the `failures` of the response.
  The deletions that have been performed still stick. In other words, the process
- is not rolled back, only aborted. While the first failure causes the abort all
+ is not rolled back, only aborted. While the first failure causes the abort, all
  failures that are returned by the failing bulk request are returned in the `failures`
- element so it's possible for there to be quite a few.
+ element; therefore it's possible for there to be quite a few failed entities.
 
 If you'd like to count version conflicts rather than cause them to abort then
 set `conflicts=proceed` on the url or `"conflicts": "proceed"` in the request body.

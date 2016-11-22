@@ -579,6 +579,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             ch.pipeline().addLast("handler", requestHandler);
         }
 
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            Netty4Utils.maybeDie(cause);
+            super.exceptionCaught(ctx, cause);
+        }
+
     }
 
 }

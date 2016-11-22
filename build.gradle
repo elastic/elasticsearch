@@ -3,6 +3,7 @@ description = 'Builds the Prelert Engine native binaries and Java classes'
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
+import org.elasticsearch.gradle.VersionProperties
 
 configurations.all {
     // check for updates every build
@@ -35,6 +36,33 @@ subprojects {
       uploadArchives.enabled = false
     }
   }
+}
+
+task bundlePack(type: Zip) {
+  onlyIf { project('kibana').bundlePlugin.enabled }
+  dependsOn 'elasticsearch:bundlePlugin'
+  dependsOn 'kibana:bundlePlugin'
+  from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }
+  from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
+  destinationDir file('build/distributions')
+  baseName = 'prelert'
+  version = VersionProperties.elasticsearch
+}
+
+task assemble(dependsOn: bundlePack) {
+  group = 'Build'
+  description = 'Assembles the outputs of this project.'
+}
+
+task build(dependsOn: assemble) {
+  group = 'Build'
+  description = 'Assembles and tests this project.'
+}
+
+task clean(type: Delete) {
+  group = 'Build'
+  description = 'Deletes the build directory'
+  delete 'build'
 }
 
 boolean isLinux = OperatingSystem.current().isLinux()
@@ -83,7 +111,7 @@ task cppAll {
 subprojects {
     apply plugin: 'eclipse'
     apply plugin: 'idea'
-    
+
     buildscript {
         repositories {
             if (System.getProperty("repos.mavenlocal") != null) {

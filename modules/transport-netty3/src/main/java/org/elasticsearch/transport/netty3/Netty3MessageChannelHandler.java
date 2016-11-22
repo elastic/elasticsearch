@@ -79,6 +79,7 @@ class Netty3MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+        Netty3Utils.maybeDie(e.getCause());
         transport.exceptionCaught(ctx, e);
     }
 }

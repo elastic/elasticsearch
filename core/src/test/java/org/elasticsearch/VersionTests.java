@@ -20,6 +20,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -291,6 +292,7 @@ public class VersionTests extends ESTestCase {
         assertUnknownVersion(Script.V_5_1_0_UNRELEASED);
         // once we released 5.0.0 and it's added to Version.java we need to remove this constant
         assertUnknownVersion(ClusterSearchShardsRequest.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(ClusterSearchShardsResponse.V_5_1_0_UNRELEASED);
     }
 
     public static void assertUnknownVersion(Version version) {

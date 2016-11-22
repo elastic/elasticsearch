@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
@@ -49,8 +50,8 @@ public final class MoveDecision extends RelocationDecision {
     private final Map<String, NodeAllocationResult> nodeDecisions;
 
     private MoveDecision(Decision canRemainDecision, Type finalDecision,
-                         String assignedNodeId, Map<String, NodeAllocationResult> nodeDecisions) {
-        super(finalDecision, assignedNodeId);
+                         DiscoveryNode assignedNode, Map<String, NodeAllocationResult> nodeDecisions) {
+        super(finalDecision, assignedNode);
         this.canRemainDecision = canRemainDecision;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
     }
@@ -111,11 +112,11 @@ public final class MoveDecision extends RelocationDecision {
      *
      * @param canRemainDecision the decision for whether the shard is allowed to remain on its current node
      * @param finalDecision the decision of whether to move the shard to another node
-     * @param assignedNodeId the node id for where the shard can move to
+     * @param assignedNode the node for where the shard can move to
      * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
      * @return the {@link MoveDecision} for moving the shard to another node
      */
-    public static MoveDecision decision(Decision canRemainDecision, Type finalDecision, String assignedNodeId,
+    public static MoveDecision decision(Decision canRemainDecision, Type finalDecision, DiscoveryNode assignedNode,
                                         Map<String, NodeAllocationResult> nodeDecisions) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
@@ -123,8 +124,8 @@ public final class MoveDecision extends RelocationDecision {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
-            assert ((assignedNodeId == null) == (finalDecision != Type.YES));
-            return new MoveDecision(canRemainDecision, finalDecision, assignedNodeId, nodeDecisions);
+            assert ((assignedNode == null) == (finalDecision != Type.YES));
+            return new MoveDecision(canRemainDecision, finalDecision, assignedNode, nodeDecisions);
         }
     }
 

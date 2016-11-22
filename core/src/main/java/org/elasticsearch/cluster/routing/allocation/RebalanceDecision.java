@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
@@ -47,9 +48,9 @@ public final class RebalanceDecision extends RelocationDecision {
     private final float currentWeight;
     private final boolean fetchPending;
 
-    private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, String assignedNodeId,
+    private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
                               Map<String, NodeRebalanceResult> nodeDecisions, float currentWeight, boolean fetchPending) {
-        super(finalDecision, assignedNodeId);
+        super(finalDecision, assignedNode);
         this.canRebalanceDecision = canRebalanceDecision;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
         this.currentWeight = currentWeight;
@@ -110,9 +111,9 @@ public final class RebalanceDecision extends RelocationDecision {
     /**
      * Creates a new {@link RebalanceDecision}.
      */
-    public static RebalanceDecision decision(Decision canRebalanceDecision, Type finalDecision, String assignedNodeId,
+    public static RebalanceDecision decision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
                                              Map<String, NodeRebalanceResult> nodeDecisions, float currentWeight) {
-        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNodeId, nodeDecisions, currentWeight, false);
+        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNode, nodeDecisions, currentWeight, false);
     }
 
     /**

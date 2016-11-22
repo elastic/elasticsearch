@@ -361,7 +361,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final String idxName = shard.getIndexName();
             Map<String, NodeRebalanceResult> nodeDecisions = new HashMap<>(modelNodes.length - 1);
             Type rebalanceDecisionType = Type.NO;
-            String assignedNodeId = null;
+            DiscoveryNode assignedNode = null;
             for (ModelNode node : modelNodes) {
                 if (node == currentNode) {
                     continue; // skip over node we're currently allocated to
@@ -402,7 +402,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         // rebalance to the node, only will get overwritten if the decision here is to
                         // THROTTLE and we get a decision with YES on another node
                         rebalanceDecisionType = canAllocate.type();
-                        assignedNodeId = node.getNodeId();
+                        assignedNode = node.routingNode.node();
                     }
                 }
                 nodeDecisions.put(node.getNodeId(), new NodeRebalanceResult(
@@ -422,7 +422,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
                 return RebalanceDecision.no(canRebalance, nodeDecisions, currentWeight, allocation.hasPendingAsyncFetch());
             } else {
-                return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNodeId, nodeDecisions, currentWeight);
+                return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNode, nodeDecisions, currentWeight);
             }
         }
 
@@ -702,7 +702,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
             }
 
-            return MoveDecision.decision(canRemain, bestDecision, targetNode != null ? targetNode.nodeId() : null, nodeExplanationMap);
+            return MoveDecision.decision(canRemain, bestDecision, targetNode != null ? targetNode.node() : null, nodeExplanationMap);
         }
 
         /**
@@ -942,7 +942,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
             return AllocateUnassignedDecision.fromDecision(
                 decision,
-                minNode != null ? minNode.getNodeId() : null,
+                minNode != null ? minNode.routingNode.node() : null,
                 nodeExplanationMap
             );
         }

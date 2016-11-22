@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
@@ -71,6 +72,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     @Nullable
     private final String assignedNodeId;
     @Nullable
+    private final String assignedNodeName;
+    @Nullable
     private final String allocationId;
     @Nullable
     private final Map<String, NodeAllocationResult> nodeDecisions;
@@ -79,24 +82,59 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
 
     private AllocateUnassignedDecision(Type finalDecision,
                                        AllocationStatus allocationStatus,
-                                       String assignedNodeId,
+                                       DiscoveryNode assignedNode,
                                        String allocationId,
                                        Map<String, NodeAllocationResult> nodeDecisions,
                                        boolean reuseStore,
                                        long remainingDelayInMillis) {
-        assert assignedNodeId != null || finalDecision == null || finalDecision != Type.YES :
+        assert assignedNode != null || finalDecision == null || finalDecision != Type.YES :
             "a yes decision must have a node to assign the shard to";
         assert allocationStatus != null || finalDecision == null || finalDecision == Type.YES :
             "only a yes decision should not have an allocation status";
-        assert allocationId == null || assignedNodeId != null :
+        assert allocationId == null || assignedNode != null :
             "allocation id can only be null if the assigned node is null";
         this.finalDecision = finalDecision;
         this.allocationStatus = allocationStatus;
-        this.assignedNodeId = assignedNodeId;
+        if (assignedNode != null) {
+            this.assignedNodeId = assignedNode.getId();
+            this.assignedNodeName = assignedNode.getName();
+        } else {
+            this.assignedNodeId = null;
+            this.assignedNodeName = null;
+        }
         this.allocationId = allocationId;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
         this.reuseStore = reuseStore;
         this.remainingDelayInMillis = remainingDelayInMillis;
+    }
+
+    public AllocateUnassignedDecision(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            finalDecision = Type.readFrom(in);
+        } else {
+            finalDecision = null;
+        }
+        if (in.readBoolean()) {
+            allocationStatus = AllocationStatus.readFrom(in);
+        } else {
+            allocationStatus = null;
+        }
+        assignedNodeId = in.readOptionalString();
+        assignedNodeName = in.readOptionalString();
+        allocationId = in.readOptionalString();
+
+        Map<String, NodeAllocationResult> nodeDecisions = null;
+        if (in.readBoolean()) {
+            final int size = in.readVInt();
+            nodeDecisions = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                nodeDecisions.put(in.readString(), new NodeAllocationResult(in));
+            }
+        }
+        this.nodeDecisions = (nodeDecisions != null) ? Collections.unmodifiableMap(nodeDecisions) : null;
+
+        reuseStore = in.readBoolean();
+        remainingDelayInMillis = in.readVLong();
     }
 
     /**
@@ -151,19 +189,19 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
      * comprised the final YES decision, along with the node id to which the shard is assigned and
      * the allocation id for the shard, if available.
      */
-    public static AllocateUnassignedDecision yes(String assignedNodeId, @Nullable String allocationId,
+    public static AllocateUnassignedDecision yes(DiscoveryNode assignedNode, @Nullable String allocationId,
                                                  @Nullable Map<String, NodeAllocationResult> decisions, boolean reuseStore) {
-        return new AllocateUnassignedDecision(Type.YES, null, assignedNodeId, allocationId, decisions, reuseStore, 0);
+        return new AllocateUnassignedDecision(Type.YES, null, assignedNode, allocationId, decisions, reuseStore, 0);
     }
 
     /**
      * Creates a {@link AllocateUnassignedDecision} from the given {@link Decision} and the assigned node, if any.
      */
-    public static AllocateUnassignedDecision fromDecision(Decision decision, @Nullable String assignedNodeId,
+    public static AllocateUnassignedDecision fromDecision(Decision decision, @Nullable DiscoveryNode assignedNode,
                                                           @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
         final Type decisionType = decision.type();
         AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
-        return new AllocateUnassignedDecision(decisionType, allocationStatus, assignedNodeId, null, nodeDecisions, false, 0L);
+        return new AllocateUnassignedDecision(decisionType, allocationStatus, assignedNode, null, nodeDecisions, false, 0L);
     }
 
     private static AllocateUnassignedDecision getCachedDecision(AllocationStatus allocationStatus) {
@@ -216,6 +254,15 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     @Nullable
     public String getAssignedNodeId() {
         return assignedNodeId;
+    }
+
+    /**
+     * Get the node name that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
+     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
+     */
+    @Nullable
+    public String getAssignedNodeName() {
+        return assignedNodeName;
     }
 
     /**
@@ -294,7 +341,10 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
             builder.field("allocation_status", allocationStatus.value());
         }
         if (assignedNodeId != null) {
-            builder.field("assigned_node_id", assignedNodeId);
+            builder.startObject("assigned_node");
+            builder.field("id", assignedNodeId);
+            builder.field("name", assignedNodeName);
+            builder.endObject();
         }
         if (allocationId != null) {
             builder.field("allocation_id", allocationId);
@@ -315,36 +365,6 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
             builder.endObject();
         }
         return builder;
-    }
-
-    public static AllocateUnassignedDecision readFrom(StreamInput in) throws IOException {
-        Type finalDecision;
-        if (in.readBoolean()) {
-            finalDecision = Type.readFrom(in);
-        } else {
-            return NOT_TAKEN;
-        }
-        AllocationStatus allocationStatus = null;
-        if (in.readBoolean()) {
-            allocationStatus = AllocationStatus.readFrom(in);
-        }
-        String assignedNodeId = in.readOptionalString();
-        String allocationId = in.readOptionalString();
-
-        Map<String, NodeAllocationResult> nodeDecisions = null;
-        if (in.readBoolean()) {
-            final int size = in.readVInt();
-            nodeDecisions = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                nodeDecisions.put(in.readString(), new NodeAllocationResult(in));
-            }
-        }
-
-        boolean reuseStore = in.readBoolean();
-        long remainingDelay = in.readVLong();
-
-        return new AllocateUnassignedDecision(finalDecision, allocationStatus, assignedNodeId, allocationId,
-                                                 nodeDecisions, reuseStore, remainingDelay);
     }
 
     @Override

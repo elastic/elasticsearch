@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,10 +38,18 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
     private final Decision.Type finalDecision;
     @Nullable
     private final String assignedNodeId;
+    @Nullable
+    private final String assignedNodeName;
 
-    protected RelocationDecision(Decision.Type finalDecision, String assignedNodeId) {
+    protected RelocationDecision(Decision.Type finalDecision, DiscoveryNode assignedNode) {
         this.finalDecision = finalDecision;
-        this.assignedNodeId = assignedNodeId;
+        if (assignedNode != null) {
+            this.assignedNodeId = assignedNode.getId();
+            this.assignedNodeName = assignedNode.getName();
+        } else {
+            this.assignedNodeId = null;
+            this.assignedNodeName = null;
+        }
     }
 
     public RelocationDecision(StreamInput in) throws IOException {
@@ -50,6 +59,7 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
             finalDecision = null;
         }
         assignedNodeId = in.readOptionalString();
+        assignedNodeName = in.readOptionalString();
     }
 
     @Override
@@ -61,6 +71,7 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalString(assignedNodeId);
+        out.writeOptionalString(assignedNodeName);
     }
 
     /**
@@ -88,6 +99,15 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
         return assignedNodeId;
     }
 
+    /**
+     * Get the node name that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
+     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
+     */
+    @Nullable
+    public String getAssignedNodeName() {
+        return assignedNodeName;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (finalDecision != null) {
@@ -95,7 +115,10 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
         }
         builder.field("final_explanation", getFinalExplanation());
         if (assignedNodeId != null) {
-            builder.field("assigned_node_id", assignedNodeId);
+            builder.startObject("assigned_node");
+            builder.field("id", assignedNodeId);
+            builder.field("name", assignedNodeName);
+            builder.endObject();
         }
         return builder;
     }

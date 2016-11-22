@@ -37,6 +37,7 @@ import static org.mockito.Mockito.mock;
 
 public class JiraIssueTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/4153")
     public void testToXContent() throws Exception {
         final JiraIssue issue = randomJiraIssue();
 

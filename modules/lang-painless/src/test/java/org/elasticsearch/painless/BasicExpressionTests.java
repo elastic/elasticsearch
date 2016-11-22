@@ -148,29 +148,46 @@ public class BasicExpressionTests extends ScriptTestCase {
 
     public void testNullSafeDeref() {
         // Objects in general
-        assertNull(                      exec("String a = null; return a?.toString()"));   // Call
-        assertNull(                      exec("String a = null; return a?.length()"));     // Call and box
-        assertEquals("foo",              exec("String a = 'foo'; return a?.toString()"));  // Call
-        assertEquals(Integer.valueOf(3), exec("String a = 'foo'; return a?.length()"));    // Call and box
+        //   Call
+        assertNull(         exec("String a = null;  return a?.toString()"));
+        assertEquals("foo", exec("String a = 'foo'; return a?.toString()"));
+        assertNull(         exec("def    a = null;  return a?.toString()"));
+        assertEquals("foo", exec("def    a = 'foo'; return a?.toString()"));
+        //   Call with primitive result
+        assertMustBeNullable(    "String a = null; return a?.length()");
+        assertMustBeNullable(    "String a = 'foo'; return a?.length()");
+        assertNull(         exec("def    a = null;  return a?.length()"));
+        assertEquals(3,     exec("def    a = 'foo'; return a?.length()"));
+        //   Read shortcut
+        assertMustBeNullable(    "org.elasticsearch.painless.FeatureTest a = null; return a?.x");
+        assertMustBeNullable(
+                "org.elasticsearch.painless.FeatureTest a = new org.elasticsearch.painless.FeatureTest(); return a?.x");
+        assertNull(         exec("def    a = null;  return a?.x"));
+        assertEquals(0,     exec("def    a = new org.elasticsearch.painless.FeatureTest(); return a?.x"));
 
         // Maps
-        assertNull(        exec("Map a = null;        return a?.toString()"));  // Call
-        assertNull(        exec("Map a = null;        return a?.size()"));      // Call and box
+        //   Call
+        assertNull(        exec("Map a = null;        return a?.toString()"));
+        assertEquals("{}", exec("Map a = [:];         return a?.toString()"));
+        assertNull(        exec("def a = null;        return a?.toString()"));
+        assertEquals("{}", exec("def a = [:];         return a?.toString()"));
+        //   Call with primitive result
+        assertMustBeNullable(   "Map a = [:];  return a?.size()");
+        assertMustBeNullable(   "Map a = null; return a?.size()");
+        assertNull(        exec("def a = null;        return a?.size()"));
+        assertEquals(0,    exec("def a = [:];         return a?.size()"));
+        //   Read shortcut
         assertNull(        exec("Map a = null;        return a?.other"));       // Read shortcut
-        assertEquals("{}", exec("Map a = [:];         return a?.toString()"));  // Call
-        assertEquals(0,    exec("Map a = [:];         return a?.size()"));      // Call and box
         assertEquals(1,    exec("Map a = ['other':1]; return a?.other"));       // Read shortcut
+        assertNull(        exec("def a = null;        return a?.other"));       // Read shortcut
+        assertEquals(1,    exec("def a = ['other':1]; return a?.other"));       // Read shortcut
 
         // Array
         // Since you can't invoke methods on arrays we skip the toString and hashCode tests
-        assertNull(     exec("int[] a = null;             return a?.length"));  // Length (boxed)
-        assertEquals(2, exec("int[] a = new int[] {2, 3}; return a?.length"));  // Length (boxed)
-
-        // Def
-        assertNull(     exec("def a = null;                                         return a?.getX()"));  // Invoke
-        assertNull(     exec("def a = null;                                         return a?.x"));       // Read shortcut
-        assertEquals(0, exec("def a = new org.elasticsearch.painless.FeatureTest(); return a?.getX()"));  // Invoke
-        assertEquals(0, exec("def a = new org.elasticsearch.painless.FeatureTest(); return a?.x"));       // Read shortcut
+        assertMustBeNullable("int[] a = null;             return a?.length");
+        assertMustBeNullable("int[] a = new int[] {2, 3}; return a?.length");
+        assertNull(     exec("def a = null;               return a?.length"));
+        assertEquals(2, exec("def a = new int[] {2, 3};   return a?.length"));
 
         // Results from maps (should just work but let's test anyway)
         FeatureTest t = new FeatureTest();
@@ -193,7 +210,7 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals(0, exec("def a = ['other': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
         assertEquals(0, exec("def a = ['other': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
 
-        // Check that we don't try to cast when the LHS doesn't provide an "expected" value
+        // Assignments
         assertNull(exec(
                     "def a = [:];\n"
                   + "a.missing_length = a.missing?.length();\n"
@@ -213,5 +230,10 @@ public class BasicExpressionTests extends ScriptTestCase {
 //        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
 //        assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
 //        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
+    }
+
+    private void assertMustBeNullable(String script) {
+        Exception e = expectScriptThrows(IllegalArgumentException.class , () -> exec(script));
+        assertEquals("Result of null safe operator must be nullable", e.getMessage());
     }
 }

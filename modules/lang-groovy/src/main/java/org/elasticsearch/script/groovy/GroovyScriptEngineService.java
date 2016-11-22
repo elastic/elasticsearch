@@ -28,6 +28,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.codehaus.groovy.GroovyBugError;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
 import org.codehaus.groovy.ast.ClassNode;
 import org.codehaus.groovy.ast.expr.ConstantExpression;
@@ -67,6 +68,7 @@ import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -302,20 +304,24 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 // NOTE: we truncate the stack because IndyInterface has security issue (needs getClassLoader)
                 // we don't do a security check just as a tradeoff, it cannot really escalate to anything.
                 return AccessController.doPrivileged((PrivilegedAction<Object>) script::run);
-            } catch (AssertionError ae) {
+            } catch (final AssertionError ae) {
+                if (ae instanceof GroovyBugError) {
+                    // we encountered a bug in Groovy; we wrap this so it does not go to the uncaught exception handler and tear us down
+                    final String message =  "encountered bug in Groovy while executing script [" + compiledScript.name() + "]";
+                    throw new ScriptException(message, ae, Collections.emptyList(), compiledScript.toString(), compiledScript.lang());
+                }
                 // Groovy asserts are not java asserts, and cannot be disabled, so we do a best-effort trying to determine if this is a
                 // Groovy assert (in which case we wrap it and throw), or a real Java assert, in which case we rethrow it as-is, likely
                 // resulting in the uncaughtExceptionHandler handling it.
                 final StackTraceElement[] elements = ae.getStackTrace();
                 if (elements.length > 0 && "org.codehaus.groovy.runtime.InvokerHelper".equals(elements[0].getClassName())) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", compiledScript), ae);
-                    throw new ScriptException("Error evaluating " + compiledScript.name(),
-                            ae, emptyList(), "", compiledScript.lang());
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", compiledScript), ae);
+                    throw new ScriptException("error evaluating " + compiledScript.name(), ae, emptyList(), "", compiledScript.lang());
                 }
                 throw ae;
             } catch (Exception | NoClassDefFoundError e) {
                 logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", compiledScript), e);
-                throw new ScriptException("Error evaluating " + compiledScript.name(), e, emptyList(), "", compiledScript.lang());
+                throw new ScriptException("error evaluating " + compiledScript.name(), e, emptyList(), "", compiledScript.lang());
             }
         }
 

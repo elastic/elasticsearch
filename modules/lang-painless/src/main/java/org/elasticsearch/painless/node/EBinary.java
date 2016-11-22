@@ -681,4 +681,9 @@ public final class EBinary extends AExpression {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(left, operation.symbol, right);
+    }
 }

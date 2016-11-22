@@ -1053,14 +1053,11 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
     }
 
-    /**
-     */
     private void assertDocumentCount(String index, long numdocs) {
         IndicesStatsResponse stats = admin().indices().prepareStats(index).clear().setDocs(true).get();
         assertNoFailures(stats);
         assertThat(stats.getIndex(index).getPrimaries().docs.getCount(), is(numdocs));
 
     }
-
 
 }

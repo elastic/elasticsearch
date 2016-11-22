@@ -31,8 +31,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.NodeRebalanceDecision;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.RebalanceDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -222,8 +220,8 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertEquals(shardToRebalance.relocatingNodeId(), rebalanceDecision.getAssignedNodeId());
         // make sure all excluded nodes returned a NO decision
         for (String exludedNode : excludeNodes) {
-            NodeRebalanceDecision nodeRebalanceDecision = rebalanceDecision.getNodeDecisions().get(exludedNode);
-            assertEquals(Type.NO, nodeRebalanceDecision.getCanAllocateDecision().type());
+            NodeRebalanceResult nodeRebalanceResult = rebalanceDecision.getNodeDecisions().get(exludedNode);
+            assertEquals(Type.NO, nodeRebalanceResult.getCanAllocateDecision().type());
         }
     }
 

@@ -68,7 +68,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
     /**
      * Property that allows to blacklist some of the REST tests based on a comma separated list of globs
-     * e.g. -Dtests.rest.blacklist=get/10_basic/*
+     * e.g. "-Dtests.rest.blacklist=get/10_basic/*"
      */
     public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
     /**

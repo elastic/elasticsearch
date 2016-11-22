@@ -25,6 +25,7 @@ way to reindex old indices is to use the `reindex` API.
 === Also see:
 
 * <<breaking_60_cat_changes>>
+* <<breaking_60_stats_changes>>
 * <<breaking_60_rest_changes>>
 * <<breaking_60_search_changes>>
 * <<breaking_60_docs_changes>>
@@ -34,6 +35,8 @@ way to reindex old indices is to use the `reindex` API.
 * <<breaking_60_indices_changes>>
 
 include::migrate_6_0/cat.asciidoc[]
+
+include::migrate_6_0/stats.asciidoc[]
 
 include::migrate_6_0/rest.asciidoc[]
 

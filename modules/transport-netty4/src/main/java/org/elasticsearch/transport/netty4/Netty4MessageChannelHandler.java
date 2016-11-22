@@ -80,6 +80,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        Netty4Utils.maybeDie(cause);
         transport.exceptionCaught(ctx, cause);
     }
 

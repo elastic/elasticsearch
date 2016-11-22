@@ -130,6 +130,14 @@ public class GroovySecurityTests extends ESTestCase {
         assertFailure("def foo=false; assert foo, \"msg2\";", NoClassDefFoundError.class);
     }
 
+    public void testGroovyBugError() {
+        // this script throws a GroovyBugError because our security manager permissions prevent Groovy from accessing this private field
+        // and Groovy does not handle it gracefully; this test will likely start failing if the bug is fixed upstream so that a
+        // GroovyBugError no longer surfaces here in which case the script should be replaced with another script that intentionally
+        // surfaces a GroovyBugError
+        assertFailure("[1, 2].size", AssertionError.class);
+    }
+
     /** runs a script */
     private void doTest(String script) {
         Map<String, Object> vars = new HashMap<String, Object>();

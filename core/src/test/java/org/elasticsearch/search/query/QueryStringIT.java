@@ -255,6 +255,14 @@ public class QueryStringIT extends ESIntegTestCase {
                 containsString("Can't parse boolean value [foo], expected [true] or [false]"));
     }
 
+    public void testAllFieldsWithSpecifiedLeniency() throws IOException {
+        Exception e = expectThrows(Exception.class, () ->
+                client().prepareSearch("test").setQuery(
+                        queryStringQuery("f_date:[now-2D TO now]").lenient(false)).get());
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("unit [D] not supported for date math [-2D]"));
+    }
+
     private void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.totalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
@@ -263,5 +271,4 @@ public class QueryStringIT extends ESIntegTestCase {
         }
         assertThat(hitIds, containsInAnyOrder(ids));
     }
-
 }

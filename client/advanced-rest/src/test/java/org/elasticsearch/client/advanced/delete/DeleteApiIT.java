@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DeleteApiIT extends ESRestTestCase {
 
-    public void testDeleteRequestAsRestResponse() throws IOException {
+    public void testDeleteRequest() throws IOException {
         client().performRequest("PUT", "foo");
         client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
             new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));

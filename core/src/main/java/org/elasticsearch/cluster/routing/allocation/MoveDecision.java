@@ -159,7 +159,7 @@ public final class MoveDecision extends RelocationDecision {
     public String getFinalExplanation() {
         String explanation;
         if (cannotRemain() == false) {
-            explanation = "shard can remain on its current node";
+            explanation = "can remain on its current node";
         } else if (getFinalDecisionType() == Type.YES) {
             explanation = "can move shard to another node";
         } else if (getFinalDecisionType() == Type.THROTTLE) {

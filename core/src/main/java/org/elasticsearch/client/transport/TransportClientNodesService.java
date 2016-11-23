@@ -191,7 +191,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 if (!otherNode.getAddress().equals(transportAddress)) {
                     listNodesBuilder.add(otherNode);
                 } else {
-                    logger.debug("removing address [{}] from list nodes", otherNode);
+                    logger.debug("removing address [{}] from listed nodes", otherNode);
                 }
             }
             listedNodes = Collections.unmodifiableList(listNodesBuilder);
@@ -200,7 +200,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 if (!otherNode.getAddress().equals(transportAddress)) {
                     nodesBuilder.add(otherNode);
                 } else {
-                    logger.debug("removing address [{}] from connected nodes", otherNode);
+                    logger.debug("disconnecting from node with address [{}]", otherNode);
                     transportService.disconnectFromNode(otherNode);
                 }
             }

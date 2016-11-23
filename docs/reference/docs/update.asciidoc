@@ -85,7 +85,7 @@ the doc if the `tags` field contain `blue`, otherwise it does nothing
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "script" : {
-        "inline": "ctx._source.tags.contains(tag) ? ctx.op = \"delete\" : ctx.op = \"noop\"",
+        "inline": "ctx._source.tags.contains(tag) ? ctx.op = \"delete\" : ctx.op = \"none\"",
         "params" : {
             "tag" : "blue"
         }

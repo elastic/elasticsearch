@@ -39,7 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,7 +81,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         // we have the index, do it
                         innerExecute(task, request, listener);
                     } else {
@@ -130,7 +130,13 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
             request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
             request.version(result.getVersion());
             assert request.versionType().validateVersionForWrites(request.version());
-            response = new DeleteResponse(primary.shardId(), request.type(), request.id(), result.getVersion(), result.isFound());
+            response = new DeleteResponse(
+                primary.shardId(),
+                request.type(),
+                request.id(),
+                result.getSeqNo(),
+                result.getVersion(),
+                result.isFound());
         } else {
             response = null;
         }
@@ -143,13 +149,16 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
         return new WriteReplicaResult(request, result.getTranslogLocation(), result.getFailure(), replica);
     }
 
+
     public static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) {
         final Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         return primary.delete(delete);
     }
 
     public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
-        final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType());
+        final Engine.Delete delete =
+            replica.prepareDeleteOnReplica(request.type(), request.id(), request.seqNo(), request.version(), request.versionType());
         return replica.delete(delete);
     }
+
 }

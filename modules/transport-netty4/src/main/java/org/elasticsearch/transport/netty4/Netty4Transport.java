@@ -508,6 +508,12 @@ public class Netty4Transport extends TcpTransport<Channel> {
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
         }
 
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            Netty4Utils.maybeDie(cause);
+            super.exceptionCaught(ctx, cause);
+        }
+
     }
 
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
@@ -526,6 +532,13 @@ public class Netty4Transport extends TcpTransport<Channel> {
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));
         }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            Netty4Utils.maybeDie(cause);
+            super.exceptionCaught(ctx, cause);
+        }
+
     }
 
 }

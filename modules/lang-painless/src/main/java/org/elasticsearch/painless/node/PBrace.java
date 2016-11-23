@@ -117,4 +117,9 @@ public final class PBrace extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         sub.store(writer, globals);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, index);
+    }
 }

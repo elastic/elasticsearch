@@ -25,8 +25,8 @@ task oldClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   cluster {
     distribution = 'zip'
-    bwcVersion = '5.1.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
-    numBwcNodes = 1
+    bwcVersion = '6.0.0-alpha1-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
+    numBwcNodes = 2
     numNodes = 2
     clusterName = 'rolling-upgrade'
   }

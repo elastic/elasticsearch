@@ -164,12 +164,6 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.toXContent(builder, params);
     }
 
-    public static GetResponse readGetResponse(StreamInput in) throws IOException {
-        GetResponse result = new GetResponse();
-        result.readFrom(in);
-        return result;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

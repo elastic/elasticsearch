@@ -126,4 +126,9 @@ final class PSubShortcut extends AStoreable {
 
         writer.writePop(setter.rtn.sort.size);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, value);
+    }
 }

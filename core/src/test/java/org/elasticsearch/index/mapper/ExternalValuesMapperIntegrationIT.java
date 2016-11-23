@@ -106,7 +106,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         SearchResponse response;
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.termQuery("field.bool", "T"))
+                .setPostFilter(QueryBuilders.termQuery("field.bool", "true"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));

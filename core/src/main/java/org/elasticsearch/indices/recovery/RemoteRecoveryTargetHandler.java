@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.RateLimiter;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
+
     private final TransportService transportService;
     private final long recoveryId;
     private final ShardId shardId;
@@ -48,9 +50,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
 
     private final Consumer<Long> onSourceThrottle;
+    private String targetAllocationId;
 
-    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService, DiscoveryNode targetNode,
-                                       RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
+    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, String targetAllocationId, TransportService transportService,
+                                       DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
+        this.targetAllocationId = targetAllocationId;
         this.transportService = transportService;
 
 
@@ -84,9 +88,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     @Override
     public void finalizeRecovery() {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
-                new RecoveryFinalizeRecoveryRequest(recoveryId, shardId),
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+            new RecoveryFinalizeRecoveryRequest(recoveryId, shardId),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
     @Override
@@ -158,5 +162,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                                  */
                         throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+    }
+
+    @Override
+    public String getTargetAllocationId() {
+        return targetAllocationId;
     }
 }

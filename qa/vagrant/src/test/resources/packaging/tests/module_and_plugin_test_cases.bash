@@ -176,7 +176,11 @@ fi
   sudo chmod +x $JAVA
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"* ]]
+  local expected="Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+  [[ "$output" == *"$expected"* ]] || {
+    echo "Expected error message [$expected] but found: $output"
+    false
+  }
 }
 
 # Note that all of the tests from here to the end of the file expect to be run
@@ -261,14 +265,6 @@ fi
 
 @test "[$GROUP] check lang-painless module" {
     check_secure_module lang-painless antlr4-runtime-*.jar asm-debug-all-*.jar
-}
-
-@test "[$GROUP] install javascript plugin" {
-    install_and_check_plugin lang javascript rhino-*.jar
-}
-
-@test "[$GROUP] install python plugin" {
-    install_and_check_plugin lang python jython-standalone-*.jar
 }
 
 @test "[$GROUP] install murmur3 mapper plugin" {
@@ -375,14 +371,6 @@ fi
 
 @test "[$GROUP] remove ingest-user-agent plugin" {
     remove_plugin ingest-user-agent
-}
-
-@test "[$GROUP] remove javascript plugin" {
-    remove_plugin lang-javascript
-}
-
-@test "[$GROUP] remove python plugin" {
-    remove_plugin lang-python
 }
 
 @test "[$GROUP] remove murmur3 mapper plugin" {

@@ -13,8 +13,8 @@ to construct the script. The actual script will extend either
 `AbstractExecutableScript` or `AbstractSearchScript`. The second one is likely
 the most useful and has several helpful subclasses you can extend like
 `AbstractLongSearchScript` and `AbstractDoubleSearchScript`.
-Finally, your plugin should register the native
-script by declaring the `onModule(ScriptModule)` method.
+Finally, your plugin should register the native script by implementing the
+`ScriptPlugin` interface.
 
 If you squashed the whole thing into one class it'd look like:
 

@@ -201,7 +201,7 @@ Let's start with a basic health check, which we can use to see how our cluster i
 To check the cluster health, we will be using the <<cat,`_cat` API>>. You can
 run the command below in https://www.elastic.co/guide/en/kibana/{branch}/console-kibana.html[Kibana's Console]
 by clicking "VIEW IN CONSOLE" or with `curl` by clicking the "COPY AS CURL"
-link below and pasting the into a terminal.
+link below and pasting it into a terminal.
 
 [source,js]
 --------------------------------------------------
@@ -320,10 +320,11 @@ And the response:
     "successful" : 1,
     "failed" : 0
   },
-  "created" : true
+  "created" : true,
+  "_seq_no" : 0
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body._seq_no/]
 
 From the above, we can see that a new customer document was successfully created inside the customer index and the external type. The document also has an internal id of 1 which we specified at index time.
 
@@ -522,7 +523,7 @@ instead of deleting all documents with the Delete By Query API.
 
 === Batch Processing
 
-In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the <<docs-bulk,`_bulk` API>>. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as little network roundtrips as possible.
+In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the <<docs-bulk,`_bulk` API>>. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
 
 As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
 

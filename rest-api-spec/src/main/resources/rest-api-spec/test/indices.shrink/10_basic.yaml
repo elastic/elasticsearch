@@ -1,4 +1,25 @@
 ---
+setup:
+  # Disable the disk threshold decider so the test doesn't fail if the disk is
+  # > 85% full
+    - do:
+        cluster.put_settings:
+          body:
+            persistent:
+              cluster.routing.allocation.disk.threshold_enabled: false
+          flat_settings: true
+
+---
+teardown:
+  # Reset the disk threshold decider so we don't leave anything behind.
+    - do:
+        cluster.put_settings:
+          body:
+            persistent:
+              cluster.routing.allocation.disk.threshold_enabled: null
+          flat_settings: true
+
+---
 "Shrink index via API":
   # creates an index with one document solely allocated on the master node
   # and shrinks it into a new index with a single shard
@@ -9,7 +30,7 @@
   - do:
       cluster.state: {}
       # Get master node id
-      
+
   - set: { master_node: master }
 
   - do:
@@ -58,6 +79,7 @@
         index: "source"
         target: "target"
         wait_for_active_shards: 1
+        master_timeout: 10s
         body:
           settings:
             index.number_of_replicas: 0

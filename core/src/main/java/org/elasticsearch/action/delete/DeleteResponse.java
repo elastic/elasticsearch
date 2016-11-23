@@ -38,8 +38,8 @@ public class DeleteResponse extends DocWriteResponse {
 
     }
 
-    public DeleteResponse(ShardId shardId, String type, String id, long version, boolean found) {
-        super(shardId, type, id, version, found ? Result.DELETED : Result.NOT_FOUND);
+    public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long version, boolean found) {
+        super(shardId, type, id, seqNo, version, found ? Result.DELETED : Result.NOT_FOUND);
     }
 
     @Override

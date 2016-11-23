@@ -203,7 +203,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 .build();
 
             final IndexMetaData tmpIndexMetadata = IndexMetaData.builder(temporaryIndexName).settings(dummySettings).build();
-            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList());
+            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), shardId -> {});
             createdIndex = dummyIndexService.index();
 
             templateBuilder.order(request.order);

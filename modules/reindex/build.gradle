@@ -38,7 +38,6 @@ run {
 dependencies {
   compile "org.elasticsearch.client:rest:${version}"
   // for http - testing reindex from remote
-  testCompile project(path: ':modules:transport-netty3', configuration: 'runtime')
   testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
 }
 

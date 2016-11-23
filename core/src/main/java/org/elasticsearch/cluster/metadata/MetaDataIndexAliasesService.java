@@ -65,8 +65,12 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
     private final MetaDataDeleteIndexService deleteIndexService;
 
     @Inject
-    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService,
-            AliasValidator aliasValidator, MetaDataDeleteIndexService deleteIndexService) {
+    public MetaDataIndexAliasesService(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        AliasValidator aliasValidator,
+        MetaDataDeleteIndexService deleteIndexService) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -75,19 +79,19 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
-            final ActionListener<ClusterStateUpdateResponse> listener) {
+                               final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("index-aliases",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                @Override
+                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                    return new ClusterStateUpdateResponse(acknowledged);
+                }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return innerExecute(currentState, request.actions());
-            }
-        });
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerExecute(currentState, request.actions());
+                }
+            });
     }
 
     ClusterState innerExecute(ClusterState currentState, Iterable<AliasAction> actions) {
@@ -136,14 +140,14 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                             if (indexService == null) {
                                 // temporarily create the index and add mappings so we can parse the filter
                                 try {
-                                    indexService = indicesService.createIndex(index, emptyList());
+                                    indexService = indicesService.createIndex(index, emptyList(), shardId -> {});
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
                                 }
                                 for (ObjectCursor<MappingMetaData> cursor : index.getMappings().values()) {
                                     MappingMetaData mappingMetaData = cursor.value;
                                     indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(),
-                                            MapperService.MergeReason.MAPPING_RECOVERY, false);
+                                        MapperService.MergeReason.MAPPING_RECOVERY, false);
                                 }
                                 indicesToClose.add(index.getIndex());
                             }
@@ -172,4 +176,5 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             }
         }
     }
+
 }

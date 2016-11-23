@@ -78,6 +78,9 @@ public class ESExceptionTests extends ESTestCase {
         exception = new RemoteTransportException("test", new ResourceNotFoundException("test"));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
 
+        exception = new RemoteTransportException("test", new ResourceAlreadyExistsException("test"));
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+
         exception = new RemoteTransportException("test", new IllegalArgumentException("foobar"));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
 

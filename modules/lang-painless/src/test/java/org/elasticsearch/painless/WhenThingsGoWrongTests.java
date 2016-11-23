@@ -261,4 +261,10 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -92233720368547758070"));
         assertEquals("Invalid int constant [-92233720368547758070].", e.getMessage());
     }
+
+    public void testQuestionSpaceDotIsNotNullSafeDereference() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a? .b", false));
+        assertEquals("invalid sequence of tokens near ['.'].", e.getMessage());
+    }
+
 }

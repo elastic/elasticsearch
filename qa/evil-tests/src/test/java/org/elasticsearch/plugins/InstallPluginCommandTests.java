@@ -477,6 +477,34 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
+    public void testPlatformBinPermissions() throws Exception {
+        assumeTrue("posix filesystem", isPosix);
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Path platformDir = pluginDir.resolve("platform");
+        Path platformNameDir = platformDir.resolve("linux-x86_64");
+        Path platformBinDir = platformNameDir.resolve("bin");
+        Files.createDirectories(platformBinDir);
+        Path programFile = Files.createFile(platformBinDir.resolve("someprogram"));
+        // a file created with Files.createFile() should not have execute permissions
+        Set<PosixFilePermission> sourcePerms = Files.getPosixFilePermissions(programFile);
+        assertFalse(sourcePerms.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertFalse(sourcePerms.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertFalse(sourcePerms.contains(PosixFilePermission.OTHERS_EXECUTE));
+        String pluginZip = createPlugin("fake", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake", pluginDir, env.v2());
+        // check that the installed program has execute permissions, even though the one added to the plugin didn't
+        Path installedPlatformBinDir = env.v2().pluginsFile().resolve("fake").resolve("platform").resolve("linux-x86_64").resolve("bin");
+        assertTrue(Files.isDirectory(installedPlatformBinDir));
+        Path installedProgramFile = installedPlatformBinDir.resolve("someprogram");
+        assertTrue(Files.isRegularFile(installedProgramFile));
+        Set<PosixFilePermission> installedPerms = Files.getPosixFilePermissions(installedProgramFile);
+        assertTrue(installedPerms.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertTrue(installedPerms.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertTrue(installedPerms.contains(PosixFilePermission.OTHERS_EXECUTE));
+    }
+
     public void testConfig() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);

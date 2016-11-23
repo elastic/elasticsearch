@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
@@ -275,12 +275,14 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
-        logger.info("--> start 2 nodes");
-        internalCluster().startNodesAsync(2, settings).get();
+        logger.info("--> start first node and wait for it to be a master");
+        internalCluster().startNode(settings);
+        ensureClusterSizeConsistency();
 
         // wait until second node join the cluster
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").get();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        logger.info("--> start second node and wait for it to join");
+        internalCluster().startNode(settings);
+        ensureClusterSizeConsistency();
 
         logger.info("--> setting minimum master node to 2");
         setMinimumMasterNodes(2);
@@ -298,8 +300,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> bringing another node up");
         internalCluster().startNode(Settings.builder().put(settings).put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2).build());
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").get();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        ensureClusterSizeConsistency();
     }
 
     private void assertNoMasterBlockOnAllNodes() throws InterruptedException {

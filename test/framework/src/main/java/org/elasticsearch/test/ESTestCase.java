@@ -444,7 +444,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomPicks.randomFrom(random, array);
     }
 
-
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
         return RandomPicks.randomFrom(random(), list);
@@ -452,7 +451,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Pick a random object from the given collection. */
     public static <T> T randomFrom(Collection<T> collection) {
-        return RandomPicks.randomFrom(random(), collection);
+        return randomFrom(random(), collection);
+    }
+
+    /** Pick a random object from the given collection. */
+    public static <T> T randomFrom(Random random, Collection<T> collection) {
+        return RandomPicks.randomFrom(random, collection);
     }
 
     public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -722,7 +726,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a random subset of values (including a potential empty list)
      */
     public static <T> List<T> randomSubsetOf(Collection<T> collection) {
-        return randomSubsetOf(randomInt(collection.size() - 1), collection);
+        return randomSubsetOf(randomInt(Math.max(collection.size() - 1, 0)), collection);
     }
 
     /**

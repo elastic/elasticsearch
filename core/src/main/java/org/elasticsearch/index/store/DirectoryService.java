@@ -32,7 +32,5 @@ public abstract class DirectoryService extends AbstractIndexShardComponent {
         super(shardId, indexSettings);
     }
 
-    public abstract long throttleTimeInNanos();
-
     public abstract Directory newDirectory() throws IOException;
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
@@ -133,7 +134,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
         throw new UnsupportedOperationException();
     }
 

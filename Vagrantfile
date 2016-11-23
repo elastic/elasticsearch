@@ -280,5 +280,16 @@ export BATS_UTILS=/project/build/bats/utils
 export BATS_TESTS=/project/build/bats/tests
 export BATS_ARCHIVES=/project/build/bats/archives
 VARS
+    cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
+Defaults   env_keep += "ZIP"
+Defaults   env_keep += "TAR"
+Defaults   env_keep += "RPM"
+Defaults   env_keep += "DEB"
+Defaults   env_keep += "BATS"
+Defaults   env_keep += "BATS_UTILS"
+Defaults   env_keep += "BATS_TESTS"
+Defaults   env_keep += "BATS_ARCHIVES"
+SUDOERS_VARS
+    chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
 end

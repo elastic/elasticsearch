@@ -75,9 +75,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -255,11 +252,15 @@ public class Node implements Closeable {
             }
 
             final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
-                tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeEnvironment.nodeId());
             Logger logger = Loggers.getLogger(Node.class, tmpSettings);
+            final String nodeId = nodeEnvironment.nodeId();
+            tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
+            // this must be captured after the node name is possibly added to the settings
+            final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
             if (hadPredefinedNodeName == false) {
-                logger.info("node name [{}] derived from node ID; set [{}] to override",
-                    NODE_NAME_SETTING.get(tmpSettings), NODE_NAME_SETTING.getKey());
+                logger.info("node name [{}] derived from node ID [{}]; set [{}] to override", nodeName, nodeId, NODE_NAME_SETTING.getKey());
+            } else {
+                logger.info("node name [{}], node ID [{}]", nodeName, nodeId);
             }
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
@@ -322,7 +323,7 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId(),
+            final TribeService tribeService = new TribeService(settings, clusterService, nodeId,
                 s -> newTribeClientNode(s, classpathPlugins));
             resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
@@ -654,11 +655,13 @@ public class Node implements Closeable {
         injector.getInstance(SnapshotShardsService.class).stop();
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
+        // close discovery early to not react to pings anymore.
+        // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
+        injector.getInstance(Discovery.class).stop();
         // we close indices first, so operations won't be allowed on it
         injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
-        injector.getInstance(Discovery.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
@@ -734,7 +737,7 @@ public class Node implements Closeable {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
             toClose.add(plugin);
         }
-        toClose.addAll(pluginsService.filterPlugins(Closeable.class));
+        toClose.addAll(pluginsService.filterPlugins(Plugin.class));
 
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));

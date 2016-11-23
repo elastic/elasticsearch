@@ -157,7 +157,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
         Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
         Decision allocateDecision = result.v1();
-        if (allocateDecision.type() != Decision.Type.YES && explain == false) {
+        if (allocateDecision.type() != Decision.Type.YES) {
             // only return early if we are not in explain mode, because if we are in explain mode,
             // its still possible that the shard store information is fetchable and we can add it
             // to the node explanations

@@ -302,7 +302,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             opType = OpType.fromId(in.readByte());
         } else {
             opType = OpType.fromString(in.readString());
@@ -328,7 +328,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             out.writeByte(opType.getId());
         } else {
             out.writeString(opType.getLowercase());

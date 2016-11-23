@@ -95,18 +95,18 @@ public class Version {
     public static final Version V_5_0_0 = new Version(V_5_0_0_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final int V_5_0_1_ID = 5000199;
     public static final Version V_5_0_1 = new Version(V_5_0_1_ID, org.apache.lucene.util.Version.LUCENE_6_2_1);
-    public static final int V_6_0_0_alpha1_ID = 6000001;
-    public static final Version V_6_0_0_alpha1 = new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_6_3_0);
-    public static final Version CURRENT = V_6_0_0_alpha1;
+    public static final int V_5_0_2_ID_UNRELEASED = 5000299;
+    public static final Version V_5_0_2_UNRELEASED = new Version(V_5_0_2_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_2_1);
+    public static final int V_5_1_0_ID_UNRELEASED = 5010099;
+    public static final Version V_5_1_0_UNRELEASED = new Version(V_5_1_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    public static final int V_5_2_0_ID_UNRELEASED = 5020099;
+    public static final Version V_5_2_0_UNRELEASED = new Version(V_5_2_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    public static final int V_6_0_0_alpha1_ID_UNRELEASED = 6000001;
+    public static final Version V_6_0_0_alpha1_UNRELEASED =
+        new Version(V_6_0_0_alpha1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    public static final Version CURRENT = V_6_0_0_alpha1_UNRELEASED;
 
-    /* NOTE: don't add unreleased version to this list except of the version assigned to CURRENT.
-     * If you need a version that doesn't exist here for instance V_5_1_0 then go and create such a version
-     * as a constant where you need it:
-     * <pre>
-     *   public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
-     * </pre>
-     * Then go to VersionsTest.java and add a test for this constant VersionTests#testUnknownVersions().
-     * This is particularly useful if you are building a feature that needs a BWC layer for this unreleased version etc.*/
+    // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -119,8 +119,14 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_6_0_0_alpha1_ID:
-                return V_6_0_0_alpha1;
+            case V_6_0_0_alpha1_ID_UNRELEASED:
+                return V_6_0_0_alpha1_UNRELEASED;
+            case V_5_2_0_ID_UNRELEASED:
+                return V_5_2_0_UNRELEASED;
+            case V_5_1_0_ID_UNRELEASED:
+                return V_5_1_0_UNRELEASED;
+            case V_5_0_2_ID_UNRELEASED:
+                return V_5_0_2_UNRELEASED;
             case V_5_0_1_ID:
                 return V_5_0_1;
             case V_5_0_0_ID:
@@ -308,8 +314,8 @@ public class Version {
     public Version minimumCompatibilityVersion() {
         final int bwcMajor;
         final int bwcMinor;
-        if (this.onOrAfter(Version.V_6_0_0_alpha1)) {
-            bwcMajor = major-1;
+        if (this.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            bwcMajor = major - 1;
             bwcMinor = 0; // TODO we have to move this to the latest released minor of the last major but for now we just keep
         } else {
             bwcMajor = major;

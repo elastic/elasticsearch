@@ -27,7 +27,7 @@ import java.util.List;
 public class VersionUtilsTests extends ESTestCase {
 
     public void testAllVersionsSorted() {
-        List<Version> allVersions = VersionUtils.allVersions();
+        List<Version> allVersions = VersionUtils.allReleasedVersions();
         for (int i = 0, j = 1; j < allVersions.size(); ++i, ++j) {
             assertTrue(allVersions.get(i).before(allVersions.get(j)));
         }
@@ -54,9 +54,9 @@ public class VersionUtilsTests extends ESTestCase {
         got = VersionUtils.randomVersionBetween(random(), null, Version.V_5_0_0_alpha1);
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
         assertTrue(got.onOrBefore(Version.V_5_0_0_alpha1));
-        got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.allVersions().get(0));
+        got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.allReleasedVersions().get(0));
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
-        assertTrue(got.onOrBefore(VersionUtils.allVersions().get(0)));
+        assertTrue(got.onOrBefore(VersionUtils.allReleasedVersions().get(0)));
 
         // unbounded upper
         got = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, null);

@@ -62,7 +62,7 @@ public class RestClearScrollAction extends BaseRestHandler {
         }
         if (request.method() == POST && request.hasParam("scroll_id")) {
             deprecationLogger.deprecated("Deprecated [POST /_search/clear_scroll/{scroll_id}] endpoint used, " +
-                    "expected [POST /_search/clear_scroll] instead. The scroll_id should rather be provided as part of the request body");
+                    "expected [POST /_search/clear_scroll] instead. The scroll_id must be provided as part of the request body");
         }
         final ClearScrollRequest clearRequest;
         if (RestActions.hasBodyContent(request)) {

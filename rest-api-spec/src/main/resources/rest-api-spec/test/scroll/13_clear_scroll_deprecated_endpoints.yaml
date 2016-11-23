@@ -126,7 +126,7 @@ setup:
 
   - do:
       warnings:
-        - Deprecated [POST /_search/clear_scroll/{scroll_id}] endpoint used, expected [POST /_search/clear_scroll] instead. The scroll_id should rather be provided as part of the request body
+        - Deprecated [POST /_search/clear_scroll/{scroll_id}] endpoint used, expected [POST /_search/clear_scroll] instead. The scroll_id must be provided as part of the request body
       clear_scroll:
         scroll_id: $scroll_id1
 
@@ -155,7 +155,7 @@ setup:
 
   - do:
       warnings:
-        - Deprecated [POST /_search/clear_scroll/{scroll_id}] endpoint used, expected [POST /_search/clear_scroll] instead. The scroll_id should rather be provided as part of the request body
+        - Deprecated [POST /_search/clear_scroll/{scroll_id}] endpoint used, expected [POST /_search/clear_scroll] instead. The scroll_id must be provided as part of the request body
       clear_scroll:
         scroll_id: "invalid_scroll_id"
         body: { "scroll_id": [ "$scroll_id1" ]}

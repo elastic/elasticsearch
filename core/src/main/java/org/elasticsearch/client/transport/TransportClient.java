@@ -151,7 +151,6 @@ public abstract class TransportClient extends AbstractClient {
                 pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
 
-            pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);

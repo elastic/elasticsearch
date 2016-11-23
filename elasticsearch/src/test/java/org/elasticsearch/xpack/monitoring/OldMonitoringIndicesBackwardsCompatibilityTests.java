@@ -145,6 +145,10 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
             Arrays.stream(firstNode.getHits().hits()).forEach(hit -> checkNodeStats(version, masterNodeId, hit.sourceAsMap()));
             Arrays.stream(firstState.getHits().hits()).forEach(hit -> checkClusterState(version, hit.sourceAsMap()));
 
+            // Create some docs
+            indexRandom(true, client().prepareIndex("test-1", "doc", "1").setSource("field", 1),
+                    client().prepareIndex("test-2", "doc", "2").setSource("field", 2));
+
             // Wait for monitoring to accumulate some data about the current cluster
             long indexStatsCount = firstIndexStats.getHits().totalHits();
             assertBusy(() -> search(new IndexStatsResolver(MonitoredSystem.ES, Settings.EMPTY),
@@ -170,7 +174,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
             }
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
 
-            CountDown retries = new CountDown(5);
+            CountDown retries = new CountDown(10);
             assertBusy(() -> {
                 String[] indices = new String[]{".marvel-*", ".monitoring-*"};
                 IndicesExistsResponse existsResponse = client().admin().indices().prepareExists(indices).get();

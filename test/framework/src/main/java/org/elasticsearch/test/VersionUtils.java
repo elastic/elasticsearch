@@ -52,6 +52,8 @@ public class VersionUtils {
                         throw new RuntimeException(e);
                     }
                     assert field.getName().matches("(V(_\\d+)+(_(alpha|beta|rc)\\d+)?(_UNRELEASED)?|CURRENT)") : field.getName();
+                    // note that below we remove CURRENT and add it to released; we do it this way because there are two constants that
+                    // correspond to CURRENT, CURRENT itself and the actual version that CURRENT points to
                     if (field.getName().equals("CURRENT") || field.getName().endsWith("UNRELEASED")) {
                         unreleasedIdsSet.add(id);
                     } else {
@@ -61,9 +63,12 @@ public class VersionUtils {
             }
         }
 
-        // treat current as released for BWC testing
+        // treat CURRENT as released for BWC testing
         unreleasedIdsSet.remove(Version.CURRENT.id);
         releasedIdsSet.add(Version.CURRENT.id);
+
+        // unreleasedIdsSet and releasedIdsSet should be disjoint
+        assert unreleasedIdsSet.stream().filter(releasedIdsSet::contains).collect(Collectors.toSet()).isEmpty();
 
         RELEASED_VERSIONS =
             Collections.unmodifiableList(releasedIdsSet.stream().sorted().map(Version::fromId).collect(Collectors.toList()));

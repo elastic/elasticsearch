@@ -29,6 +29,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.function.BiPredicate;
+
 /**
  * This {@link AllocationDecider} limits the number of shards per node on a per
  * index or node-wide basis. The allocator prevents a single node to hold more
@@ -93,7 +95,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     }
 
     private Decision doDecide(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
-                              LimitPredicate<Integer> predictor) {
+                              BiPredicate<Integer, Integer> decider) {
         IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
         final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
         // Capture the limit here in case it changes during this method's
@@ -118,11 +120,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             }
         }
 
-        if (clusterShardLimit > 0 && predictor.test(nodeShardCount, clusterShardLimit)) {
+        if (clusterShardLimit > 0 && decider.test(nodeShardCount, clusterShardLimit)) {
             return allocation.decision(Decision.NO, NAME, "too many shards for this node [%d], cluster-level limit per node: [%d]",
                 nodeShardCount, clusterShardLimit);
         }
-        if (indexShardLimit > 0 && predictor.test(indexShardCount, indexShardLimit)) {
+        if (indexShardLimit > 0 && decider.test(indexShardCount, indexShardLimit)) {
             return allocation.decision(Decision.NO, NAME,
                 "too many shards for this index [%s] on node [%d], index-level limit per node: [%d]",
                 shardRouting.index(), indexShardCount, indexShardLimit);
@@ -158,10 +160,5 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
         return allocation.decision(Decision.YES, NAME, "the shard count is under node limit [%d] of total shards per node",
                 clusterShardLimit);
-    }
-
-    @FunctionalInterface
-    private interface LimitPredicate<Integer>{
-        boolean test(Integer count, Integer limit);
     }
 }

@@ -180,8 +180,8 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
             throw convertToScriptException("compile error", scriptName, scriptSource, e,
                     // Use simple heuristics for segmenting the snippet
                     offset -> Math.max(0, offset - 25), offset -> Math.min(scriptSource.length(), offset + 25),
-                    // Don't include any extra lines
-                    ste -> true);
+                    // Don't include any non-script elements at all.
+                    element -> true);
         }
     }
 

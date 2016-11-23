@@ -1,1 +1,5 @@
-_source['title'] == 'Elasticsearch - The Definitive Guide'
+def min = 300;
+if (params.min_num_pages != null) {
+    min = params.min_num_pages;
+}
+return doc['pages'].value >= min;

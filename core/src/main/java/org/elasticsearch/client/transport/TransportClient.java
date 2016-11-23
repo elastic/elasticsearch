@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -83,6 +84,7 @@ public class TransportClient extends AbstractClient {
 
         private Settings settings = Settings.EMPTY;
         private List<Class<? extends Plugin>> pluginClasses = new ArrayList<>();
+        private HostFailureListener hostFailedListener;
 
         /**
          * The settings to configure the transport client with.
@@ -152,7 +154,7 @@ public class TransportClient extends AbstractClient {
                     }
                 });
                 modules.add(new ActionModule(true));
-                modules.add(new ClientTransportModule());
+                modules.add(new ClientTransportModule(hostFailedListener));
                 modules.add(new CircuitBreakerModule(this.settings));
 
                 pluginsService.processModules(modules);
@@ -170,6 +172,11 @@ public class TransportClient extends AbstractClient {
                     ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
                 }
             }
+        }
+
+        public Builder setHostFailedListener(HostFailureListener hostFailedListener) {
+            this.hostFailedListener = hostFailedListener;
+            return this;
         }
     }
 
@@ -286,5 +293,22 @@ public class TransportClient extends AbstractClient {
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
+    }
+
+    /**
+     * Listener that allows to be notified whenever a node failure / disconnect happens
+     */
+    public interface HostFailureListener {
+        /**
+         * Called once a node disconnect is detected.
+         * @param node the node that has been disconnected
+         * @param ex the exception causing the disconnection
+         */
+        void onNodeDisconnected(DiscoveryNode node, Throwable ex);
+    }
+
+    // pkg private for testing
+    TransportClientNodesService getNodesService() {
+        return nodesService;
     }
 }

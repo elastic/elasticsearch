@@ -76,7 +76,13 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transportService = new TransportService(Settings.EMPTY, transport, threadPool);
             transportService.start();
             transportService.acceptIncomingRequests();
-            transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Headers.EMPTY, Version.CURRENT);
+            transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService,
+                threadPool, Headers.EMPTY, Version.CURRENT, new TransportClient.HostFailureListener() {
+                @Override
+                public void onNodeDisconnected(DiscoveryNode node, Throwable ex) {
+
+                }
+            });
 
             nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {

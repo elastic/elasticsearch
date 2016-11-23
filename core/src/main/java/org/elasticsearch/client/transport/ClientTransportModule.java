@@ -21,6 +21,7 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
@@ -28,10 +29,22 @@ import org.elasticsearch.common.inject.AbstractModule;
  */
 public class ClientTransportModule extends AbstractModule {
 
+    private final TransportClient.HostFailureListener listener;
+
+    public ClientTransportModule(TransportClient.HostFailureListener listener) {
+        this.listener = listener != null ?  listener : new TransportClient.HostFailureListener() {
+            @Override
+            public void onNodeDisconnected(DiscoveryNode node, Throwable ex) {
+
+            }
+        };
+    }
+
     @Override
     protected void configure() {
         bind(Headers.class).asEagerSingleton();
         bind(TransportProxyClient.class).asEagerSingleton();
         bind(TransportClientNodesService.class).asEagerSingleton();
+        bind(TransportClient.HostFailureListener.class).toInstance(listener);
     }
 }

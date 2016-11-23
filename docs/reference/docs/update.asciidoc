@@ -102,7 +102,7 @@ the doc if the `tags` field contain `green`, otherwise it does nothing
 POST test/type1/1/_update
 {
     "script" : {
-        "inline": "if (ctx._source.tags.contains(params.tag)) { ctx.op = \"delete\" } else { ctx.op = \"noop\" }",
+        "inline": "if (ctx._source.tags.contains(params.tag)) { ctx.op = \"delete\" } else { ctx.op = \"none\" }",
         "lang": "painless",
         "params" : {
             "tag" : "green"

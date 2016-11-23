@@ -94,7 +94,7 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        Decision.Type.writeTo(nodeDecisionType, out);
+        nodeDecisionType.writeTo(out);
         out.writeBoolean(betterWeightThanCurrent);
         out.writeBoolean(deltaAboveThreshold);
         out.writeBoolean(betterWeightWithShardAdded);

@@ -66,7 +66,7 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         if (finalDecision != null) {
             out.writeBoolean(true);
-            Decision.Type.writeTo(finalDecision, out);
+            finalDecision.writeTo(out);
         } else {
             out.writeBoolean(false);
         }

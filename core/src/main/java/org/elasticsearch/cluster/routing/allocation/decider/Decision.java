@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -69,7 +70,7 @@ public abstract class Decision implements ToXContent {
             // Flag specifying whether it is a Multi or Single Decision
             out.writeBoolean(false);
             Single d = ((Single) decision);
-            Type.writeTo(d.type, out);
+            d.type.writeTo(out);
             out.writeOptionalString(d.label);
             // Flatten explanation on serialization, so that explanationParams
             // do not need to be serialized
@@ -100,10 +101,16 @@ public abstract class Decision implements ToXContent {
      * This enumeration defines the
      * possible types of decisions
      */
-    public enum Type {
-        YES,
-        NO,
-        THROTTLE;
+    public enum Type implements Writeable {
+        YES(1),
+        NO(2),
+        THROTTLE(3);
+
+        private final int id;
+
+        Type(int id) {
+            this.id = id;
+        }
 
         public static Type resolve(String s) {
             return Type.valueOf(s.toUpperCase(Locale.ROOT));
@@ -123,20 +130,9 @@ public abstract class Decision implements ToXContent {
             }
         }
 
-        public static void writeTo(Type type, StreamOutput out) throws IOException {
-            switch (type) {
-                case NO:
-                    out.writeVInt(0);
-                    break;
-                case YES:
-                    out.writeVInt(1);
-                    break;
-                case THROTTLE:
-                    out.writeVInt(2);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Invalid Type [" + type + "]");
-            }
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(id);
         }
 
         public boolean higherThan(Type other) {

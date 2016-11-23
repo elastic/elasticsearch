@@ -109,16 +109,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     public AllocateUnassignedDecision(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            decision = Type.readFrom(in);
-        } else {
-            decision = null;
-        }
-        if (in.readBoolean()) {
-            allocationStatus = AllocationStatus.readFrom(in);
-        } else {
-            allocationStatus = null;
-        }
+        decision = in.readOptionalWriteable(Type::readFrom);
+        allocationStatus = in.readOptionalWriteable(AllocationStatus::readFrom);
         assignedNodeId = in.readOptionalString();
         assignedNodeName = in.readOptionalString();
         allocationId = in.readOptionalString();
@@ -371,7 +363,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         if (decision != null) {
             out.writeBoolean(true);
-            Type.writeTo(decision, out);
+            decision.writeTo(out);
         } else {
             out.writeBoolean(false);
         }

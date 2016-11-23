@@ -30,7 +30,7 @@ public class SchedulerStateTests extends AbstractSerializingTestCase<SchedulerSt
 
     public void testEquals_GivenDifferentClass() {
 
-        assertFalse(new SchedulerState(JobSchedulerStatus.STARTED, 0, null).equals("a string"));
+        assertFalse(new SchedulerState(JobSchedulerStatus.STARTED, 0L, null).equals("a string"));
     }
 
     public void testEquals_GivenSameReference() {
@@ -58,7 +58,7 @@ public class SchedulerStateTests extends AbstractSerializingTestCase<SchedulerSt
     }
 
     public void testEquals_GivenDifferentStartTimeMillis() {
-        SchedulerState schedulerState1 = new SchedulerState(JobSchedulerStatus.STARTED, 18L, 42L);
+        SchedulerState schedulerState1 = new SchedulerState(JobSchedulerStatus.STARTED, null, 42L);
         SchedulerState schedulerState2 = new SchedulerState(JobSchedulerStatus.STOPPED, 19L, schedulerState1.getEndTimeMillis());
 
         assertFalse(schedulerState1.equals(schedulerState2));

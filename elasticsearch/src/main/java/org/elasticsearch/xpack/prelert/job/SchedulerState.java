@@ -35,16 +35,17 @@ public class SchedulerState extends ToXContentToBytes implements Writeable {
     static {
         PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> JobSchedulerStatus.fromString(p.text()), STATUS,
                 ValueType.STRING);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), START_TIME_MILLIS);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), START_TIME_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), END_TIME_MILLIS);
     }
 
     private JobSchedulerStatus status;
-    private long startTimeMillis;
+    @Nullable
+    private Long startTimeMillis;
     @Nullable
     private Long endTimeMillis;
 
-    public SchedulerState(JobSchedulerStatus status, long startTimeMillis, Long endTimeMillis) {
+    public SchedulerState(JobSchedulerStatus status, Long startTimeMillis, Long endTimeMillis) {
         this.status = status;
         this.startTimeMillis = startTimeMillis;
         this.endTimeMillis = endTimeMillis;
@@ -52,7 +53,7 @@ public class SchedulerState extends ToXContentToBytes implements Writeable {
 
     public SchedulerState(StreamInput in) throws IOException {
         status = JobSchedulerStatus.fromStream(in);
-        startTimeMillis = in.readLong();
+        startTimeMillis = in.readOptionalLong();
         endTimeMillis = in.readOptionalLong();
     }
 
@@ -60,7 +61,7 @@ public class SchedulerState extends ToXContentToBytes implements Writeable {
         return status;
     }
 
-    public long getStartTimeMillis() {
+    public Long getStartTimeMillis() {
         return startTimeMillis;
     }
 
@@ -98,7 +99,7 @@ public class SchedulerState extends ToXContentToBytes implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         status.writeTo(out);
-        out.writeLong(startTimeMillis);
+        out.writeOptionalLong(startTimeMillis);
         out.writeOptionalLong(endTimeMillis);
     }
 
@@ -106,7 +107,9 @@ public class SchedulerState extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(STATUS.getPreferredName(), status.name().toUpperCase(Locale.ROOT));
-        builder.field(START_TIME_MILLIS.getPreferredName(), startTimeMillis);
+        if (startTimeMillis != null) {
+            builder.field(START_TIME_MILLIS.getPreferredName(), startTimeMillis);
+        }
         if (endTimeMillis != null) {
             builder.field(END_TIME_MILLIS.getPreferredName(), endTimeMillis);
         }

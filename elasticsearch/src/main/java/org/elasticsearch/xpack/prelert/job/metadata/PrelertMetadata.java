@@ -18,6 +18,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -215,6 +217,15 @@ public class PrelertMetadata implements MetaData.Custom {
             Allocation.Builder builder = new Allocation.Builder();
             builder.setJobId(jobId);
             builder.setNodeId(nodeId);
+            this.allocations.put(jobId, builder.build());
+            return this;
+        }
+
+        public Builder putAllocationWithScheduler(String nodeId, String jobId) {
+            Allocation.Builder builder = new Allocation.Builder();
+            builder.setJobId(jobId);
+            builder.setNodeId(nodeId);
+            builder.setSchedulerState(new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
             this.allocations.put(jobId, builder.build());
             return this;
         }

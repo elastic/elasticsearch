@@ -340,6 +340,16 @@ public class JobManager {
         }
     }
 
+    public Optional<SchedulerState> getSchedulerState(String jobId) {
+        Job job = getJobOrThrowIfUnknown(clusterService.state(), jobId);
+        if (job.getSchedulerConfig() == null) {
+            return Optional.empty();
+        }
+
+        Allocation allocation = getAllocation(clusterService.state(), jobId);
+        return Optional.ofNullable(allocation.getSchedulerState());
+    }
+
     public void updateSchedulerStatus(String jobId, JobSchedulerStatus newStatus) {
         clusterService.submitStateUpdateTask("update-scheduler-status-job-" + jobId, new ClusterStateUpdateTask() {
 
@@ -504,6 +514,10 @@ public class JobManager {
                 return new ResumeJobAction.Response(acknowledged);
             }
         });
+    }
+
+    public JobStatus getJobStatus(String jobId) {
+        return getJobAllocation(jobId).getStatus();
     }
 
     public void setJobStatus(String jobId, JobStatus newStatus) {

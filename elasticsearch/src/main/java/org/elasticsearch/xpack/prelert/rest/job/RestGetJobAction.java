@@ -51,7 +51,6 @@ public class RestGetJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-
         final GetJobAction.Request request;
         if (RestActions.hasBodyContent(restRequest)) {
             BytesReference bodyBytes = RestActions.getRestContent(restRequest);
@@ -66,8 +65,7 @@ public class RestGetJobAction extends BaseRestHandler {
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), DEFAULT_SIZE)));
         }
+
         return channel -> transportGetJobAction.execute(request, new RestStatusToXContentListener<>(channel));
-
-
     }
 }

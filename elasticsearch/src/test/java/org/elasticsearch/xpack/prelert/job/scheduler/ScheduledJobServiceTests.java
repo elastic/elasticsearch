@@ -147,7 +147,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
     public void testStop_GivenStartedScheduledJob() throws IOException {
         Job.Builder builder = createScheduledJob();
         Allocation allocation1 =
-                new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STARTED, 0, null));
+                new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STARTED, 0L, null));
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation1);
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
@@ -161,7 +161,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
 
         // Properly stop it to avoid leaking threads in the test
         Allocation allocation2 =
-                new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STOPPING, 0, null));
+                new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STOPPING, 0L, null));
         scheduledJobService.registry.put("foo", scheduledJobService.createJobScheduler(builder.build()));
         scheduledJobService.stop(allocation2);
 

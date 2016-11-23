@@ -50,7 +50,13 @@ public class JobAllocator extends AbstractComponent implements ClusterStateListe
 
         for (String jobId : prelertMetadata.getJobs().keySet()) {
             if (prelertMetadata.getAllocations().containsKey(jobId) == false) {
-                builder.putAllocation(prelertNode.getId(), jobId);
+                boolean addSchedulderState = prelertMetadata.getJobs().get(jobId).getSchedulerConfig() != null;
+                if (addSchedulderState) {
+                    builder.putAllocationWithScheduler(prelertNode.getId(), jobId);
+                }
+                else {
+                    builder.putAllocation(prelertNode.getId(), jobId);
+                }
             }
         }
 

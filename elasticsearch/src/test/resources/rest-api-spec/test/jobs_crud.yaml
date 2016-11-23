@@ -32,7 +32,7 @@
 
   - do:
       xpack.prelert.get_job:
-        jobId: "farequote"
+        job_id: "farequote"
   - match: { hitCount: 1 }
   - match: { hits.0.config.jobId: "farequote" }
 
@@ -44,7 +44,7 @@
   - do:
       catch: missing
       xpack.prelert.get_job:
-        jobId: "farequote"
+        job_id: "farequote"
 
   - do:
       indices.exists:
@@ -56,7 +56,7 @@
   - do:
       catch: missing
       xpack.prelert.get_job:
-        jobId: "non-existing"
+        job_id: "non-existing"
 
 ---
 "Test put job with id that is already taken":

@@ -16,15 +16,41 @@ setup:
             }
           }
 
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "jobId":"scheduled-job",
+            "description":"A job with a scheduler",
+            "analysisConfig" : {
+                "bucketSpan":3600,
+                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            },
+            "dataDescription" : {
+                "format" : "ELASTICSEARCH",
+                "timeField":"time",
+                "timeFormat":"yyyy-MM-dd'T'HH:mm:ssX"
+            },
+            "schedulerConfig": {
+                "dataSource":"ELASTICSEARCH",
+                "baseUrl":"http://marple:9202",
+                "indexes":["farequote"],
+                "types":["response"],
+                "retrieveWholeSource":true
+            }
+          }
+
 ---
 "Test get job stats after uploading data prompting the creation of some stats":
   - do:
       xpack.prelert.get_job:
-        jobId: job-stats-test
+        job_id: job-stats-test
 
   - is_true: hits.0.config
   - is_false: hits.0.data_counts
   - is_false: hits.0.model_size_stats
+  - is_false: hits.0.scheduler_state
+
 
   - do:
       xpack.prelert.post_data:
@@ -41,7 +67,7 @@ setup:
 
   - do:
       xpack.prelert.get_job:
-        jobId: job-stats-test
+        job_id: job-stats-test
         metric: data_counts
 
   - match: { hits.0.data_counts.processed_record_count: 2 }
@@ -53,23 +79,53 @@ setup:
 # won't be created with such a small data sample
   - do:
       xpack.prelert.get_job:
-        jobId: "job-stats-test"
+        job_id: "job-stats-test"
         metric: "data_counts"
   - is_false: hits.0.config
   - is_true: hits.0.data_counts
   - is_false: hits.0.model_size_stats
+  - is_false: hits.0.scheduler_state
 
   - do:
       xpack.prelert.get_job:
-        jobId: "job-stats-test"
+        job_id: "job-stats-test"
         metric: "model_size_stats"
+  - is_false: hits.0.config
+  - is_false: hits.0.data_counts
+  - is_false: hits.0.scheduler_state
+
+  - do:
+      xpack.prelert.get_job:
+        job_id: "job-stats-test"
+        metric: "scheduler_state"
   - is_false: hits.0.config
   - is_false: hits.0.data_counts
 
   - do:
       xpack.prelert.get_job:
-        jobId: "job-stats-test"
+        job_id: "job-stats-test"
+        metric: "status"
+  - is_false: hits.0.config
+  - is_false: hits.0.data_counts
+  - is_false: hits.0.model_size_stats
+  - is_false: hits.0.scheduler_state
+  - match: { hits.0.status: CLOSED }
+
+  - do:
+      xpack.prelert.get_job:
+        job_id: "job-stats-test"
         metric: "_all"
   - is_true: hits.0.config
   - is_true: hits.0.data_counts
+  - is_false: hits.0.scheduler_state
+  - match: { hits.0.status: CLOSED }
+
+  - do:
+      xpack.prelert.get_job:
+        job_id: "scheduled-job"
+        metric: "scheduler_state"
+  - is_false: hits.0.config
+  - is_false: hits.0.data_counts
+  - is_false: hits.0.model_size_stats
+  - match: { hits.0.scheduler_state.status: STOPPED }
 

@@ -13,10 +13,13 @@ import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelDebugConfig;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
+import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformType;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
@@ -25,6 +28,7 @@ import org.joda.time.DateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -70,18 +74,30 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
 
 
             DataCounts dataCounts = null;
-            ModelSizeStats sizeStats = null;
-
             if (randomBoolean()) {
                 dataCounts = new DataCounts(randomAsciiOfLength(10), randomIntBetween(1, 1_000_000),
                         randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                         randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                         new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate());
             }
+
+            ModelSizeStats sizeStats = null;
             if (randomBoolean()) {
                 sizeStats = new ModelSizeStats.Builder("foo").build();
             }
-            Response.JobInfo jobInfo = new Response.JobInfo(job, dataCounts, sizeStats);
+
+            SchedulerState schedulerState = null;
+            if (randomBoolean()) {
+                schedulerState = new SchedulerState(randomFrom(EnumSet.allOf(JobSchedulerStatus.class)), randomPositiveLong(),
+                        randomPositiveLong());
+            }
+
+            JobStatus jobStatus = null;
+            if (randomBoolean()) {
+                jobStatus = randomFrom(EnumSet.allOf(JobStatus.class));
+            }
+
+            Response.JobInfo jobInfo = new Response.JobInfo(job, dataCounts, sizeStats, schedulerState, jobStatus);
             jobInfoList.add(jobInfo);
         }
 

@@ -17,8 +17,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.prelert.job.DataDescription;
+import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 
 import static org.mockito.Mockito.doAnswer;
@@ -174,6 +179,36 @@ public class JobAllocatorTests extends ESTestCase {
         jobAllocator.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
         verify(threadPool, times(1)).executor(ThreadPool.Names.GENERIC);
         verify(clusterService, times(1)).submitStateUpdateTask(any(), any());
+    }
+
+    public void testScheduledJobHasDefaultSchedulerState() {
+        PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
+
+        SchedulerConfig.Builder schedulerConfigBuilder = new SchedulerConfig.Builder(SchedulerConfig.DataSource.ELASTICSEARCH);
+        schedulerConfigBuilder.setBaseUrl("http://server");
+        schedulerConfigBuilder.setIndexes(Collections.singletonList("foo"));
+        schedulerConfigBuilder.setTypes(Collections.singletonList("bar"));
+
+        Job.Builder jobBuilder = buildJobBuilder("_job_id");
+        jobBuilder.setSchedulerConfig(schedulerConfigBuilder);
+        DataDescription.Builder dataDescriptionBuilder = new DataDescription.Builder();
+        dataDescriptionBuilder.setFormat(DataDescription.DataFormat.ELASTICSEARCH);
+        jobBuilder.setDataDescription(dataDescriptionBuilder);
+
+        pmBuilder.putJob(jobBuilder.build(), false);
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
+                .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .masterNodeId("_id")
+                        .localNodeId("_id"))
+                .build();
+
+
+        ClusterState clusterStateWithAllocation = jobAllocator.allocateJobs(cs);
+        PrelertMetadata metadata = clusterStateWithAllocation.metaData().custom(PrelertMetadata.TYPE);
+        assertEquals(JobSchedulerStatus.STOPPED, metadata.getAllocations().get("_job_id").getSchedulerState().getStatus());
     }
 
 }

@@ -2,20 +2,20 @@
   "xpack.prelert.get_job": {
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/jobs/{jobId}",
+      "path": "/_xpack/prelert/jobs/{job_id}",
       "paths": [
         "/_xpack/prelert/jobs",
-        "/_xpack/prelert/jobs/{jobId}",
-        "/_xpack/prelert/jobs/{jobId}/{metric}"
+        "/_xpack/prelert/jobs/{job_id}",
+        "/_xpack/prelert/jobs/{job_id}/{metric}"
       ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type": "string",
           "description": "The ID of the job to fetch"
         },
         "metric" : {
           "type" : "list",
-          "options" : ["_all", "config", "data_counts", "model_size_stats"],
+          "options" : ["_all", "config", "data_counts", "model_size_stats", "scheduler_state", "status"],
           "description" : "Limit the information returned to the specified statistics"
         }
       },

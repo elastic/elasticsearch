@@ -17,6 +17,8 @@ public class GetJobActionRequestTests extends AbstractStreamableTestCase<GetJobA
         instance.config(randomBoolean());
         instance.dataCounts(randomBoolean());
         instance.modelSizeStats(randomBoolean());
+        instance.schedulerStatus(randomBoolean());
+        instance.status(randomBoolean());
         if (randomBoolean()) {
             int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);
             int maxSize = PageParams.MAX_FROM_SIZE_SUM - from;

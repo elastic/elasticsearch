@@ -38,7 +38,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
+import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
@@ -92,10 +94,11 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
         private boolean config;
         private boolean dataCounts;
         private boolean modelSizeStats;
+        private boolean schedulerStatus;
+        private boolean status;
         private PageParams pageParams = null;
 
         public Request() {
-
         }
 
         public void setJobId(String jobId) {
@@ -115,9 +118,11 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
         }
 
         public Request all() {
-            this.config = true;
-            this.dataCounts = true;
-            this.modelSizeStats = true;
+            config = true;
+            dataCounts = true;
+            modelSizeStats = true;
+            schedulerStatus = true;
+            status = true;
             return this;
         }
 
@@ -148,15 +153,34 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
             return this;
         }
 
+        public boolean schedulerStatus() {
+            return schedulerStatus;
+        }
+
+        public Request schedulerStatus(boolean schedulerStatus) {
+            this.schedulerStatus = schedulerStatus;
+            return this;
+        }
+
         public void setStats(Set<String> stats) {
             if (stats.contains("_all")) {
                 all();
-            }
-            else {
+            } else {
                 config(stats.contains("config"));
                 dataCounts(stats.contains("data_counts"));
                 modelSizeStats(stats.contains("model_size_stats"));
+                schedulerStatus(stats.contains("scheduler_state"));
+                status(stats.contains("status"));
             }
+        }
+
+        public boolean status() {
+            return status;
+        }
+
+        public Request status(boolean status) {
+            this.status = status;
+            return this;
         }
 
         @Override
@@ -171,6 +195,8 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
             config = in.readBoolean();
             dataCounts = in.readBoolean();
             modelSizeStats = in.readBoolean();
+            schedulerStatus = in.readBoolean();
+            status = in.readBoolean();
             pageParams = in.readOptionalWriteable(PageParams::new);
         }
 
@@ -181,12 +207,14 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
             out.writeBoolean(config);
             out.writeBoolean(dataCounts);
             out.writeBoolean(modelSizeStats);
+            out.writeBoolean(schedulerStatus);
+            out.writeBoolean(status);
             out.writeOptionalWriteable(pageParams);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, config, dataCounts, modelSizeStats, pageParams);
+            return Objects.hash(jobId, config, dataCounts, modelSizeStats, schedulerStatus, status, pageParams);
         }
 
         @Override
@@ -202,6 +230,8 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                     && this.config == other.config
                     && this.dataCounts == other.dataCounts
                     && this.modelSizeStats == other.modelSizeStats
+                    && this.schedulerStatus == other.schedulerStatus
+                    && this.status == other.status
                     && Objects.equals(this.pageParams, other.pageParams);
         }
     }
@@ -222,17 +252,28 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
             private DataCounts dataCounts;
             @Nullable
             private ModelSizeStats modelSizeStats;
+            @Nullable
+            private SchedulerState schedulerState;
+            @Nullable
+            private JobStatus status;
 
-            JobInfo(@Nullable Job job, @Nullable DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats) {
+
+
+            JobInfo(@Nullable Job job, @Nullable DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
+                    @Nullable SchedulerState schedulerStatus, @Nullable JobStatus status) {
                 this.jobConfig = job;
                 this.dataCounts = dataCounts;
                 this.modelSizeStats = modelSizeStats;
+                this.schedulerState = schedulerStatus;
+                this.status = status;
             }
 
             JobInfo(StreamInput in) throws IOException {
                 jobConfig = in.readOptionalWriteable(Job::new);
                 dataCounts = in.readOptionalWriteable(DataCounts::new);
                 modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
+                schedulerState = in.readOptionalWriteable(SchedulerState::new);
+                status = in.readOptionalWriteable(JobStatus::fromStream);
             }
 
             @Override
@@ -247,6 +288,12 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                 if (modelSizeStats != null) {
                     builder.field("model_size_stats", modelSizeStats);
                 }
+                if (schedulerState != null) {
+                    builder.field("scheduler_state", schedulerState);
+                }
+                if (status != null) {
+                    builder.field("status", status);
+                }
                 builder.endObject();
 
                 return builder;
@@ -257,11 +304,13 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                 out.writeOptionalWriteable(jobConfig);
                 out.writeOptionalWriteable(dataCounts);
                 out.writeOptionalWriteable(modelSizeStats);
+                out.writeOptionalWriteable(schedulerState);
+                out.writeOptionalWriteable(status);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobConfig, dataCounts, modelSizeStats);
+                return Objects.hash(jobConfig, dataCounts, modelSizeStats, schedulerState, status);
             }
 
             @Override
@@ -275,7 +324,9 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                 JobInfo other = (JobInfo) obj;
                 return Objects.equals(jobConfig, other.jobConfig)
                         && Objects.equals(this.dataCounts, other.dataCounts)
-                        && Objects.equals(this.modelSizeStats, other.modelSizeStats);
+                        && Objects.equals(this.modelSizeStats, other.modelSizeStats)
+                        && Objects.equals(this.schedulerState, other.schedulerState)
+                        && Objects.equals(this.status, other.status);
             }
         }
 
@@ -400,8 +451,10 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                 Job jobConfig = request.config() ? jobs.hits().get(0) : null;
                 DataCounts dataCounts = readDataCounts(request.dataCounts(), request.getJobId());
                 ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), request.getJobId());
+                SchedulerState schedulerStatus = readSchedulerState(request.schedulerStatus(), request.getJobId());
+                JobStatus jobStatus = readJobStatus(request.status(), request.getJobId());
 
-                Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats);
+                Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats, schedulerStatus, jobStatus);
                 response = new QueryPage<>(Collections.singletonList(jobInfo), 1);
 
             } else {
@@ -412,7 +465,9 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                     Job jobConfig = request.config() ? job : null;
                     DataCounts dataCounts = readDataCounts(request.dataCounts(), job.getJobId());
                     ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), job.getJobId());
-                    Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats);
+                    SchedulerState schedulerStatus = readSchedulerState(request.schedulerStatus(), job.getJobId());
+                    JobStatus jobStatus = readJobStatus(request.status(), job.getJobId());
+                    Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats, schedulerStatus, jobStatus);
                     jobInfoList.add(jobInfo);
                 }
                 response = new QueryPage<>(jobInfoList, jobsPage.hitCount());
@@ -440,6 +495,14 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
                 return sizeStats.orElseGet(() -> jobProvider.modelSizeStats(jobId).orElse(null));
             }
             return null;
+        }
+
+        private SchedulerState readSchedulerState(boolean schedulerState, String jobId) {
+            return schedulerState ? jobManager.getSchedulerState(jobId).orElse(null) : null;
+        }
+
+        private JobStatus readJobStatus(boolean status, String jobId) {
+            return status ? jobManager.getJobStatus(jobId) : null;
         }
     }
 

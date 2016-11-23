@@ -194,15 +194,25 @@ public class TransportClientNodesService extends AbstractComponent {
             if (closed) {
                 throw new IllegalStateException("transport client is closed, can't remove an address");
             }
-            List<DiscoveryNode> builder = new ArrayList<>();
+            List<DiscoveryNode> listNodesBuilder = new ArrayList<>();
             for (DiscoveryNode otherNode : listedNodes) {
-                if (!otherNode.address().equals(transportAddress)) {
-                    builder.add(otherNode);
+                if (!otherNode.getAddress().equals(transportAddress)) {
+                    listNodesBuilder.add(otherNode);
                 } else {
-                    logger.debug("removing address [{}]", otherNode);
+                    logger.debug("removing address [{}] from listed nodes", otherNode);
                 }
             }
-            listedNodes = Collections.unmodifiableList(builder);
+            listedNodes = Collections.unmodifiableList(listNodesBuilder);
+            List<DiscoveryNode> nodesBuilder = new ArrayList<>();
+            for (DiscoveryNode otherNode : nodes) {
+                if (!otherNode.getAddress().equals(transportAddress)) {
+                    nodesBuilder.add(otherNode);
+                } else {
+                    logger.debug("disconnecting from node with address [{}]", otherNode);
+                    transportService.disconnectFromNode(otherNode);
+                }
+            }
+            nodes = Collections.unmodifiableList(nodesBuilder);
             nodesSampler.sample();
         }
         return this;

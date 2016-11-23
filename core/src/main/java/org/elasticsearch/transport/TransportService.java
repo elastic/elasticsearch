@@ -353,6 +353,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                         holderToNotify.handler().handleException(sendRequestException);
                     }
                 });
+            } else {
+                logger.debug("Exception while sending request, handler likely already notified due to timeout", e);
             }
         }
     }

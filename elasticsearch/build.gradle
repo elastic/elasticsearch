@@ -49,3 +49,5 @@ bundlePlugin {
     includeEmptyDirs = false
   }
 }
+
+bundlePlugin.dependsOn(':cpp:strip')

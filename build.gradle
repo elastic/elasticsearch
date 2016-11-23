@@ -54,7 +54,7 @@ subprojects {
 }
 
 task bundlePack(type: Zip) {
-  onlyIf { project('kibana').bundlePlugin.enabled }
+  onlyIf { project('kibana').bundlePlugin.enabled && project('cpp').strip.enabled }
   dependsOn 'elasticsearch:bundlePlugin'
   dependsOn 'kibana:bundlePlugin'
   from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }

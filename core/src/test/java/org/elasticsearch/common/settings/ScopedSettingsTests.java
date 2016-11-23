@@ -45,6 +45,59 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ScopedSettingsTests extends ESTestCase {
 
+    public void testResetSetting() {
+        Setting<Integer> dynamicSetting = Setting.intSetting("some.dyn.setting", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> staticSetting = Setting.intSetting("some.static.setting", 1, Property.NodeScope);
+        Settings currentSettings = Settings.builder().put("some.dyn.setting", 5).put("some.static.setting", 6).put("archived.foo.bar", 9)
+            .build();
+        ClusterSettings service = new ClusterSettings(currentSettings
+            , new HashSet<>(Arrays.asList(dynamicSetting, staticSetting)));
+
+        expectThrows(IllegalArgumentException.class, () ->
+        service.updateDynamicSettings(Settings.builder().put("some.dyn.setting", 8).putNull("some.static.setting").build(),
+            Settings.builder().put(currentSettings), Settings.builder(), "node"));
+
+        Settings.Builder target = Settings.builder().put(currentSettings);
+        Settings.Builder update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().put("some.dyn.setting", 8).build(),
+            target, update, "node"));
+        assertEquals(8, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertEquals(9, target.build().getAsInt("archived.foo.bar", null).intValue());
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("some.dyn.setting").build(),
+            target, update, "node"));
+        assertEquals(1, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertEquals(9, target.build().getAsInt("archived.foo.bar", null).intValue());
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("archived.foo.bar").build(),
+            target, update, "node"));
+        assertEquals(5, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertNull(target.build().getAsInt("archived.foo.bar", null));
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("some.*").build(),
+            target, update, "node"));
+        assertEquals(1, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertEquals(9, target.build().getAsInt("archived.foo.bar", null).intValue());
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("*").build(),
+            target, update, "node"));
+        assertEquals(1, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertNull(target.build().getAsInt("archived.foo.bar", null));
+    }
+
     public void testAddConsumer() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);

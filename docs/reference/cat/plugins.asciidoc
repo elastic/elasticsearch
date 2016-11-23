@@ -28,8 +28,6 @@ U7321H6 ingest-attachment       {version} Ingest processor that uses Apache Tika
 U7321H6 ingest-geoip            {version} Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database
 U7321H6 ingest-user-agent       {version} Ingest processor that extracts information from a user agent
 U7321H6 jvm-example             {version} Demonstrates all the pluggable Java entry points in Elasticsearch
-U7321H6 lang-javascript         {version} The JavaScript language plugin allows to have javascript as the language of scripts to execute.
-U7321H6 lang-python             {version} The Python language plugin allows to have python as the language of scripts to execute.
 U7321H6 mapper-murmur3          {version} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
 U7321H6 mapper-size             {version} The Mapper Size plugin allows document to record their uncompressed size at index time.
 U7321H6 store-smb               {version} The Store SMB plugin adds support for SMB stores.

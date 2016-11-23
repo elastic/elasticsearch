@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -54,8 +53,7 @@ public class PSubNullSafeField extends AStoreable {
         guarded.analyze(locals);
         actual = guarded.actual;
         if (actual.sort.primitive) {
-            // Result must be nullable. We emit boxing instructions if needed.
-            actual = Definition.getType(actual.sort.boxed.getSimpleName());
+            throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
     }
 
@@ -81,10 +79,6 @@ public class PSubNullSafeField extends AStoreable {
         writer.dup();
         writer.ifNull(end);
         guarded.write(writer, globals);
-        if (guarded.actual.sort.primitive) {
-            // Box primitives so they are nullable
-            writer.box(guarded.actual.type);
-        }
         writer.mark(end);
     }
 
@@ -101,5 +95,10 @@ public class PSubNullSafeField extends AStoreable {
     @Override
     void store(MethodWriter writer, Globals globals) {
         throw createError(new IllegalArgumentException("Can't write to null safe field"));
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(guarded);
     }
 }

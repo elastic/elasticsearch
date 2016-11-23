@@ -1097,15 +1097,21 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @SuppressWarnings("finally")
     private void failOnTragicEvent(AlreadyClosedException ex) {
         // if we are already closed due to some tragic exception
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
         if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-            final Exception tragedy = indexWriter.getTragicException() instanceof Exception ?
-                (Exception) indexWriter.getTragicException() :
-                new Exception(indexWriter.getTragicException());
-            failEngine("already closed by tragic event on the index writer", tragedy);
+            if (indexWriter.getTragicException() instanceof Error) {
+                try {
+                    logger.error("tragic event in index writer", ex);
+                } finally {
+                    throw (Error) indexWriter.getTragicException();
+                }
+            } else {
+                failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+            }
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
         } else if (failedEngine.get() == null) { // we are closed but the engine is not failed yet?

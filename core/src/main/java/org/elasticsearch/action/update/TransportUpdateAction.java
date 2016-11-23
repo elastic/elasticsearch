@@ -54,7 +54,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -127,7 +127,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (unwrapCause(e) instanceof IndexAlreadyExistsException) {
+                    if (unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         // we have the index, do it
                         try {
                             innerExecute(request, listener);

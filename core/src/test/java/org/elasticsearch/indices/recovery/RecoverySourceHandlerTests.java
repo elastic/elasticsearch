@@ -350,10 +350,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
     private Store newStore(Path path, boolean checkIndex) throws IOException {
         DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
 
             @Override
             public Directory newDirectory() throws IOException {

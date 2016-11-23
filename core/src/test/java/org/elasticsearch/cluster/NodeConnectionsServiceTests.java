@@ -42,6 +42,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -188,7 +189,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
             return new TransportAddress[0];
         }
 

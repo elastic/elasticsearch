@@ -99,4 +99,9 @@ public abstract class TestCustomMetaData extends AbstractDiffable<MetaData.Custo
         builder.field("data", getData());
         return builder;
     }
+
+    @Override
+    public String toString() {
+        return "[" + type() + "][" + data +"]";
+    }
 }

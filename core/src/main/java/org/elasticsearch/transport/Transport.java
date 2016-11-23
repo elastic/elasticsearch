@@ -29,6 +29,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 
@@ -53,7 +54,7 @@ public interface Transport extends LifecycleComponent {
     /**
      * Returns an address from its string representation.
      */
-    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception;
+    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
 
     /**
      * Is the address type supported.

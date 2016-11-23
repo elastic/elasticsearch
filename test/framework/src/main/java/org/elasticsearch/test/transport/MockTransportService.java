@@ -53,6 +53,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -506,7 +507,7 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
             return transport.addressesFromString(address, perAddressLimit);
         }
 

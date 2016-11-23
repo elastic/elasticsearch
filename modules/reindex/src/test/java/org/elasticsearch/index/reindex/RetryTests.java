@@ -35,7 +35,6 @@ import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.junit.After;
 import org.junit.Before;
@@ -61,12 +60,10 @@ public class RetryTests extends ESSingleNodeTestCase {
 
     private List<CyclicBarrier> blockedExecutors = new ArrayList<>();
 
-    private boolean useNetty3;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        useNetty3 = randomBoolean();
         createIndex("source");
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
         BulkRequestBuilder bulk = client().prepareBulk();
@@ -90,7 +87,6 @@ public class RetryTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(
                 ReindexPlugin.class,
-                Netty3Plugin.class,
                 Netty4Plugin.class);
     }
 
@@ -110,10 +106,6 @@ public class RetryTests extends ESSingleNodeTestCase {
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
         settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*");
-        if (useNetty3) {
-            settings.put(NetworkModule.HTTP_TYPE_KEY, Netty3Plugin.NETTY_HTTP_TRANSPORT_NAME);
-            settings.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME);
-        }
         return settings.build();
     }
 

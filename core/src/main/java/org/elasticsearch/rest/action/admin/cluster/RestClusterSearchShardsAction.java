@@ -45,8 +45,6 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search_shards", this);
         controller.registerHandler(GET, "/{index}/_search_shards", this);
         controller.registerHandler(POST, "/{index}/_search_shards", this);
-        controller.registerHandler(GET, "/{index}/{type}/_search_shards", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search_shards", this);
     }
 
     @Override
@@ -54,12 +52,9 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterSearchShardsRequest clusterSearchShardsRequest = Requests.clusterSearchShardsRequest(indices);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
-
-        clusterSearchShardsRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
-
         return channel -> client.admin().cluster().searchShards(clusterSearchShardsRequest, new RestToXContentListener<>(channel));
     }
 }

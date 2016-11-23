@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +41,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -78,7 +78,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Settings.EMPTY, Collections.emptyList()),
             Version.CURRENT) {
             @Override
-            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
                 // we just need to ensure we don't resolve DNS here
                 return new TransportAddress[] {poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress())};
             }

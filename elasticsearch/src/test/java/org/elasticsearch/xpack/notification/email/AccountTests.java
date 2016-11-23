@@ -17,7 +17,6 @@ import org.junit.Before;
 import javax.mail.Address;
 import javax.mail.Message;
 import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -30,14 +29,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AccountTests extends ESTestCase {
-    static final String USERNAME = "_user";
-    static final String PASSWORD = "_passwd";
 
     private EmailServer server;
 
     @Before
     public void init() throws Exception {
-        server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
+        server = EmailServer.localhost(logger);
     }
 
     @After
@@ -163,8 +160,8 @@ public class AccountTests extends ESTestCase {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
-                .put("smtp.user", USERNAME)
-                .put("smtp.password", PASSWORD)
+                .put("smtp.user", EmailServer.USERNAME)
+                .put("smtp.password", EmailServer.PASSWORD)
                 .build()), null, logger);
 
         Email email = Email.builder()
@@ -176,7 +173,7 @@ public class AccountTests extends ESTestCase {
                 .build();
 
         final CountDownLatch latch = new CountDownLatch(1);
-        EmailServer.Listener.Handle handle = server.addListener(message -> {
+        server.addListener(message -> {
             assertThat(message.getFrom().length, is(1));
             assertThat(message.getFrom()[0], equalTo(new InternetAddress("from@domain.com")));
             assertThat(message.getRecipients(Message.RecipientType.TO).length, is(1));
@@ -192,16 +189,14 @@ public class AccountTests extends ESTestCase {
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting for email too long");
         }
-
-        handle.remove();
     }
 
     public void testSendCCAndBCC() throws Exception {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
-                .put("smtp.user", USERNAME)
-                .put("smtp.password", PASSWORD)
+                .put("smtp.user", EmailServer.USERNAME)
+                .put("smtp.password", EmailServer.PASSWORD)
                 .build()), null, logger);
 
         Email email = Email.builder()
@@ -214,7 +209,7 @@ public class AccountTests extends ESTestCase {
                 .build();
 
         final CountDownLatch latch = new CountDownLatch(5);
-        EmailServer.Listener.Handle handle = server.addListener(message -> {
+        server.addListener(message -> {
             assertThat(message.getFrom().length, is(1));
             assertThat(message.getFrom()[0], equalTo(new InternetAddress("from@domain.com")));
             assertThat(message.getRecipients(Message.RecipientType.TO).length, is(1));
@@ -234,8 +229,6 @@ public class AccountTests extends ESTestCase {
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting for email too long");
         }
-
-        handle.remove();
     }
 
     public void testSendAuthentication() throws Exception {
@@ -253,20 +246,13 @@ public class AccountTests extends ESTestCase {
                 .build();
 
         final CountDownLatch latch = new CountDownLatch(1);
-        EmailServer.Listener.Handle handle = server.addListener(new EmailServer.Listener() {
-            @Override
-            public void on(MimeMessage message) throws Exception {
-                latch.countDown();
-            }
-        });
+        server.addListener(message -> latch.countDown());
 
-        account.send(email, new Authentication(USERNAME, new Secret(PASSWORD.toCharArray())), Profile.STANDARD);
+        account.send(email, new Authentication(EmailServer.USERNAME, new Secret(EmailServer.PASSWORD.toCharArray())), Profile.STANDARD);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting for email too long");
         }
-
-        handle.remove();
     }
 
     public void testDefaultAccountTimeout() {

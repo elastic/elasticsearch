@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateReque
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
-import org.junit.Before;
 
 import javax.mail.BodyPart;
 import javax.mail.Multipart;
@@ -61,21 +60,22 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
-    static final String USERNAME = "_user";
-    static final String PASSWORD = "_passwd";
-
-    private MockWebServer webServer = new MockWebServer();;
+    private MockWebServer webServer = new MockWebServer();
+    private QueueDispatcher dispatcher = new QueueDispatcher();
+    private MockResponse mockResponse = new MockResponse().setResponseCode(200)
+            .addHeader("Content-Type", "application/foo").setBody("This is the content");
     private EmailServer server;
 
-    @Before
-    public void startWebservice() throws Exception {
-        QueueDispatcher dispatcher = new QueueDispatcher();
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
         dispatcher.setFailFast(true);
         webServer.setDispatcher(dispatcher);
-        webServer.start();
-        MockResponse mockResponse = new MockResponse().setResponseCode(200)
-                .addHeader("Content-Type", "application/foo").setBody("This is the content");
         webServer.enqueue(mockResponse);
+        webServer.start();
+
+        server = EmailServer.localhost(logger);
     }
 
     @After
@@ -86,15 +86,11 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if(server == null) {
-            //Need to construct the Email Server here as this happens before init()
-            server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
-        }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("xpack.notification.email.account.test.smtp.auth", true)
-                .put("xpack.notification.email.account.test.smtp.user", USERNAME)
-                .put("xpack.notification.email.account.test.smtp.password", PASSWORD)
+                .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
+                .put("xpack.notification.email.account.test.smtp.password", EmailServer.PASSWORD)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")
                 .build();
@@ -143,19 +139,16 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
     public void testThatEmailAttachmentsAreSent() throws Exception {
         DataAttachment dataFormat = randomFrom(JSON, YAML);
         final CountDownLatch latch = new CountDownLatch(1);
-        server.addListener(new EmailServer.Listener() {
-            @Override
-            public void on(MimeMessage message) throws Exception {
-                assertThat(message.getSubject(), equalTo("Subject"));
-                List<String> attachments = getAttachments(message);
-                if (dataFormat == YAML) {
-                    assertThat(attachments, hasItem(allOf(startsWith("---"), containsString("_test_id"))));
-                } else {
-                    assertThat(attachments, hasItem(allOf(startsWith("{"), containsString("_test_id"))));
-                }
-                assertThat(attachments, hasItem(containsString("This is the content")));
-                latch.countDown();
+        server.addListener(message -> {
+            assertThat(message.getSubject(), equalTo("Subject"));
+            List<String> attachments = getAttachments(message);
+            if (dataFormat == YAML) {
+                assertThat(attachments, hasItem(allOf(startsWith("---"), containsString("_test_id"))));
+            } else {
+                assertThat(attachments, hasItem(allOf(startsWith("{"), containsString("_test_id"))));
             }
+            assertThat(attachments, hasItem(containsString("This is the content")));
+            latch.countDown();
         });
 
         WatcherClient watcherClient = watcherClient();
@@ -189,7 +182,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                 .input(searchInput(request))
                 .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
-                .addAction("_email", emailAction(emailBuilder).setAuthentication(USERNAME, PASSWORD.toCharArray())
+                .addAction("_email", emailAction(emailBuilder).setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
         logger.info("TMP WATCHSOURCE {}", watchSourceBuilder.build().getBytes().utf8ToString());
 

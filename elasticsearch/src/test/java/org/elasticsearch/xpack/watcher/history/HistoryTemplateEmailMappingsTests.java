@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -16,8 +15,7 @@ import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -35,35 +33,22 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegrationTestCase {
 
-    private static final String USERNAME = "_user";
-    private static final String PASSWORD = "_passwd";
+    private EmailServer server;
 
-    private static EmailServer server;
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        server = EmailServer.localhost(logger);
+    }
 
-    @AfterClass
-    public static void cleanup() throws Exception {
-        if (server != null) {
-            server.stop();
-        }
-        server = null;
+    @After
+    public void cleanup() throws Exception {
+        server.stop();
     }
 
     @Override
     protected boolean timeWarped() {
-        return true; // just to have better control over the triggers
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false; // remove security noise from this test
-    }
-
-    @BeforeClass
-    public static void setupEmailServer() {
-        if (server == null) {
-            //Need to construct the Email Server here as this happens before init()
-            server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, Loggers.getLogger(HistoryTemplateTimeMappingsTests.class));
-        }
+        return true;
     }
 
     @Override
@@ -73,8 +58,8 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
 
                 // email
                 .put("xpack.notification.email.account.test.smtp.auth", true)
-                .put("xpack.notification.email.account.test.smtp.user", USERNAME)
-                .put("xpack.notification.email.account.test.smtp.password", PASSWORD)
+                .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
+                .put("xpack.notification.email.account.test.smtp.password", EmailServer.PASSWORD)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")
 
@@ -155,5 +140,4 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         assertThat(terms.getBucketByKey("rt2@example.com"), notNullValue());
         assertThat(terms.getBucketByKey("rt2@example.com").getDocCount(), is(1L));
     }
-
 }

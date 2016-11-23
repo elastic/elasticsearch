@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.notification.email;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -19,12 +20,10 @@ import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
-import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 
-import javax.mail.internet.MimeMessage;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -40,11 +39,15 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
-    static final String USERNAME = "_user";
-    static final String PASSWORD = "_passwd";
 
     private EmailServer server;
     private Boolean encryptSensitiveData;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        server = EmailServer.localhost(logger);
+    }
 
     @After
     public void cleanup() throws Exception {
@@ -53,10 +56,6 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if(server == null) {
-            //Need to construct the Email Server here as this happens before init()
-            server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
-        }
         if (encryptSensitiveData == null) {
             encryptSensitiveData = securityEnabled() && randomBoolean();
         }
@@ -81,7 +80,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                                         .from("_from")
                                         .to("_to")
                                         .subject("_subject"))
-                                .setAuthentication(USERNAME, PASSWORD.toCharArray())))
+                                .setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())))
                 .get();
 
         // verifying the email password is stored encrypted in the index
@@ -92,11 +91,11 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         Object value = XContentMapValues.extractValue("actions._email.email.password", source);
         assertThat(value, notNullValue());
         if (securityEnabled() && encryptSensitiveData) {
-            assertThat(value, not(is((Object) PASSWORD)));
+            assertThat(value, not(is(EmailServer.PASSWORD)));
             CryptoService cryptoService = getInstanceFromMaster(CryptoService.class);
-            assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(PASSWORD));
+            assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(EmailServer.PASSWORD));
         } else {
-            assertThat(value, is((Object) PASSWORD));
+            assertThat(value, is(EmailServer.PASSWORD));
         }
 
         // verifying the password is not returned by the GET watch API
@@ -114,12 +113,9 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         // now lets execute the watch manually
 
         final CountDownLatch latch = new CountDownLatch(1);
-        server.addListener(new EmailServer.Listener() {
-            @Override
-            public void on(MimeMessage message) throws Exception {
-                assertThat(message.getSubject(), is("_subject"));
-                latch.countDown();
-            }
+        server.addListener(message -> {
+            assertThat(message.getSubject(), is("_subject"));
+            latch.countDown();
         });
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC));
@@ -132,7 +128,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         contentSource = executeResponse.getRecordSource();
 
         value = contentSource.getValue("result.actions.0.status");
-        assertThat((String) value, is("success"));
+        assertThat(value, is("success"));
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting too long for the email to be sent");

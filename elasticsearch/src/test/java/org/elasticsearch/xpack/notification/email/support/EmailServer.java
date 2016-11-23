@@ -6,14 +6,7 @@
 package org.elasticsearch.xpack.notification.email.support;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.transport.PortsRange;
-import org.subethamail.smtp.TooMuchDataException;
 import org.subethamail.smtp.auth.EasyAuthenticationHandlerFactory;
-import org.subethamail.smtp.auth.LoginFailedException;
-import org.subethamail.smtp.auth.UsernamePasswordValidator;
 import org.subethamail.smtp.helper.SimpleMessageListener;
 import org.subethamail.smtp.helper.SimpleMessageListenerAdapter;
 import org.subethamail.smtp.server.SMTPServer;
@@ -23,11 +16,9 @@ import javax.mail.Session;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.BindException;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -35,16 +26,16 @@ import static org.junit.Assert.fail;
 
 /**
  * An mini email smtp server that can be used for unit testing
- *
- *
  */
 public class EmailServer {
 
-    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
+    public static final String USERNAME = "_user";
+    public static final String PASSWORD = "_passwd";
 
+    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final SMTPServer server;
 
-    public EmailServer(String host, int port, final String username, final String password, final Logger logger) {
+    public EmailServer(String host, final Logger logger) {
         server = new SMTPServer(new SimpleMessageListenerAdapter(new SimpleMessageListener() {
             @Override
             public boolean accept(String from, String recipient) {
@@ -52,7 +43,7 @@ public class EmailServer {
             }
 
             @Override
-            public void deliver(String from, String recipient, InputStream data) throws TooMuchDataException, IOException {
+            public void deliver(String from, String recipient, InputStream data) throws IOException {
                 try {
                     Session session = Session.getInstance(new Properties());
                     MimeMessage msg = new MimeMessage(session, data);
@@ -68,15 +59,12 @@ public class EmailServer {
                     throw new RuntimeException("could not create mime message", me);
                 }
             }
-        }), new EasyAuthenticationHandlerFactory(new UsernamePasswordValidator() {
-            @Override
-            public void login(String user, String passwd) throws LoginFailedException {
-                assertThat(user, is(username));
-                assertThat(passwd, is(password));
-            }
+        }), new EasyAuthenticationHandlerFactory((user, passwd) -> {
+            assertThat(user, is(USERNAME));
+            assertThat(passwd, is(PASSWORD));
         }));
         server.setHostName(host);
-        server.setPort(port);
+        server.setPort(0);
     }
 
     /**
@@ -95,58 +83,18 @@ public class EmailServer {
         listeners.clear();
     }
 
-    public Listener.Handle addListener(Listener listener) {
+    public void addListener(Listener listener) {
         listeners.add(listener);
-        return new Listener.Handle(listeners, listener);
     }
 
-    public static EmailServer localhost(String portRangeStr, final String username, final String password, final Logger logger) {
-        final AtomicReference<EmailServer> emailServer = new AtomicReference<>();
-        boolean bound = new PortsRange(portRangeStr).iterate(new PortsRange.PortCallback() {
-            @Override
-            public boolean onPortNumber(int port) {
-                try {
-                    EmailServer server = new EmailServer("localhost", port, username, password, logger);
-                    server.start();
-                    emailServer.set(server);
-                    return true;
-                } catch (RuntimeException re) {
-                    if (re.getCause() instanceof BindException) {
-                        logger.warn(
-                                (Supplier<?>) () -> new ParameterizedMessage("port [{}] was already in use trying next port", port), re);
-                        return false;
-                    } else {
-                        throw re;
-                    }
-                }
-            }
-        });
-        if (!bound || emailServer.get() == null) {
-            throw new ElasticsearchException("could not bind to any of the port in [" + portRangeStr + "]");
-        }
-        return emailServer.get();
+    public static EmailServer localhost(final Logger logger) {
+        EmailServer server = new EmailServer("localhost", logger);
+        server.start();
+        return server;
     }
 
-
-
+    @FunctionalInterface
     public interface Listener {
-
         void on(MimeMessage message) throws Exception;
-
-        class Handle {
-
-            private final List<Listener> listeners;
-            private final Listener listener;
-
-            Handle(List<Listener> listeners, Listener listener) {
-                this.listeners = listeners;
-                this.listener = listener;
-            }
-
-            public void remove() {
-                listeners.remove(listener);
-            }
-        }
-
     }
 }

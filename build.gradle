@@ -5,6 +5,21 @@ import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 import org.elasticsearch.gradle.VersionProperties
 
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+
+boolean isWindows = OperatingSystem.current().isWindows()
+boolean isLinux = OperatingSystem.current().isLinux()
+boolean isMacOsX = OperatingSystem.current().isMacOsX()
+
+project.ext.nasDirectory = isWindows ? "\\\\prelert-nas\\builds\\6.5.0\\" :
+    (isMacOsX ? "/Volumes/builds/6.5.0/" : "/export/builds/6.5.0/")
+// norelease: replace with something else when we become part of x-plugins
+project.ext.nasExtension = '_' + (System.getenv()['GIT_COMMIT'] ?: 'xxxxxxxxxxxxxx').substring(0, 14) +
+    (isWindows ? "_windows-x86_64.zip" : (isMacOsX ? "_darwin-x86_64.zip" :
+    (isLinux ? "_linux-x86_64.zip" : "_sunos-x86_64.zip")))
+
 configurations.all {
     // check for updates every build
     resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
@@ -65,47 +80,29 @@ task clean(type: Delete) {
   delete 'build'
 }
 
-boolean isLinux = OperatingSystem.current().isLinux()
-boolean isMacOsX = OperatingSystem.current().isMacOsX()
-boolean isWindows = OperatingSystem.current().isWindows()
+// norelease: this won't be needed when the pluginAll task below is removed
+class SimpleCopy extends DefaultTask {
+  String sourceFile;
+  String destFile;
 
-project.ext.bash = isWindows ? "C:\\Program Files\\Git\\bin\\bash" : "/bin/bash"
-project.ext.make = (isMacOsX || isWindows) ? "gnumake" : (isLinux ? "make" : "gmake")
-project.ext.numCpus = Runtime.runtime.availableProcessors()
-
-task cppClean(type: Exec) {
-    commandLine bash
-    args '-c', 'source cpp/set_env.sh && rm -rf cppdistribution && ' + make + ' clean'
+  @TaskAction
+  def copy() {
+    Files.copy(Paths.get(sourceFile), Paths.get(destFile), StandardCopyOption.REPLACE_EXISTING)
+  }
 }
 
-task cppObjCompile(type: Exec) {
-    commandLine bash
-    args '-c', 'source cpp/set_env.sh && ' + make + ' -j' + numCpus + ' objcompile'
+// norelease: by the time we move to x-plugins we cannot use the Prelert NAS at all
+task uploadPack(type: SimpleCopy) {
+  // This doesn't use a Copy task because that builds hashes for a huge number of files on the NAS
+  String zipFile = "prelert-${elasticsearchVersion}.zip"
+  sourceFile = "${projectDir}/build/distributions/" + zipFile
+  destFile = project.ext.nasDirectory + zipFile.replace('.zip', project.ext.nasExtension)
 }
 
-task cppMake(type: Exec) {
-    commandLine bash
-    args '-c', 'source cpp/set_env.sh && ' + make + ' -j' + numCpus
-}
+uploadPack.dependsOn build
 
-task cppStrip(type: Exec) {
-    commandLine bash
-    args '-c', 'source cpp/set_env.sh && cpp/strip_binaries.sh'
-}
+task deploy(dependsOn: uploadPack) {
 
-task cppTest(type: Exec) {
-    commandLine bash
-    args '-c', 'source cpp/set_env.sh && ' + make + ' -j' + numCpus + ' test'
-}
-
-task cppAll {
-    dependsOn 'cppObjCompile'
-    dependsOn 'cppMake'
-    dependsOn 'cppStrip'
-    dependsOn 'cppTest'
-    tasks.findByName('cppMake').mustRunAfter 'cppObjCompile'
-    tasks.findByName('cppStrip').mustRunAfter 'cppMake'
-    tasks.findByName('cppTest').mustRunAfter 'cppStrip'
 }
 
 subprojects {

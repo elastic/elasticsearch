@@ -1,0 +1,23 @@
+"Syntax error":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0, "bool": true }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "boolean String errr; doc['num1'].value > 1;"
+                            lang: painless
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0.fields.sNum1.0: 2.0 }
+    - match: { hits.hits.1.fields.sNum1.0: 3.0 }

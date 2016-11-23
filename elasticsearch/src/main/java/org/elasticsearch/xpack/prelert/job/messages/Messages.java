@@ -62,6 +62,7 @@ public final class Messages
     public static final String SYSTEM_AUDIT_STARTED = "system.audit.started";
     public static final String SYSTEM_AUDIT_SHUTDOWN = "system.audit.shutdown";
 
+    public static final String JOB_CANNOT_DELETE_WHILE_RUNNING = "job.cannot.delete.while.running";
     public static final String JOB_CANNOT_DELETE_WHILE_SCHEDULER_RUNS = "job.cannot.delete.while.scheduler.runs";
     public static final String JOB_CANNOT_PAUSE = "job.cannot.pause";
     public static final String JOB_CANNOT_RESUME = "job.cannot.resume";
@@ -198,7 +199,6 @@ public final class Messages
     public static final String JOB_CONFIG_SCHEDULER_MULTIPLE_AGGREGATIONS = "job.config.scheduler.multiple.aggregations";
 
     public static final String JOB_DATA_CONCURRENT_USE_CLOSE = "job.data.concurrent.use.close";
-    public static final String JOB_DATA_CONCURRENT_USE_DELETE = "job.data.concurrent.use.delete";
     public static final String JOB_DATA_CONCURRENT_USE_FLUSH = "job.data.concurrent.use.flush";
     public static final String JOB_DATA_CONCURRENT_USE_PAUSE = "job.data.concurrent.use.pause";
     public static final String JOB_DATA_CONCURRENT_USE_RESUME = "job.data.concurrent.use.resume";

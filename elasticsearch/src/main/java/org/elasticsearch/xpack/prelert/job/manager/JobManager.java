@@ -245,7 +245,7 @@ public class JobManager {
     public void deleteJob(DeleteJobAction.Request request, ActionListener<DeleteJobAction.Response> actionListener) {
         String jobId = request.getJobId();
         LOGGER.debug("Deleting job '" + jobId + "'");
-        // NORELEASE: Should first gracefully stop any running process
+
         ActionListener<Boolean> delegateListener = new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean jobDeleted) {
@@ -292,6 +292,10 @@ public class JobManager {
             SchedulerState schedulerState = allocation.getSchedulerState();
             if (schedulerState != null && schedulerState.getStatus() != JobSchedulerStatus.STOPPED) {
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.JOB_CANNOT_DELETE_WHILE_SCHEDULER_RUNS, jobId));
+            }
+            if (!allocation.getStatus().isAnyOf(JobStatus.CLOSED, JobStatus.PAUSED, JobStatus.FAILED)) {
+                throw ExceptionsHelper.conflictStatusException(Messages.getMessage(
+                        Messages.JOB_CANNOT_DELETE_WHILE_RUNNING, jobId, allocation.getStatus()));
             }
         }
         ClusterState.Builder newState = ClusterState.builder(currentState);

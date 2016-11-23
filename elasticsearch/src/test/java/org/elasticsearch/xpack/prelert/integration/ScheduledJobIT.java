@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.prelert.integration;
 
 import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -89,12 +91,21 @@ public class ScheduledJobIT extends ESRestTestCase {
             }
         });
 
+        ResponseException e = expectThrows(ResponseException.class,
+                () -> client().performRequest("delete", PrelertPlugin.BASE_PATH + "jobs/scheduled"));
+        response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(responseEntityToString(response), containsString("Cannot delete job 'scheduled' while the scheduler is running"));
+
         response = client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/scheduled/_stop");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
 
         waitForSchedulerToBeStopped();
 
+        response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "jobs/scheduled");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
     }
 
     private void createAirlineDataIndex() throws Exception {

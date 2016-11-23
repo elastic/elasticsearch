@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.manager;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterName;
@@ -13,9 +14,14 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
+import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
@@ -82,6 +88,28 @@ public class JobManagerTests extends ESTestCase {
 
         PrelertMetadata prelertMetadata = clusterState.metaData().custom(PrelertMetadata.TYPE);
         assertThat(prelertMetadata.getJobs().containsKey("foo"), is(false));
+    }
+
+    public void testRemoveJobFromClusterState_GivenJobIsRunning() {
+        JobManager jobManager = createJobManager();
+        ClusterState clusterState = createClusterState();
+        Job job = buildJobBuilder("foo").build();
+        clusterState = jobManager.innerPutJob(job, false, clusterState);
+        Allocation.Builder allocation = new Allocation.Builder();
+        allocation.setNodeId("myNode");
+        allocation.setJobId(job.getId());
+        allocation.setStatus(JobStatus.RUNNING);
+        PrelertMetadata.Builder newMetadata = new PrelertMetadata.Builder(clusterState.metaData().custom(PrelertMetadata.TYPE));
+        newMetadata.putAllocation("myNode", job.getId());
+        newMetadata.updateAllocation(job.getId(), allocation.build());
+
+        ClusterState jobRunningClusterState = new ClusterState.Builder(clusterState)
+                .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, newMetadata.build())).build();
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> jobManager.removeJobFromClusterState("foo", jobRunningClusterState));
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e.getMessage(), equalTo("Cannot delete job 'foo' while it is RUNNING"));
     }
 
     public void testRemoveJobFromClusterState_jobMissing() {

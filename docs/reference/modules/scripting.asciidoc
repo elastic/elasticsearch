@@ -26,10 +26,6 @@ and give the most flexibility.
     |yes
     |built-in
 
-|<<modules-scripting-groovy, `groovy`>>
-    |<<modules-scripting-security, no>>
-    |built-in
-
 |=======================================================================
 
 [float]
@@ -78,8 +74,6 @@ include::scripting/using.asciidoc[]
 include::scripting/fields.asciidoc[]
 
 include::scripting/security.asciidoc[]
-
-include::scripting/groovy.asciidoc[]
 
 include::scripting/painless.asciidoc[]
 

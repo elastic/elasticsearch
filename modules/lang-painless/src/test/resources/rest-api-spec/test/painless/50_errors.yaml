@@ -9,6 +9,7 @@
         indices.refresh: {}
 
     - do:
+        catch: request
         index: test
         search:
             body:
@@ -18,6 +19,63 @@
                             inline: "boolean String errr; doc['num1'].value > 1;"
                             lang: painless
 
-    - match: { hits.total: 2 }
-    - match: { hits.hits.0.fields.sNum1.0: 2.0 }
-    - match: { hits.hits.1.fields.sNum1.0: 3.0 }
+    - match: { error.caused_by.caused_by.type: script_exception }
+    - match: { error.caused_by.caused_by.reason: compile error }
+    - match: { error.caused_by.caused_by.script_stack.0: "boolean String errr; doc['num1']. ..." }
+    - match: { error.caused_by.caused_by.script_stack.1: "        ^---- HERE" }
+    - match: { error.caused_by.caused_by.caused_by.reason: "invalid sequence of tokens near ['String']." }
+
+---
+"Runtime error":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0, "bool": true }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "String errr = null; return errr.length()"
+                            lang: painless
+
+    - match: { _shards.failures.0.reason.type: script_exception }
+    - match: { _shards.failures.0.reason.reason: runtime error }
+    - match: { _shards.failures.0.reason.script_stack.0: "return errr.length()" }
+    - match: { _shards.failures.0.reason.script_stack.1: "           ^---- HERE" }
+    - match: { _shards.failures.0.reason.caused_by.type: "null_pointer_exception" }
+
+---
+"Multiline script stack":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0, "bool": true }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "return Optional.empty().get()"
+                            lang: painless
+
+    - match: { _shards.failures.0.reason.type: script_exception }
+    - match: { _shards.failures.0.reason.reason: runtime error }
+    - match: { _shards.failures.0.reason.script_stack.0: '/java.util.Optional.get\(Optional.java:\d+\)/' }
+    - match: { _shards.failures.0.reason.script_stack.1:  "return Optional.empty().get()" }
+    - match: { _shards.failures.0.reason.script_stack.2:  "                       ^---- HERE" }
+    - match: { _shards.failures.0.reason.caused_by.type: "no_such_element_exception" }

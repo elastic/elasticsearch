@@ -23,6 +23,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.VersionTests;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -93,7 +94,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
     // We have a 0.20.6.zip etc for this.
-
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -436,7 +436,9 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
      * search-able though.
      */
     void assertAliasWithBadName(String indexName, Version version) throws Exception {
-        if (version.onOrAfter(Version.V_5_1_0)) {
+        Version v510Unreleased = Version.fromId(5010099);
+        VersionTests.assertUnknownVersion(v510Unreleased);
+        if (version.onOrAfter(v510Unreleased)) {
             return;
         }
         // We can read from the alias just like we can read from the index.

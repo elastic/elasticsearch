@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -151,4 +152,10 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(mergedThrottledUntil, merged.getThrottledUntil());
         assertEquals(reasonCancelled, merged.getReasonCancelled());
     }
+
+    public static void testUnknownVersion() {
+        assertFalse("Version " + BulkByScrollTask.V_5_1_0_UNRELEASED + " has been released don't use a new instance of this version",
+            VersionUtils.allVersions().contains(BulkByScrollTask.V_5_1_0_UNRELEASED));
+    }
+
 }

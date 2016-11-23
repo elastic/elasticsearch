@@ -36,6 +36,9 @@ import java.util.Objects;
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
  */
 public final class AliasFilter implements Writeable {
+
+    public static Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
+
     private final String[] aliases;
     private final QueryBuilder filter;
     private final boolean reparseAliases;
@@ -48,7 +51,7 @@ public final class AliasFilter implements Writeable {
 
     public AliasFilter(StreamInput input) throws IOException {
         aliases = input.readStringArray();
-        if (input.getVersion().onOrAfter(Version.V_5_1_0)) {
+        if (input.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             filter = input.readOptionalNamedWriteable(QueryBuilder.class);
             reparseAliases = false;
         } else {
@@ -77,7 +80,7 @@ public final class AliasFilter implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(aliases);
-        if (out.getVersion().onOrAfter(Version.V_5_1_0)) {
+        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             out.writeOptionalNamedWriteable(filter);
         }
     }

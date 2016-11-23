@@ -19,7 +19,6 @@
 
 package org.elasticsearch;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,6 +50,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VAL
 public class ElasticsearchException extends RuntimeException implements ToXContent, Writeable {
 
     public static final Version V_5_0_2_UNRELEASED = Version.fromId(5000299);
+    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
     public static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
     /**
      * Passed in the {@link Params} of {@link #toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
@@ -722,7 +722,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
-            org.elasticsearch.tasks.TaskCancelledException::new, 146, Version.V_5_1_0),
+            org.elasticsearch.tasks.TaskCancelledException::new, 146, V_5_1_0_UNRELEASED),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
                                            org.elasticsearch.env.ShardLockObtainFailedException::new, 147, V_5_0_2_UNRELEASED);
 

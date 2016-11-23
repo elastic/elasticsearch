@@ -51,6 +51,8 @@ import java.util.Objects;
  */
 public final class Script implements ToXContent, Writeable {
 
+    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
+
     /**
      * The name of the of the default scripting language.
      */
@@ -377,7 +379,7 @@ public final class Script implements ToXContent, Writeable {
         // Version 5.1+ requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the read in contents to be in
         // same order as the constructor.
-        if (in.getVersion().onOrAfter(Version.V_5_1_0)) {
+        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             this.type = ScriptType.readFrom(in);
             this.lang = in.readString();
             this.idOrCode = in.readString();
@@ -429,7 +431,7 @@ public final class Script implements ToXContent, Writeable {
         // Version 5.1+ requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
         // same order as the constructor.
-        if (out.getVersion().onOrAfter(Version.V_5_1_0)) {
+        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             type.writeTo(out);
             out.writeString(lang);
             out.writeString(idOrCode);

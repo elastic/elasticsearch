@@ -19,9 +19,17 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
@@ -262,18 +270,30 @@ public class VersionTests extends ESTestCase {
             }
         }
     }
-    private  static final Version V_20_0_0_UNRELEASED = new Version(20000099, Version.CURRENT.luceneVersion);
+
+    private static final Version V_20_0_0_UNRELEASED = new Version(20000099, Version.CURRENT.luceneVersion);
 
     // see comment in Version.java about this test
     public void testUnknownVersions() {
         assertUnknownVersion(V_20_0_0_UNRELEASED);
-        // once we release 5.0.2 and it's added to Version.java we need to remove this constant
+        // once we release 5.0.2 and it's added to Version.java, we need to remove this constant
         assertUnknownVersion(ElasticsearchException.V_5_0_2_UNRELEASED);
+        // once we release 5.1.0 and it's added to Version.java, we need to remove these constants
+        assertUnknownVersion(ElasticsearchException.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(ClusterSearchShardsResponse.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(Script.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(AliasFilter.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(OsStats.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(QueryStringQueryBuilder.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(ClusterSearchShardsRequest.V_5_1_0_UNRELEASED);
+        assertUnknownVersion(RestoreService.V_5_1_0_UNRELEASED);
         expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
     }
 
     public static void assertUnknownVersion(Version version) {
-        assertFalse("Version " + version + " has been releaed don't use a new instance of this version",
+        assertFalse("Version " + version + " has been released don't use a new instance of this version",
             VersionUtils.allVersions().contains(version));
     }
+
 }

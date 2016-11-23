@@ -79,6 +79,9 @@ import java.util.TreeMap;
  * > online documentation</a>.
  */
 public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
+
+    public static Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
+
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
     /** Default for wildcard analysis.*/
@@ -156,16 +159,16 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_5_1_0)) {
+        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
             in.readBoolean(); // lowercase_expanded_terms
         }
         settings.lenient(in.readBoolean());
         settings.analyzeWildcard(in.readBoolean());
-        if (in.getVersion().before(Version.V_5_1_0)) {
+        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
             in.readString(); // locale
         }
         minimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_1_0)) {
+        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             settings.quoteFieldSuffix(in.readOptionalString());
             useAllFields = in.readOptionalBoolean();
         }
@@ -182,16 +185,16 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        if (out.getVersion().before(Version.V_5_1_0)) {
+        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
             out.writeBoolean(true); // lowercase_expanded_terms
         }
         out.writeBoolean(settings.lenient());
         out.writeBoolean(settings.analyzeWildcard());
-        if (out.getVersion().before(Version.V_5_1_0)) {
+        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
             out.writeString(Locale.ROOT.toLanguageTag()); // locale
         }
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getVersion().onOrAfter(Version.V_5_1_0)) {
+        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
             out.writeOptionalBoolean(useAllFields);
         }

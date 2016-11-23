@@ -45,12 +45,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetBucketAction extends Action<GetBucketAction.Request, GetBucketAction.Response, GetBucketAction.RequestBuilder> {
+public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucketsAction.Response, GetBucketsAction.RequestBuilder> {
 
-    public static final GetBucketAction INSTANCE = new GetBucketAction();
-    public static final String NAME = "indices:admin/prelert/results/bucket/get";
+    public static final GetBucketsAction INSTANCE = new GetBucketsAction();
+    public static final String NAME = "indices:admin/prelert/results/buckets/get";
 
-    private GetBucketAction() {
+    private GetBucketsAction() {
         super(NAME);
     }
 

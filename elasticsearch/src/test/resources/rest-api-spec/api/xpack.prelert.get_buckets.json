@@ -1,11 +1,11 @@
 {
-  "xpack.prelert.get_bucket": {
+  "xpack.prelert.get_buckets": {
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/results/{jobId}/bucket/{timestamp}",
+      "path": "/_xpack/prelert/results/{jobId}/buckets/{timestamp}",
       "paths": [
-        "/_xpack/prelert/results/{jobId}/bucket/{timestamp}",
-        "/_xpack/prelert/results/{jobId}/bucket"
+        "/_xpack/prelert/results/{jobId}/buckets/{timestamp}",
+        "/_xpack/prelert/results/{jobId}/buckets"
       ],
       "parts": {
         "jobId": {

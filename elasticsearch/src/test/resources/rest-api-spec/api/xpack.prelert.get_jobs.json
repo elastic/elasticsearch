@@ -1,5 +1,5 @@
 {
-  "xpack.prelert.get_job": {
+  "xpack.prelert.get_jobs": {
     "methods": [ "GET", "POST" ],
     "url": {
       "path": "/_xpack/prelert/jobs/{job_id}",

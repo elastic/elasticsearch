@@ -35,13 +35,13 @@ import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetCategoryDefinitionAction extends
-Action<GetCategoryDefinitionAction.Request, GetCategoryDefinitionAction.Response, GetCategoryDefinitionAction.RequestBuilder> {
+public class GetCategoriesDefinitionAction extends
+Action<GetCategoriesDefinitionAction.Request, GetCategoriesDefinitionAction.Response, GetCategoriesDefinitionAction.RequestBuilder> {
 
-    public static final GetCategoryDefinitionAction INSTANCE = new GetCategoryDefinitionAction();
-    private static final String NAME = "cluster:admin/prelert/categorydefinition/get";
+    public static final GetCategoriesDefinitionAction INSTANCE = new GetCategoriesDefinitionAction();
+    private static final String NAME = "cluster:admin/prelert/categorydefinitions/get";
 
-    private GetCategoryDefinitionAction() {
+    private GetCategoriesDefinitionAction() {
         super(NAME);
     }
 
@@ -129,7 +129,7 @@ Action<GetCategoryDefinitionAction.Request, GetCategoryDefinitionAction.Response
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, GetCategoryDefinitionAction action) {
+        public RequestBuilder(ElasticsearchClient client, GetCategoriesDefinitionAction action) {
             super(client, action, new Request());
         }
     }

@@ -190,7 +190,7 @@ setup:
 ---
 "Test revert model with deleteInterveningResults":
   - do:
-      xpack.prelert.get_bucket:
+      xpack.prelert.get_buckets:
         jobId: "foo"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
@@ -208,7 +208,7 @@ setup:
         index: prelertresults-foo
 
   - do:
-      xpack.prelert.get_bucket:
+      xpack.prelert.get_buckets:
         jobId: "foo"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
@@ -218,7 +218,7 @@ setup:
   - match: { hits.0.timestamp: 1462060800000 }
 
   - do:
-      xpack.prelert.get_job:
+      xpack.prelert.get_jobs:
         job_id: foo
         metric: data_counts
 

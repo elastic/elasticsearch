@@ -7,15 +7,15 @@ package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.prelert.action.GetBucketAction.Request;
+import org.elasticsearch.xpack.prelert.action.GetBucketsAction.Request;
 import org.elasticsearch.xpack.prelert.job.results.PageParams;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
 
-public class GetBucketActionRequestTests extends AbstractStreamableXContentTestCase<GetBucketAction.Request> {
+public class GetBucketActionRequestTests extends AbstractStreamableXContentTestCase<GetBucketsAction.Request> {
 
     @Override
     protected Request createTestInstance() {
-        GetBucketAction.Request request = new GetBucketAction.Request(randomAsciiOfLengthBetween(1, 20));
+        GetBucketsAction.Request request = new GetBucketsAction.Request(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             request.setPartitionValue(randomAsciiOfLengthBetween(1, 20));
         }
@@ -60,12 +60,12 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
 
     @Override
     protected Request createBlankInstance() {
-        return new GetBucketAction.Request();
+        return new GetBucketsAction.Request();
     }
 
     @Override
     protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return GetBucketAction.Request.parseRequest(null, parser, () -> matcher);
+        return GetBucketsAction.Request.parseRequest(null, parser, () -> matcher);
     }
 
 }

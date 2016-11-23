@@ -1,5 +1,5 @@
 {
-  "xpack.prelert.get_list": {
+  "xpack.prelert.get_lists": {
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/prelert/lists/{list_id}",

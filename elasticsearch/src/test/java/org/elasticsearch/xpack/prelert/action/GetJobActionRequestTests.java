@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-import org.elasticsearch.xpack.prelert.action.GetJobAction.Request;
+import org.elasticsearch.xpack.prelert.action.GetJobsAction.Request;
 import org.elasticsearch.xpack.prelert.job.results.PageParams;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
-public class GetJobActionRequestTests extends AbstractStreamableTestCase<GetJobAction.Request> {
+public class GetJobActionRequestTests extends AbstractStreamableTestCase<GetJobsAction.Request> {
 
     @Override
     protected Request createTestInstance() {

@@ -18,21 +18,21 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
-import org.elasticsearch.xpack.prelert.action.GetJobAction;
+import org.elasticsearch.xpack.prelert.action.GetJobsAction;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.results.PageParams;
 
 import java.io.IOException;
 import java.util.Set;
 
-public class RestGetJobAction extends BaseRestHandler {
+public class RestGetJobsAction extends BaseRestHandler {
     private static final int DEFAULT_FROM = 0;
     private static final int DEFAULT_SIZE = 100;
 
-    private final GetJobAction.TransportAction transportGetJobAction;
+    private final GetJobsAction.TransportAction transportGetJobAction;
 
     @Inject
-    public RestGetJobAction(Settings settings, RestController controller, GetJobAction.TransportAction transportGetJobAction) {
+    public RestGetJobsAction(Settings settings, RestController controller, GetJobsAction.TransportAction transportGetJobAction) {
         super(settings);
         this.transportGetJobAction = transportGetJobAction;
 
@@ -51,16 +51,16 @@ public class RestGetJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final GetJobAction.Request request;
+        final GetJobsAction.Request request;
         if (RestActions.hasBodyContent(restRequest)) {
             BytesReference bodyBytes = RestActions.getRestContent(restRequest);
             XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
-            request = GetJobAction.Request.PARSER.apply(parser, () -> parseFieldMatcher);
+            request = GetJobsAction.Request.PARSER.apply(parser, () -> parseFieldMatcher);
         } else {
-            request = new GetJobAction.Request();
+            request = new GetJobsAction.Request();
             request.setJobId(restRequest.param(Job.ID.getPreferredName()));
             Set<String> stats = Strings.splitStringByCommaToSet(
-                    restRequest.param(GetJobAction.Request.METRIC.getPreferredName(), "config"));
+                    restRequest.param(GetJobsAction.Request.METRIC.getPreferredName(), "config"));
             request.setStats(stats);
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), DEFAULT_SIZE)));

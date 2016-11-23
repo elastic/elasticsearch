@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-import org.elasticsearch.xpack.prelert.action.GetJobAction.Response;
+import org.elasticsearch.xpack.prelert.action.GetJobsAction.Response;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.AnalysisLimits;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
@@ -32,7 +32,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
-public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJobAction.Response> {
+public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJobsAction.Response> {
 
     @Override
     protected Response createTestInstance() {

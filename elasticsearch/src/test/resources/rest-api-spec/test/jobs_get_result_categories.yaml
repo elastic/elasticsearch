@@ -25,7 +25,7 @@ setup:
 ---
 "Test result categories api":
   - do:
-      xpack.prelert.get_category:
+      xpack.prelert.get_categories:
         jobId: "farequote"
 
   - match: { hitCount: 2 }
@@ -37,7 +37,7 @@ setup:
 ---
 "Test result category api":
   - do:
-      xpack.prelert.get_category:
+      xpack.prelert.get_categories:
         jobId: "farequote"
         categoryId: "1"
 

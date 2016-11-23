@@ -57,12 +57,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Response, GetJobAction.RequestBuilder> {
+public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.Response, GetJobsAction.RequestBuilder> {
 
-    public static final GetJobAction INSTANCE = new GetJobAction();
-    public static final String NAME = "cluster:admin/prelert/job/get";
+    public static final GetJobsAction INSTANCE = new GetJobsAction();
+    public static final String NAME = "cluster:admin/prelert/jobs/get";
 
-    private GetJobAction() {
+    private GetJobsAction() {
         super(NAME);
     }
 
@@ -238,7 +238,7 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
 
     public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, GetJobAction action) {
+        public RequestBuilder(ElasticsearchClient client, GetJobsAction action) {
             super(client, action, new Request());
         }
     }
@@ -409,7 +409,7 @@ public class GetJobAction extends Action<GetJobAction.Request, GetJobAction.Resp
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                 ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                 JobManager jobManager, AutodetectProcessManager processManager, ElasticsearchJobProvider jobProvider) {
-            super(settings, GetJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(settings, GetJobsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;
             this.processManager = processManager;

@@ -24,14 +24,14 @@
   - is_true: "prelertresults-farequote"
 
   - do:
-      xpack.prelert.get_job:
+      xpack.prelert.get_jobs:
         from: 0
         size: 100
   - match: { hitCount: 1 }
   - match: { hits.0.config.jobId: "farequote" }
 
   - do:
-      xpack.prelert.get_job:
+      xpack.prelert.get_jobs:
         job_id: "farequote"
   - match: { hitCount: 1 }
   - match: { hits.0.config.jobId: "farequote" }
@@ -43,7 +43,7 @@
 
   - do:
       catch: missing
-      xpack.prelert.get_job:
+      xpack.prelert.get_jobs:
         job_id: "farequote"
 
   - do:
@@ -55,7 +55,7 @@
 "Test get job API with non existing job id":
   - do:
       catch: missing
-      xpack.prelert.get_job:
+      xpack.prelert.get_jobs:
         job_id: "non-existing"
 
 ---

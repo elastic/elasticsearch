@@ -13,26 +13,26 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
-import org.elasticsearch.xpack.prelert.action.GetCategoryDefinitionAction;
-import org.elasticsearch.xpack.prelert.action.GetCategoryDefinitionAction.Request;
+import org.elasticsearch.xpack.prelert.action.GetCategoriesDefinitionAction;
+import org.elasticsearch.xpack.prelert.action.GetCategoriesDefinitionAction.Request;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.results.PageParams;
 
 import java.io.IOException;
 
-public class RestGetCategoryAction extends BaseRestHandler {
+public class RestGetCategoriesAction extends BaseRestHandler {
 
-    private final GetCategoryDefinitionAction.TransportAction transportAction;
+    private final GetCategoriesDefinitionAction.TransportAction transportAction;
 
     @Inject
-    public RestGetCategoryAction(Settings settings, RestController controller,
-            GetCategoryDefinitionAction.TransportAction transportAction) {
+    public RestGetCategoriesAction(Settings settings, RestController controller,
+                                   GetCategoriesDefinitionAction.TransportAction transportAction) {
         super(settings);
         this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{jobId}/categorydefinition/{categoryId}", this);
+                PrelertPlugin.BASE_PATH + "results/{jobId}/categorydefinitions/{categoryId}", this);
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{jobId}/categorydefinition", this);
+                PrelertPlugin.BASE_PATH + "results/{jobId}/categorydefinitions", this);
     }
 
     @Override

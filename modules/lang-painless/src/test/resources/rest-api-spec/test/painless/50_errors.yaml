@@ -1,4 +1,4 @@
-"Syntax error":
+"setup":
     - do:
         index:
             index: test
@@ -8,6 +8,8 @@
     - do:
         indices.refresh: {}
 
+---
+"Syntax error":
     - do:
         catch: request
         index: test
@@ -20,22 +22,19 @@
                             lang: painless
 
     - match: { error.caused_by.caused_by.type: script_exception }
-    - match: { error.caused_by.caused_by.reason: compile error }
+    - match: { error.caused_by.caused_by.reason: "compile error: invalid sequence of tokens near ['String']." }
     - match: { error.caused_by.caused_by.script_stack.0: "boolean String errr; doc['num1']. ..." }
     - match: { error.caused_by.caused_by.script_stack.1: "        ^---- HERE" }
     - match: { error.caused_by.caused_by.caused_by.reason: "invalid sequence of tokens near ['String']." }
+    # Even more usefully, the root_cause has what you need to debug this:
+    - match: { error.root_cause.0.type: script_exception }
+    - match: { error.root_cause.0.reason: "compile error: invalid sequence of tokens near ['String']." }
+    - match: { error.root_cause.0.script_stack.0: "boolean String errr; doc['num1']. ..." }
+    - match: { error.root_cause.0.script_stack.1: "        ^---- HERE" }
+
 
 ---
 "Runtime error":
-    - do:
-        index:
-            index: test
-            type: test
-            id: 1
-            body: { "test": "value beck", "num1": 1.0, "bool": true }
-    - do:
-        indices.refresh: {}
-
     - do:
         index: test
         search:
@@ -47,22 +46,13 @@
                             lang: painless
 
     - match: { _shards.failures.0.reason.type: script_exception }
-    - match: { _shards.failures.0.reason.reason: runtime error }
+    - match: { _shards.failures.0.reason.reason: 'runtime error: null_pointer_exception' }
     - match: { _shards.failures.0.reason.script_stack.0: "... return errr.length()" }
     - match: { _shards.failures.0.reason.script_stack.1: "               ^---- HERE" }
     - match: { _shards.failures.0.reason.caused_by.type: "null_pointer_exception" }
 
 ---
 "Multiline script stack":
-    - do:
-        index:
-            index: test
-            type: test
-            id: 1
-            body: { "test": "value beck", "num1": 1.0, "bool": true }
-    - do:
-        indices.refresh: {}
-
     - do:
         index: test
         search:
@@ -74,8 +64,26 @@
                             lang: painless
 
     - match: { _shards.failures.0.reason.type: script_exception }
-    - match: { _shards.failures.0.reason.reason: runtime error }
+    - match: { _shards.failures.0.reason.reason: 'runtime error: No value present' }
     - match: { _shards.failures.0.reason.script_stack.0: '/java.util.Optional.get\(Optional.java:\d+\)/' }
     - match: { _shards.failures.0.reason.script_stack.1:  "return Optional.empty().get()" }
     - match: { _shards.failures.0.reason.script_stack.2:  "                       ^---- HERE" }
     - match: { _shards.failures.0.reason.caused_by.type: "no_such_element_exception" }
+
+---
+"Scripted Field with script error":
+    - do:
+        catch: request
+        search:
+          body:
+            script_fields:
+              bar:
+                script:
+                  inline: "while (true) {}"
+
+    - match: { error.root_cause.0.type: script_exception }
+    - match: { error.root_cause.0.reason: 'compile error: While loop has no escape.' }
+    - match: { error.caused_by.type: script_exception }
+    - match: { error.caused_by.reason: 'compile error: While loop has no escape.' }
+    - match: { error.caused_by.caused_by.type: illegal_argument_exception }
+    - match: { error.caused_by.caused_by.reason: While loop has no escape. }

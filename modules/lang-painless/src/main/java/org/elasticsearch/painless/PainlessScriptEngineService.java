@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -232,7 +233,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
         // Nothing to do.
     }
 
-    static ScriptException convertToScriptException(String errorType, String scriptName, String scriptSource, Throwable t,
+    static ScriptException convertToScriptException(String errorType, String scriptName, String scriptSource, Throwable cause,
             IntUnaryOperator calculateStartOffset, IntUnaryOperator calculateEndOffset,
             Predicate<StackTraceElement> shouldFilter) {
         if (scriptName == null || INLINE_NAME.equals(scriptName)) {
@@ -241,7 +242,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
         }
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
-        for (StackTraceElement element : t.getStackTrace()) {
+        for (StackTraceElement element : cause.getStackTrace()) {
             if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
                 // found the script portion
                 int offset = element.getLineNumber();
@@ -276,7 +277,12 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                 scriptStack.add(element.toString());
             }
         }
-        return new ScriptException(errorType, t, scriptStack, scriptName, PainlessScriptEngineService.NAME);
+        String errorMessage = cause.getMessage();
+        if (errorMessage == null) {
+            // Some exceptions don't have useful messages (looking at you, NullPointerException) so we use the exception name instead.
+            errorMessage = ElasticsearchException.getExceptionName(cause);
+        }
+        return new ScriptException(errorType + ": " + errorMessage, cause, scriptStack, scriptName, PainlessScriptEngineService.NAME);
     }
 
     @Override

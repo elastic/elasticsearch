@@ -88,21 +88,3 @@ setup:
                                 x: 5
 
     - match: { hits.hits.0.fields.bar.0: 5}
-
----
-"Scripted Field with script error":
-    - do:
-        catch: request
-        search:
-          body:
-            script_fields:
-              bar:
-                script:
-                  inline: "while (true) {}"
-
-    - match: { error.root_cause.0.type: "script_exception" }
-    - match: { error.root_cause.0.reason: "compile error" }
-    - match: { error.caused_by.type: "script_exception" }
-    - match: { error.caused_by.reason: "compile error" }
-    - match: { error.caused_by.caused_by.type: "illegal_argument_exception" }
-    - match: { error.caused_by.caused_by.reason: "While loop has no escape." }

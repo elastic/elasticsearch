@@ -1629,17 +1629,8 @@ Sets the size in bytes of the current document as it will be rendered as a JSON 
 [options="header"]
 |======
 | Name                  | Required | Default      | Description
-| `target`              | no       | `_meta.size` | The target field the size will be stored in
+| `target`              | yes      | -            | The target field the size will be stored in
 |======
-
-For example the simplest definition for size processor:
-
-[source,js]
---------------------------------------------------
-{
-  "size": { }
-}
---------------------------------------------------
 
 For example the following size processor will generate a field `my_object.my_size`:
 

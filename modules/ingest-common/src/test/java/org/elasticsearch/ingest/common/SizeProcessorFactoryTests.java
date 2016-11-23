@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -26,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SizeProcessorFactoryTests extends ESTestCase {
@@ -37,11 +39,14 @@ public class SizeProcessorFactoryTests extends ESTestCase {
         factory = new SizeProcessor.Factory();
     }
 
-    public void testCreate() throws Exception {
+    public void testCreateWithoutTargetField() throws Exception {
         String processorTag = randomAsciiOfLength(10);
-        SizeProcessor sizeProcessor = factory.create(null, processorTag, Collections.emptyMap());
-        assertThat(sizeProcessor.getTag(), equalTo(processorTag));
-        assertThat(sizeProcessor.getTarget(), equalTo("_meta.size"));
+        try {
+            factory.create(null, processorTag, Collections.emptyMap());
+            fail("We should have an exception as no target is defined");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("[target] required property is missing"));
+        }
     }
 
     public void testCreateSetTargetField() throws Exception {

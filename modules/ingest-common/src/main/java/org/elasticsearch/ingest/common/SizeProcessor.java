@@ -36,7 +36,6 @@ import java.util.Map;
 public final class SizeProcessor extends AbstractProcessor {
 
     public static final String TYPE = "size";
-    private static final String DEFAULT_TARGET = "_meta.size";
 
     private final String target;
 
@@ -69,7 +68,7 @@ public final class SizeProcessor extends AbstractProcessor {
         public SizeProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     Map<String, Object> config) throws Exception {
             return new SizeProcessor(processorTag,
-                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target", DEFAULT_TARGET));
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target"));
         }
     }
 

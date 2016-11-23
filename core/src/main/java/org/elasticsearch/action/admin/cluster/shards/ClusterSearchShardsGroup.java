@@ -32,18 +32,18 @@ import java.io.IOException;
 public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     private ShardId shardId;
-    ShardRouting[] shards;
+    private ShardRouting[] shards;
 
-    ClusterSearchShardsGroup() {
+    private ClusterSearchShardsGroup() {
 
     }
 
-    public ClusterSearchShardsGroup(ShardId shardId, ShardRouting[] shards) {
+    ClusterSearchShardsGroup(ShardId shardId, ShardRouting[] shards) {
         this.shardId = shardId;
         this.shards = shards;
     }
 
-    public static ClusterSearchShardsGroup readSearchShardsGroupResponse(StreamInput in) throws IOException {
+    static ClusterSearchShardsGroup readSearchShardsGroupResponse(StreamInput in) throws IOException {
         ClusterSearchShardsGroup response = new ClusterSearchShardsGroup();
         response.readFrom(in);
         return response;

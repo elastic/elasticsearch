@@ -150,7 +150,7 @@ public class SearchInputTests extends ESIntegTestCase {
         SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
                                                             searchParsers, scriptService());
 
-        SearchInput searchInput = factory.parseInput("_id", parser, false);
+        SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
         assertThat(searchInput.getTimeout(), equalTo(timeout));
     }

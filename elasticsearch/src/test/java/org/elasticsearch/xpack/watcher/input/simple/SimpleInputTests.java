@@ -46,7 +46,7 @@ public class SimpleInputTests extends ESTestCase {
         InputFactory parser = new SimpleInputFactory(Settings.builder().build());
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         xContentParser.nextToken();
-        ExecutableInput input = parser.parseExecutable("_id", xContentParser, false);
+        ExecutableInput input = parser.parseExecutable("_id", xContentParser);
         assertEquals(input.type(), SimpleInput.TYPE);
 
 
@@ -63,7 +63,7 @@ public class SimpleInputTests extends ESTestCase {
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         xContentParser.nextToken();
         try {
-            parser.parseInput("_id", xContentParser, false);
+            parser.parseInput("_id", xContentParser);
             fail("[simple] input parse should fail with an InputException for an empty json object");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("expected an object but found [VALUE_STRING] instead"));

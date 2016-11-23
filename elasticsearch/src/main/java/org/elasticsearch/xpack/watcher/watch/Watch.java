@@ -301,11 +301,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER)) {
                     trigger = triggerService.parseTrigger(id, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.INPUT)) {
-                    input = inputRegistry.parse(id, parser, upgradeWatchSource);
+                    input = inputRegistry.parse(id, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONDITION)) {
-                    condition = actionRegistry.getConditionRegistry().parseExecutable(id, parser, upgradeWatchSource);
+                    condition = actionRegistry.getConditionRegistry().parseExecutable(id, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRANSFORM)) {
-                    transform = actionRegistry.getTransformRegistry().parse(id, parser, upgradeWatchSource);
+                    transform = actionRegistry.getTransformRegistry().parse(id, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD)) {
                     throttlePeriod = timeValueMillis(parser.longValue());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD_HUMAN)) {
@@ -317,7 +317,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                                 pe, id, currentFieldName);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
-                    actions = actionRegistry.parseActions(id, parser, upgradeWatchSource);
+                    actions = actionRegistry.parseActions(id, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.METADATA)) {
                     metatdata = parser.map();
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATUS)) {

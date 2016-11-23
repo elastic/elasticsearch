@@ -30,7 +30,7 @@ public class TransformRegistry {
         return factories.get(type);
     }
 
-    public ExecutableTransform parse(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
+    public ExecutableTransform parse(String watchId, XContentParser parser) throws IOException {
         String type = null;
         XContentParser.Token token;
         ExecutableTransform transform = null;
@@ -38,26 +38,25 @@ public class TransformRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type != null) {
-                transform = parse(watchId, type, parser, upgradeTransformSource);
+                transform = parse(watchId, type, parser);
             }
         }
         return transform;
     }
 
-    private ExecutableTransform parse(String watchId, String type, XContentParser parser,
-                                     boolean upgradeTransformSource) throws IOException {
+    private ExecutableTransform parse(String watchId, String type, XContentParser parser) throws IOException {
         TransformFactory factory = factories.get(type);
         if (factory == null) {
             throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
-        return factory.parseExecutable(watchId, parser, upgradeTransformSource);
+        return factory.parseExecutable(watchId, parser);
     }
 
-    public Transform parseTransform(String watchId, String type, XContentParser parser, boolean upgradeSource) throws IOException {
+    public Transform parseTransform(String watchId, String type, XContentParser parser) throws IOException {
         TransformFactory factory = factories.get(type);
         if (factory == null) {
             throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
-        return factory.parseTransform(watchId, parser, upgradeSource);
+        return factory.parseTransform(watchId, parser);
     }
 }

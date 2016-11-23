@@ -42,7 +42,7 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
             parser.nextToken();
 
             WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(
-                    logger, parser, randomFrom(SearchType.values()), false, null, null, null);
+                    logger, parser, randomFrom(SearchType.values()), null, null);
             assertNotNull(result.getTemplate());
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedScript));
             assertThat(result.getTemplate().getLang(), equalTo(expectedLang));
@@ -91,7 +91,7 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
         SearchRequestParsers searchRequestParsers = new SearchModule(Settings.EMPTY, false, Collections.emptyList())
                 .getSearchRequestParsers();
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(
-                logger, parser, SearchType.DEFAULT, true, "your_legacy_lang", ParseFieldMatcher.STRICT, searchRequestParsers);
+                logger, parser, SearchType.DEFAULT, ParseFieldMatcher.STRICT, searchRequestParsers);
         Map<String, Object> parsedResult = XContentHelper.convertToMap(result.getSearchSource(), true).v2();
         // after upgrading the language must be equal to legacy language, because no language was defined explicitly in these scripts:
         assertThat(XContentMapValues.extractValue("query.script.script.lang", parsedResult), equalTo("your_legacy_lang"));

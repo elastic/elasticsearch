@@ -33,7 +33,7 @@ public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Resul
     }
 
     @Override
-    public ChainInput parseInput(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
+    public ChainInput parseInput(String watchId, XContentParser parser) throws IOException {
         return ChainInput.parse(watchId, parser, inputRegistry);
     }
 

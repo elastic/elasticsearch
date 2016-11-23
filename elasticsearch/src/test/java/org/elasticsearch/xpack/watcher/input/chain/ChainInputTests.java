@@ -84,7 +84,7 @@ public class ChainInputTests extends ESTestCase {
         // first pass JSON and check for correct inputs
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ChainInput chainInput = chainInputFactory.parseInput("test", parser, false);
+        ChainInput chainInput = chainInputFactory.parseInput("test", parser);
 
         assertThat(chainInput.getInputs(), hasSize(2));
         assertThat(chainInput.getInputs().get(0).v1(), is("first"));
@@ -195,7 +195,7 @@ public class ChainInputTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ElasticsearchParseException e =
-                expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser, false));
+                expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
         assertThat(e.getMessage(),
                 containsString("Expected closing JSON object after parsing input [simple] named [first] in watch [test]"));
     }
@@ -225,7 +225,7 @@ public class ChainInputTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ElasticsearchParseException e =
-                expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser, false));
+                expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
         assertThat(e.getMessage(), containsString("Expected starting JSON object after [first] in watch [test]"));
     }
 

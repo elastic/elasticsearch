@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.is;
 public class ScriptConditionTests extends ESTestCase {
 
     private ScriptService scriptService;
-    private String defaultScriptLang = ScriptSettings.getLegacyDefaultLang(Settings.EMPTY);
 
     @Before
     public void init() throws IOException {
@@ -118,7 +117,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ScriptCondition executable = ScriptCondition.parse(scriptService, "_watch", parser, false, defaultScriptLang);
+        ScriptCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
@@ -129,7 +128,7 @@ public class ScriptConditionTests extends ESTestCase {
         builder = createConditionContent("return true", null, ScriptType.INLINE);
         parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        executable = ScriptCondition.parse(scriptService, "_watch", parser, false, defaultScriptLang);
+        executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));
 
@@ -142,7 +141,7 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         try {
-            ScriptCondition.parse(scriptService, "_id", parser, false, defaultScriptLang);
+            ScriptCondition.parse(scriptService, "_id", parser);
             fail("expected a condition exception trying to parse an invalid condition XContent");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(),
@@ -162,11 +161,11 @@ public class ScriptConditionTests extends ESTestCase {
             default:
                 script = "foo = = 1";
         }
-        XContentBuilder builder = createConditionContent(script, "groovy", scriptType);
+        XContentBuilder builder = createConditionContent(script, "painless", scriptType);
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         expectThrows(IllegalArgumentException.class,
-                () -> ScriptCondition.parse(scriptService, "_watch", parser, false, defaultScriptLang));
+                () -> ScriptCondition.parse(scriptService, "_watch", parser));
     }
 
     public void testScriptConditionParser_badLang() throws Exception {
@@ -175,7 +174,7 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> ScriptCondition.parse(scriptService, "_watch", parser, false, defaultScriptLang));
+                () -> ScriptCondition.parse(scriptService, "_watch", parser));
         assertThat(exception.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
     }
 

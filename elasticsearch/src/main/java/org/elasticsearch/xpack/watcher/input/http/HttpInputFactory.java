@@ -35,7 +35,7 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
     }
 
     @Override
-    public HttpInput parseInput(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
+    public HttpInput parseInput(String watchId, XContentParser parser) throws IOException {
         return HttpInput.parse(watchId, parser, requestTemplateParser);
     }
 

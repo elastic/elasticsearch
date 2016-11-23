@@ -218,7 +218,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         SearchRequestParsers searchRequestParsers = internalCluster().getInstance(SearchRequestParsers.class);
         SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
                                                                              searchRequestParsers, scriptService());
-        ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser, false);
+        ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
         assertThat(executable.type(), is(SearchTransform.TYPE));

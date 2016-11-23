@@ -123,7 +123,7 @@ public class ChainTransformTests extends ESTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ExecutableChainTransform executable = transformParser.parseExecutable("_id", parser, false);
+        ExecutableChainTransform executable = transformParser.parseExecutable("_id", parser);
         assertThat(executable, notNullValue());
         assertThat(executable.transform().getTransforms(), notNullValue());
         assertThat(executable.transform().getTransforms(), hasSize(4));
@@ -201,7 +201,7 @@ public class ChainTransformTests extends ESTestCase {
             }
 
             @Override
-            public Transform parseTransform(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
+            public Transform parseTransform(String watchId, XContentParser parser) throws IOException {
                 if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                     return new Transform(parser.text());
                 }
@@ -270,7 +270,7 @@ public class ChainTransformTests extends ESTestCase {
             }
 
             @Override
-            public Transform parseTransform(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
+            public Transform parseTransform(String watchId, XContentParser parser) throws IOException {
                 assert parser.currentToken() == XContentParser.Token.START_OBJECT;
                 XContentParser.Token token = parser.nextToken();
                 assert token == XContentParser.Token.END_OBJECT;

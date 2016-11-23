@@ -54,15 +54,9 @@ public class ScriptTransform implements Transform {
         return script.toXContent(builder, params);
     }
 
-    public static ScriptTransform parse(String watchId, XContentParser parser, boolean upgradeSource,
-                                        String defaultLegacyScriptLanguage) throws IOException {
+    public static ScriptTransform parse(String watchId, XContentParser parser) throws IOException {
         try {
-            Script script;
-            if (upgradeSource) {
-                script = Script.parse(parser, ParseFieldMatcher.STRICT, defaultLegacyScriptLanguage);
-            } else {
-                script = Script.parse(parser, ParseFieldMatcher.STRICT);
-            }
+            Script script = Script.parse(parser, ParseFieldMatcher.STRICT);
             return new ScriptTransform(script);
         } catch (ElasticsearchParseException pe) {
             throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse script", pe, TYPE,

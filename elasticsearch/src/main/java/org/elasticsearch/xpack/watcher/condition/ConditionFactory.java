@@ -17,11 +17,9 @@ public interface ConditionFactory {
 
     /**
      * Parses the given xcontent and creates a concrete condition
-     *  @param watchId                   The id of the watch
+     * @param watchId                   The id of the watch
      * @param parser                    The parsing that contains the condition content
-     * @param upgradeConditionSource    Whether to upgrade the source related to condition if in legacy format
-     *                                  Note: depending on the version, only conditions implementations that have a
      */
-    Condition parse(Clock clock, String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException;
+    Condition parse(Clock clock, String watchId, XContentParser parser) throws IOException;
 
 }

@@ -31,9 +31,8 @@ public class ScriptTransformFactory extends TransformFactory<ScriptTransform, Sc
     }
 
     @Override
-    public ScriptTransform parseTransform(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
-        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
-        return ScriptTransform.parse(watchId, parser, upgradeTransformSource, defaultLegacyScriptLanguage);
+    public ScriptTransform parseTransform(String watchId, XContentParser parser) throws IOException {
+        return ScriptTransform.parse(watchId, parser);
     }
 
     @Override

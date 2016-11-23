@@ -194,7 +194,7 @@ public class ActionWrapper implements ToXContent {
     }
 
     static ActionWrapper parse(String watchId, String actionId, XContentParser parser, ActionRegistry actionRegistry, Clock clock,
-                               XPackLicenseState licenseState, boolean upgradeActionSource) throws IOException {
+                               XPackLicenseState licenseState) throws IOException {
 
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
@@ -210,9 +210,9 @@ public class ActionWrapper implements ToXContent {
                 currentFieldName = parser.currentName();
             } else {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Watch.Field.CONDITION)) {
-                    condition = actionRegistry.getConditionRegistry().parseExecutable(watchId, parser, upgradeActionSource);
+                    condition = actionRegistry.getConditionRegistry().parseExecutable(watchId, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Transform.Field.TRANSFORM)) {
-                    transform = actionRegistry.getTransformRegistry().parse(watchId, parser, upgradeActionSource);
+                    transform = actionRegistry.getTransformRegistry().parse(watchId, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD)) {
                     throttlePeriod = timeValueMillis(parser.longValue());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD_HUMAN)) {

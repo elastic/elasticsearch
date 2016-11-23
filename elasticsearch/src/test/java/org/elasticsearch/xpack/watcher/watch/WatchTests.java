@@ -345,10 +345,10 @@ public class WatchTests extends ESTestCase {
 
         // parse in legacy mode:
         watch = watchParser.parse("_id", false, builder.bytes(), true);
-        assertThat(((ScriptCondition) watch.condition()).getScript().getLang(), equalTo("groovy"));
+        assertThat(((ScriptCondition) watch.condition()).getScript().getLang(), equalTo("painless"));
         request = ((SearchInput) watch.input().input()).getRequest();
         searchRequest = searchTemplateService.toSearchRequest(request);
-        assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo("groovy"));
+        assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo("painless"));
     }
 
     private static Schedule randomSchedule() {
@@ -437,13 +437,11 @@ public class WatchTests extends ESTestCase {
 
     private ConditionRegistry conditionRegistry() {
         Map<String, ConditionFactory> parsers = new HashMap<>();
-        parsers.put(AlwaysCondition.TYPE, (c, id, p, upgrade) -> AlwaysCondition.parse(id, p));
-        parsers.put(NeverCondition.TYPE, (c, id, p, upgrade) -> NeverCondition.parse(id, p));
-        parsers.put(ArrayCompareCondition.TYPE, (c, id, p, upgrade) -> ArrayCompareCondition.parse(c, id, p));
-        parsers.put(CompareCondition.TYPE, (c, id, p, upgrade) -> CompareCondition.parse(c, id, p));
-        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
-        parsers.put(ScriptCondition.TYPE, (c, id, p, upgrade) -> ScriptCondition.parse(scriptService, id, p, upgrade,
-                defaultLegacyScriptLanguage));
+        parsers.put(AlwaysCondition.TYPE, (c, id, p) -> AlwaysCondition.parse(id, p));
+        parsers.put(NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p));
+        parsers.put(ArrayCompareCondition.TYPE, (c, id, p) -> ArrayCompareCondition.parse(c, id, p));
+        parsers.put(CompareCondition.TYPE, (c, id, p) -> CompareCondition.parse(c, id, p));
+        parsers.put(ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p));
         return new ConditionRegistry(parsers, new ClockMock());
     }
 

@@ -52,9 +52,8 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     }
 
     @Override
-    public SearchTransform parseTransform(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
-        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
-        return SearchTransform.parse(transformLogger, watchId, parser, upgradeTransformSource, defaultLegacyScriptLanguage,
+    public SearchTransform parseTransform(String watchId, XContentParser parser) throws IOException {
+        return SearchTransform.parse(transformLogger, watchId, parser,
                 parseFieldMatcher, searchRequestParsers);
     }
 

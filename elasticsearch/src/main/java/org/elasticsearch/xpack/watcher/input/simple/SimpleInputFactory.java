@@ -24,7 +24,7 @@ public class SimpleInputFactory extends InputFactory<SimpleInput, SimpleInput.Re
     }
 
     @Override
-    public SimpleInput parseInput(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
+    public SimpleInput parseInput(String watchId, XContentParser parser) throws IOException {
         return SimpleInput.parse(watchId, parser);
     }
 

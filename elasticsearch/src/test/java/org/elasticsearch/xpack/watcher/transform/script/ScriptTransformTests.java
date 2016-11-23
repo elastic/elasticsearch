@@ -154,7 +154,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser, false);
+        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
         Script script = new Script(type, "_lang", "_script", singletonMap("key", "value"));
         assertThat(transform.transform().getScript(), equalTo(script));
     }
@@ -165,7 +165,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser, false);
+        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
         assertThat(transform.transform().getScript(), equalTo(new Script("_script")));
     }
 
@@ -185,7 +185,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ScriptTransform scriptTransform = transformFactory.parseTransform("_watch", parser, false);
+        ScriptTransform scriptTransform = transformFactory.parseTransform("_watch", parser);
         Exception e = expectThrows(ScriptException.class, () -> transformFactory.createExecutable(scriptTransform));
         assertThat(e.getMessage(), containsString(errorMessage));
     }
@@ -203,7 +203,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ScriptTransform scriptCondition = transformFactory.parseTransform("_watch", parser, false);
+        ScriptTransform scriptCondition = transformFactory.parseTransform("_watch", parser);
         Exception e = expectThrows(IllegalArgumentException.class, () -> transformFactory.createExecutable(scriptCondition));
         assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
     }

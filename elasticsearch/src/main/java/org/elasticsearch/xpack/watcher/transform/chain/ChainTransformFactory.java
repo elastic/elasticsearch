@@ -31,8 +31,8 @@ public final class ChainTransformFactory extends TransformFactory<ChainTransform
     }
 
     @Override
-    public ChainTransform parseTransform(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
-        return ChainTransform.parse(watchId, parser, registry, upgradeTransformSource);
+    public ChainTransform parseTransform(String watchId, XContentParser parser) throws IOException {
+        return ChainTransform.parse(watchId, parser, registry);
     }
 
     @Override

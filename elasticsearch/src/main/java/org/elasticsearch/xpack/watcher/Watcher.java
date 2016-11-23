@@ -216,13 +216,11 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         }
 
         final Map<String, ConditionFactory> parsers = new HashMap<>();
-        parsers.put(AlwaysCondition.TYPE, (c, id, p, upgrade) -> AlwaysCondition.parse(id, p));
-        parsers.put(NeverCondition.TYPE, (c, id, p, upgrade) -> NeverCondition.parse(id, p));
-        parsers.put(ArrayCompareCondition.TYPE, (c, id, p, upgrade) -> ArrayCompareCondition.parse(c, id, p));
-        parsers.put(CompareCondition.TYPE, (c, id, p, upgrade) -> CompareCondition.parse(c, id, p));
-        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
-        parsers.put(ScriptCondition.TYPE, (c, id, p, upgrade) -> ScriptCondition.parse(scriptService, id, p, upgrade,
-                defaultLegacyScriptLanguage));
+        parsers.put(AlwaysCondition.TYPE, (c, id, p) -> AlwaysCondition.parse(id, p));
+        parsers.put(NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p));
+        parsers.put(ArrayCompareCondition.TYPE, (c, id, p) -> ArrayCompareCondition.parse(c, id, p));
+        parsers.put(CompareCondition.TYPE, (c, id, p) -> CompareCondition.parse(c, id, p));
+        parsers.put(ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p));
 
         final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), clock);
         final Map<String, TransformFactory> transformFactories = new HashMap<>();

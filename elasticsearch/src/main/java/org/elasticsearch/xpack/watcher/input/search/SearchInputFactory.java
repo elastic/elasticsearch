@@ -52,9 +52,8 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
     }
 
     @Override
-    public SearchInput parseInput(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
-        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
-        return SearchInput.parse(inputLogger, watchId, parser, upgradeInputSource, defaultLegacyScriptLanguage,
+    public SearchInput parseInput(String watchId, XContentParser parser) throws IOException {
+        return SearchInput.parse(inputLogger, watchId, parser,
                 parseFieldMatcher, searchRequestParsers);
     }
 

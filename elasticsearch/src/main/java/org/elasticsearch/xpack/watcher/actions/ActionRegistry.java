@@ -41,7 +41,7 @@ public class ActionRegistry {
         return parsers.get(type);
     }
 
-    public List<ActionWrapper> parseActions(String watchId, XContentParser parser, boolean upgradeActionSource) throws IOException {
+    public List<ActionWrapper> parseActions(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("could not parse actions for watch [{}]. expected an object but found [{}] instead",
                     watchId, parser.currentToken());
@@ -58,7 +58,7 @@ public class ActionRegistry {
                             watchId);
                 }
             } else if (token == XContentParser.Token.START_OBJECT && id != null) {
-                actions.add(ActionWrapper.parse(watchId, id, parser, this, clock, licenseState, upgradeActionSource));
+                actions.add(ActionWrapper.parse(watchId, id, parser, this, clock, licenseState));
             }
         }
         return actions;

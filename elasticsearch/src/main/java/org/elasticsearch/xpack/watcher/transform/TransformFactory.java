@@ -28,19 +28,16 @@ public abstract class TransformFactory<T extends Transform, R extends Transform.
      *
      * @param watchId                   The id of the watch
      * @param parser                    The parsing that contains the condition content
-     * @param upgradeTransformSource    Whether to upgrade the source related to transform if in legacy format
-     *                                  Note: depending on the version, only transform implementations that have a
-     *                                  known legacy format will support this option, otherwise this is a noop.
      */
-    public abstract T parseTransform(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException;
+    public abstract T parseTransform(String watchId, XContentParser parser) throws IOException;
 
     /**
      * Creates an executable transform out of the given transform.
      */
     public abstract E createExecutable(T transform);
 
-    public E parseExecutable(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
-        T transform = parseTransform(watchId, parser, upgradeTransformSource);
+    public E parseExecutable(String watchId, XContentParser parser) throws IOException {
+        T transform = parseTransform(watchId, parser);
         return createExecutable(transform);
     }
 }

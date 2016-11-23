@@ -167,8 +167,6 @@ public class WatcherSearchTemplateRequest implements ToXContent {
      */
     public static WatcherSearchTemplateRequest fromXContent(Logger logger, XContentParser parser,
                                                             SearchType searchType,
-                                                            boolean upgradeSearchSource,
-                                                            String defaultLegacyScriptLanguage,
                                                             ParseFieldMatcher parseFieldMatcher,
                                                             SearchRequestParsers searchRequestParsers) throws IOException {
         List<String> indices = new ArrayList<>();
@@ -210,20 +208,6 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                     try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
                         builder.copyCurrentStructure(parser);
                         searchSource = builder.bytes();
-                        if (upgradeSearchSource) {
-                            XContentParser searchSourceParser = XContentHelper.createParser(searchSource);
-                            QueryParseContext context =  new QueryParseContext(defaultLegacyScriptLanguage,
-                                    searchRequestParsers.queryParsers, searchSourceParser, parseFieldMatcher);
-                            try (XContentBuilder upgradeBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
-                                SearchSourceBuilder sourceBuilder = SearchSourceBuilder.fromXContent(context,
-                                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
-                                        searchRequestParsers.searchExtParsers);
-                                upgradeBuilder.value(sourceBuilder);
-                                searchSource = upgradeBuilder.bytes();
-                            } catch (Exception e) {
-                                logger.warn("Unable to upgrade search source: [" + searchSource.utf8ToString() + "]", e);
-                            }
-                        }
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_OPTIONS_FIELD)) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();

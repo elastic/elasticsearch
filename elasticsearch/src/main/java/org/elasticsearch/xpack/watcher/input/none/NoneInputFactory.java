@@ -24,7 +24,7 @@ public class NoneInputFactory extends InputFactory<NoneInput, NoneInput.Result, 
     }
 
     @Override
-    public NoneInput parseInput(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
+    public NoneInput parseInput(String watchId, XContentParser parser) throws IOException {
         return NoneInput.parse(watchId, parser);
     }
 

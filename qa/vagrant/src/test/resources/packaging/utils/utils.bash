@@ -469,7 +469,7 @@ check_elasticsearch_version() {
 }
 
 install_elasticsearch_test_scripts() {
-    install_script is_guide.groovy
+    install_script is_guide.painless
     install_script is_guide.mustache
 }
 
@@ -493,7 +493,7 @@ run_elasticsearch_tests() {
         "script": {
           "script": {
             "file": "is_guide",
-            "lang": "groovy"
+            "lang": "painless"
           }
         }
       }

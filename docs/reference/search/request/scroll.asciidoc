@@ -134,15 +134,15 @@ GET /_nodes/stats/indices/search
 
 ==== Clear scroll API
 
-Search context are automatically removed when the `scroll` timeout has been
+Search contexts are automatically removed when the `scroll` timeout has been
 exceeded. However keeping scrolls open has a cost, as discussed in the
 <<scroll-search-context,previous section>> so scrolls should be explicitly
-cleared as soon as the scroll is not being used anymore using the
-`clear-scroll` API:
+cleared as soon as they are not being used anymore using the `clear-scroll`
+API:
 
 [source,js]
 ---------------------------------------
-DELETE /_search/scroll
+POST /_search/clear_scroll
 {
     "scroll_id" : ["DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="]
 }
@@ -154,7 +154,7 @@ Multiple scroll IDs can be passed as array:
 
 [source,js]
 ---------------------------------------
-DELETE /_search/scroll
+POST /_search/clear_scroll
 {
     "scroll_id" : [
       "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==",
@@ -165,23 +165,24 @@ DELETE /_search/scroll
 // CONSOLE
 // TEST[catch:missing]
 
-All search contexts can be cleared with the `_all` parameter:
+The recommended way to provide the `scroll_id` is by placing it in the request
+body using the `POST` verb against the `clear_scroll` endpoint added[5.2.0].
+All of the other ways to provide the `scroll_id`, either as a url parameter or
+as part of the request body using the `DELETE /_search/scroll` endpoint, are
+ deprecated deprecated[5.2.0].
+
+All search contexts can be cleared with the special `_all` scroll id:
 
 [source,js]
 ---------------------------------------
-DELETE /_search/scroll/_all
+POST /_search/clear_scroll
+{
+    "scroll_id" : [
+      "_all"
+    ]
+}
 ---------------------------------------
 // CONSOLE
-
-The `scroll_id` can also be passed as a query string parameter or in the request body.
-Multiple scroll IDs can be passed as comma separated values:
-
-[source,js]
----------------------------------------
-DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==,DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB
----------------------------------------
-// CONSOLE
-// TEST[catch:missing]
 
 [[sliced-scroll]]
 ==== Sliced Scroll

@@ -1,10 +1,10 @@
 {
-  "clear_scroll": {
+  "delete_scroll": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/5.x/search-request-scroll.html",
-    "methods": ["POST"],
+    "methods": ["DELETE"],
     "url": {
-      "path": "/_search/clear_scroll/{scroll_id}",
-      "paths": ["/_search/clear_scroll/{scroll_id}", "/_search/clear_scroll"],
+      "path": "/_search/scroll/{scroll_id}",
+      "paths": ["/_search/scroll/{scroll_id}", "/_search/scroll"],
       "parts": {
         "scroll_id": {
           "type" : "list",
@@ -14,7 +14,7 @@
       "params": {}
     },
     "body": {
-      "description": "A comma-separated list of scroll IDs to clear"
+      "description": "A comma-separated list of scroll IDs to clear if none was specified via the scroll_id parameter"
     }
   }
 }

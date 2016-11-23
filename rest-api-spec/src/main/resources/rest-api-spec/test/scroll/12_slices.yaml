@@ -30,8 +30,8 @@
   - set: {_scroll_id: scroll_id}
 
   - do:
-        clear_scroll:
-          scroll_id: $scroll_id
+      clear_scroll:
+        body: { "scroll_id": [ "$scroll_id" ]}
 
   - do:
         catch:  /query_phase_execution_exception.*The number of slices.*index.max_slices_per_scroll/
@@ -67,6 +67,6 @@
   - set: {_scroll_id: scroll_id}
 
   - do:
-        clear_scroll:
-          scroll_id: $scroll_id
+      clear_scroll:
+        body: { "scroll_id": [ "$scroll_id" ]}
 

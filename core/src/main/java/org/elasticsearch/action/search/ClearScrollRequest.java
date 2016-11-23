@@ -37,6 +37,14 @@ public class ClearScrollRequest extends ActionRequest {
 
     private List<String> scrollIds;
 
+    public ClearScrollRequest() {
+
+    }
+
+    public ClearScrollRequest(List<String> scrollIds) {
+        this.scrollIds = scrollIds;
+    }
+
     public List<String> getScrollIds() {
         return scrollIds;
     }

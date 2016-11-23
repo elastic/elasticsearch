@@ -545,16 +545,13 @@ public class SearchScrollIT extends ESIntegTestCase {
         BytesReference content = XContentFactory.jsonBuilder().startObject()
             .array("scroll_id", "value_1", "value_2")
             .endObject().bytes();
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        RestClearScrollAction.buildFromContent(content, clearScrollRequest);
+        ClearScrollRequest clearScrollRequest = RestClearScrollAction.parseClearScrollRequest(content);
         assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
     }
 
     public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-
         try {
-            RestClearScrollAction.buildFromContent(new BytesArray("{invalid_json}"), clearScrollRequest);
+            RestClearScrollAction.parseClearScrollRequest(new BytesArray("{invalid_json}"));
             fail("expected parseContent failure");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -567,10 +564,8 @@ public class SearchScrollIT extends ESIntegTestCase {
             .array("scroll_id", "value_1", "value_2")
             .field("unknown", "keyword")
             .endObject().bytes();
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-
         try {
-            RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
+            RestClearScrollAction.parseClearScrollRequest(invalidContent);
             fail("expected parseContent failure");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));

@@ -1,0 +1,171 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  test_scroll
+  - do:
+      index:
+          index:  test_scroll
+          type:   test
+          id:     42
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Delete scroll with request body":
+
+  - skip:
+    features: "warnings"
+    version: " - 5.0.0"
+    reason:  response headers were introduced in 5.0.0
+
+  - do:
+      search:
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      warnings:
+        - Deprecated [DELETE /_search/scroll] endpoint used, expected [POST /_search/scroll] instead
+      delete_scroll:
+        body: { "scroll_id": [ "$scroll_id1" ]}
+
+  - do:
+      catch: missing
+      scroll:
+        scroll_id: $scroll_id1
+
+---
+"Delete scroll without request body":
+
+  - skip:
+    features: "warnings"
+    version: " - 5.0.0"
+    reason:  response headers were introduced in 5.0.0
+
+  - do:
+      search:
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      warnings:
+        - Deprecated [DELETE /_search/scroll] endpoint used, expected [POST /_search/scroll] instead
+      delete_scroll:
+        "scroll_id": "$scroll_id1"
+
+  - do:
+      catch: missing
+      scroll:
+        scroll_id: $scroll_id1
+
+---
+"Delete scroll body params override query string":
+
+  - skip:
+    features: "warnings"
+    version: " - 5.0.0"
+    reason:  response headers were introduced in 5.0.0
+
+  - do:
+      search:
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      warnings:
+        - Deprecated [DELETE /_search/scroll] endpoint used, expected [POST /_search/scroll] instead
+      delete_scroll:
+        scroll_id: "invalid_scroll_id"
+        body: { "scroll_id": [ "$scroll_id1" ]}
+
+  - do:
+      catch: missing
+      scroll:
+        scroll_id: $scroll_id1
+
+  - do:
+      catch: missing
+      clear_scroll:
+        body: { "scroll_id": [ "$scroll_id1" ]}
+
+---
+"Clear scroll without request body":
+
+  - skip:
+    features: "warnings"
+    version: " - 5.0.0"
+    reason:  response headers were introduced in 5.0.0
+
+  - do:
+      search:
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      warnings:
+        - Deprecated [POST /_search/clear_scroll/{scroll_id}] endpoint used, expected [POST /_search/clear_scroll] instead. The scroll_id should rather be provided as part of the request body
+      clear_scroll:
+        scroll_id: $scroll_id1
+
+  - do:
+      catch: missing
+      scroll:
+        scroll_id: $scroll_id1
+
+---
+"Clear scroll body params override query string":
+
+  - skip:
+    features: "warnings"
+    version: " - 5.0.0"
+    reason:  response headers were introduced in 5.0.0
+
+  - do:
+      search:
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      warnings:
+        - Deprecated [POST /_search/clear_scroll/{scroll_id}] endpoint used, expected [POST /_search/clear_scroll] instead. The scroll_id should rather be provided as part of the request body
+      clear_scroll:
+        scroll_id: "invalid_scroll_id"
+        body: { "scroll_id": [ "$scroll_id1" ]}
+
+  - do:
+      catch: missing
+      scroll:
+        scroll_id: $scroll_id1
+
+  - do:
+      catch: missing
+      clear_scroll:
+        body: { "scroll_id": [ "$scroll_id1" ]}

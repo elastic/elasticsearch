@@ -42,6 +42,12 @@ Plugging in a `UnicastHostsProvider` for zen discovery is now pull based. Implem
 
 These classes are no longer pluggable. Either implement your own discovery, or extend from ZenDiscovery and customize as necessary.
 
+==== onModule support removed
+
+Plugins could formerly implement methods of the name `onModule` which took a single
+Guice module. All the uses of onModule for plugging in custom behavior have now been
+converted to pull based plugins, and hooks for onModule have been removed.
+
 [[breaking_51_other_api_changes]]
 [float]
 === Other API changes

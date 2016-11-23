@@ -30,7 +30,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.client.advanced.AdvancedRestClient.toMap;
+import static org.elasticsearch.client.advanced.AdvancedRestClient.toGetRestResponse;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -49,7 +49,7 @@ public class GetApiIT extends ESRestTestCase {
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
 
-            GetRestResponse error = GetRestOperation.toRestResponse(toMap(e.getResponse()));
+            GetRestResponse error = toGetRestResponse(e.getResponse());
             assertThat(error.isFound(), is(false));
             assertThat(error.getSource(), nullValue());
             assertThat(error.getIndex(), is("foo"));

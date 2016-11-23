@@ -30,7 +30,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.client.advanced.AdvancedRestClient.toMap;
+import static org.elasticsearch.client.advanced.AdvancedRestClient.toDeleteRestResponse;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -52,7 +52,7 @@ public class DeleteApiIT extends ESRestTestCase {
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
 
-            DeleteRestResponse error = DeleteRestOperation.toRestResponse(toMap(e.getResponse()));
+            DeleteRestResponse error = toDeleteRestResponse(e.getResponse());
             assertThat(error.isFound(), is(false));
         }
     }

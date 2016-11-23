@@ -23,18 +23,14 @@ import com.fasterxml.jackson.jr.ob.JSON;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.advanced.delete.DeleteRestOperation;
 import org.elasticsearch.client.advanced.delete.DeleteRestRequest;
 import org.elasticsearch.client.advanced.delete.DeleteRestResponse;
-import org.elasticsearch.client.advanced.get.GetRestOperation;
 import org.elasticsearch.client.advanced.get.GetRestRequest;
 import org.elasticsearch.client.advanced.get.GetRestResponse;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
-
-import static org.elasticsearch.client.advanced.delete.DeleteRestOperation.toRestResponse;
 
 public class AdvancedRestClient {
 
@@ -59,7 +55,9 @@ public class AdvancedRestClient {
             throw new IllegalArgumentException("Request can not be null");
         }
         request.validate();
-        return toRestResponse(toMap(DeleteRestOperation.doExecute(lowLevelClient, request)));
+        return toDeleteRestResponse(
+            lowLevelClient.performRequest("DELETE", "/" + request.getIndex() + "/" + request.getType() + "/" + request.getId())
+        );
     }
 
     /**
@@ -76,11 +74,12 @@ public class AdvancedRestClient {
             throw new IllegalArgumentException("Request can not be null");
         }
         request.validate();
-        DeleteRestOperation.doExecute(lowLevelClient, request, new ResponseListener() {
+        lowLevelClient.performRequestAsync("DELETE",
+            "/" + request.getIndex() + "/" + request.getType() + "/" + request.getId(), new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
                 try {
-                    responseConsumer.accept(DeleteRestOperation.toRestResponse(toMap(response)));
+                    responseConsumer.accept(toDeleteRestResponse(response));
                 } catch (IOException e) {
                     failureConsumer.accept(e);
                 }
@@ -91,6 +90,15 @@ public class AdvancedRestClient {
                 failureConsumer.accept(exception);
             }
         });
+    }
+
+    public static DeleteRestResponse toDeleteRestResponse(Response response) throws IOException {
+        // Read from the map as we don't want to use reflection
+        Map<String, Object> map = toMap(response);
+        DeleteRestResponse restResponse = new DeleteRestResponse();
+        boolean found = (boolean) map.get("found");
+        restResponse.setFound(found);
+        return restResponse;
     }
 
     /**
@@ -104,7 +112,7 @@ public class AdvancedRestClient {
             throw new IllegalArgumentException("Request can not be null");
         }
         request.validate();
-        return GetRestOperation.toRestResponse(toMap(GetRestOperation.doExecute(lowLevelClient, request)));
+        return toGetRestResponse(lowLevelClient.performRequest("GET", "/" + request.getIndex() + "/" + request.getType() + "/" + request.getId()));
     }
 
     /**
@@ -121,11 +129,12 @@ public class AdvancedRestClient {
             throw new IllegalArgumentException("Request can not be null");
         }
         request.validate();
-        GetRestOperation.doExecute(lowLevelClient, request, new ResponseListener() {
+        lowLevelClient.performRequestAsync("GET",
+            "/" + request.getIndex() + "/" + request.getType() + "/" + request.getId(), new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
                 try {
-                    responseConsumer.accept(GetRestOperation.toRestResponse(toMap(response)));
+                    responseConsumer.accept(toGetRestResponse(response));
                 } catch (IOException e) {
                     failureConsumer.accept(e);
                 }
@@ -138,7 +147,20 @@ public class AdvancedRestClient {
         });
     }
 
-    public static Map<String, Object> toMap(Response response) throws IOException {
+    public static GetRestResponse toGetRestResponse(Response response) throws IOException {
+        // Read from the map as we don't want to use reflection
+        Map<String, Object> map = toMap(response);
+        GetRestResponse restResponse = new GetRestResponse();
+        restResponse.setFound((boolean) map.get("found"));
+        restResponse.setSource((Map<String, Object>) map.get("_source"));
+        restResponse.setIndex((String) map.get("_index"));
+        restResponse.setType((String) map.get("_type"));
+        restResponse.setId((String) map.get("_id"));
+        restResponse.setVersion((Integer) map.get("_version"));
+        return restResponse;
+    }
+
+    private static Map<String, Object> toMap(Response response) throws IOException {
         return JSON.std.mapFrom(response.getEntity().getContent());
     }
 }

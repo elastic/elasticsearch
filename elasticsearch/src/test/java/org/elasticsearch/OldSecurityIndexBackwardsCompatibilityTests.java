@@ -71,12 +71,6 @@ import static org.hamcrest.Matchers.hasSize;
  * </ul>
  **/
 public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
-    private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
-
-    public void testUnreleasedVersion() {
-        assertFalse("Version " + VERSION_5_1_0_UNRELEASED + " has been releaed don't use a new instance of this version",
-                VersionUtils.allVersions().contains(VERSION_5_1_0_UNRELEASED));
-    }
 
     @Override
     protected boolean shouldTestVersion(Version version) {
@@ -145,7 +139,7 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
 
         /* check that a search that misses all documents doesn't hit any alias starting with `-`. We have one in the backwards compatibility
          * indices for versions before 5.1.0 because we can't create them any more. */
-        if (version.before(VERSION_5_1_0_UNRELEASED)) {
+        if (version.before(Version.V_5_1_0_UNRELEASED)) {
             GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases().get();
             List<AliasMetaData> aliases = aliasesResponse.getAliases().get("index3");
             assertThat("alias doesn't exist", aliases, hasSize(1));

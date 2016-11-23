@@ -41,6 +41,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0) // We'll start the nodes manually
 public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase extends SecurityIntegTestCase {
+
     /**
      * Set to true when it is ok to start a node. We don't want to start nodes at unexpected times.
      */
@@ -98,7 +99,7 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
 
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (Version v : VersionUtils.allVersions()) {
+        for (Version v : VersionUtils.allReleasedVersions()) {
             if (false == shouldTestVersion(v)) continue;
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             if (v.isBeta() == true || v.isAlpha() == true || v.isRC() == true) continue; // don't check alphas etc

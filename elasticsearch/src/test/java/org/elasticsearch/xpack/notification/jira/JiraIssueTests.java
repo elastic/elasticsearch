@@ -52,6 +52,7 @@ public class JiraIssueTests extends ESTestCase {
 
         HttpRequest parsedRequest = null;
         HttpResponse parsedResponse = null;
+        String parsedAccount = null;
         String parsedReason = null;
 
         try (XContentParser parser = XContentHelper.createParser(bytes)) {
@@ -65,6 +66,8 @@ public class JiraIssueTests extends ESTestCase {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if ("account".equals(currentFieldName)) {
+                    parsedAccount = parser.text();
                 } else if ("result".equals(currentFieldName)) {
                     parsedResult = parser.map();
                 } else if ("request".equals(currentFieldName)) {
@@ -83,6 +86,7 @@ public class JiraIssueTests extends ESTestCase {
             }
         }
 
+        assertThat(parsedAccount, equalTo(issue.getAccount()));
         assertThat(parsedFields, equalTo(issue.getFields()));
         if (issue.successful()) {
             assertThat(parsedResult, hasEntry("key", "TEST"));
@@ -108,11 +112,12 @@ public class JiraIssueTests extends ESTestCase {
             }
         }
 
-        JiraIssue issue2 = new JiraIssue(fields, issue1.getRequest(), issue1.getResponse(), issue1.getFailureReason());
+        JiraIssue issue2 = new JiraIssue(issue1.getAccount(), fields, issue1.getRequest(), issue1.getResponse(), issue1.getFailureReason());
         assertThat(issue1.equals(issue2), is(equals));
     }
 
     private static JiraIssue randomJiraIssue() throws IOException {
+        String account = "account_" + randomIntBetween(0, 100);
         Map<String, Object> fields = randomIssueDefaults();
         HttpRequest request = HttpRequest.builder(randomFrom("localhost", "internal-jira.elastic.co"), randomFrom(80, 443))
                                             .method(HttpMethod.POST)
@@ -121,8 +126,8 @@ public class JiraIssueTests extends ESTestCase {
                                             .build();
         if (rarely()) {
             Tuple<Integer, String> error = randomHttpError();
-            return JiraIssue.responded(fields, request, new HttpResponse(error.v1(), "{\"error\": \"" + error.v2() + "\"}"));
+            return JiraIssue.responded(account, fields, request, new HttpResponse(error.v1(), "{\"error\": \"" + error.v2() + "\"}"));
         }
-        return JiraIssue.responded(fields, request, new HttpResponse(HttpStatus.SC_CREATED, "{\"key\": \"TEST\"}"));
+        return JiraIssue.responded(account, fields, request, new HttpResponse(HttpStatus.SC_CREATED, "{\"key\": \"TEST\"}"));
     }
 }

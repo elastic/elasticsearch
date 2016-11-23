@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
+import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,16 +27,18 @@ import java.util.Objects;
 
 public class JiraIssue implements ToXContent {
 
+    @Nullable final String account;
     private final Map<String, Object> fields;
     @Nullable private final HttpRequest request;
     @Nullable private final HttpResponse response;
     @Nullable private final String failureReason;
 
-    public static JiraIssue responded(Map<String, Object> fields, HttpRequest request, HttpResponse response) {
-        return new JiraIssue(fields, request, response, resolveFailureReason(response));
+    public static JiraIssue responded(String account, Map<String, Object> fields, HttpRequest request, HttpResponse response) {
+        return new JiraIssue(account, fields, request, response, resolveFailureReason(response));
     }
 
-    JiraIssue(Map<String, Object> fields, HttpRequest request, HttpResponse response, String failureReason) {
+    JiraIssue(String account, Map<String, Object> fields, HttpRequest request, HttpResponse response, String failureReason) {
+        this.account = account;
         this.fields = fields;
         this.request = request;
         this.response = response;
@@ -44,6 +47,10 @@ public class JiraIssue implements ToXContent {
 
     public boolean successful() {
         return failureReason == null;
+    }
+
+    public String getAccount() {
+        return account;
     }
 
     public HttpRequest getRequest() {
@@ -67,28 +74,30 @@ public class JiraIssue implements ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        JiraIssue sentEvent = (JiraIssue) o;
-        return Objects.equals(fields, sentEvent.fields) &&
-                Objects.equals(request, sentEvent.request) &&
-                Objects.equals(response, sentEvent.response) &&
-                Objects.equals(failureReason, sentEvent.failureReason);
+        JiraIssue issue = (JiraIssue) o;
+        return Objects.equals(account, issue.account) &&
+                Objects.equals(fields, issue.fields) &&
+                Objects.equals(request, issue.request) &&
+                Objects.equals(response, issue.response) &&
+                Objects.equals(failureReason, issue.failureReason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fields, request, response, failureReason);
+        return Objects.hash(account, fields, request, response, failureReason);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(Field.ACCOUNT.getPreferredName(), account);
         if (fields != null) {
             builder.field(Field.FIELDS.getPreferredName(), fields);
         }
         if (successful() == false) {
             builder.field(Field.REASON.getPreferredName(), failureReason);
             if (request != null) {
-                builder.field(Field.REQUEST.getPreferredName(), request, params);
+                builder.field(Field.REQUEST.getPreferredName(), request, WatcherParams.builder().hideSecrets(true).build());
             }
             if (response != null) {
                 builder.field(Field.RESPONSE.getPreferredName(), response, params);
@@ -181,6 +190,7 @@ public class JiraIssue implements ToXContent {
 
     private interface Field {
         ParseField FIELDS = JiraAction.Field.FIELDS;
+        ParseField ACCOUNT = new ParseField("account");
         ParseField REASON = new ParseField("reason");
         ParseField REQUEST = new ParseField("request");
         ParseField RESPONSE = new ParseField("response");

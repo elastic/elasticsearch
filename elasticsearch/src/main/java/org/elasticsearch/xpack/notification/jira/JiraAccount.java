@@ -90,7 +90,7 @@ public class JiraAccount {
                 .build();
 
         HttpResponse response = httpClient.execute(request);
-        return JiraIssue.responded(fields, request, response);
+        return JiraIssue.responded(name, fields, request, response);
     }
 
     private static SettingsException requiredSettingException(String account, String setting) {

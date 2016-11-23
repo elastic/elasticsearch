@@ -28,6 +28,15 @@
               "enabled": false
             }
           }
+        },
+        {
+          "disabled_jira_custom_fields": {
+            "path_match":   "result.actions.jira.fields.customfield_*",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
         }
       ],
       "dynamic": false,
@@ -353,6 +362,80 @@
                               "type" : "text"
                             }
                           }
+                        }
+                      }
+                    }
+                  }
+                },
+                "jira" : {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "account": {
+                      "type": "keyword"
+                    },
+                    "reason": {
+                      "type": "text"
+                    },
+                    "request" : {
+                      "type" : "object",
+                      "enabled" : false
+                    },
+                    "response" : {
+                      "type" : "object",
+                      "enabled" : false
+                    },
+                    "fields": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "summary": {
+                          "type": "text"
+                        },
+                        "description": {
+                          "type": "text"
+                        },
+                        "labels" : {
+                          "type": "text"
+                        },
+                        "project" : {
+                          "type" : "object",
+                          "dynamic" : true,
+                          "properties" : {
+                            "key" : {
+                              "type" : "keyword"
+                            },
+                            "id" : {
+                              "type" : "keyword"
+                            }
+                          }
+                        },
+                        "issuetype" : {
+                          "type" : "object",
+                          "dynamic" : true,
+                          "properties" : {
+                            "name" : {
+                              "type": "keyword"
+                            },
+                            "id" : {
+                              "type" : "keyword"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "result": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties" : {
+                        "id" : {
+                          "type" : "keyword"
+                        },
+                        "key" : {
+                          "type" : "keyword"
+                        },
+                        "self" : {
+                          "type" : "keyword"
                         }
                       }
                     }

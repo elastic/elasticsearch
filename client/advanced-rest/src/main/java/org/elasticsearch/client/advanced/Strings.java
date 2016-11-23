@@ -28,8 +28,6 @@ package org.elasticsearch.client.advanced;
  */
 public class Strings {
 
-    public static final String[] EMPTY_ARRAY = new String[0];
-
     //---------------------------------------------------------------------
     // General convenience methods for working with Strings
     //---------------------------------------------------------------------

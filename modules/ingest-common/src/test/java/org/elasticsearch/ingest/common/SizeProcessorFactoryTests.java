@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class SizeProcessorFactoryTests extends ESTestCase {
 
@@ -43,7 +42,6 @@ public class SizeProcessorFactoryTests extends ESTestCase {
         SizeProcessor sizeProcessor = factory.create(null, processorTag, Collections.emptyMap());
         assertThat(sizeProcessor.getTag(), equalTo(processorTag));
         assertThat(sizeProcessor.getTarget(), equalTo("_meta.size"));
-        assertThat(sizeProcessor.isConsiderSizeField(), is(false));
     }
 
     public void testCreateSetTargetField() throws Exception {
@@ -54,18 +52,5 @@ public class SizeProcessorFactoryTests extends ESTestCase {
         SizeProcessor sizeProcessor = factory.create(null, processorTag, config);
         assertThat(sizeProcessor.getTag(), equalTo(processorTag));
         assertThat(sizeProcessor.getTarget(), equalTo(fieldName));
-        assertThat(sizeProcessor.isConsiderSizeField(), is(false));
-    }
-
-    public void testCreateSetTargetAndConsiderSize() throws Exception {
-        String fieldName = randomAsciiOfLength(10);
-        Map<String, Object> config = new HashMap<>();
-        config.put("target", fieldName);
-        config.put("consider_size_field", true);
-        String processorTag = randomAsciiOfLength(10);
-        SizeProcessor sizeProcessor = factory.create(null, processorTag, config);
-        assertThat(sizeProcessor.getTag(), equalTo(processorTag));
-        assertThat(sizeProcessor.getTarget(), equalTo(fieldName));
-        assertThat(sizeProcessor.isConsiderSizeField(), is(true));
     }
 }

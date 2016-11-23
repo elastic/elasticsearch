@@ -36,7 +36,7 @@ public class SizeProcessorTests extends ESTestCase {
     public void testSizeWithRandomDocument() throws Exception {
         String target = "_meta.size";
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target, false);
+        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(target), equalTo(true));
         assertThat(ingestDocument.getFieldValue(target, Integer.class), greaterThan(0));
@@ -45,7 +45,7 @@ public class SizeProcessorTests extends ESTestCase {
     public void testSizeWithRandomDocumentAndOtherFieldName() throws Exception {
         String target = "b"+randomAsciiOfLength(10);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target, false);
+        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(target), equalTo(true));
         assertThat(ingestDocument.getFieldValue(target, Integer.class), greaterThan(0));
@@ -54,20 +54,10 @@ public class SizeProcessorTests extends ESTestCase {
     public void testSizeWithKnownDocument() throws Exception {
         String target = "_meta.size";
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("foo", "bar"));
-        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target, false);
+        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(target), equalTo(true));
         assertThat(ingestDocument.getFieldValue(target, Integer.class), equalTo(19));
-    }
-
-    public void testSizeWithKnownDocumentAndConsiderSize() throws Exception {
-        String target = "_meta.size";
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("foo", "bar"));
-        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target, true);
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.hasField(target), equalTo(true));
-        assertThat(ingestDocument.getFieldValue(target, Integer.class),
-            equalTo(19 + ",\n  \"_meta\" : {    \"size\" : 19\n  }\n".length()));
     }
 
     public void testSizeWithExistingMetaData() throws Exception {
@@ -78,7 +68,7 @@ public class SizeProcessorTests extends ESTestCase {
         meta.put("source", "ingest");
         document.put("_meta", meta);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target, false);
+        Processor processor = new SizeProcessor(randomAsciiOfLength(10), target);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(target), equalTo(true));
         assertThat(ingestDocument.getFieldValue(target, Integer.class), equalTo(62));

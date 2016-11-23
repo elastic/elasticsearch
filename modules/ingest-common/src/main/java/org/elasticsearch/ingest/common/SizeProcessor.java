@@ -31,29 +31,22 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Processor that adds the size of the current JSON payload as `_size` field by default.
+ * Processor that adds the size of the current JSON payload as `_meta.size` field by default.
  */
 public final class SizeProcessor extends AbstractProcessor {
 
     public static final String TYPE = "size";
     private static final String DEFAULT_TARGET = "_meta.size";
-    private static final boolean DEFAULT_CONSIDER_SIZE_FIELD = false;
 
     private final String target;
-    private final boolean considerSizeField;
 
-    SizeProcessor(String tag, String target, boolean considerSizeField)  {
+    SizeProcessor(String tag, String target)  {
         super(tag);
         this.target = target;
-        this.considerSizeField = considerSizeField;
     }
 
     String getTarget() {
         return target;
-    }
-
-    boolean isConsiderSizeField() {
-        return considerSizeField;
     }
 
     @Override
@@ -63,13 +56,6 @@ public final class SizeProcessor extends AbstractProcessor {
         String s = XContentHelper.toString(sizeIngestDocument);
         // Note that the size does not include the new size field itself which is added here
         document.setFieldValue(target, s.length());
-
-        if (considerSizeField) {
-            // We parse again the same document to get its real size, including size field
-            sizeIngestDocument = new SizeIngestDocument(document);
-            s = XContentHelper.toString(sizeIngestDocument);
-            document.setFieldValue(target, s.length());
-        }
     }
 
     @Override
@@ -83,8 +69,7 @@ public final class SizeProcessor extends AbstractProcessor {
         public SizeProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     Map<String, Object> config) throws Exception {
             return new SizeProcessor(processorTag,
-                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target", DEFAULT_TARGET),
-                ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "consider_size_field", DEFAULT_CONSIDER_SIZE_FIELD));
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target", DEFAULT_TARGET));
         }
     }
 

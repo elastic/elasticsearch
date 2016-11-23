@@ -6,8 +6,13 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -15,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -22,6 +28,7 @@ import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
@@ -35,6 +42,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -93,6 +101,10 @@ public class ScriptConditionTests extends ESTestCase {
                 .build();
 
         scriptService = new ScriptService(settings, new Environment(settings), null, registry, contextRegistry, scriptSettings);
+        ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
+        clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));
+        ClusterState cs = clusterState.build();
+        scriptService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
     }
 
     public void testExecute() throws Exception {
@@ -152,19 +164,25 @@ public class ScriptConditionTests extends ESTestCase {
     public void testScriptConditionParserBadScript() throws Exception {
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
+        Class<? extends Exception> expectedException;
         switch (scriptType) {
             case STORED:
-            case FILE:
+                expectedException = ResourceNotFoundException.class;
                 script = "nonExisting_script";
                 break;
-            case INLINE:
+            case FILE:
+                expectedException = IllegalArgumentException.class;
+                script = "nonExisting_script";
+                break;
             default:
+                expectedException = GeneralScriptException.class;
                 script = "foo = = 1";
         }
         XContentBuilder builder = createConditionContent(script, "painless", scriptType);
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        expectThrows(IllegalArgumentException.class,
+
+        expectThrows(expectedException,
                 () -> ScriptCondition.parse(scriptService, "_watch", parser));
     }
 

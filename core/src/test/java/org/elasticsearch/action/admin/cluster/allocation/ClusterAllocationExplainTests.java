@@ -51,12 +51,12 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(Decision.Type.NO, d.type());
         assertEquals(ClusterAllocationExplanation.FinalDecision.NO, fd);
         assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, storeCopy);
-        assertTrue(d.toString(), d.toString().contains("NO(the shard cannot be allocated on the same node id"));
+        assertTrue(d.toString(), d.toString().contains("NO(the shard cannot be allocated to the same node id"));
         assertTrue(d instanceof Decision.Multi);
         Decision.Multi md = (Decision.Multi) d;
         Decision ssd = md.getDecisions().get(0);
         assertEquals(Decision.Type.NO, ssd.type());
-        assertTrue(ssd.toString(), ssd.toString().contains("NO(the shard cannot be allocated on the same node id"));
+        assertTrue(ssd.toString(), ssd.toString().contains("NO(the shard cannot be allocated to the same node id"));
         Float weight = explanation.getWeight();
         assertNotNull("should have a weight", weight);
 
@@ -78,12 +78,12 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(Decision.Type.NO, d.type());
         assertEquals(ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED, fd);
         assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, storeCopy);
-        assertTrue(d.toString(), d.toString().contains("NO(the shard cannot be allocated on the same node id"));
+        assertTrue(d.toString(), d.toString().contains("NO(the shard cannot be allocated to the same node id"));
         assertTrue(d instanceof Decision.Multi);
         md = (Decision.Multi) d;
         ssd = md.getDecisions().get(0);
         assertEquals(Decision.Type.NO, ssd.type());
-        assertTrue(ssd.toString(), ssd.toString().contains("NO(the shard cannot be allocated on the same node id"));
+        assertTrue(ssd.toString(), ssd.toString().contains("NO(the shard cannot be allocated to the same node id"));
         weight = explanation.getWeight();
         assertNotNull("should have a weight", weight);
 

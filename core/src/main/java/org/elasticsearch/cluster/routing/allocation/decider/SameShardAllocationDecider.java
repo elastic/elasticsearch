@@ -62,7 +62,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
         for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the shard cannot be allocated on the same node id [%s] on which it already exists", node.nodeId());
+                        "the shard cannot be allocated to the same node id [%s] on which a copy of the shard already exists",
+                        node.nodeId());
             }
         }
         if (sameHost) {
@@ -86,13 +87,15 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         for (ShardRouting assignedShard : assignedShards) {
                             if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
                                 return allocation.decision(Decision.NO, NAME,
-                                        "shard cannot be allocated on the same host [%s] on which it already exists", node.nodeId());
+                                    "the shard cannot be allocated on host [%s], where it already exists on node [%s]; " +
+                                        "set [%s] to false to allow multiple nodes on the same host to hold the same shard copies",
+                                    node.node().getHostName(), node.nodeId(), CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey());
                             }
                         }
                     }
                 }
             }
         }
-        return allocation.decision(Decision.YES, NAME, "shard is not allocated to same node or host");
+        return allocation.decision(Decision.YES, NAME, "the shard does not exist on the same node or host");
     }
 }

@@ -783,9 +783,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             strategy.reroute(clusterState, cmds, false, false);
             fail("should not have been able to reroute the shard");
         } catch (IllegalArgumentException e) {
-            assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
+            assertThat("can't be allocated because there isn't enough room: " + e.getMessage(),
                     e.getMessage(),
-                    containsString("the node is above the low watermark and has more than allowed [70.0%] used disk, free: [26.0%]"));
+                    containsString("the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=0.7] and has " +
+                                       "more than the allowed [70.0%] used disk, actual free: [26.0%]"));
         }
 
     }

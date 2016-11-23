@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -140,7 +141,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
         if (awarenessAttributes.length == 0) {
-            return allocation.decision(Decision.YES, NAME, "allocation awareness is not enabled");
+            return allocation.decision(Decision.YES, NAME,
+                "allocation awareness is not enabled, set [%s] to enable it",
+                CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
         }
 
         IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
@@ -148,7 +151,10 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (!node.node().getAttributes().containsKey(awarenessAttribute)) {
-                return allocation.decision(Decision.NO, NAME, "node does not contain the awareness attribute: [%s]", awarenessAttribute);
+                return allocation.decision(Decision.NO, NAME,
+                    "node does not contain the awareness attribute [%s]; required attributes [%s=%s]",
+                    awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
+                    Strings.arrayToCommaDelimitedString(awarenessAttributes));
             }
 
             // build attr_value -> nodes map
@@ -206,15 +212,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             // if we are above with leftover, then we know we are not good, even with mod
             if (currentNodeCount > (requiredCountPerAttribute + leftoverPerAttribute)) {
                 return allocation.decision(Decision.NO, NAME,
-                        "there are too many shards on the node for attribute [%s], there are [%d] total shards for the index " +
-                        " and [%d] total attributes values, expected the node count [%d] to be lower or equal to the required " +
-                        "number of shards per attribute [%d] plus leftover [%d]",
+                        "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total shards " +
+                        "for the index and [%d] total attributes values, expected the allocated shard count per attribute [%d] to be " +
+                        "less than or equal to the upper bound of the required number of shards per attribute [%d]",
                         awarenessAttribute,
                         shardCount,
                         numberOfAttributes,
                         currentNodeCount,
-                        requiredCountPerAttribute,
-                        leftoverPerAttribute);
+                        requiredCountPerAttribute + leftoverPerAttribute);
             }
             // all is well, we are below or same as average
             if (currentNodeCount <= requiredCountPerAttribute) {

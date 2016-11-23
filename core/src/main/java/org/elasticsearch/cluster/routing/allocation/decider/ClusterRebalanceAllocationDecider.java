@@ -115,12 +115,14 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             // check if there are unassigned primaries.
             if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has unassigned primary shards and rebalance type is set to [%s]", type);
+                        "the cluster has unassigned primary shards and [%s] is set to [%s]",
+                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), type);
             }
             // check if there are initializing primaries that don't have a relocatingNodeId entry.
             if ( allocation.routingNodes().hasInactivePrimaries() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has inactive primary shards and rebalance type is set to [%s]", type);
+                        "the cluster has inactive primary shards and [%s] is set to [%s]",
+                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), type);
             }
 
             return allocation.decision(Decision.YES, NAME, "all primary shards are active");
@@ -129,16 +131,18 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             // check if there are unassigned shards.
             if (allocation.routingNodes().hasUnassignedShards() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has unassigned shards and rebalance type is set to [%s]", type);
+                        "the cluster has unassigned shards and [%s] is set to [%s]",
+                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), type);
             }
             // in case all indices are assigned, are there initializing shards which
             // are not relocating?
             if ( allocation.routingNodes().hasInactiveShards() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has inactive shards and rebalance type is set to [%s]", type);
+                        "the cluster has inactive shards and [%s] is set to [%s]",
+                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), type);
             }
         }
         // type == Type.ALWAYS
-        return allocation.decision(Decision.YES, NAME, "all shards are active, rebalance type is [%s]", type);
+        return allocation.decision(Decision.YES, NAME, "all shards are active");
     }
 }

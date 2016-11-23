@@ -299,7 +299,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     /**
      * Returns the explanation behind the {@link #getDecision()} that is returned for this decision.
      */
-    public String getFinalExplanation() {
+    public String getExplanation() {
         String explanation;
         if (decision == Type.NO) {
             assert allocationStatus != null : "if the decision is NO, it must have an AllocationStatus";
@@ -336,7 +336,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("decision", decision.toString());
-        builder.field("explanation", getFinalExplanation());
+        builder.field("explanation", getExplanation());
         if (allocationStatus != null) {
             builder.field("allocation_status", allocationStatus.value());
         }

@@ -51,7 +51,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertNull(allocateUnassignedDecision.getAssignedNodeId());
         assertNull(allocateUnassignedDecision.getNodeDecisions());
         expectThrows(IllegalArgumentException.class, () -> allocateUnassignedDecision.getDecisionSafe());
-        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getFinalExplanation());
+        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getExplanation());
     }
 
     public void testNoDecision() {
@@ -64,11 +64,11 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(allocationStatus, noDecision.getAllocationStatus());
         if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
             assertEquals("cannot allocate because information about existing shard data is still being retrieved from " +
-                             "some of the nodes", noDecision.getFinalExplanation());
+                             "some of the nodes", noDecision.getExplanation());
         } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            assertThat(noDecision.getFinalExplanation(), startsWith("cannot allocate because the cluster is waiting"));
+            assertThat(noDecision.getExplanation(), startsWith("cannot allocate because the cluster is waiting"));
         } else {
-            assertThat(noDecision.getFinalExplanation(),
+            assertThat(noDecision.getExplanation(),
                 startsWith("cannot allocate because a previous copy of the shard existed"));
         }
         assertNull(noDecision.getNodeDecisions());
@@ -85,9 +85,9 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
         if (reuseStore) {
             assertEquals("cannot allocate because allocation is not permitted to any of the nodes that hold a valid shard copy",
-                noDecision.getFinalExplanation());
+                noDecision.getExplanation());
         } else {
-            assertEquals("cannot allocate because allocation is not permitted to any of the nodes", noDecision.getFinalExplanation());
+            assertEquals("cannot allocate because allocation is not permitted to any of the nodes", noDecision.getExplanation());
         }
         assertEquals(nodeDecisions, noDecision.getNodeDecisions());
         assertNull(noDecision.getAssignedNodeId());
@@ -105,7 +105,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertTrue(throttleDecision.isDecisionTaken());
         assertEquals(Decision.Type.THROTTLE, throttleDecision.getDecision());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
-        assertThat(throttleDecision.getFinalExplanation(), startsWith("allocation temporarily throttled"));
+        assertThat(throttleDecision.getExplanation(), startsWith("allocation temporarily throttled"));
         assertEquals(nodeDecisions, throttleDecision.getNodeDecisions());
         assertNull(throttleDecision.getAssignedNodeId());
         assertNull(throttleDecision.getAllocationId());
@@ -121,7 +121,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertTrue(yesDecision.isDecisionTaken());
         assertEquals(Decision.Type.YES, yesDecision.getDecision());
         assertNull(yesDecision.getAllocationStatus());
-        assertEquals("can allocate the shard", yesDecision.getFinalExplanation());
+        assertEquals("can allocate the shard", yesDecision.getExplanation());
         assertEquals(nodeDecisions, yesDecision.getNodeDecisions());
         assertEquals("node1", yesDecision.getAssignedNodeId());
         assertEquals(allocId, yesDecision.getAllocationId());

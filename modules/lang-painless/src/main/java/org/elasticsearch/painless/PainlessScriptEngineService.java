@@ -172,7 +172,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                 }
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
-        } catch (OutOfMemoryError | StackOverflowError | Exception e) {
+        } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
             throw convertToScriptException(scriptName == null ? scriptSource : scriptName, scriptSource, e);
         }
     }

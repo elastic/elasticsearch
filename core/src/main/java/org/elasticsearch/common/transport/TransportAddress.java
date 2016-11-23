@@ -21,7 +21,6 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.Writeable;
 
-
 /**
  *
  */
@@ -49,4 +48,5 @@ public interface TransportAddress extends Writeable {
     boolean isLoopbackOrLinkLocalAddress();
 
     String toString();
+
 }

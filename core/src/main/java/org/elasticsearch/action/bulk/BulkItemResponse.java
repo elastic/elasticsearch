@@ -301,7 +301,6 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
         opType = in.readString();
-
         byte type = in.readByte();
         if (type == 0) {
             response = new IndexResponse();
@@ -323,7 +322,6 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
         out.writeString(opType);
-
         if (response == null) {
             out.writeByte((byte) 2);
         } else {

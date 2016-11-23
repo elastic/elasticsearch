@@ -19,25 +19,19 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.index.query.SimpleQueryStringBuilder;
-import org.elasticsearch.monitor.os.OsStats;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.Version.V_2_2_0;
 import static org.elasticsearch.Version.V_5_0_0_alpha1;
@@ -200,7 +194,7 @@ public class VersionTests extends ESTestCase {
 
     public void testParseLenient() {
         // note this is just a silly sanity check, we test it in lucene
-        for (Version version : VersionUtils.allVersions()) {
+        for (Version version : VersionUtils.allReleasedVersions()) {
             org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
             String string = luceneVersion.toString().toUpperCase(Locale.ROOT)
                     .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
@@ -209,20 +203,27 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testAllVersionsMatchId() throws Exception {
+        final Set<Version> releasedVersions = new HashSet<>(VersionUtils.allReleasedVersions());
+        final Set<Version> unreleasedVersions = new HashSet<>(VersionUtils.allUnreleasedVersions());
         Map<String, Version> maxBranchVersions = new HashMap<>();
         for (java.lang.reflect.Field field : Version.class.getFields()) {
-            if (field.getName().endsWith("_ID")) {
+            if (field.getName().matches("_ID(_UNRELEASED)?")) {
                 assertTrue(field.getName() + " should be static", Modifier.isStatic(field.getModifiers()));
                 assertTrue(field.getName() + " should be final", Modifier.isFinal(field.getModifiers()));
                 int versionId = (Integer)field.get(Version.class);
 
-                String constantName = field.getName().substring(0, field.getName().length() - 3);
+                String constantName = field.getName().substring(0, field.getName().indexOf("_ID"));
                 java.lang.reflect.Field versionConstant = Version.class.getField(constantName);
                 assertTrue(constantName + " should be static", Modifier.isStatic(versionConstant.getModifiers()));
                 assertTrue(constantName + " should be final", Modifier.isFinal(versionConstant.getModifiers()));
 
-                Version v = (Version) versionConstant.get(Version.class);
-                logger.info("Checking {}", v);
+                Version v = (Version) versionConstant.get(null);
+                logger.debug("Checking {}", v);
+                if (field.getName().endsWith("_UNRELEASED")) {
+                    assertTrue(unreleasedVersions.contains(v));
+                } else {
+                    assertTrue(releasedVersions.contains(v));
+                }
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 if (v.major >= 2) {
@@ -255,8 +256,8 @@ public class VersionTests extends ESTestCase {
 
     // this test ensures we never bump the lucene version in a bugfix release
     public void testLuceneVersionIsSameOnMinorRelease() {
-        for (Version version : VersionUtils.allVersions()) {
-            for (Version other : VersionUtils.allVersions()) {
+        for (Version version : VersionUtils.allReleasedVersions()) {
+            for (Version other : VersionUtils.allReleasedVersions()) {
                 if (other.onOrAfter(version)) {
                     assertTrue("lucene versions must be "  + other + " >= " + version,
                         other.luceneVersion.onOrAfter(version.luceneVersion));
@@ -271,29 +272,9 @@ public class VersionTests extends ESTestCase {
         }
     }
 
-    private static final Version V_20_0_0_UNRELEASED = new Version(20000099, Version.CURRENT.luceneVersion);
-
-    // see comment in Version.java about this test
-    public void testUnknownVersions() {
-        assertUnknownVersion(V_20_0_0_UNRELEASED);
-        // once we release 5.0.2 and it's added to Version.java, we need to remove this constant
-        assertUnknownVersion(ElasticsearchException.V_5_0_2_UNRELEASED);
-        // once we release 5.1.0 and it's added to Version.java, we need to remove these constants
-        assertUnknownVersion(ElasticsearchException.V_5_1_0_UNRELEASED);
-        assertUnknownVersion(ClusterSearchShardsResponse.V_5_1_0_UNRELEASED);
-        assertUnknownVersion(Script.V_5_1_0_UNRELEASED);
-        assertUnknownVersion(AliasFilter.V_5_1_0_UNRELEASED);
-        assertUnknownVersion(OsStats.V_5_1_0_UNRELEASED);
-        assertUnknownVersion(SimpleQueryStringBuilder.V_5_1_0_UNRELEASED);
-        assertUnknownVersion(QueryStringQueryBuilder.V_5_1_0_UNRELEASED);
-        assertUnknownVersion(ClusterSearchShardsRequest.V_5_1_0_UNRELEASED);
-        assertUnknownVersion(RestoreService.V_5_1_0_UNRELEASED);
-        expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
-    }
-
     public static void assertUnknownVersion(Version version) {
         assertFalse("Version " + version + " has been released don't use a new instance of this version",
-            VersionUtils.allVersions().contains(version));
+            VersionUtils.allReleasedVersions().contains(version));
     }
 
 }

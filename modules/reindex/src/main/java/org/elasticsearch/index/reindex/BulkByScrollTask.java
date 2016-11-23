@@ -46,8 +46,6 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  */
 public abstract class BulkByScrollTask extends CancellableTask {
 
-    static Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
-
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
         super(id, type, action, description, parentTaskId);
     }
@@ -188,7 +186,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
         }
 
         public Status(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
                 sliceId = in.readOptionalVInt();
             } else {
                 sliceId = null;
@@ -206,7 +204,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
             throttledUntil = new TimeValue(in);
-            if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
                 sliceStatuses = in.readList(stream -> stream.readOptionalWriteable(StatusOrException::new));
             } else {
                 sliceStatuses = emptyList();
@@ -215,7 +213,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
                 out.writeOptionalVInt(sliceId);
             }
             out.writeVLong(total);
@@ -231,7 +229,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
             out.writeFloat(requestsPerSecond);
             out.writeOptionalString(reasonCancelled);
             throttledUntil.writeTo(out);
-            if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
                 out.writeVInt(sliceStatuses.size());
                 for (StatusOrException sliceStatus : sliceStatuses) {
                     out.writeOptionalWriteable(sliceStatus);
@@ -513,4 +511,5 @@ public abstract class BulkByScrollTask extends CancellableTask {
             return Objects.hash(status, exception);
         }
     }
+
 }

@@ -72,8 +72,6 @@ import java.util.TreeMap;
  */
 public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
 
-    public static Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
-
     public static final String NAME = "query_string";
 
     public static final boolean DEFAULT_AUTO_GENERATE_PHRASE_QUERIES = false;
@@ -220,11 +218,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         autoGeneratePhraseQueries = in.readBoolean();
         allowLeadingWildcard = in.readOptionalBoolean();
         analyzeWildcard = in.readOptionalBoolean();
-        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
             in.readBoolean(); // lowercase_expanded_terms
         }
         enablePositionIncrements = in.readBoolean();
-        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
             in.readString(); // locale
         }
         fuzziness = new Fuzziness(in);
@@ -240,7 +238,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         timeZone = in.readOptionalTimeZone();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             splitOnWhitespace = in.readBoolean();
             useAllFields = in.readOptionalBoolean();
         } else {
@@ -264,11 +262,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeBoolean(this.autoGeneratePhraseQueries);
         out.writeOptionalBoolean(this.allowLeadingWildcard);
         out.writeOptionalBoolean(this.analyzeWildcard);
-        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
             out.writeBoolean(true); // lowercase_expanded_terms
         }
         out.writeBoolean(this.enablePositionIncrements);
-        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
             out.writeString(Locale.ROOT.toLanguageTag()); // locale
         }
         this.fuzziness.writeTo(out);
@@ -284,7 +282,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalTimeZone(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             out.writeBoolean(this.splitOnWhitespace);
             out.writeOptionalBoolean(this.useAllFields);
         }
@@ -1059,4 +1057,5 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
         return query;
     }
+
 }

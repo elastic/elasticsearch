@@ -36,6 +36,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkByScrollTaskTests extends ESTestCase {
+
     public void testStatusHatesNegatives() {
         checkStatusNegatives(-1  ,  0, 0, 0, 0, 0, 0, 0, 0, 0, "sliceId");
         checkStatusNegatives(null, -1, 0, 0, 0, 0, 0, 0, 0, 0, "total");
@@ -151,11 +152,6 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(mergedRequestsPerSecond, merged.getRequestsPerSecond(), 0.0001f);
         assertEquals(mergedThrottledUntil, merged.getThrottledUntil());
         assertEquals(reasonCancelled, merged.getReasonCancelled());
-    }
-
-    public static void testUnknownVersion() {
-        assertFalse("Version " + BulkByScrollTask.V_5_1_0_UNRELEASED + " has been released don't use a new instance of this version",
-            VersionUtils.allVersions().contains(BulkByScrollTask.V_5_1_0_UNRELEASED));
     }
 
 }

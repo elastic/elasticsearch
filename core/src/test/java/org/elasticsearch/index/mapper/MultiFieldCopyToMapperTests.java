@@ -27,9 +27,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -92,7 +89,7 @@ public class MultiFieldCopyToMapperTests extends ESTestCase {
     private static Tuple<List<Version>, List<Version>> versionsWithAndWithoutExpectedExceptions() {
         List<Version> versionsWithException = new ArrayList<>();
         List<Version> versionsWithoutException = new ArrayList<>();
-        for (Version version : VersionUtils.allVersions()) {
+        for (Version version : VersionUtils.allReleasedVersions()) {
             if (version.after(Version.V_2_1_0) ||
                 (version.after(Version.V_2_0_1) && version.before(Version.V_2_1_0))) {
                 versionsWithException.add(version);

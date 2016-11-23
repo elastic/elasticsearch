@@ -45,6 +45,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess, Closeable 
         persistStream = new PipedInputStream();
         try {
             pipedProcessOutStream = new PipedOutputStream(processOutStream);
+            pipedProcessOutStream.write('[');
             pipedPersistStream = new PipedOutputStream(persistStream);
         } catch (IOException e) {
             LOGGER.error("Error connecting PipedOutputStream", e);
@@ -74,9 +75,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess, Closeable 
         FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID);
         AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, flushAcknowledgement);
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-        builder.startArray();
         builder.value(result);
-        builder.endArray();
         pipedProcessOutStream.write(builder.string().getBytes(StandardCharsets.UTF_8));
         pipedProcessOutStream.flush();
         return FLUSH_ID;
@@ -88,6 +87,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess, Closeable 
 
     @Override
     public void close() throws IOException {
+        pipedProcessOutStream.write(']');
         pipedProcessOutStream.close();
         pipedPersistStream.close();
     }

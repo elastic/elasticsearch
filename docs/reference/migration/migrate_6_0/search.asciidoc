@@ -9,3 +9,9 @@
 * Queries on boolean fields now strictly parse boolean-like values. This means
   only the strings `"true"` and `"false"` will be parsed into their boolean
   counterparts. Other strings will cause an error to be thrown.
+
+
+==== Search shards API
+
+The search shards API no longer accepts the `type` url parameter, which didn't
+have any effect in previous versions.

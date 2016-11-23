@@ -173,6 +173,14 @@ public class MatchAssertion extends Assertion {
                 return;
             }
             if (Objects.equals(expected, actual)) {
+                if (expected instanceof String) {
+                    String expectedString = (String) expected;
+                    if (expectedString.length() > 50) {
+                        expectedString = expectedString.substring(0, 50) + "...";
+                    }
+                    field(field, "same [" + expectedString + "]");
+                    return;
+                }
                 field(field, "same [" + expected + "]");
                 return;
             }

@@ -36,7 +36,8 @@ RP:        ')';
 // between shortcuts and decimal values.  Without the mode switch
 // shortcuts such as id.0.0 will fail because 0.0 will be interpreted
 // as a decimal value instead of two individual list-style shortcuts.
-DOT:       '.' -> mode(AFTER_DOT);
+DOT:       '.'  -> mode(AFTER_DOT);
+NSDOT:     '?.' -> mode(AFTER_DOT);
 COMMA:     ',';
 SEMICOLON: ';';
 IF:        'if';
@@ -80,6 +81,7 @@ BOOLAND: '&&';
 BOOLOR:  '||';
 COND:    '?';
 COLON:   ':';
+ELVIS:   '?:';
 REF:     '::';
 ARROW:   '->';
 FIND:    '=~';

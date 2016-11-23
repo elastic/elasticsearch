@@ -221,7 +221,7 @@ public class ScriptServiceTests extends ESTestCase {
             builder.put("script.file", "true");
         }
         buildScriptService(builder.build());
-        createFileScripts("groovy", "mustache", "dtest");
+        createFileScripts("mustache", "dtest");
 
         for (ScriptContext scriptContext : scriptContexts) {
             // only file scripts are accepted by default
@@ -292,7 +292,7 @@ public class ScriptServiceTests extends ESTestCase {
         }
 
         buildScriptService(builder.build());
-        createFileScripts("groovy", "expression", "mustache", "dtest");
+        createFileScripts("expression", "mustache", "dtest");
 
         for (ScriptType scriptType : ScriptType.values()) {
             //make sure file scripts have a different name than inline ones.

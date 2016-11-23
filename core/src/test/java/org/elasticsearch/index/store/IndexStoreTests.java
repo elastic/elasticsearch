@@ -19,12 +19,10 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -90,23 +88,4 @@ public class IndexStoreTests extends ESTestCase {
         }
     }
 
-    public void testUpdateThrottleType() throws IOException {
-        Settings settings = Settings.builder().put(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING.getKey(), "all")
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
-        IndexStoreConfig indexStoreConfig = new IndexStoreConfig(settings);
-        IndexStore store = new IndexStore(indexSettings, indexStoreConfig);
-        assertEquals(StoreRateLimiting.Type.NONE, store.rateLimiting().getType());
-        assertEquals(StoreRateLimiting.Type.ALL, indexStoreConfig.getNodeRateLimiter().getType());
-        assertNotSame(indexStoreConfig.getNodeRateLimiter(), store.rateLimiting());
-
-        store.setType(IndexStore.IndexRateLimitingType.fromString("NODE"));
-        assertEquals(StoreRateLimiting.Type.ALL, store.rateLimiting().getType());
-        assertSame(indexStoreConfig.getNodeRateLimiter(), store.rateLimiting());
-
-        store.setType(IndexStore.IndexRateLimitingType.fromString("merge"));
-        assertEquals(StoreRateLimiting.Type.MERGE, store.rateLimiting().getType());
-        assertNotSame(indexStoreConfig.getNodeRateLimiter(), store.rateLimiting());
-        assertEquals(StoreRateLimiting.Type.ALL, indexStoreConfig.getNodeRateLimiter().getType());
-    }
 }

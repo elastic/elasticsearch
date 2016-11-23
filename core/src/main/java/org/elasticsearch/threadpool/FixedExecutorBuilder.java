@@ -29,7 +29,7 @@ import org.elasticsearch.node.Node;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 /**
@@ -102,7 +102,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         int size = settings.size;
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
-        Executor executor = EsExecutors.newFixed(name(), size, queueSize, threadFactory, threadContext);
+        final ExecutorService executor = EsExecutors.newFixed(name(), size, queueSize, threadFactory, threadContext);
         final ThreadPool.Info info =
             new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FIXED, size, size, null, queueSize < 0 ? null : new SizeValue(queueSize));
         return new ThreadPool.ExecutorHolder(executor, info);

@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClientNodesService;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -64,7 +63,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -164,11 +162,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(
             Arrays.asList(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-                    TransportClientNodesService.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL, // TODO these transport client settings are kind
+                    TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL, // TODO these transport client settings are kind
                     // of odd here and should only be valid if we are a transport client
-                    TransportClientNodesService.CLIENT_TRANSPORT_PING_TIMEOUT,
-                    TransportClientNodesService.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME,
-                    TransportClientNodesService.CLIENT_TRANSPORT_SNIFF,
+                    TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT,
+                    TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME,
+                    TransportClient.CLIENT_TRANSPORT_SNIFF,
                     AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
                     BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                     BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
@@ -183,8 +181,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
                     FsRepository.REPOSITORIES_COMPRESS_SETTING,
                     FsRepository.REPOSITORIES_LOCATION_SETTING,
-                    IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING,
-                    IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                     IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
@@ -343,6 +339,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
+                    UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,

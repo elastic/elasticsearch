@@ -37,7 +37,11 @@ public class MockTransportClient extends TransportClient {
     }
 
     public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        super(settings, DEFAULT_SETTINGS, addMockTransportIfMissing(plugins));
+        this(settings, addMockTransportIfMissing(plugins), null);
+    }
+
+    public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins, HostFailureListener listener) {
+        super(settings, DEFAULT_SETTINGS, addMockTransportIfMissing(plugins), listener);
     }
 
     private static Collection<Class<? extends Plugin>> addMockTransportIfMissing(Collection<Class<? extends Plugin>> plugins) {

@@ -52,6 +52,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -546,6 +547,8 @@ public class TransportService extends AbstractLifecycleComponent {
                         holderToNotify.handler().handleException(sendRequestException);
                     }
                 });
+            } else {
+                logger.debug("Exception while sending request, handler likely already notified due to timeout", e);
             }
         }
     }
@@ -617,7 +620,7 @@ public class TransportService extends AbstractLifecycleComponent {
         return requestIds.getAndIncrement();
     }
 
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
         return transport.addressesFromString(address, perAddressLimit);
     }
 

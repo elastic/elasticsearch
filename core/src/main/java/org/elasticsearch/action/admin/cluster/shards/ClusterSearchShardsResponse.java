@@ -19,22 +19,35 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ClusterSearchShardsResponse extends ActionResponse implements ToXContent {
+    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
 
     private ClusterSearchShardsGroup[] groups;
     private DiscoveryNode[] nodes;
+    private Map<String, AliasFilter> indicesAndFilters;
 
     ClusterSearchShardsResponse() {
 
+    }
+
+    ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,
+                                       Map<String, AliasFilter> indicesAndFilters) {
+        this.groups = groups;
+        this.nodes = nodes;
+        this.indicesAndFilters = indicesAndFilters;
     }
 
     public ClusterSearchShardsGroup[] getGroups() {
@@ -45,9 +58,8 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         return nodes;
     }
 
-    public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes) {
-        this.groups = groups;
-        this.nodes = nodes;
+    public Map<String, AliasFilter> getIndicesAndFilters() {
+        return indicesAndFilters;
     }
 
     @Override
@@ -61,7 +73,15 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = new DiscoveryNode(in);
         }
-
+        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            int size = in.readVInt();
+            indicesAndFilters = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                String index = in.readString();
+                AliasFilter aliasFilter = new AliasFilter(in);
+                indicesAndFilters.put(index, aliasFilter);
+            }
+        }
     }
 
     @Override
@@ -75,6 +95,13 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         for (DiscoveryNode node : nodes) {
             node.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+            out.writeVInt(indicesAndFilters.size());
+            for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -84,6 +111,20 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
             node.toXContent(builder, params);
         }
         builder.endObject();
+        if (indicesAndFilters != null) {
+            builder.startObject("indices");
+            for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
+                String index = entry.getKey();
+                builder.startObject(index);
+                AliasFilter aliasFilter = entry.getValue();
+                if (aliasFilter.getQueryBuilder() != null) {
+                    builder.field("filter");
+                    aliasFilter.getQueryBuilder().toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
         builder.startArray("shards");
         for (ClusterSearchShardsGroup group : groups) {
             group.toXContent(builder, params);

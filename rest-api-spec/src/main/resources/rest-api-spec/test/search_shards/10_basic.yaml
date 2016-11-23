@@ -10,3 +10,47 @@
         routing: foo
 
   - match: { shards.0.0.index: test_1 }
+
+---
+"Search shards aliases with and without filters":
+  - skip:
+      version: " - 5.0.99"
+      reason: indices section was added in 5.1.0
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            type_1:
+              properties:
+                field:
+                  type: text
+          aliases:
+            test_alias_1: {}
+            test_alias_2:
+              filter:
+                term:
+                  field : value
+
+  - do:
+      search_shards:
+        index:  test_alias_1
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - is_true: indices.test_index
+  - is_false: indices.test_index.filter
+
+  - do:
+      search_shards:
+        index:  test_alias_2
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index: {filter: { term : { field: { value: value, boost: 1.0}}}}}
+

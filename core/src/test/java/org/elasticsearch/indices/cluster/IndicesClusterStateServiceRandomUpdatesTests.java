@@ -61,7 +61,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -364,8 +364,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     private IndicesClusterStateService createIndicesClusterStateService(DiscoveryNode discoveryNode,
                                                                         final Supplier<MockIndicesService> indicesServiceSupplier) {
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final Executor executor = mock(Executor.class);
-        when(threadPool.generic()).thenReturn(executor);
+        when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         final MockIndicesService indicesService = indicesServiceSupplier.get();
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
         final TransportService transportService = new TransportService(settings, null, threadPool,

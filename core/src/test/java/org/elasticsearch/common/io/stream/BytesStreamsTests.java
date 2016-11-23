@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -656,5 +659,107 @@ public class BytesStreamsTests extends ESTestCase {
     private static <K, V> Map<K, V> randomMap(Map<K, V> map, int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
         IntStream.range(0, size).forEach(i -> map.put(keyGenerator.get(), valueGenerator.get()));
         return map;
+    }
+
+    public void testWriteRandomStrings() throws IOException {
+        final int iters = scaledRandomIntBetween(5, 20);
+        for (int iter = 0; iter < iters; iter++) {
+            List<String> strings = new ArrayList<>();
+            int numStrings = randomIntBetween(100, 1000);
+            BytesStreamOutput output = new BytesStreamOutput(0);
+            for (int i = 0; i < numStrings; i++) {
+                String s = randomRealisticUnicodeOfLengthBetween(0, 2048);
+                strings.add(s);
+                output.writeString(s);
+            }
+
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                for (int i = 0; i < numStrings; i++) {
+                    String s = streamInput.readString();
+                    assertEquals(strings.get(i), s);
+                }
+            }
+        }
+    }
+
+    /*
+     * tests the extreme case where characters use more than 2 bytes
+     */
+    public void testWriteLargeSurrogateOnlyString() throws IOException {
+        String deseretLetter = "\uD801\uDC00";
+        assertEquals(2, deseretLetter.length());
+        String largeString = IntStream.range(0, 2048).mapToObj(s -> deseretLetter).collect(Collectors.joining("")).trim();
+        assertEquals("expands to 4 bytes", 4, new BytesRef(deseretLetter).length);
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeString(largeString);
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                assertEquals(largeString, streamInput.readString());
+            }
+        }
+    }
+
+    public void testReadTooLargeArraySize() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeVInt(10);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+
+            output.writeVInt(Integer.MAX_VALUE);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                int[] ints = streamInput.readIntArray();
+                for (int i = 0; i < 10; i ++) {
+                    assertEquals(i, ints[i]);
+                }
+                expectThrows(IllegalStateException.class, () -> streamInput.readIntArray());
+            }
+        }
+    }
+
+    public void testReadCorruptedArraySize() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeVInt(10);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+
+            output.writeVInt(100);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                int[] ints = streamInput.readIntArray();
+                for (int i = 0; i < 10; i ++) {
+                    assertEquals(i, ints[i]);
+                }
+                EOFException eofException = expectThrows(EOFException.class, () -> streamInput.readIntArray());
+                assertEquals("tried to read: 100 bytes but only 40 remaining", eofException.getMessage());
+            }
+        }
+    }
+
+    public void testReadNegativeArraySize() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeVInt(10);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+
+            output.writeVInt(Integer.MIN_VALUE);
+            for (int i = 0; i < 10; i ++) {
+                output.writeInt(i);
+            }
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                int[] ints = streamInput.readIntArray();
+                for (int i = 0; i < 10; i ++) {
+                    assertEquals(i, ints[i]);
+                }
+                NegativeArraySizeException exception = expectThrows(NegativeArraySizeException.class, () -> streamInput.readIntArray());
+                assertEquals("array size must be positive but was: -2147483648", exception.getMessage());
+            }
+        }
     }
 }

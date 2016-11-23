@@ -34,39 +34,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
 
-    public void testDefaultLegacyLanguageIsPainless() {
-        ScriptEngineRegistry scriptEngineRegistry =
-                new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        assertThat(scriptSettings.getDefaultLegacyScriptLanguageSetting().get(Settings.EMPTY),
-                equalTo(ScriptSettings.LEGACY_DEFAULT_LANG));
-    }
-
-    public void testCustomLegacyDefaultLanguage() {
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        String defaultLanguage = CustomScriptEngineService.NAME;
-        Settings settings = Settings.builder().put(ScriptSettings.LEGACY_SCRIPT_SETTING, defaultLanguage).build();
-        assertThat(scriptSettings.getDefaultLegacyScriptLanguageSetting().get(settings), equalTo(defaultLanguage));
-    }
-
-    public void testInvalidLegacyDefaultLanguage() {
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        Settings settings = Settings.builder().put(ScriptSettings.LEGACY_SCRIPT_SETTING, "C++").build();
-        try {
-            scriptSettings.getDefaultLegacyScriptLanguageSetting().get(settings);
-            fail("should have seen unregistered default language");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("unregistered default language [C++]"));
-        }
-    }
-
     public void testSettingsAreProperlyPropogated() {
         ScriptEngineRegistry scriptEngineRegistry =
             new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));

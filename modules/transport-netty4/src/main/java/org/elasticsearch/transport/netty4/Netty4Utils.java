@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
@@ -28,9 +29,13 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -63,8 +68,7 @@ public class Netty4Utils {
             return ((ByteBufBytesReference) reference).toByteBuf();
         } else {
             final BytesRefIterator iterator = reference.iterator();
-            // usually we have one, two, or three components
-            // from the header, the message, and a buffer
+            // usually we have one, two, or three components from the header, the message, and a buffer
             final List<ByteBuf> buffers = new ArrayList<>(3);
             try {
                 BytesRef slice;
@@ -115,6 +119,33 @@ public class Netty4Utils {
 
         if (closingExceptions != null) {
             throw closingExceptions;
+        }
+    }
+
+    public static void maybeDie(final Throwable cause) throws IOException {
+        if (cause instanceof Error) {
+            /*
+             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
+             * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
+             * to where we want it to. So, we fork a thread and throw the exception from there where Netty can not get to it. We do not wrap
+             * the exception so as to not lose the original cause during exit, so we give the thread a name based on the previous stack
+             * frame so that at least we know where it came from (in case logging the current stack trace fails).
+             */
+            try (
+                final StringWriter sw = new StringWriter();
+                final PrintWriter pw = new PrintWriter(sw)) {
+                // try to log the current stack trace
+                Arrays.stream(Thread.currentThread().getStackTrace()).skip(1).map(e -> "\tat " + e).forEach(pw::println);
+                ESLoggerFactory.getLogger(Netty4Utils.class).error("fatal error on the network layer\n{}", sw.toString());
+            } finally {
+                final StackTraceElement previous = Thread.currentThread().getStackTrace()[2];
+                new Thread(
+                    () -> {
+                        throw (Error) cause;
+                    },
+                    previous.getClassName() + "#" + previous.getMethodName())
+                    .start();
+            }
         }
     }
 

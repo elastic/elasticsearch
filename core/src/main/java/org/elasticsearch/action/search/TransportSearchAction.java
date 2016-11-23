@@ -33,8 +33,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -108,26 +106,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
         // optimize search type for cases where there is only one shard group to search on
-        try {
-            if (shardIterators.size() == 1) {
-                // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
-                searchRequest.searchType(QUERY_AND_FETCH);
+        if (shardIterators.size() == 1) {
+            // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
+            searchRequest.searchType(QUERY_AND_FETCH);
+        }
+        if (searchRequest.isSuggestOnly()) {
+            // disable request cache if we have only suggest
+            searchRequest.requestCache(false);
+            switch (searchRequest.searchType()) {
+                case DFS_QUERY_AND_FETCH:
+                case DFS_QUERY_THEN_FETCH:
+                    // convert to Q_T_F if we have only suggest
+                    searchRequest.searchType(QUERY_THEN_FETCH);
+                    break;
             }
-            if (searchRequest.isSuggestOnly()) {
-                // disable request cache if we have only suggest
-                searchRequest.requestCache(false);
-                switch (searchRequest.searchType()) {
-                    case DFS_QUERY_AND_FETCH:
-                    case DFS_QUERY_THEN_FETCH:
-                        // convert to Q_T_F if we have only suggest
-                        searchRequest.searchType(QUERY_THEN_FETCH);
-                        break;
-                }
-            }
-        } catch (IndexNotFoundException | IndexClosedException e) {
-            // ignore these failures, we will notify the search response if its really the case from the actual action
-        } catch (Exception e) {
-            logger.debug("failed to optimize search type, continue as normal", e);
         }
 
         searchAsyncAction((SearchTask)task, searchRequest, shardIterators, startTimeInMillis, clusterState,

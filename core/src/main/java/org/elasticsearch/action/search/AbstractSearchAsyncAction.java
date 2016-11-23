@@ -126,7 +126,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
                 AliasFilter filter = this.aliasFilter.get(shard.index().getName());
-                ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shard, shardsIts.size(),
+                ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shardIt.shardId(), shardsIts.size(),
                     filter, startTime());
                 sendExecuteFirstPhase(node, transportRequest , new ActionListener<FirstResult>() {
                         @Override

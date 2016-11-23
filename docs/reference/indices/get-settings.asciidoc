@@ -40,5 +40,5 @@ as follows:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/2013-*/_settings/name=index.number_*'
+curl -XGET 'http://localhost:9200/2013-*/_settings/index.number_*'
 --------------------------------------------------

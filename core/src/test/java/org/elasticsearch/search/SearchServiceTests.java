@@ -31,6 +31,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -44,6 +46,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -59,6 +62,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -72,6 +76,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(FailOnRewriteQueryPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put("search.default_search_timeout", "5s").build();
     }
 
     public void testClearOnClose() throws ExecutionException, InterruptedException {
@@ -195,6 +204,40 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             thread.join();
             semaphore.acquire(Integer.MAX_VALUE);
         }
+    }
+
+    public void testTimeout() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        final SearchContext contextWithDefaultTimeout = service.createContext(
+            new ShardSearchLocalRequest(
+                indexShard.shardId(),
+                1,
+                SearchType.DEFAULT,
+                new SearchSourceBuilder(),
+                new String[0],
+                false,
+                new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            null);
+        // the search context should inherit the default timeout
+        assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+
+        final long seconds = randomIntBetween(6, 10);
+        final SearchContext context = service.createContext(
+            new ShardSearchLocalRequest(
+                indexShard.shardId(),
+                1,
+                SearchType.DEFAULT,
+                new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
+                new String[0],
+                false,
+                new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            null);
+        // the search context should inherit the query timeout
+        assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

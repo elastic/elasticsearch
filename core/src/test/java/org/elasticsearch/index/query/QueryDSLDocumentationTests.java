@@ -297,7 +297,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         parameters.put("param1", 5);
         scriptQuery(
                 new Script(
-                    ScriptType.FILE, "groovy", "mygroovyscript",
+                    ScriptType.FILE, "coollang", "myscript",
                     parameters)
             );
 

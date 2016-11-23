@@ -69,8 +69,6 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "ingest-attachment",
                    "ingest-geoip",
                    "ingest-user-agent",
-                   "lang-javascript",
-                   "lang-python",
                    "mapper-attachments",
                    "mapper-murmur3",
                    "mapper-size",
@@ -297,6 +295,3 @@ if __name__ == "__main__":
   else:
     download_url = 'https://staging.elastic.co/%s-%s/downloads/elasticsearch' % (version, hash)
   download_and_verify(version, hash, files, download_url, plugins=DEFAULT_PLUGINS + plugins)
-
-
-

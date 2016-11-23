@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -298,23 +299,41 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    // we use a small buffer to convert strings to bytes since we want to prevent calling writeByte
+    // for every byte in the string (see #21660 for details).
+    // This buffer will never be the oversized limit of 1024 bytes and will not be shared across streams
+    private byte[] convertStringBuffer = BytesRef.EMPTY_BYTES; // TODO should we reduce it to 0 bytes once the stream is closed?
+
     public void writeString(String str) throws IOException {
-        int charCount = str.length();
+        final int charCount = str.length();
+        final int bufferSize = Math.min(3 * charCount, 1024); // at most 3 bytes per character is needed here
+        if (convertStringBuffer.length < bufferSize) { // we don't use ArrayUtils.grow since copying the bytes is unnecessary
+            convertStringBuffer = new byte[ArrayUtil.oversize(bufferSize, Byte.BYTES)];
+        }
+        byte[] buffer = convertStringBuffer;
+        int offset = 0;
         writeVInt(charCount);
-        int c;
         for (int i = 0; i < charCount; i++) {
-            c = str.charAt(i);
+            final int c = str.charAt(i);
             if (c <= 0x007F) {
-                writeByte((byte) c);
+                buffer[offset++] = ((byte) c);
             } else if (c > 0x07FF) {
-                writeByte((byte) (0xE0 | c >> 12 & 0x0F));
-                writeByte((byte) (0x80 | c >> 6 & 0x3F));
-                writeByte((byte) (0x80 | c >> 0 & 0x3F));
+                buffer[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
+                buffer[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
+                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
             } else {
-                writeByte((byte) (0xC0 | c >> 6 & 0x1F));
-                writeByte((byte) (0x80 | c >> 0 & 0x3F));
+                buffer[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
+                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
+            }
+            // make sure any possible char can fit into the buffer in any possible iteration
+            // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
+            // left before we start another iteration
+            if (offset > buffer.length-3) {
+                writeBytes(buffer, offset);
+                offset = 0;
             }
         }
+        writeBytes(buffer, offset);
     }
 
     public void writeFloat(float v) throws IOException {
@@ -783,7 +802,7 @@ public abstract class StreamOutput extends OutputStream {
                 writeVInt(17);
             } else {
                 ElasticsearchException ex;
-                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass())) {
+                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
                     ex = (ElasticsearchException) throwable;
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);

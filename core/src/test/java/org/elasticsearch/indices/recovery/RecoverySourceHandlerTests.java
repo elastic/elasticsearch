@@ -170,12 +170,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int initialNumberOfDocs = randomIntBetween(16, 64);
         for (int i = 0; i < initialNumberOfDocs; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, true)));
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, true)));
         }
         final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(16, 64);
         for (int i = initialNumberOfDocs; i < initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, i - initialNumberOfDocs, true)));
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, i - initialNumberOfDocs, 1, true)));
         }
         operations.add(null);
         int totalOperations = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {

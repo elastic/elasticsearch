@@ -2055,6 +2055,7 @@ public class TranslogTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         assert Version.CURRENT.major <= 6 : "Using UNASSIGNED_SEQ_NO can be removed in 7.0, because 6.0+ nodes have actual sequence numbers";
         long randomSeqNum = randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong();
+        long primaryTerm = randomSeqNum == SequenceNumbersService.UNASSIGNED_SEQ_NO ? 0 : randomIntBetween(1, 16);
         long randomPrimaryTerm = randomBoolean() ? 0 : randomNonNegativeLong();
         seqID.seqNo.setLongValue(randomSeqNum);
         seqID.seqNoDocValue.setLongValue(randomSeqNum);
@@ -2073,7 +2074,7 @@ public class TranslogTests extends ESTestCase {
 
         Engine.Index eIndex = new Engine.Index(newUid(doc), doc, randomSeqNum, randomPrimaryTerm,
                 1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false);
-        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomSeqNum, true);
+        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomSeqNum, primaryTerm, true);
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -2084,7 +2085,7 @@ public class TranslogTests extends ESTestCase {
 
         Engine.Delete eDelete = new Engine.Delete(doc.type(), doc.id(), newUid(doc), randomSeqNum, randomPrimaryTerm,
                 2, VersionType.INTERNAL, Origin.PRIMARY, 0);
-        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomSeqNum, true);
+        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomSeqNum, primaryTerm, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();

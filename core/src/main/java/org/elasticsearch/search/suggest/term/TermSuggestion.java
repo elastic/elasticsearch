@@ -140,6 +140,10 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         Entry() {
         }
 
+        public boolean isInIndex() {
+            return inIndex;
+        }
+
         @Override
         protected void readFieldsFrom(StreamInput in) throws IOException {
             super.readFieldsFrom(in);

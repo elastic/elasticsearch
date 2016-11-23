@@ -75,13 +75,6 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(53 + 1, exception.getStackTrace()[0].getLineNumber());
     }
 
-    public void testScriptStackFromCompileError() {
-        // NOCOMMIT also test script stack from runtime
-        IllegalArgumentException exception = expectScriptThrows(IllegalArgumentException.class, () ->
-            exec("String boolean x = null", false));
-        assertEquals(7 + 1, exception.getStackTrace()[0].getLineNumber());
-    }
-
     public void testInvalidShift() {
         expectScriptThrows(ClassCastException.class, () -> {
             exec("float x = 15F; x <<= 2; return x;");

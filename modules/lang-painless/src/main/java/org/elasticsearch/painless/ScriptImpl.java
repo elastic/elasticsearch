@@ -26,10 +26,11 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntUnaryOperator;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 
@@ -136,60 +137,31 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      * @return The generated ScriptException.
      */
     private ScriptException convertToScriptException(Throwable t, Map<String, List<String>> headers) {
-        // create a script stack: this is just the script portion
-        List<String> scriptStack = new ArrayList<>();
-        for (StackTraceElement element : t.getStackTrace()) {
-            if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
-                // found the script portion
-                int offset = element.getLineNumber();
-                if (offset == -1) {
-                    scriptStack.add("<<< unknown portion of script >>>");
-                } else {
-                    offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = executable.getPreviousStatement(offset);
-                    if (startOffset == -1) {
-                        assert false; // should never happen unless we hit exc in ctor prologue...
-                        startOffset = 0;
-                    }
-                    int endOffset = executable.getNextStatement(startOffset);
-                    if (endOffset == -1) {
-                        endOffset = executable.getSource().length();
-                    }
-                    // TODO: if this is still too long, truncate and use ellipses
-                    String snippet = executable.getSource().substring(startOffset, endOffset);
-                    scriptStack.add(snippet);
-                    StringBuilder pointer = new StringBuilder();
-                    for (int i = startOffset; i < offset; i++) {
-                        pointer.append(' ');
-                    }
-                    pointer.append("^---- HERE");
-                    scriptStack.add(pointer.toString());
-                }
-                break;
-            // but filter our own internal stacks (e.g. indy bootstrap)
-            } else if (!shouldFilter(element)) {
-                scriptStack.add(element.toString());
+        IntUnaryOperator calculateStartOffset = offset -> {
+            int startOffset = executable.getPreviousStatement(offset);
+            if (startOffset == -1) {
+                assert false; // should never happen unless we hit exc in ctor prologue...
+                return 0;
             }
-        }
-        // build a name for the script:
-        final String name;
-        if (PainlessScriptEngineService.INLINE_NAME.equals(executable.getName())) {
-            name = executable.getSource();
-        } else {
-            name = executable.getName();
-        }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
+            return startOffset;
+        };
+        IntUnaryOperator calculateEndOffset = offset -> {
+            int endOffset = executable.getNextStatement(offset);
+            if (endOffset == -1) {
+                return executable.getSource().length();
+            }
+            return endOffset;
+        };
+        Predicate<StackTraceElement> shouldFilter = element ->
+                   element.getClassName().startsWith("org.elasticsearch.painless.")
+                || element.getClassName().startsWith("java.lang.invoke.")
+                || element.getClassName().startsWith("sun.invoke.");
+        ScriptException scriptException = PainlessScriptEngineService.convertToScriptException("runtime error", executable.getName(),
+                executable.getSource(), t, calculateStartOffset, calculateEndOffset, shouldFilter);
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             scriptException.addHeader(header.getKey(), header.getValue());
         }
         return scriptException;
-    }
-
-    /** returns true for methods that are part of the runtime */
-    private static boolean shouldFilter(StackTraceElement element) {
-        return element.getClassName().startsWith("org.elasticsearch.painless.") ||
-               element.getClassName().startsWith("java.lang.invoke.") ||
-               element.getClassName().startsWith("sun.invoke.");
     }
 
     /**

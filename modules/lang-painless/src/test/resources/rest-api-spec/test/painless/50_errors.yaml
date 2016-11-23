@@ -48,8 +48,8 @@
 
     - match: { _shards.failures.0.reason.type: script_exception }
     - match: { _shards.failures.0.reason.reason: runtime error }
-    - match: { _shards.failures.0.reason.script_stack.0: "return errr.length()" }
-    - match: { _shards.failures.0.reason.script_stack.1: "           ^---- HERE" }
+    - match: { _shards.failures.0.reason.script_stack.0: "... return errr.length()" }
+    - match: { _shards.failures.0.reason.script_stack.1: "               ^---- HERE" }
     - match: { _shards.failures.0.reason.caused_by.type: "null_pointer_exception" }
 
 ---

@@ -42,6 +42,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntUnaryOperator;
+import java.util.function.Predicate;
 
 /**
  * Implementation of a ScriptEngine for the Painless language.
@@ -173,7 +175,11 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | Exception e) {
-            throw convertToScriptException(scriptName == null ? scriptSource : scriptName, scriptSource, e);
+            throw convertToScriptException("compile error", scriptName, scriptSource, e,
+                    // Use simple heuristics for segmenting the snippet
+                    offset -> Math.max(0, offset - 25), offset -> Math.min(scriptSource.length(), offset + 25),
+                    // Don't include any extra lines
+                    ste -> true);
         }
     }
 
@@ -226,7 +232,13 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
         // Nothing to do.
     }
 
-    private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {
+    static ScriptException convertToScriptException(String errorType, String scriptName, String scriptSource, Throwable t,
+            IntUnaryOperator calculateStartOffset, IntUnaryOperator calculateEndOffset,
+            Predicate<StackTraceElement> shouldFilter) {
+        if (scriptName == null || INLINE_NAME.equals(scriptName)) {
+            // Inline scripts should use the source as the name
+            scriptName = scriptSource;
+        }
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         for (StackTraceElement element : t.getStackTrace()) {
@@ -237,12 +249,13 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
                     offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = getPreviousStatement(scriptSource, offset);
-                    int endOffset = getNextStatement(scriptSource, offset);
+                    int startOffset = calculateStartOffset.applyAsInt(offset);
+                    int endOffset = calculateEndOffset.applyAsInt(offset);
                     StringBuilder snippet = new StringBuilder();
                     if (startOffset > 0) {
                         snippet.append("... ");
                     }
+                    // TODO: if this is still too long we can truncate
                     snippet.append(scriptSource.substring(startOffset, endOffset));
                     if (endOffset < scriptSource.length()) {
                         snippet.append(" ...");
@@ -259,18 +272,11 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                     scriptStack.add(pointer.toString());
                 }
                 break;
+            } else if (false == shouldFilter.test(element)) {
+                scriptStack.add(element.toString());
             }
         }
-        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngineService.NAME);
-    }
-
-    // very simple heuristic: +/- 25 chars. can be improved later.
-    private int getPreviousStatement(String scriptSource, int offset) {
-        return Math.max(0, offset - 25);
-    }
-
-    private int getNextStatement(String scriptSource, int offset) {
-        return Math.min(scriptSource.length(), offset + 25);
+        return new ScriptException(errorType, t, scriptStack, scriptName, PainlessScriptEngineService.NAME);
     }
 
     @Override

@@ -76,24 +76,12 @@ public class PluginsService extends AbstractComponent {
     public static final Setting<List<String>> MANDATORY_SETTING =
         Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
-    private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
-
     public List<Setting<?>> getPluginSettings() {
         return plugins.stream().flatMap(p -> p.v2().getSettings().stream()).collect(Collectors.toList());
     }
 
     public List<String> getPluginSettingsFilter() {
         return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).collect(Collectors.toList());
-    }
-
-    static class OnModuleReference {
-        public final Class<? extends Module> moduleClass;
-        public final Method onModuleMethod;
-
-        OnModuleReference(Class<? extends Module> moduleClass, Method onModuleMethod) {
-            this.moduleClass = moduleClass;
-            this.onModuleMethod = onModuleMethod;
-        }
     }
 
     /**
@@ -175,40 +163,6 @@ public class PluginsService extends AbstractComponent {
         // but for now: just be transparent so we can debug any potential issues
         logPluginInfo(info.getModuleInfos(), "module", logger);
         logPluginInfo(info.getPluginInfos(), "plugin", logger);
-
-        Map<Plugin, List<OnModuleReference>> onModuleReferences = new HashMap<>();
-        for (Tuple<PluginInfo, Plugin> pluginEntry : this.plugins) {
-            Plugin plugin = pluginEntry.v2();
-            List<OnModuleReference> list = new ArrayList<>();
-            for (Method method : plugin.getClass().getMethods()) {
-                if (!method.getName().equals("onModule")) {
-                    continue;
-                }
-                // this is a deprecated final method, so all Plugin subclasses have it
-                if (method.getParameterTypes().length == 1 && method.getParameterTypes()[0].equals(IndexModule.class)) {
-                    continue;
-                }
-                if (method.getParameterTypes().length == 0 || method.getParameterTypes().length > 1) {
-                    logger.warn("Plugin: {} implementing onModule with no parameters or more than one parameter", pluginEntry.v1().getName());
-                    continue;
-                }
-                Class moduleClass = method.getParameterTypes()[0];
-                if (!Module.class.isAssignableFrom(moduleClass)) {
-                    if (method.getDeclaringClass() == Plugin.class) {
-                        // These are still part of the Plugin class to point the user to the new implementations
-                        continue;
-                    }
-                    throw new RuntimeException(
-                            "Plugin: [" + pluginEntry.v1().getName() + "] implements onModule taking a parameter that isn't a Module ["
-                                    + moduleClass.getSimpleName() + "]");
-                }
-                list.add(new OnModuleReference(moduleClass, method));
-            }
-            if (!list.isEmpty()) {
-                onModuleReferences.put(plugin, list);
-            }
-        }
-        this.onModuleReferences = Collections.unmodifiableMap(onModuleReferences);
     }
 
     private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final Logger logger) {
@@ -218,38 +172,6 @@ public class PluginsService extends AbstractComponent {
         } else {
             for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().collect(Collectors.toList())) {
                 logger.info("loaded " + type + " [" + name + "]");
-            }
-        }
-    }
-
-    private List<Tuple<PluginInfo, Plugin>> plugins() {
-        return plugins;
-    }
-
-    public void processModules(Iterable<Module> modules) {
-        for (Module module : modules) {
-            processModule(module);
-        }
-    }
-
-    public void processModule(Module module) {
-        for (Tuple<PluginInfo, Plugin> plugin : plugins()) {
-            // see if there are onModule references
-            List<OnModuleReference> references = onModuleReferences.get(plugin.v2());
-            if (references != null) {
-                for (OnModuleReference reference : references) {
-                    if (reference.moduleClass.isAssignableFrom(module.getClass())) {
-                        try {
-                            reference.onModuleMethod.invoke(plugin.v2(), module);
-                        } catch (IllegalAccessException | InvocationTargetException e) {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("plugin {}, failed to invoke custom onModule method", plugin.v1().getName()), e);
-                            throw new ElasticsearchException("failed to invoke onModule", e);
-                        } catch (Exception e) {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("plugin {}, failed to invoke custom onModule method", plugin.v1().getName()), e);
-                            throw e;
-                        }
-                    }
-                }
             }
         }
     }

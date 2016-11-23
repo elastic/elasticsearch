@@ -71,6 +71,27 @@
     - match: { _shards.failures.0.reason.caused_by.type: "no_such_element_exception" }
 
 ---
+"Reach through multiline script stack":
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "return Optional.empty().orElseGet(() -> params.a.length())"
+                            lang: painless
+
+    - match: { _shards.failures.0.reason.type: script_exception }
+    - match: { _shards.failures.0.reason.reason: 'runtime error: null_pointer_exception' }
+    - match: { _shards.failures.0.reason.script_stack.0:  "... () -> params.a.length())" }
+    - match: { _shards.failures.0.reason.script_stack.1:  "                  ^---- HERE" }
+    - match: { _shards.failures.0.reason.script_stack.2: '/java.util.Optional.orElseGet\(Optional.java:\d+\)/' }
+    - match: { _shards.failures.0.reason.script_stack.3:  "return Optional.empty().orElseGet( ..." }
+    - match: { _shards.failures.0.reason.script_stack.4:  "                       ^---- HERE" }
+    - match: { _shards.failures.0.reason.caused_by.type: "null_pointer_exception" }
+
+---
 "Scripted Field with script error":
     - do:
         catch: request

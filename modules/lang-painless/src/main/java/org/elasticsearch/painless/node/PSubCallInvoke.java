@@ -79,6 +79,8 @@ final class PSubCallInvoke extends AExpression {
             argument.write(writer, globals);
         }
 
+        // Move the line number back to this statement's line number so if there is an error in this call it'll be marked in the right spot
+        writer.writeDebugInfo(location);
         method.write(writer);
     }
 

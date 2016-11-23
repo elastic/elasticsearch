@@ -40,6 +40,7 @@ import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -240,43 +241,58 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
             // Inline scripts should use the source as the name
             scriptName = scriptSource;
         }
-        // create a script stack: this is just the script portion
-        List<String> scriptStack = new ArrayList<>();
-        for (StackTraceElement element : cause.getStackTrace()) {
-            if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
-                // found the script portion
-                int offset = element.getLineNumber();
-                if (offset == -1) {
-                    scriptStack.add("<<< unknown portion of script >>>");
-                } else {
-                    offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = calculateStartOffset.applyAsInt(offset);
-                    int endOffset = calculateEndOffset.applyAsInt(offset);
-                    StringBuilder snippet = new StringBuilder();
-                    if (startOffset > 0) {
-                        snippet.append("... ");
-                    }
-                    // TODO: if this is still too long we can truncate
-                    snippet.append(scriptSource.substring(startOffset, endOffset));
-                    if (endOffset < scriptSource.length()) {
-                        snippet.append(" ...");
-                    }
-                    scriptStack.add(snippet.toString());
-                    StringBuilder pointer = new StringBuilder();
-                    if (startOffset > 0) {
-                        pointer.append("    ");
-                    }
-                    for (int i = startOffset; i < offset; i++) {
-                        pointer.append(' ');
-                    }
-                    pointer.append("^---- HERE");
-                    scriptStack.add(pointer.toString());
+
+        /* Build the script_stack, a stack trace specialized for the script that we send back to the user in every failure. We pair down the
+         * exception's stack trace to only include elements starting with the outer most call of the user's script. This is because we only
+         * want to send the user why their script fails and we presume that the call site is not their concern. */
+        List<String> scriptStack = new ArrayList<>(); // Built in reverse
+        StackTraceElement[] stackTrace = cause.getStackTrace();
+        boolean hitScript = false;
+        for (int idx = stackTrace.length - 1; idx >= 0; idx--) {
+            StackTraceElement element = stackTrace[idx];
+            if (false == WriterConstants.CLASS_NAME.equals(element.getClassName())) {
+                if (hitScript && false == shouldFilter.test(element)) {
+                    scriptStack.add(element.toString());
                 }
-                break;
-            } else if (false == shouldFilter.test(element)) {
-                scriptStack.add(element.toString());
+                continue;
             }
+            // Found the script portion. Any elements we see from here on out we can include in the trace.
+            hitScript = true;
+            int offset = element.getLineNumber();
+            if (offset == -1) {
+                scriptStack.add("<<< unknown portion of script >>>");
+                continue;
+            }
+            offset--; // offset is 1 based, line numbers must be!
+            int startOffset = calculateStartOffset.applyAsInt(offset);
+            int endOffset = calculateEndOffset.applyAsInt(offset);
+
+            StringBuilder pointer = new StringBuilder();
+            if (startOffset > 0) {
+                pointer.append("    ");
+            }
+            for (int i = startOffset; i < offset; i++) {
+                pointer.append(' ');
+            }
+            pointer.append("^---- HERE");
+            scriptStack.add(pointer.toString());
+
+            StringBuilder snippet = new StringBuilder();
+            if (startOffset > 0) {
+                snippet.append("... ");
+            }
+            snippet.append(scriptSource.substring(startOffset, endOffset));
+            if (endOffset < scriptSource.length()) {
+                snippet.append(" ...");
+            }
+            scriptStack.add(snippet.toString());
         }
+        Collections.reverse(scriptStack);
+
+        /* Build the error message to include in the ScriptException's message element. The intent is to hint at why the failure occured in
+         * this message if possible. This is useful because some APIs in Elasticsearch identify the ScriptException as the "root_cause" of
+         * the error and pull it to the top of the error message in a convenient spot for the user to read. Thus we make the error message
+         * descriptive so that someone who reads the message in the convenient spot might be able to solve their problems. */
         String errorMessage = cause.getMessage();
         if (errorMessage == null) {
             // Some exceptions don't have useful messages (looking at you, NullPointerException) so we use the exception name instead.

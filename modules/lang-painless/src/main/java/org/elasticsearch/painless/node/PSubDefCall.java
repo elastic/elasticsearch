@@ -112,6 +112,9 @@ final class PSubDefCall extends AExpression {
         List<Object> args = new ArrayList<>();
         args.add(recipe.toString());
         args.addAll(pointers);
+
+        // Move the line number back to this statement's line number so if there is an error in this call it'll be marked in the right spot
+        writer.writeDebugInfo(location);
         writer.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
     }
 

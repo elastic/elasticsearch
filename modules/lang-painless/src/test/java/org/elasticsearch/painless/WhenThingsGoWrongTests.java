@@ -73,6 +73,41 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         });
         // null deref at x.isEmpty(), the '.' is offset 53 (+1)
         assertEquals(53 + 1, exception.getStackTrace()[0].getLineNumber());
+
+        // trigger NPE inside invocation
+        exception = expectScriptThrows(NullPointerException.class, () -> {
+            exec("return Optional.empty().orElseGet(() -> params.a.length())");
+        });
+        int i = nextScriptStackTraceElement(exception.getStackTrace(), 0);
+        // null deref at a.length(), the '.' is offset 48 (+1)
+        assertEquals(48 + 1, exception.getStackTrace()[i].getLineNumber());
+        i = nextScriptStackTraceElement(exception.getStackTrace(), i + 1);
+        // which happens inside .orElseGet, the '.' is offset 23 (+1)
+        assertEquals(23 + 1, exception.getStackTrace()[i].getLineNumber());
+
+        // trigger NPE inside def invocation
+        exception = expectScriptThrows(NullPointerException.class, () -> {
+            exec("def o = Optional.empty(); return o.orElseGet(() -> params.a.length())");
+        });
+        i = nextScriptStackTraceElement(exception.getStackTrace(), 0);
+        // null deref at a.length(), the '.' is offset 59 (+1)
+        assertEquals(59 + 1, exception.getStackTrace()[i].getLineNumber());
+        i = nextScriptStackTraceElement(exception.getStackTrace(), i + 1);
+        // which happens inside .orElseGet, the '.' is offset 34 (+1)
+        assertEquals(34 + 1, exception.getStackTrace()[i].getLineNumber());
+    }
+
+    private int nextScriptStackTraceElement(StackTraceElement[] elements, int start) {
+        int i = start;
+        while (true) {
+            if (WriterConstants.CLASS_NAME.equals(elements[i].getClassName())) {
+                return i;
+            }
+            i++;
+            if (i >= elements.length) {
+                fail("Couldn't find a script stack trace element starting at [" + start + "] in\n" + Arrays.toString(elements));
+            }
+        }
     }
 
     public void testInvalidShift() {

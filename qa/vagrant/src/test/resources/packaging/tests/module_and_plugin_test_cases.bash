@@ -255,10 +255,6 @@ fi
     check_secure_module lang-expression antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar lucene-expressions-*.jar
 }
 
-@test "[$GROUP] check lang-groovy module" {
-    check_secure_module lang-groovy groovy-*-indy.jar
-}
-
 @test "[$GROUP] check lang-mustache module" {
     check_secure_module lang-mustache compiler-*.jar
 }

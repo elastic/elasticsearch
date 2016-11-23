@@ -33,7 +33,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ClusterSearchShardsResponse extends ActionResponse implements ToXContent {
-    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
 
     private ClusterSearchShardsGroup[] groups;
     private DiscoveryNode[] nodes;
@@ -73,7 +72,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = new DiscoveryNode(in);
         }
-        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             int size = in.readVInt();
             indicesAndFilters = new HashMap<>();
             for (int i = 0; i < size; i++) {
@@ -95,7 +94,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         for (DiscoveryNode node : nodes) {
             node.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             out.writeVInt(indicesAndFilters.size());
             for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
                 out.writeString(entry.getKey());
@@ -132,4 +131,5 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         builder.endArray();
         return builder;
     }
+
 }

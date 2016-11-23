@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSearchShardsRequest> implements IndicesRequest.Replaceable {
-    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
+
     private String[] indices = Strings.EMPTY_ARRAY;
     @Nullable
     private String routing;
@@ -134,7 +134,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         routing = in.readOptionalString();
         preference = in.readOptionalString();
 
-        if (in.getVersion().onOrBefore(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().onOrBefore(Version.V_5_1_0_UNRELEASED)) {
             //types
             in.readStringArray();
         }
@@ -153,7 +153,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
 
-        if (out.getVersion().onOrBefore(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().onOrBefore(Version.V_5_1_0_UNRELEASED)) {
             //types
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }

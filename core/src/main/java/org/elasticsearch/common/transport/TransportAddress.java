@@ -69,7 +69,7 @@ public final class TransportAddress implements Writeable {
      * Read from a stream.
      */
     public TransportAddress(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) { // bwc layer for 5.x where we had more than one transport address
+        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // bwc layer for 5.x where we had more than one transport address
             final short i = in.readShort();
             if(i != 1) { // we fail hard to ensure nobody tries to use some custom transport address impl even if that is difficult to add
                 throw new AssertionError("illegal transport ID from node of version: " + in.getVersion()  + " got: " + i + " expected: 1");
@@ -85,7 +85,7 @@ public final class TransportAddress implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
             out.writeShort((short)1); // this maps to InetSocketTransportAddress in 5.x
         }
         byte[] bytes = address.getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)

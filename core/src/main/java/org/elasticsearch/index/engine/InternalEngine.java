@@ -414,7 +414,7 @@ public class InternalEngine extends Engine {
             final long expectedVersion,
             final boolean deleted) {
         if (op.versionType() == VersionType.FORCE) {
-            if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
+            if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
                 // If index was created in 5.0 or later, 'force' is not allowed at all
                 throw new IllegalArgumentException("version type [FORCE] may not be used for indices created after 6.0");
             } else if (op.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
@@ -528,7 +528,7 @@ public class InternalEngine extends Engine {
     }
 
     private boolean assertSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // legacy support
             assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no." +
                 " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ". seq no: " + seqNo;

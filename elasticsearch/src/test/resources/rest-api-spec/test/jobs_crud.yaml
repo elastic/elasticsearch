@@ -27,14 +27,14 @@
       xpack.prelert.get_jobs:
         from: 0
         size: 100
-  - match: { hitCount: 1 }
-  - match: { hits.0.config.jobId: "farequote" }
+  - match: { count: 1 }
+  - match: { jobs.0.config.jobId: "farequote" }
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "farequote"
-  - match: { hitCount: 1 }
-  - match: { hits.0.config.jobId: "farequote" }
+  - match: { count: 1 }
+  - match: { jobs.0.config.jobId: "farequote" }
 
   - do:
       xpack.prelert.delete_job:

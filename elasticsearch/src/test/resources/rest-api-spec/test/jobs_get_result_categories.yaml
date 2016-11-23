@@ -28,11 +28,11 @@ setup:
       xpack.prelert.get_categories:
         jobId: "farequote"
 
-  - match: { hitCount: 2 }
-  - match: { hits.0.jobId: farequote }
-  - match: { hits.0.categoryId: 1 }
-  - match: { hits.1.jobId: farequote }
-  - match: { hits.1.categoryId: 2 }
+  - match: { count: 2 }
+  - match: { categories.0.jobId: farequote }
+  - match: { categories.0.categoryId: 1 }
+  - match: { categories.1.jobId: farequote }
+  - match: { categories.1.categoryId: 2 }
 
 ---
 "Test result category api":
@@ -41,5 +41,5 @@ setup:
         jobId: "farequote"
         categoryId: "1"
 
-  - match: { hits.0.jobId: farequote }
-  - match: { hits.0.categoryId: 1 }
+  - match: { categories.0.jobId: farequote }
+  - match: { categories.0.categoryId: 1 }

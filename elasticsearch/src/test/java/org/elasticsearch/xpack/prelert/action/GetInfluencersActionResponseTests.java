@@ -31,7 +31,7 @@ public class GetInfluencersActionResponseTests extends AbstractStreamableTestCas
             influencer.setTimestamp(new Date(randomLong()));
             hits.add(influencer);
         }
-        QueryPage<Influencer> buckets = new QueryPage<>(hits, listSize);
+        QueryPage<Influencer> buckets = new QueryPage<>(hits, listSize, Influencer.RESULTS_FIELD);
         return new Response(buckets);
     }
 

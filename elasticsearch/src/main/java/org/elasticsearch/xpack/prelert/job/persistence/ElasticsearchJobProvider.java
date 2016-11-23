@@ -333,7 +333,7 @@ public class ElasticsearchJobProvider implements JobProvider
         QueryPage<Bucket> buckets = buckets(jobId, query.isIncludeInterim(), query.getFrom(), query.getSize(), fb, sortBuilder);
 
         if (Strings.isNullOrEmpty(query.getPartitionValue())) {
-            for (Bucket b : buckets.hits()) {
+            for (Bucket b : buckets.results()) {
                 if (query.isExpand() && b.getRecordCount() > 0) {
                     expandBucket(jobId, query.isIncludeInterim(), b);
                 }
@@ -342,9 +342,9 @@ public class ElasticsearchJobProvider implements JobProvider
             List<ScoreTimestamp> scores =
                     partitionScores(jobId, query.getEpochStart(), query.getEpochEnd(), query.getPartitionValue());
 
-            mergePartitionScoresIntoBucket(scores, buckets.hits());
+            mergePartitionScoresIntoBucket(scores, buckets.results());
 
-            for (Bucket b : buckets.hits()) {
+            for (Bucket b : buckets.results()) {
                 if (query.isExpand() && b.getRecordCount() > 0) {
                     this.expandBucketForPartitionValue(jobId, query.isIncludeInterim(), b, query.getPartitionValue());
                 }
@@ -410,7 +410,7 @@ public class ElasticsearchJobProvider implements JobProvider
             }
         }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits());
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), Bucket.RESULTS_FIELD);
     }
 
 
@@ -435,7 +435,7 @@ public class ElasticsearchJobProvider implements JobProvider
         }
 
         if (hits.getTotalHits() == 0) {
-            return new QueryPage<>(Collections.emptyList(), 0);
+            throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
         } else if (hits.getTotalHits() > 1L) {
             LOGGER.error("Found more than one bucket with timestamp [" + query.getTimestamp() + "]" +
                     " from index " + indexName);
@@ -454,7 +454,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
         // don't return interim buckets if not requested
         if (bucket.isInterim() && query.isIncludeInterim() == false) {
-            return new QueryPage<>(Collections.emptyList(), 0);
+            throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
         }
 
         if (Strings.isNullOrEmpty(query.getPartitionValue())) {
@@ -477,7 +477,7 @@ public class ElasticsearchJobProvider implements JobProvider
             bucket.setAnomalyScore(
                     bucket.partitionAnomalyScore(query.getPartitionValue()));
         }
-        return new QueryPage<>(Collections.singletonList(bucket), 1);
+        return new QueryPage<>(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
     }
 
     final class ScoreTimestamp
@@ -549,15 +549,15 @@ public class ElasticsearchJobProvider implements JobProvider
         QueryPage<AnomalyRecord> page = bucketRecords(
                 jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim,
                 AnomalyRecord.PROBABILITY.getPreferredName(), false, partitionFieldValue);
-        bucket.setRecords(page.hits());
+        bucket.setRecords(page.results());
 
-        while (page.hitCount() > from + RECORDS_SIZE_PARAM)
+        while (page.count() > from + RECORDS_SIZE_PARAM)
         {
             from += RECORDS_SIZE_PARAM;
             page = bucketRecords(
                     jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim,
                     AnomalyRecord.PROBABILITY.getPreferredName(), false, partitionFieldValue);
-            bucket.getRecords().addAll(page.hits());
+            bucket.getRecords().addAll(page.results());
         }
 
         return bucket.getRecords().size();
@@ -577,15 +577,15 @@ public class ElasticsearchJobProvider implements JobProvider
         QueryPage<AnomalyRecord> page = bucketRecords(
                 jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim,
                 AnomalyRecord.PROBABILITY.getPreferredName(), false, null);
-        bucket.setRecords(page.hits());
+        bucket.setRecords(page.results());
 
-        while (page.hitCount() > from + RECORDS_SIZE_PARAM)
+        while (page.count() > from + RECORDS_SIZE_PARAM)
         {
             from += RECORDS_SIZE_PARAM;
             page = bucketRecords(
                     jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim,
                     AnomalyRecord.PROBABILITY.getPreferredName(), false, null);
-            bucket.getRecords().addAll(page.hits());
+            bucket.getRecords().addAll(page.results());
         }
 
         return bucket.getRecords().size();
@@ -652,7 +652,7 @@ public class ElasticsearchJobProvider implements JobProvider
             results.add(categoryDefinition);
         }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits());
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
     }
 
 
@@ -678,9 +678,9 @@ public class ElasticsearchJobProvider implements JobProvider
                 throw new ElasticsearchParseException("failed to parser category definition", e);
             }
             CategoryDefinition definition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
-            return new QueryPage<>(Collections.singletonList(definition), 1);
+            return new QueryPage<>(Collections.singletonList(definition), 1, CategoryDefinition.RESULTS_FIELD);
         }
-        return new QueryPage<>(Collections.emptyList(), 0);
+        throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
     }
 
     @Override
@@ -766,7 +766,7 @@ public class ElasticsearchJobProvider implements JobProvider
             results.add(record);
         }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits());
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), AnomalyRecord.RESULTS_FIELD);
     }
 
     @Override
@@ -826,7 +826,7 @@ public class ElasticsearchJobProvider implements JobProvider
             influencers.add(influencer);
         }
 
-        return new QueryPage<>(influencers, response.getHits().getTotalHits());
+        return new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
     }
 
     @Override
@@ -981,7 +981,7 @@ public class ElasticsearchJobProvider implements JobProvider
             results.add(modelSnapshot);
         }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits());
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
     }
 
     @Override

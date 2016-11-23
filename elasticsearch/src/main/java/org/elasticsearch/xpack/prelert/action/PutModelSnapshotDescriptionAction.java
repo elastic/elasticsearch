@@ -294,7 +294,7 @@ PutModelSnapshotDescriptionAction.RequestBuilder> {
         }
 
         private List<ModelSnapshot> getModelSnapshots(String jobId, String snapshotId, String description) {
-            return jobProvider.modelSnapshots(jobId, 0, 1, null, null, null, true, snapshotId, description).hits();
+            return jobProvider.modelSnapshots(jobId, 0, 1, null, null, null, true, snapshotId, description).results();
         }
 
     }

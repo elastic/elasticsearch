@@ -340,7 +340,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
             QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
             Allocation allocation = jobManager.getJobAllocation(request.getJobId());
-            if (job.hitCount() > 0 && allocation.getStatus().equals(JobStatus.RUNNING)) {
+            if (job.count() > 0 && allocation.getStatus().equals(JobStatus.RUNNING)) {
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
             }
 
@@ -356,7 +356,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
             List<ModelSnapshot> revertCandidates;
             revertCandidates = provider.modelSnapshots(request.getJobId(), 0, 1, null, request.getTime(),
-                    ModelSnapshot.TIMESTAMP.getPreferredName(), true, request.getSnapshotId(), request.getDescription()).hits();
+                    ModelSnapshot.TIMESTAMP.getPreferredName(), true, request.getSnapshotId(), request.getDescription()).results();
 
             if (revertCandidates == null || revertCandidates.isEmpty()) {
                 throw new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getJobId()));

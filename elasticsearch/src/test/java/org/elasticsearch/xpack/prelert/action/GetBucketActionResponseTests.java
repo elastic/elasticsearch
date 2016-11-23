@@ -126,7 +126,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
             }
             hits.add(bucket);
         }
-        QueryPage<Bucket> buckets = new QueryPage<>(hits, listSize);
+        QueryPage<Bucket> buckets = new QueryPage<>(hits, listSize, Bucket.RESULTS_FIELD);
         return new Response(buckets);
     }
 

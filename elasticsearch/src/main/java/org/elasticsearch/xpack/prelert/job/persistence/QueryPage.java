@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.persistence;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -19,33 +21,40 @@ import java.util.Objects;
 
 /**
  * Generic wrapper class for a page of query results and the total number of
- * query hits.<br>
- * {@linkplain #hitCount()} is the total number of results but that value may
- * not be equal to the actual length of the {@linkplain #hits()} list if from
+ * query results.<br>
+ * {@linkplain #count()} is the total number of results but that value may
+ * not be equal to the actual length of the {@linkplain #results()} list if from
  * &amp; take or some cursor was used in the database query.
  */
 public final class QueryPage<T extends ToXContent & Writeable> extends ToXContentToBytes implements Writeable {
 
-    public static final ParseField HITS = new ParseField("hits");
-    public static final ParseField HIT_COUNT = new ParseField("hitCount");
+    public static final ParseField COUNT = new ParseField("count");
 
-    private final List<T> hits;
-    private final long hitCount;
+    private final ParseField resultsField;
+    private final List<T> results;
+    private final long count;
 
-    public QueryPage(List<T> hits, long hitCount) {
-        this.hits = hits;
-        this.hitCount = hitCount;
+    public QueryPage(List<T> results, long count, ParseField resultsField) {
+        this.results = results;
+        this.count = count;
+        this.resultsField = ExceptionsHelper.requireNonNull(resultsField, "resultsField");
     }
 
     public QueryPage(StreamInput in, Reader<T> hitReader) throws IOException {
-        hits = in.readList(hitReader);
-        hitCount = in.readLong();
+        resultsField = new ParseField(in.readString());
+        results = in.readList(hitReader);
+        count = in.readLong();
+    }
+
+    public static ResourceNotFoundException emptyQueryPage(ParseField resultsField) {
+        return new ResourceNotFoundException("Could not find requested " + resultsField.getPreferredName());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(hits);
-        out.writeLong(hitCount);
+        out.writeString(resultsField.getPreferredName());
+        out.writeList(results);
+        out.writeLong(count);
     }
 
     @Override
@@ -57,22 +66,22 @@ public final class QueryPage<T extends ToXContent & Writeable> extends ToXConten
     }
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(HITS.getPreferredName(), hits);
-        builder.field(HIT_COUNT.getPreferredName(), hitCount);
+        builder.field(resultsField.getPreferredName(), results);
+        builder.field(COUNT.getPreferredName(), count);
         return builder;
     }
 
-    public List<T> hits() {
-        return hits;
+    public List<T> results() {
+        return results;
     }
 
-    public long hitCount() {
-        return hitCount;
+    public long count() {
+        return count;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits, hitCount);
+        return Objects.hash(results, count);
     }
 
     @Override
@@ -87,7 +96,7 @@ public final class QueryPage<T extends ToXContent & Writeable> extends ToXConten
 
         @SuppressWarnings("unchecked")
         QueryPage<T> other = (QueryPage<T>) obj;
-        return Objects.equals(hits, other.hits) &&
-                Objects.equals(hitCount, other.hitCount);
+        return Objects.equals(results, other.results) &&
+                Objects.equals(count, other.count);
     }
 }

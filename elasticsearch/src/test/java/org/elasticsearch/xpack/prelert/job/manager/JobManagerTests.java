@@ -30,7 +30,6 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -65,8 +64,8 @@ public class JobManagerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, builder.build())).build();
         QueryPage<Job> doc = jobManager.getJob("foo", clusterState);
-        assertTrue(doc.hitCount() > 0);
-        assertThat(doc.hits().get(0).getJobId(), equalTo("foo"));
+        assertTrue(doc.count() > 0);
+        assertThat(doc.results().get(0).getJobId(), equalTo("foo"));
     }
 
     public void testFilter() {
@@ -162,41 +161,41 @@ public class JobManagerTests extends ESTestCase {
 
         JobManager jobManager = createJobManager();
         QueryPage<Job> result = jobManager.getJobs(0, 10, clusterState);
-        assertThat(result.hitCount(), equalTo(10L));
-        assertThat(result.hits().get(0).getId(), equalTo("0"));
-        assertThat(result.hits().get(1).getId(), equalTo("1"));
-        assertThat(result.hits().get(2).getId(), equalTo("2"));
-        assertThat(result.hits().get(3).getId(), equalTo("3"));
-        assertThat(result.hits().get(4).getId(), equalTo("4"));
-        assertThat(result.hits().get(5).getId(), equalTo("5"));
-        assertThat(result.hits().get(6).getId(), equalTo("6"));
-        assertThat(result.hits().get(7).getId(), equalTo("7"));
-        assertThat(result.hits().get(8).getId(), equalTo("8"));
-        assertThat(result.hits().get(9).getId(), equalTo("9"));
+        assertThat(result.count(), equalTo(10L));
+        assertThat(result.results().get(0).getId(), equalTo("0"));
+        assertThat(result.results().get(1).getId(), equalTo("1"));
+        assertThat(result.results().get(2).getId(), equalTo("2"));
+        assertThat(result.results().get(3).getId(), equalTo("3"));
+        assertThat(result.results().get(4).getId(), equalTo("4"));
+        assertThat(result.results().get(5).getId(), equalTo("5"));
+        assertThat(result.results().get(6).getId(), equalTo("6"));
+        assertThat(result.results().get(7).getId(), equalTo("7"));
+        assertThat(result.results().get(8).getId(), equalTo("8"));
+        assertThat(result.results().get(9).getId(), equalTo("9"));
 
         result = jobManager.getJobs(0, 5, clusterState);
-        assertThat(result.hitCount(), equalTo(10L));
-        assertThat(result.hits().get(0).getId(), equalTo("0"));
-        assertThat(result.hits().get(1).getId(), equalTo("1"));
-        assertThat(result.hits().get(2).getId(), equalTo("2"));
-        assertThat(result.hits().get(3).getId(), equalTo("3"));
-        assertThat(result.hits().get(4).getId(), equalTo("4"));
+        assertThat(result.count(), equalTo(10L));
+        assertThat(result.results().get(0).getId(), equalTo("0"));
+        assertThat(result.results().get(1).getId(), equalTo("1"));
+        assertThat(result.results().get(2).getId(), equalTo("2"));
+        assertThat(result.results().get(3).getId(), equalTo("3"));
+        assertThat(result.results().get(4).getId(), equalTo("4"));
 
         result = jobManager.getJobs(5, 5, clusterState);
-        assertThat(result.hitCount(), equalTo(10L));
-        assertThat(result.hits().get(0).getId(), equalTo("5"));
-        assertThat(result.hits().get(1).getId(), equalTo("6"));
-        assertThat(result.hits().get(2).getId(), equalTo("7"));
-        assertThat(result.hits().get(3).getId(), equalTo("8"));
-        assertThat(result.hits().get(4).getId(), equalTo("9"));
+        assertThat(result.count(), equalTo(10L));
+        assertThat(result.results().get(0).getId(), equalTo("5"));
+        assertThat(result.results().get(1).getId(), equalTo("6"));
+        assertThat(result.results().get(2).getId(), equalTo("7"));
+        assertThat(result.results().get(3).getId(), equalTo("8"));
+        assertThat(result.results().get(4).getId(), equalTo("9"));
 
         result = jobManager.getJobs(9, 1, clusterState);
-        assertThat(result.hitCount(), equalTo(10L));
-        assertThat(result.hits().get(0).getId(), equalTo("9"));
+        assertThat(result.count(), equalTo(10L));
+        assertThat(result.results().get(0).getId(), equalTo("9"));
 
         result = jobManager.getJobs(9, 10, clusterState);
-        assertThat(result.hitCount(), equalTo(10L));
-        assertThat(result.hits().get(0).getId(), equalTo("9"));
+        assertThat(result.count(), equalTo(10L));
+        assertThat(result.results().get(0).getId(), equalTo("9"));
     }
 
     public void testInnerPutJob() {

@@ -60,8 +60,8 @@ setup:
         jobId: "foo"
         description: "new_description"
 
-  - match: { hitCount: 0 }
-  - length: { hits: 0 }
+  - match: { count: 0 }
+  - length: { modelSnapshots: 0 }
 
   - do:
       xpack.prelert.put_model_snapshot_description:
@@ -81,9 +81,9 @@ setup:
         jobId: "foo"
         description: "new_description"
 
-  - match: { hitCount: 1 }
-  - match: { hits.0.restorePriority: 1 }
-  - match: { hits.0.timestamp: 1464825600000 }
+  - match: { count: 1 }
+  - match: { modelSnapshots.0.restorePriority: 1 }
+  - match: { modelSnapshots.0.timestamp: 1464825600000 }
 
 ---
 "Test with conflict against existing description":
@@ -92,10 +92,10 @@ setup:
         jobId: "foo"
         description: "bar"
 
-  - match: { hitCount: 1 }
-  - length: { hits: 1 }
-  - match: { hits.0.jobId: "foo" }
-  - match: { hits.0.description: "bar" }
+  - match: { count: 1 }
+  - length: { modelSnapshots: 1 }
+  - match: { modelSnapshots.0.jobId: "foo" }
+  - match: { modelSnapshots.0.description: "bar" }
 
   - do:
       catch: request

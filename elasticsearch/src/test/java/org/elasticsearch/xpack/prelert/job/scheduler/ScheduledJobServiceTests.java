@@ -87,8 +87,8 @@ public class ScheduledJobServiceTests extends ESTestCase {
                 new ScheduledJobService(threadPool, client, jobProvider, dataProcessor, dataExtractorFactory, () -> currentTime);
 
         when(jobProvider.audit(anyString())).thenReturn(auditor);
-        when(jobProvider.buckets(anyString(), any(BucketsQueryBuilder.BucketsQuery.class))).thenReturn(
-                new QueryPage<>(Collections.emptyList(), 0));
+        when(jobProvider.buckets(anyString(), any(BucketsQueryBuilder.BucketsQuery.class))).thenThrow(
+                QueryPage.emptyQueryPage(Job.RESULTS_FIELD));
     }
 
     public void testStart_GivenNewlyCreatedJobLoopBack() throws IOException {

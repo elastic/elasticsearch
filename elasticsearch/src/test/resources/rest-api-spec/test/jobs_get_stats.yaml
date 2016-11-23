@@ -46,10 +46,10 @@ setup:
       xpack.prelert.get_jobs:
         job_id: job-stats-test
 
-  - is_true: hits.0.config
-  - is_false: hits.0.data_counts
-  - is_false: hits.0.model_size_stats
-  - is_false: hits.0.scheduler_state
+  - is_true: jobs.0.config
+  - is_false: jobs.0.data_counts
+  - is_false: jobs.0.model_size_stats
+  - is_false: jobs.0.scheduler_state
 
 
   - do:
@@ -70,9 +70,9 @@ setup:
         job_id: job-stats-test
         metric: data_counts
 
-  - match: { hits.0.data_counts.processed_record_count: 2 }
-  - match: { hits.0.data_counts.processed_field_count: 4}
-  - match: { hits.0.data_counts.input_field_count: 4 }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - match: { jobs.0.data_counts.processed_field_count: 4}
+  - match: { jobs.0.data_counts.input_field_count: 4 }
 
 # Test filters
 # It's difficult to test for the presence of model_size_stats as they
@@ -81,51 +81,51 @@ setup:
       xpack.prelert.get_jobs:
         job_id: "job-stats-test"
         metric: "data_counts"
-  - is_false: hits.0.config
-  - is_true: hits.0.data_counts
-  - is_false: hits.0.model_size_stats
-  - is_false: hits.0.scheduler_state
+  - is_false: jobs.0.config
+  - is_true: jobs.0.data_counts
+  - is_false: jobs.0.model_size_stats
+  - is_false: jobs.0.scheduler_state
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "job-stats-test"
         metric: "model_size_stats"
-  - is_false: hits.0.config
-  - is_false: hits.0.data_counts
-  - is_false: hits.0.scheduler_state
+  - is_false: jobs.0.config
+  - is_false: jobs.0.data_counts
+  - is_false: jobs.0.scheduler_state
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "job-stats-test"
         metric: "scheduler_state"
-  - is_false: hits.0.config
-  - is_false: hits.0.data_counts
+  - is_false: jobs.0.config
+  - is_false: jobs.0.data_counts
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "job-stats-test"
         metric: "status"
-  - is_false: hits.0.config
-  - is_false: hits.0.data_counts
-  - is_false: hits.0.model_size_stats
-  - is_false: hits.0.scheduler_state
-  - match: { hits.0.status: CLOSED }
+  - is_false: jobs.0.config
+  - is_false: jobs.0.data_counts
+  - is_false: jobs.0.model_size_stats
+  - is_false: jobs.0.scheduler_state
+  - match: { jobs.0.status: CLOSED }
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "job-stats-test"
         metric: "_all"
-  - is_true: hits.0.config
-  - is_true: hits.0.data_counts
-  - is_false: hits.0.scheduler_state
-  - match: { hits.0.status: CLOSED }
+  - is_true: jobs.0.config
+  - is_true: jobs.0.data_counts
+  - is_false: jobs.0.scheduler_state
+  - match: { jobs.0.status: CLOSED }
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "scheduled-job"
         metric: "scheduler_state"
-  - is_false: hits.0.config
-  - is_false: hits.0.data_counts
-  - is_false: hits.0.model_size_stats
-  - match: { hits.0.scheduler_state.status: STOPPED }
+  - is_false: jobs.0.config
+  - is_false: jobs.0.data_counts
+  - is_false: jobs.0.model_size_stats
+  - match: { jobs.0.scheduler_state.status: STOPPED }
 

@@ -33,7 +33,7 @@ public class GetModelSnapshotsTests extends ESTestCase {
 
     public void testModelSnapshots_GivenNoStartOrEndParams() {
         ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300);
+        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300, ModelSnapshot.RESULTS_FIELD);
 
         JobProvider jobProvider = mock(JobProvider.class);
         when(jobProvider.modelSnapshots("foo", 0, 100, null, null, null, true, null, null)).thenReturn(queryResult);
@@ -43,12 +43,12 @@ public class GetModelSnapshotsTests extends ESTestCase {
         request.setDescOrder(true);
 
         QueryPage<ModelSnapshot> page = GetModelSnapshotsAction.TransportAction.doGetPage(jobProvider, request);
-        assertEquals(300, page.hitCount());
+        assertEquals(300, page.count());
     }
 
     public void testModelSnapshots_GivenEpochStartAndEpochEndParams() {
         ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300);
+        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300, ModelSnapshot.RESULTS_FIELD);
 
         JobProvider jobProvider = mock(JobProvider.class);
         when(jobProvider.modelSnapshots("foo", 0, 100, "1", "2", null, true, null, null)).thenReturn(queryResult);
@@ -60,12 +60,12 @@ public class GetModelSnapshotsTests extends ESTestCase {
         request.setDescOrder(true);
 
         QueryPage<ModelSnapshot> page = GetModelSnapshotsAction.TransportAction.doGetPage(jobProvider, request);
-        assertEquals(300, page.hitCount());
+        assertEquals(300, page.count());
     }
 
     public void testModelSnapshots_GivenIsoWithMillisStartAndEpochEndParams() {
         ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300);
+        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300, ModelSnapshot.RESULTS_FIELD);
 
         JobProvider jobProvider = mock(JobProvider.class);
         when(jobProvider.modelSnapshots("foo", 0, 100, "2015-01-01T12:00:00.042Z", "2015-01-01T13:00:00.142+00:00", null, true, null, null))
@@ -78,12 +78,12 @@ public class GetModelSnapshotsTests extends ESTestCase {
         request.setDescOrder(true);
 
         QueryPage<ModelSnapshot> page = GetModelSnapshotsAction.TransportAction.doGetPage(jobProvider, request);
-        assertEquals(300, page.hitCount());
+        assertEquals(300, page.count());
     }
 
     public void testModelSnapshots_GivenIsoWithoutMillisStartAndEpochEndParams() {
         ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300);
+        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300, ModelSnapshot.RESULTS_FIELD);
 
         JobProvider jobProvider = mock(JobProvider.class);
         when(jobProvider.modelSnapshots("foo", 0, 100, "2015-01-01T12:00:00Z", "2015-01-01T13:00:00Z", null, true, null, null))
@@ -96,6 +96,6 @@ public class GetModelSnapshotsTests extends ESTestCase {
         request.setDescOrder(true);
 
         QueryPage<ModelSnapshot> page = GetModelSnapshotsAction.TransportAction.doGetPage(jobProvider, request);
-        assertEquals(300, page.hitCount());
+        assertEquals(300, page.count());
     }
 }

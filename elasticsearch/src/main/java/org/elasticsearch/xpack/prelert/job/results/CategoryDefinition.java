@@ -32,6 +32,9 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
     public static final ParseField MAX_MATCHING_LENGTH = new ParseField("maxMatchingLength");
     public static final ParseField EXAMPLES = new ParseField("examples");
 
+    // Used for QueryPage
+    public static final ParseField RESULTS_FIELD = new ParseField("categories");
+
     public static final ConstructingObjectParser<CategoryDefinition, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new CategoryDefinition((String) a[0]));
 

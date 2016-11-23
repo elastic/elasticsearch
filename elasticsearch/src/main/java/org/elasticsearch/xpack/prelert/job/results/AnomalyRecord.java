@@ -55,6 +55,9 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public static final ParseField BUCKET_SPAN = new ParseField("bucketSpan");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
+    // Used for QueryPage
+    public static final ParseField RESULTS_FIELD = new ParseField("records");
+
     /**
      * Metric Results (including population metrics)
      */

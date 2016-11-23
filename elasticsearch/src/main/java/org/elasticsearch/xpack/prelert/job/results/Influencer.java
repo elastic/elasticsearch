@@ -38,6 +38,9 @@ public class Influencer extends ToXContentToBytes implements Writeable {
     public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initialAnomalyScore");
     public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
 
+    // Used for QueryPage
+    public static final ParseField RESULTS_FIELD = new ParseField("influencers");
+
     public static final ConstructingObjectParser<Influencer, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new Influencer((String) a[0], (String) a[1], (String) a[2]));
 

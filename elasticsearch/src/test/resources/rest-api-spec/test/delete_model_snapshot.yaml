@@ -92,7 +92,7 @@ setup:
   - do:
       xpack.prelert.get_model_snapshots:
         jobId: "foo"
-  - match: { hitCount: 2 }
+  - match: { count: 2 }
 
   - do:
       count:
@@ -114,8 +114,8 @@ setup:
   - do:
       xpack.prelert.get_model_snapshots:
         jobId: "foo"
-  - match: { hitCount: 1 }
-  - match: { hits.0.snapshotId: "foo2"}
+  - match: { count: 1 }
+  - match: { modelSnapshots.0.snapshotId: "foo2"}
 
   - do:
       count:

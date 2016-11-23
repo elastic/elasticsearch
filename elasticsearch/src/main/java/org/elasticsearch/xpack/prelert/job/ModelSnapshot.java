@@ -39,6 +39,9 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     public static final ParseField LATEST_RECORD_TIME = new ParseField("latestRecordTimeStamp");
     public static final ParseField LATEST_RESULT_TIME = new ParseField("latestResultTimeStamp");
 
+    // Used for QueryPage
+    public static final ParseField RESULTS_FIELD = new ParseField("modelSnapshots");
+
     /**
      * Elasticsearch type
      */

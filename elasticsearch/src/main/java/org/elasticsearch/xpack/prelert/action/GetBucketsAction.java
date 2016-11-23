@@ -332,7 +332,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         @Override
         public RestStatus status() {
-            return buckets.hitCount() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
+            return buckets.count() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
         }
 
         @Override

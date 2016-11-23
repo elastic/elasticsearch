@@ -192,8 +192,8 @@ public class ScheduledJobService extends AbstractComponent {
         QueryPage<Bucket> buckets;
         try {
             buckets = jobProvider.buckets(job.getId(), latestBucketQuery);
-            if (buckets.hits().size() == 1) {
-                latestFinalBucketEndMs = buckets.hits().get(0).getTimestamp().getTime() + bucketSpan.toMillis() - 1;
+            if (buckets.results().size() == 1) {
+                latestFinalBucketEndMs = buckets.results().get(0).getTimestamp().getTime() + bucketSpan.toMillis() - 1;
             }
         } catch (ResourceNotFoundException e) {
             logger.error("Could not retrieve latest bucket timestamp", e);

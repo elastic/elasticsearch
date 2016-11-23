@@ -35,9 +35,9 @@ setup:
         jobId: "foo"
 
 
-  - match: { hitCount: 2 }
-  - match: { hits.0.restorePriority: 2 }
-  - match: { hits.0.timestamp: 1464739200000 }
+  - match: { count: 2 }
+  - match: { modelSnapshots.0.restorePriority: 2 }
+  - match: { modelSnapshots.0.timestamp: 1464739200000 }
 
 ---
 "Test get model snapshots API with start/end":
@@ -48,9 +48,9 @@ setup:
         end: "2016-07-01T00:00:00Z"
 
 
-  - match: { hitCount: 2 }
-  - match: { hits.0.restorePriority: 2 }
-  - match: { hits.0.timestamp: 1464739200000 }
+  - match: { count: 2 }
+  - match: { modelSnapshots.0.restorePriority: 2 }
+  - match: { modelSnapshots.0.timestamp: 1464739200000 }
 
 ---
 "Test get model snapshots API with ascending":
@@ -60,9 +60,9 @@ setup:
         desc: false
 
 
-  - match: { hitCount: 2 }
-  - match: { hits.0.restorePriority: 1 }
-  - match: { hits.0.timestamp: 1464825600000 }
+  - match: { count: 2 }
+  - match: { modelSnapshots.0.restorePriority: 1 }
+  - match: { modelSnapshots.0.timestamp: 1464825600000 }
 
 ---
 "Test get model snapshots API with size":
@@ -72,10 +72,10 @@ setup:
         size: 1
 
 
-  - match: { hitCount: 2 }
-  - match: { hits.0.restorePriority: 2 }
-  - match: { hits.0.timestamp: 1464739200000 }
-  - length: { hits: 1 }
+  - match: { count: 2 }
+  - match: { modelSnapshots.0.restorePriority: 2 }
+  - match: { modelSnapshots.0.timestamp: 1464739200000 }
+  - length: { modelSnapshots: 1 }
 
 ---
 "Test get model snapshots API with from":
@@ -85,7 +85,7 @@ setup:
         from: 1
 
 
-  - match: { hitCount: 2 }
-  - match: { hits.0.restorePriority: 1 }
-  - match: { hits.0.timestamp: 1464825600000 }
-  - length: { hits: 1 }
+  - match: { count: 2 }
+  - match: { modelSnapshots.0.restorePriority: 1 }
+  - match: { modelSnapshots.0.timestamp: 1464825600000 }
+  - length: { modelSnapshots: 1 }

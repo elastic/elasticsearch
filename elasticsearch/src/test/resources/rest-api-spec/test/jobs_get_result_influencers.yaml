@@ -37,6 +37,6 @@ setup:
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
 
-  - match: { hitCount: 1 }
-  - match: { hits.0.timestamp: 1464739200000 }
+  - match: { count: 1 }
+  - match: { influencers.0.timestamp: 1464739200000 }
 

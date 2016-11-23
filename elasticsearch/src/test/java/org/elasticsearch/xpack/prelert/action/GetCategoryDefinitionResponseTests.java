@@ -15,8 +15,9 @@ public class GetCategoryDefinitionResponseTests extends AbstractStreamableTestCa
 
     @Override
     protected GetCategoriesDefinitionAction.Response createTestInstance() {
+        CategoryDefinition definition = new CategoryDefinition(randomAsciiOfLength(10));
         QueryPage<CategoryDefinition> queryPage =
-                new QueryPage<>(Collections.singletonList(new CategoryDefinition(randomAsciiOfLength(10))), 1L);
+                new QueryPage<>(Collections.singletonList(definition), 1L, CategoryDefinition.RESULTS_FIELD);
         return new GetCategoriesDefinitionAction.Response(queryPage);
     }
 

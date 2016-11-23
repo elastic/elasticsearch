@@ -51,7 +51,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     @Override
     public AutodetectProcess createAutodetectProcess(Job job, boolean ignoreDowntime) {
         List<Path> filesToDelete = new ArrayList<>();
-        List<ModelSnapshot> modelSnapshots = jobProvider.modelSnapshots(job.getId(), 0, 1).hits();
+        List<ModelSnapshot> modelSnapshots = jobProvider.modelSnapshots(job.getId(), 0, 1).results();
         ModelSnapshot modelSnapshot = (modelSnapshots != null && !modelSnapshots.isEmpty()) ? modelSnapshots.get(0) : null;
 
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),

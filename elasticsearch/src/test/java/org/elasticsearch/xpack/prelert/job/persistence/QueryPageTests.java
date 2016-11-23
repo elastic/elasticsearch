@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.persistence;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.support.AbstractWireSerializingTestCase;
@@ -20,7 +21,7 @@ public class QueryPageTests extends AbstractWireSerializingTestCase<QueryPage<In
             hits.add(new Influencer(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
                     randomAsciiOfLengthBetween(1, 20)));
         }
-        return new QueryPage<>(hits, hitCount);
+        return new QueryPage<>(hits, hitCount, new ParseField("test"));
     }
 
     @Override

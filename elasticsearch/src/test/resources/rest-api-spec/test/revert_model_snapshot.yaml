@@ -195,7 +195,7 @@ setup:
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
 
-  - match: { hitCount: 3 }
+  - match: { count: 3 }
 
   - do:
       xpack.prelert.revert_model_snapshot:
@@ -213,15 +213,15 @@ setup:
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
 
-  - match: { hitCount: 1 }
-  - match: { hits.0.jobId: "foo" }
-  - match: { hits.0.timestamp: 1462060800000 }
+  - match: { count: 1 }
+  - match: { buckets.0.jobId: "foo" }
+  - match: { buckets.0.timestamp: 1462060800000 }
 
   - do:
       xpack.prelert.get_jobs:
         job_id: foo
         metric: data_counts
 
-  - match: { hits.0.data_counts.latest_record_timestamp: 1464739200000 }
+  - match: { jobs.0.data_counts.latest_record_timestamp: 1464739200000 }
 
 

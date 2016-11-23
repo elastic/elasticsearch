@@ -27,9 +27,9 @@ setup:
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
 
-  - match: { hitCount: 1 }
-  - match: { hits.0.timestamp: 1464739200000 }
-  - match: { hits.0.jobId: farequote}
+  - match: { count: 1 }
+  - match: { buckets.0.timestamp: 1464739200000 }
+  - match: { buckets.0.jobId: farequote}
 
 ---
 "Test result bucket api":
@@ -38,5 +38,5 @@ setup:
         jobId: "farequote"
         timestamp: "2016-06-01T00:00:00Z"
 
-  - match: { hits.0.timestamp: 1464739200000}
-  - match: { hits.0.jobId: farequote }
+  - match: { buckets.0.timestamp: 1464739200000}
+  - match: { buckets.0.jobId: farequote }

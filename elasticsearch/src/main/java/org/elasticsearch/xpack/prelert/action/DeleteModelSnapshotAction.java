@@ -155,7 +155,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
             List<ModelSnapshot> deleteCandidates;
             deleteCandidates = jobProvider.modelSnapshots(
                     request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(), null
-            ).hits();
+            ).results();
 
             if (deleteCandidates.size() > 1) {
                 logger.warn("More than one model found for [jobId: " + request.getJobId()
@@ -172,8 +172,8 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
             // NORELEASE: technically, this could be stale and refuse a delete, but I think that's acceptable
             // since it is non-destructive
             QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
-            if (job.hitCount() > 0) {
-                String currentModelInUse = job.hits().get(0).getModelSnapshotId();
+            if (job.count() > 0) {
+                String currentModelInUse = job.results().get(0).getModelSnapshotId();
                 if (currentModelInUse != null && currentModelInUse.equals(request.getSnapshotId())) {
                     throw new IllegalArgumentException(Messages.getMessage(Messages.REST_CANNOT_DELETE_HIGHEST_PRIORITY,
                             request.getSnapshotId(), request.getJobId()));

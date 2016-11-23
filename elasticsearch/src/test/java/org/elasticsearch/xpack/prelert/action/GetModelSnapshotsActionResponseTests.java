@@ -24,7 +24,7 @@ public class GetModelSnapshotsActionResponseTests extends AbstractStreamableTest
             snapshot.setDescription(randomAsciiOfLengthBetween(1, 20));
             hits.add(snapshot);
         }
-        QueryPage<ModelSnapshot> snapshots = new QueryPage<>(hits, listSize);
+        QueryPage<ModelSnapshot> snapshots = new QueryPage<>(hits, listSize, ModelSnapshot.RESULTS_FIELD);
         return new Response(snapshots);
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -98,10 +99,10 @@ public class JobManager {
         PrelertMetadata prelertMetadata = clusterState.getMetaData().custom(PrelertMetadata.TYPE);
         Job job = prelertMetadata.getJobs().get(jobId);
         if (job == null) {
-            return new QueryPage<>(Collections.emptyList(), 0);
+            throw QueryPage.emptyQueryPage(Job.RESULTS_FIELD);
         }
 
-        return new QueryPage<>(Collections.singletonList(job), 1);
+        return new QueryPage<>(Collections.singletonList(job), 1, Job.RESULTS_FIELD);
     }
 
     /**
@@ -123,7 +124,7 @@ public class JobManager {
                 .limit(size)
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
-        return new QueryPage<>(jobs, prelertMetadata.getJobs().size());
+        return new QueryPage<>(jobs, prelertMetadata.getJobs().size(), Job.RESULTS_FIELD);
     }
 
     /**

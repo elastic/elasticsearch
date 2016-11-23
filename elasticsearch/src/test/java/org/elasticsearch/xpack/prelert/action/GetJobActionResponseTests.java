@@ -101,7 +101,7 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
             jobInfoList.add(jobInfo);
         }
 
-        result = new Response(new QueryPage<>(jobInfoList, jobInfoList.size()));
+        result = new Response(new QueryPage<>(jobInfoList, jobInfoList.size(), Job.RESULTS_FIELD));
 
         return result;
     }

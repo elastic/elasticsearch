@@ -25,7 +25,7 @@ public class GetRecordsActionResponseTests extends AbstractStreamableTestCase<Ge
             record.setId(randomAsciiOfLengthBetween(1, 20));
             hits.add(record);
         }
-        QueryPage<AnomalyRecord> snapshots = new QueryPage<>(hits, listSize);
+        QueryPage<AnomalyRecord> snapshots = new QueryPage<>(hits, listSize, AnomalyRecord.RESULTS_FIELD);
         return new Response(snapshots);
     }
 

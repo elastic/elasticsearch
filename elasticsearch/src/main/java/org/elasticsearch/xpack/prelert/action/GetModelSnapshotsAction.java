@@ -325,7 +325,7 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
 
             QueryPage<ModelSnapshot> page = doGetPage(jobProvider, request);
 
-            logger.debug(String.format(Locale.ROOT, "Return %d model snapshots for job %s", page.hitCount(), request.getJobId()));
+            logger.debug(String.format(Locale.ROOT, "Return %d model snapshots for job %s", page.count(), request.getJobId()));
             listener.onResponse(new Response(page));
         }
 
@@ -337,8 +337,8 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
             // The quantiles can be large, and totally dominate the output -
             // it's
             // clearer to remove them
-            if (page.hits() != null) {
-                for (ModelSnapshot modelSnapshot : page.hits()) {
+            if (page.results() != null) {
+                for (ModelSnapshot modelSnapshot : page.results()) {
                     modelSnapshot.setQuantiles(null);
                 }
             }

@@ -76,6 +76,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField TRANSFORMS = new ParseField("transforms");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("modelSnapshotId");
 
+    // Used for QueryPage
+    public static final ParseField RESULTS_FIELD = new ParseField("jobs");
+
     public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("job_details", Builder::new);
 
     static {

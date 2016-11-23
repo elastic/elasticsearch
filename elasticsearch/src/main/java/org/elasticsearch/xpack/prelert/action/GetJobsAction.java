@@ -356,7 +356,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
         @Override
         public RestStatus status() {
-            return jobs.hitCount() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
+            return jobs.count() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
         }
 
         @Override
@@ -438,30 +438,28 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 // always get the job regardless of the request.config param because if the job
                 // can't be found a different response is returned.
                 QueryPage<Job> jobs = jobManager.getJob(request.getJobId(), state);
-                if (jobs.hitCount() == 0) {
+                if (jobs.count() == 0) {
                     logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", request.getJobId()));
-                    response = new QueryPage<>(Collections.emptyList(), 0);
-                    listener.onResponse(new Response(response));
-                    return;
-                } else if (jobs.hitCount() > 1) {
+                    throw QueryPage.emptyQueryPage(Job.RESULTS_FIELD);
+                } else if (jobs.count() > 1) {
                     logger.error(String.format(Locale.ROOT, "More than one job found for jobId [%s]", request.getJobId()));
                 }
 
                 logger.debug("Returning job [" + request.getJobId() + "]");
-                Job jobConfig = request.config() ? jobs.hits().get(0) : null;
+                Job jobConfig = request.config() ? jobs.results().get(0) : null;
                 DataCounts dataCounts = readDataCounts(request.dataCounts(), request.getJobId());
                 ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), request.getJobId());
                 SchedulerState schedulerStatus = readSchedulerState(request.schedulerStatus(), request.getJobId());
                 JobStatus jobStatus = readJobStatus(request.status(), request.getJobId());
 
                 Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats, schedulerStatus, jobStatus);
-                response = new QueryPage<>(Collections.singletonList(jobInfo), 1);
+                response = new QueryPage<>(Collections.singletonList(jobInfo), 1, Job.RESULTS_FIELD);
 
             } else {
                 // Multiple Jobs
                 QueryPage<Job> jobsPage = jobManager.getJobs(request.pageParams.getFrom(), request.pageParams.getSize(), state);
                 List<Response.JobInfo> jobInfoList = new ArrayList<>();
-                for (Job job : jobsPage.hits()) {
+                for (Job job : jobsPage.results()) {
                     Job jobConfig = request.config() ? job : null;
                     DataCounts dataCounts = readDataCounts(request.dataCounts(), job.getJobId());
                     ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), job.getJobId());
@@ -470,7 +468,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                     Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats, schedulerStatus, jobStatus);
                     jobInfoList.add(jobInfo);
                 }
-                response = new QueryPage<>(jobInfoList, jobsPage.hitCount());
+                response = new QueryPage<>(jobInfoList, jobsPage.count(), Job.RESULTS_FIELD);
             }
 
             listener.onResponse(new Response(response));

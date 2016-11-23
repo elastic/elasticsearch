@@ -115,31 +115,35 @@ public class SearchTransportService extends AbstractComponent {
                 throw new IllegalArgumentException("no hosts set for remote cluster [" + clusterName + "], at least one host is required");
             }
             for (String remoteHost : remoteHosts) {
-                String[] strings = remoteHost.split(":");
-                if (strings.length != 2) {
+                int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
+                if (portSeparator == -1 || portSeparator == remoteHost.length()) {
                     throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] " +
-                            "instead for remote cluster [" + clusterName + "]");
+                        "instead for remote cluster [" + clusterName + "]");
                 }
+                String port = remoteHost.substring(portSeparator+1);
                 try {
-                    Integer.valueOf(strings[1]);
+                    Integer portValue = Integer.valueOf(port);
+                    if (portValue <= 0) {
+                        throw new IllegalArgumentException("port number must be > 0 but was: [" + portValue + "]");
+                    }
                 } catch(NumberFormatException e) {
-                    throw new IllegalArgumentException("port must be a number, found [" + strings[1] + "] instead for remote cluster [" +
+                    throw new IllegalArgumentException("port must be a number, found [" + port + "] instead for remote cluster [" +
                             clusterName + "]");
                 }
             }
         }
     }
 
-    private void setRemoteClustersSeeds(Settings settings) {
+    static Map<String, List<DiscoveryNode>> builtRemoteClustersSeeds(Settings settings) {
         Map<String, List<DiscoveryNode>> remoteClustersNodes = new HashMap<>();
         for (String clusterName : settings.names()) {
             String[] remoteHosts = settings.getAsArray(clusterName);
             for (String remoteHost : remoteHosts) {
-                String[] strings = remoteHost.split(":");
-                String host = strings[0];
-                int port = Integer.valueOf(strings[1]);
+                int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
+                String host = remoteHost.substring(0, portSeparator);
+                int port = Integer.valueOf(remoteHost.substring(portSeparator+1));
                 DiscoveryNode node = new DiscoveryNode(clusterName + "#" + remoteHost,
-                        new TransportAddress(new InetSocketAddress(host, port)), Version.CURRENT.minimumCompatibilityVersion());
+                    new TransportAddress(new InetSocketAddress(host, port)), Version.CURRENT.minimumCompatibilityVersion());
                 //don't connect yet as that would require the remote node to be up and would fail the local node startup otherwise
                 List<DiscoveryNode> nodes = remoteClustersNodes.get(clusterName);
                 if (nodes == null) {
@@ -149,7 +153,11 @@ public class SearchTransportService extends AbstractComponent {
                 nodes.add(node);
             }
         }
-        remoteClustersSeeds = remoteClustersNodes;
+        return remoteClustersNodes;
+    }
+
+    private void setRemoteClustersSeeds(Settings settings) {
+        remoteClustersSeeds = builtRemoteClustersSeeds(settings);
     }
 
     private DiscoveryNode connectToRemoteCluster(String clusterName) {

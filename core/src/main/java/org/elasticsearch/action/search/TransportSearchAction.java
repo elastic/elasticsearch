@@ -137,38 +137,35 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Strings.EMPTY_ARRAY, Collections.emptyList(), Collections.emptySet(), listener);
         } else {
             searchTransportService.sendSearchShards(searchRequest, remoteIndicesByCluster,
-                    new ActionListener<Map<String, ClusterSearchShardsResponse>>() {
-                        @Override
-                        public void onResponse(Map<String, ClusterSearchShardsResponse> searchShardsResponses) {
-                            List<ShardIterator> remoteShardIterators = new ArrayList<>();
-                            Set<DiscoveryNode> remoteNodes = new HashSet<>();
-                            Set<String> remoteUUIDs = new HashSet<>();
-                            for (Map.Entry<String, ClusterSearchShardsResponse> entry : searchShardsResponses.entrySet()) {
-                                String clusterName = entry.getKey();
-                                ClusterSearchShardsResponse searchShardsResponse = entry.getValue();
-                                Collections.addAll(remoteNodes, searchShardsResponse.getNodes());
-                                for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
-                                    //add the cluster name to the remote index names for indices disambiguation
-                                    //this ends up in the hits returned with the search response
-                                    Index index = new Index(clusterName + REMOTE_CLUSTER_INDEX_SEPARATOR +
-                                            clusterSearchShardsGroup.getShardId().getIndex().getName(),
-                                            clusterSearchShardsGroup.getShardId().getIndex().getUUID());
-                                    ShardId shardId = new ShardId(index, clusterSearchShardsGroup.getShardId().getId());
-                                    ShardIterator shardIterator = new PlainShardIterator(shardId,
-                                            Arrays.asList(clusterSearchShardsGroup.getShards()));
-                                    remoteShardIterators.add(shardIterator);
-                                    remoteUUIDs.add(clusterSearchShardsGroup.getShardId().getIndex().getUUID());
-                                }
-                            }
-                            executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices,
-                                    remoteUUIDs.toArray(new String[remoteUUIDs.size()]), remoteShardIterators, remoteNodes, listener);
-                        }
+                ActionListener.wrap((searchShardsResponses) -> {
+                    List<ShardIterator> remoteShardIterators = new ArrayList<>();
+                    Set<DiscoveryNode> remoteNodes = new HashSet<>();
+                    Set<String> remoteUUIDs = new HashSet<>();
+                    processRemoteShards(searchShardsResponses, remoteShardIterators, remoteNodes, remoteUUIDs);
+                    executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices,
+                    remoteUUIDs.toArray(new String[remoteUUIDs.size()]), remoteShardIterators, remoteNodes, listener);
+                }, listener::onFailure));
+        }
+    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+    private void processRemoteShards(Map<String, ClusterSearchShardsResponse> searchShardsResponses,
+                                     List<ShardIterator> remoteShardIterators, Set<DiscoveryNode> remoteNodes, Set<String> remoteUUIDs) {
+        for (Map.Entry<String, ClusterSearchShardsResponse> entry : searchShardsResponses.entrySet()) {
+            String clusterName = entry.getKey();
+            ClusterSearchShardsResponse searchShardsResponse = entry.getValue();
+            Collections.addAll(remoteNodes, searchShardsResponse.getNodes());
+            for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
+                //add the cluster name to the remote index names for indices disambiguation
+                //this ends up in the hits returned with the search response
+                Index index = new Index(clusterName + REMOTE_CLUSTER_INDEX_SEPARATOR +
+                        clusterSearchShardsGroup.getShardId().getIndex().getName(),
+                        clusterSearchShardsGroup.getShardId().getIndex().getUUID());
+                ShardId shardId = new ShardId(index, clusterSearchShardsGroup.getShardId().getId());
+                ShardIterator shardIterator = new PlainShardIterator(shardId,
+                        Arrays.asList(clusterSearchShardsGroup.getShards()));
+                remoteShardIterators.add(shardIterator);
+                remoteUUIDs.add(clusterSearchShardsGroup.getShardId().getIndex().getUUID());
+            }
         }
     }
 
@@ -181,8 +178,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
         // of just for the _search api
-        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest.indicesOptions(),
-            startTimeInMillis, localIndices);
+        final Index[] indices;
+        if (localIndices.length == 0 && remoteUUIDs.length > 0) {
+            indices = new Index[0]; // don't search on ALL if nothing is specified
+        } else {
+            indices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest.indicesOptions(),
+                startTimeInMillis, localIndices);
+        }
         Map<String, AliasFilter> aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices, remoteUUIDs);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
             searchRequest.indices());

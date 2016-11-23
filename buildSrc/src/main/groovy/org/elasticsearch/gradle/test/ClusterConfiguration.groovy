@@ -97,6 +97,15 @@ class ClusterConfiguration {
     }
 
     /**
+     * A closure to call which returns a map of settings.
+     *
+     * This can be used to pass settings to a cluster that are not available at evaluation time ie.
+     * the address of a remote cluster etc.
+     */
+    @Input
+    Closure dynamicSettings = {  -> Collections.emptyMap() }
+
+    /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,
      * as well as a groovy AntBuilder, to enable running ant condition checks. The default wait
      * condition is for http on the http port.

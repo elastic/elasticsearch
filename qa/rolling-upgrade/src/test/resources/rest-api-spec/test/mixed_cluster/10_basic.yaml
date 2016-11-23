@@ -2,7 +2,10 @@
 "Index data and search on the mixed cluster":
  - do:
      cluster.health:
-        wait_for_status: green
+        # if the primary shard of an index with (number_of_replicas > 0) ends up on the new node, the replica cannot be
+        # allocated to the old node (see NodeVersionAllocationDecider). x-pack automatically creates indices with
+        # replicas, for example monitoring-data-*.
+        wait_for_status: yellow
         wait_for_nodes: 2
         timeout: 25s
 

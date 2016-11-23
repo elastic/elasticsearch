@@ -32,8 +32,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
@@ -62,13 +60,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchService searchService;
 
     @Inject
-    public TransportSearchAction(Settings settings, ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService,
-                                 TransportService transportService, SearchService searchService,
-                                 ClusterService clusterService, ActionFilters actionFilters, IndexNameExpressionResolver
-                                             indexNameExpressionResolver) {
+    public TransportSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, SearchService searchService,
+                                 SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
+                                 ClusterService clusterService, ActionFilters actionFilters,
+                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
-        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService);
-        this.searchTransportService = new SearchTransportService(settings, transportService);
+        this.searchPhaseController = searchPhaseController;
+        this.searchTransportService = searchTransportService;
         SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
         this.searchService = searchService;

@@ -19,11 +19,15 @@
 
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Set;
@@ -41,11 +45,16 @@ public class LongGCDisruption extends SingleNodeDisruption {
         // logging has shared JVM locks - we may suspend a thread and block other nodes from doing their thing
         Pattern.compile("logging\\.log4j"),
         // security manager is shared across all nodes AND it uses synced hashmaps interanlly
-        Pattern.compile("java\\.lang\\.SecurityManager")
+        Pattern.compile("java\\.lang\\.SecurityManager"),
+        // SecureRandom instance from SecureRandomHolder class is shared by all nodes
+        Pattern.compile("java\\.security\\.SecureRandom")
     };
+
+    private static final ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
 
     protected final String disruptedNode;
     private Set<Thread> suspendedThreads;
+    private Thread blockDetectionThread;
 
     public LongGCDisruption(Random random, String disruptedNode) {
         super(random);
@@ -95,9 +104,47 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 }
                 if (stoppingThread.isAlive()) {
                     logger.warn("failed to stop node [{}]'s threads within [{}] millis. Stopping thread stack trace:\n {}"
-                        , disruptedNode, getStoppingTimeoutInMillis(), stackTrace(stoppingThread));
+                        , disruptedNode, getStoppingTimeoutInMillis(), stackTrace(stoppingThread.getStackTrace()));
                     stoppingThread.interrupt(); // best effort;
                     throw new RuntimeException("stopping node threads took too long");
+                }
+                // block detection checks if other threads are blocked waiting on an object that is held by one
+                // of the threads that was suspended
+                if (isBlockDetectionSupported()) {
+                    blockDetectionThread = new Thread(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof InterruptedException == false) {
+                                throw new AssertionError("unexpected exception in blockDetectionThread", e);
+                            }
+                        }
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            while (Thread.currentThread().isInterrupted() == false) {
+                                ThreadInfo[] threadInfos = threadBean.dumpAllThreads(true, true);
+                                for (ThreadInfo threadInfo : threadInfos) {
+                                    if (threadInfo.getThreadName().contains("[" + disruptedNode + "]") == false &&
+                                        threadInfo.getLockOwnerName() != null &&
+                                        threadInfo.getLockOwnerName().contains("[" + disruptedNode + "]")) {
+
+                                        // find ThreadInfo object of the blocking thread (if available)
+                                        ThreadInfo blockingThreadInfo = null;
+                                        for (ThreadInfo otherThreadInfo : threadInfos) {
+                                            if (otherThreadInfo.getThreadId() == threadInfo.getLockOwnerId()) {
+                                                blockingThreadInfo = otherThreadInfo;
+                                                break;
+                                            }
+                                        }
+                                        onBlockDetected(threadInfo, blockingThreadInfo);
+                                    }
+                                }
+                                Thread.sleep(getBlockDetectionIntervalInMillis());
+                            }
+                        }
+                    });
+                    blockDetectionThread.setName(currentThreadName + "[LongGCDisruption][blockDetection]");
+                    blockDetectionThread.start();
                 }
                 success = true;
             } finally {
@@ -105,6 +152,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                     // resume threads if failed
                     resumeThreads(suspendedThreads);
                     suspendedThreads = null;
+                    stopBlockDetection();
                 }
             }
         } else {
@@ -112,8 +160,8 @@ public class LongGCDisruption extends SingleNodeDisruption {
         }
     }
 
-    private String stackTrace(Thread thread) {
-        return Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n"));
+    private String stackTrace(StackTraceElement[] stackTraceElements) {
+        return Arrays.stream(stackTraceElements).map(Object::toString).collect(Collectors.joining("\n"));
     }
 
     @Override
@@ -121,6 +169,19 @@ public class LongGCDisruption extends SingleNodeDisruption {
         if (suspendedThreads != null) {
             resumeThreads(suspendedThreads);
             suspendedThreads = null;
+        }
+        stopBlockDetection();
+    }
+
+    private void stopBlockDetection() {
+        if (blockDetectionThread != null) {
+            try {
+                blockDetectionThread.interrupt(); // best effort
+                blockDetectionThread.join(getStoppingTimeoutInMillis());
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            blockDetectionThread = null;
         }
     }
 
@@ -196,6 +257,28 @@ public class LongGCDisruption extends SingleNodeDisruption {
     // for testing
     protected long getStoppingTimeoutInMillis() {
         return TimeValue.timeValueSeconds(30).getMillis();
+    }
+
+    public boolean isBlockDetectionSupported() {
+        return threadBean.isObjectMonitorUsageSupported() && threadBean.isSynchronizerUsageSupported();
+    }
+
+    // for testing
+    protected long getBlockDetectionIntervalInMillis() {
+        return 3000L;
+    }
+
+    // for testing
+    protected void onBlockDetected(ThreadInfo blockedThread, @Nullable ThreadInfo blockingThread) {
+        String blockedThreadStackTrace = stackTrace(blockedThread.getStackTrace());
+        String blockingThreadStackTrace = blockingThread != null ?
+            stackTrace(blockingThread.getStackTrace()) : "not available";
+        throw new AssertionError("Thread [" + blockedThread.getThreadName() + "] is blocked waiting on the resource [" +
+            blockedThread.getLockInfo() + "] held by the suspended thread [" + blockedThread.getLockOwnerName() +
+            "] of the disrupted node [" + disruptedNode + "].\n" +
+            "Please add this occurrence to the unsafeClasses list in [" + LongGCDisruption.class.getName() + "].\n" +
+            "Stack trace of blocked thread: " + blockedThreadStackTrace + "\n" +
+            "Stack trace of blocking thread: " + blockingThreadStackTrace);
     }
 
     @SuppressWarnings("deprecation") // stops/resumes threads intentionally

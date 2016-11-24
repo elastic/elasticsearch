@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
+import org.elasticsearch.xpack.prelert.action.GetJobsAction;
 import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.ScheduledJobsIT;
@@ -20,10 +21,12 @@ import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.junit.After;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.ExecutionException;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class TooManyJobsIT extends ESIntegTestCase {
@@ -51,6 +54,19 @@ public class TooManyJobsIT extends ESIntegTestCase {
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true));
             PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
             assertTrue(putJobResponse.isAcknowledged());
+            assertBusy(() -> {
+                try {
+                    GetJobsAction.Request getJobRequest = new GetJobsAction.Request();
+                    getJobRequest.setJobId(job.getId());
+                    getJobRequest.status(true);
+                    GetJobsAction.Response response = client().execute(GetJobsAction.INSTANCE, getJobRequest).get();
+                    GetJobsAction.Response.JobInfo jobInfo = response.getResponse().results().get(0);
+                    assertNotNull(jobInfo);
+                    assertEquals(JobStatus.CLOSED, jobInfo.getStatus());
+                } catch (Exception e) {
+                    fail("failure " + e.getMessage());
+                }
+            });
 
             // triggers creating autodetect process:
             PostDataAction.Request postDataRequest = new PostDataAction.Request(job.getId());
@@ -60,8 +76,10 @@ public class TooManyJobsIT extends ESIntegTestCase {
                 assertEquals(1, postDataResponse.getDataCounts().getInputRecordCount());
                 logger.info("Posted data {} times", i);
             } catch (Exception e) {
-                logger.info("Handling exception", e);
                 Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
+                if (ElasticsearchStatusException.class.equals(cause.getClass()) == false) {
+                    logger.warn("Unexpected cause", e);
+                }
                 assertEquals(ElasticsearchStatusException.class, cause.getClass());
                 assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) cause).status());
                 logger.info("good news everybody --> reached threadpool capacity after starting {}th analytical process", i);

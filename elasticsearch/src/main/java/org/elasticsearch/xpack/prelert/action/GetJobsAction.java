@@ -245,7 +245,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
     public static class Response extends ActionResponse implements StatusToXContent {
 
-        static class JobInfo implements ToXContent, Writeable {
+        public static class JobInfo implements ToXContent, Writeable {
             @Nullable
             private Job jobConfig;
             @Nullable
@@ -274,6 +274,26 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
                 schedulerState = in.readOptionalWriteable(SchedulerState::new);
                 status = in.readOptionalWriteable(JobStatus::fromStream);
+            }
+
+            public Job getJobConfig() {
+                return jobConfig;
+            }
+
+            public DataCounts getDataCounts() {
+                return dataCounts;
+            }
+
+            public ModelSizeStats getModelSizeStats() {
+                return modelSizeStats;
+            }
+
+            public SchedulerState getSchedulerState() {
+                return schedulerState;
+            }
+
+            public JobStatus getStatus() {
+                return status;
             }
 
             @Override

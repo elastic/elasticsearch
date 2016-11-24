@@ -662,6 +662,9 @@ public class Setting<T> extends ToXContentToBytes {
 
     public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue,
                                                    Function<String, T> singleValueParser, Property... properties) {
+        if (defaultStringValue.apply(Settings.EMPTY) == null) {
+            throw new IllegalArgumentException("default value function must not return null");
+        }
         Function<String, List<T>> parser = (s) ->
                 parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
@@ -682,6 +685,18 @@ public class Setting<T> extends ToXContentToBytes {
             public boolean exists(Settings settings) {
                 boolean exists = super.exists(settings);
                 return exists || settings.get(getKey() + ".0") != null;
+            }
+
+            @Override
+            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+                if (exists(source) == false) {
+                    String[] asArray = defaultSettings.getAsArray(getKey(), null);
+                    if (asArray == null) {
+                        builder.putArray(getKey(), defaultStringValue.apply(defaultSettings));
+                    } else {
+                        builder.putArray(getKey(), asArray);
+                    }
+                }
             }
         };
     }

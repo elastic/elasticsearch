@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
@@ -153,14 +152,15 @@ public class ProcessCtrl {
         return rng.nextInt(SECONDS_IN_HOUR);
     }
 
-    public static List<String> buildAutodetectCommand(Environment env, Settings settings, Job job, Logger logger, boolean ignoreDowntime) {
+    public static List<String> buildAutodetectCommand(Environment env, Settings settings, Job job, Logger logger, boolean ignoreDowntime,
+                                                      long controllerPid) {
         List<String> command = new ArrayList<>();
         command.add(AUTODETECT_PATH);
 
         String jobId = JOB_ID_ARG + job.getId();
         command.add(jobId);
 
-        command.add(makeLicenseArg());
+        command.add(makeLicenseArg(controllerPid));
 
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         if (analysisConfig != null) {
@@ -259,12 +259,12 @@ public class ProcessCtrl {
      * Build the command to start the normalizer process.
      */
     public static List<String> buildNormaliserCommand(Environment env, String jobId, String quantilesState, Integer bucketSpan,
-            boolean perPartitionNormalization, Logger logger) throws IOException {
+            boolean perPartitionNormalization, long controllerPid) throws IOException {
 
         List<String> command = new ArrayList<>();
         command.add(NORMALIZE_PATH);
         addIfNotNull(bucketSpan, BUCKET_SPAN_ARG, command);
-        command.add(makeLicenseArg());
+        command.add(makeLicenseArg(controllerPid));
         command.add(LENGTH_ENCODED_INPUT_ARG);
         if (perPartitionNormalization) {
             command.add(PER_PARTITION_NORMALIZATION);
@@ -305,12 +305,12 @@ public class ProcessCtrl {
     }
 
     /**
-     * The number must be equal to the JVM PID modulo a magic number.
+     * The number must be equal to the daemon controller's PID modulo a magic number.
      */
-    private static String makeLicenseArg() {
+    private static String makeLicenseArg(long controllerPid) {
         // Get a random int rather than long so we don't overflow when multiplying by VALIDATION_NUMBER
         long rand = Randomness.get().nextInt();
-        long val = JvmInfo.jvmInfo().pid() + (((rand < 0) ? -rand : rand) + 1) * VALIDATION_NUMBER;
+        long val = controllerPid + (((rand < 0) ? -rand : rand) + 1) * VALIDATION_NUMBER;
         return LICENSE_VALIDATION_ARG + val;
     }
 }

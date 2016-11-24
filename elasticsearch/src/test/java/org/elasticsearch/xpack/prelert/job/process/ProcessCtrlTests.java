@@ -8,15 +8,12 @@ package org.elasticsearch.xpack.prelert.job.process;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.junit.Before;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Collections;
@@ -25,13 +22,11 @@ import java.util.List;
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
 
 public class ProcessCtrlTests extends ESTestCase {
-    @Mock
-    private Logger logger;
 
-    @Before
-    public void setupMock() {
-        logger = Mockito.mock(Logger.class);
-    }
+    private final Logger logger = Mockito.mock(Logger.class);
+    // 4194304 is the maximum possible PID on Linux according to
+    // http://web.archive.org/web/20111209081734/http://research.cs.wisc.edu/condor/condorg/linux_scalability.html
+    private final long pid = randomIntBetween(2, 4194304);
 
     public void testBuildAutodetectCommand() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
@@ -58,7 +53,7 @@ public class ProcessCtrlTests extends ESTestCase {
 
         job.setIgnoreDowntime(IgnoreDowntime.ONCE);
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false);
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false, pid);
         assertEquals(17, command.size());
         assertTrue(command.contains(ProcessCtrl.AUTODETECT_PATH));
         assertTrue(command.contains(ProcessCtrl.BATCH_SPAN_ARG + "100"));
@@ -90,7 +85,7 @@ public class ProcessCtrlTests extends ESTestCase {
         Environment env = new Environment(settings);
         Job.Builder job = buildJobBuilder("unit-test-job");
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false);
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false, pid);
 
         assertTrue(command.contains(ProcessCtrl.TIME_FIELD_ARG + "time"));
     }
@@ -103,13 +98,13 @@ public class ProcessCtrlTests extends ESTestCase {
 
         int expectedPersistInterval = 10800 + ProcessCtrl.calculateStaggeringInterval(job.getId());
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false);
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false, pid);
         assertFalse(command.contains(ProcessCtrl.PERSIST_INTERVAL_ARG + expectedPersistInterval));
 
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         env = new Environment(settings);
 
-        command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false);
+        command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false, pid);
         assertTrue(command.contains(ProcessCtrl.PERSIST_INTERVAL_ARG + expectedPersistInterval));
     }
 
@@ -119,7 +114,7 @@ public class ProcessCtrlTests extends ESTestCase {
                 settings);
         Job.Builder job = buildJobBuilder("foo");
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false);
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false, pid);
 
         assertFalse(command.contains("--ignoreDowntime"));
     }
@@ -130,7 +125,7 @@ public class ProcessCtrlTests extends ESTestCase {
                 settings);
         Job.Builder job = buildJobBuilder("foo");
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, true);
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, true, pid);
 
         assertTrue(command.contains("--ignoreDowntime"));
     }
@@ -140,7 +135,7 @@ public class ProcessCtrlTests extends ESTestCase {
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         String jobId = "unit-test-job";
 
-        List<String> command = ProcessCtrl.buildNormaliserCommand(env, jobId, null, 300, true, logger);
+        List<String> command = ProcessCtrl.buildNormaliserCommand(env, jobId, null, 300, true, pid);
         assertEquals(5, command.size());
         assertTrue(command.contains(ProcessCtrl.NORMALIZE_PATH));
         assertTrue(command.contains(ProcessCtrl.BUCKET_SPAN_ARG + "300"));
@@ -159,7 +154,7 @@ public class ProcessCtrlTests extends ESTestCase {
                     return false;
                 }
                 long val = Long.parseLong(argAndVal[1]);
-                if ((val % ProcessCtrl.VALIDATION_NUMBER) != (JvmInfo.jvmInfo().pid() % ProcessCtrl.VALIDATION_NUMBER)) {
+                if ((val % ProcessCtrl.VALIDATION_NUMBER) != (pid % ProcessCtrl.VALIDATION_NUMBER)) {
                     return false;
                 }
             }

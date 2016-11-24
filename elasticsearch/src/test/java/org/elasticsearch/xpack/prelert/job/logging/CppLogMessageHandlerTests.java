@@ -14,10 +14,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 
 public class CppLogMessageHandlerTests extends ESTestCase {
 
-    public void testParse() throws IOException {
+    public void testParse() throws IOException, TimeoutException {
 
         String testData = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\",\"pid\":10211,"
                 + "\"thread\":\"0x7fff7d2a8000\",\"message\":\"uname -a : Darwin Davids-MacBook-Pro.local 15.6.0 Darwin Kernel "
@@ -44,7 +46,10 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         try (CppLogMessageHandler handler = new CppLogMessageHandler(is, logger, 100, 3)) {
             handler.tailStream();
 
+            assertTrue(handler.hasLogStreamEnded());
+            assertEquals(10211L, handler.getPid(Duration.ofMillis(1)));
             assertEquals("Did not understand verb 'a'\n", handler.getErrors());
+            assertFalse(handler.seenFatalError());
         }
     }
 }

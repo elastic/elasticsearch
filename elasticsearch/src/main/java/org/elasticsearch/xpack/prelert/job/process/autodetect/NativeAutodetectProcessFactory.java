@@ -35,6 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeoutException;
 
 public class NativeAutodetectProcessFactory implements AutodetectProcessFactory {
 
@@ -111,7 +112,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
 
             autodetectBuilder.build();
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
-        } catch (IOException e) {
+        } catch (IOException | TimeoutException e) {
             String msg = "Failed to launch process for job " + job.getId();
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);

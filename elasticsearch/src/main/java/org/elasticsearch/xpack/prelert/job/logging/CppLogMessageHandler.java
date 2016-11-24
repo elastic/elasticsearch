@@ -22,8 +22,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.Deque;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Handle a stream of C++ log messages that arrive via a named pipe in JSON format.
@@ -40,8 +44,10 @@ public class CppLogMessageHandler implements Closeable {
     private final int readBufSize;
     private final int errorStoreSize;
     private final Deque<String> errorStore;
+    private final CountDownLatch pidLatch;
     private volatile boolean hasLogStreamEnded;
     private volatile boolean seenFatalError;
+    private volatile long pid;
 
     /**
      * @param jobId May be null or empty if the logs are from a process not associated with a job.
@@ -60,7 +66,8 @@ public class CppLogMessageHandler implements Closeable {
         this.inputStream = Objects.requireNonNull(inputStream);
         this.readBufSize = readBufSize;
         this.errorStoreSize = errorStoreSize;
-        this.errorStore = ConcurrentCollections.newDeque();
+        errorStore = ConcurrentCollections.newDeque();
+        pidLatch = new CountDownLatch(1);
         hasLogStreamEnded = false;
     }
 
@@ -99,6 +106,29 @@ public class CppLogMessageHandler implements Closeable {
 
     public boolean seenFatalError() {
         return seenFatalError;
+    }
+
+    /**
+     * Get the process ID of the C++ process whose log messages are being read.  This will
+     * arrive in the first log message logged by the C++ process.  They all log their version
+     * number immediately on startup so it should not take long to arrive, but will not be
+     * available instantly after the process starts.
+     */
+    public long getPid(Duration timeout) throws TimeoutException {
+        // There's an assumption here that 0 is not a valid PID.  This is certainly true for
+        // userland processes.  On Windows the "System Idle Process" has PID 0 and on *nix
+        // PID 0 is for "sched", which is part of the kernel.
+        if (pid == 0) {
+            try {
+                pidLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (pid == 0) {
+                throw new TimeoutException("Timed out waiting for C++ process PID");
+            }
+        }
+        return pid;
     }
 
     /**
@@ -143,8 +173,13 @@ public class CppLogMessageHandler implements Closeable {
                     seenFatalError = true;
                 }
             }
+            long latestPid = msg.getPid();
+            if (pid != latestPid) {
+                pid = latestPid;
+                pidLatch.countDown();
+            }
             // TODO: Is there a way to preserve the original timestamp when re-logging?
-            logger.log(level, "{}/{} {}@{} {}", msg.getLogger(), msg.getPid(), msg.getFile(), msg.getLine(), msg.getMessage());
+            logger.log(level, "{}/{} {}@{} {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), msg.getMessage());
             // TODO: Could send the message for indexing instead of or as well as logging it
         } catch (IOException e) {
             logger.warn("Failed to parse C++ log message: " + bytesRef.utf8ToString(), e);

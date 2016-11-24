@@ -175,6 +175,14 @@ public class SearchTransportService extends AbstractComponent {
         remoteClustersSeeds = buildRemoteClustersSeeds(settings);
     }
 
+    boolean isCrossClusterSearchEnabled() {
+        return remoteClustersSeeds.isEmpty() == false;
+    }
+
+    boolean isRemoteClusterRegistered(String clusterName) {
+        return remoteClustersSeeds.containsKey(clusterName);
+    }
+
     private DiscoveryNode connectToRemoteCluster(String clusterName) {
         List<DiscoveryNode> nodes = remoteClustersSeeds.get(clusterName);
         if (nodes == null) {

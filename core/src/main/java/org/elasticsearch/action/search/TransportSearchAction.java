@@ -109,28 +109,33 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // pure paranoia if time goes backwards we are at least positive
         final long startTimeInMillis = Math.max(0, System.currentTimeMillis());
 
-        //TODO make selection smarter: aliases can still contain any character and remote indices should have the precedence all the time.
-        //e.g. we could skip the remote logic if no remote clusters are registered. Also don't go remotely if the prefix is not
-        //a registered cluster rather than throwing an error?
-        final List<String> localIndicesList = new ArrayList<>();
+        final String[] localIndices;
         final Map<String, List<String>> remoteIndicesByCluster = new HashMap<>();
-        for (String index : searchRequest.indices()) {
-            int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (i >= 0) {
-                String remoteCluster = index.substring(0, i);
-                String remoteIndex = index.substring(i + 1);
-                List<String> indices = remoteIndicesByCluster.get(remoteCluster);
-                if (indices == null) {
-                    indices = new ArrayList<>();
-                    remoteIndicesByCluster.put(remoteCluster, indices);
+        if (searchTransportService.isCrossClusterSearchEnabled()) {
+            List<String> localIndicesList = new ArrayList<>();
+            for (String index : searchRequest.indices()) {
+                int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
+                if (i >= 0) {
+                    String remoteCluster = index.substring(0, i);
+                    if (searchTransportService.isRemoteClusterRegistered(remoteCluster)) {
+                        String remoteIndex = index.substring(i + 1);
+                        List<String> indices = remoteIndicesByCluster.get(remoteCluster);
+                        if (indices == null) {
+                            indices = new ArrayList<>();
+                            remoteIndicesByCluster.put(remoteCluster, indices);
+                        }
+                        indices.add(remoteIndex);
+                    } else {
+                        localIndicesList.add(index);
+                    }
+                } else {
+                    localIndicesList.add(index);
                 }
-                indices.add(remoteIndex);
-            } else {
-                localIndicesList.add(index);
             }
+            localIndices = localIndicesList.toArray(new String[localIndicesList.size()]);
+        } else {
+            localIndices = searchRequest.indices();
         }
-
-        String[] localIndices = localIndicesList.toArray(new String[localIndicesList.size()]);
 
         if (remoteIndicesByCluster.isEmpty()) {
             executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices,

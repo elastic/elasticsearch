@@ -24,9 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -43,8 +42,8 @@ public class SearchTransportServiceTests extends ESTestCase {
             .put("action.search.remote.foo", "192.168.0.1").build()));
     }
 
-    public void testBuiltRemoteClustersSeeds() {
-        Map<String, List<DiscoveryNode>> map = SearchTransportService.builtRemoteClustersSeeds(
+    public void testBuiltRemoteClustersSeeds() throws Exception {
+        Map<String, List<DiscoveryNode>> map = SearchTransportService.buildRemoteClustersSeeds(
             SearchTransportService.REMOTE_CLUSTERS_SEEDS.get(Settings.builder()
             .put("action.search.remote.foo", "192.168.0.1:8080")
             .put("action.search.remote.bar", "[::1]:9090").build()));
@@ -55,12 +54,13 @@ public class SearchTransportServiceTests extends ESTestCase {
         assertEquals(1, map.get("bar").size());
 
         DiscoveryNode foo = map.get("foo").get(0);
-        assertEquals(foo.getAddress(), new TransportAddress(new InetSocketAddress("192.168.0.1", 8080)));
+
+        assertEquals(foo.getAddress(), new TransportAddress(new InetSocketAddress(InetAddress.getByName("192.168.0.1"), 8080)));
         assertEquals(foo.getId(), "foo#192.168.0.1:8080");
         assertEquals(foo.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
 
         DiscoveryNode bar = map.get("bar").get(0);
-        assertEquals(bar.getAddress(), new TransportAddress(new InetSocketAddress("[::1]", 9090)));
+        assertEquals(bar.getAddress(), new TransportAddress(new InetSocketAddress(InetAddress.getByName("[::1]"), 9090)));
         assertEquals(bar.getId(), "bar#[::1]:9090");
         assertEquals(bar.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
     }

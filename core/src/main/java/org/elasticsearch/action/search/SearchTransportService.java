@@ -63,7 +63,9 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -120,7 +122,13 @@ public class SearchTransportService extends AbstractComponent {
                     throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] " +
                         "instead for remote cluster [" + clusterName + "]");
                 }
-                String port = remoteHost.substring(portSeparator+1);
+                String host = remoteHost.substring(0, portSeparator);
+                try {
+                    InetAddress.getByName(host);
+                } catch (UnknownHostException e) {
+                    throw new IllegalArgumentException("unknown host [" + host + "]", e);
+                }
+                String port = remoteHost.substring(portSeparator + 1);
                 try {
                     Integer portValue = Integer.valueOf(port);
                     if (portValue <= 0) {
@@ -134,16 +142,23 @@ public class SearchTransportService extends AbstractComponent {
         }
     }
 
-    static Map<String, List<DiscoveryNode>> builtRemoteClustersSeeds(Settings settings) {
+    static Map<String, List<DiscoveryNode>> buildRemoteClustersSeeds(Settings settings) {
         Map<String, List<DiscoveryNode>> remoteClustersNodes = new HashMap<>();
         for (String clusterName : settings.names()) {
             String[] remoteHosts = settings.getAsArray(clusterName);
             for (String remoteHost : remoteHosts) {
                 int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
                 String host = remoteHost.substring(0, portSeparator);
-                int port = Integer.valueOf(remoteHost.substring(portSeparator+1));
+                InetAddress hostAddress;
+                try {
+                    hostAddress = InetAddress.getByName(host);
+                } catch (UnknownHostException e) {
+                    throw new IllegalArgumentException("unknown host [" + host + "]", e);
+                }
+                int port = Integer.valueOf(remoteHost.substring(portSeparator + 1));
                 DiscoveryNode node = new DiscoveryNode(clusterName + "#" + remoteHost,
-                    new TransportAddress(new InetSocketAddress(host, port)), Version.CURRENT.minimumCompatibilityVersion());
+                        new TransportAddress(new InetSocketAddress(hostAddress, port)),
+                        Version.CURRENT.minimumCompatibilityVersion());
                 //don't connect yet as that would require the remote node to be up and would fail the local node startup otherwise
                 List<DiscoveryNode> nodes = remoteClustersNodes.get(clusterName);
                 if (nodes == null) {
@@ -157,7 +172,7 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     private void setRemoteClustersSeeds(Settings settings) {
-        remoteClustersSeeds = builtRemoteClustersSeeds(settings);
+        remoteClustersSeeds = buildRemoteClustersSeeds(settings);
     }
 
     private DiscoveryNode connectToRemoteCluster(String clusterName) {

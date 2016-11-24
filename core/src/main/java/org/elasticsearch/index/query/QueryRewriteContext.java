@@ -113,15 +113,6 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         return new QueryParseContext(indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
     }
 
-    /**
-     * Returns a new {@link QueryParseContext} like {@link #newParseContext(XContentParser)} with the only diffence, that
-     * the default script language will default to what has been set in the 'script.legacy.default_lang' setting.
-     */
-    public QueryParseContext newParseContextWithLegacyScriptLanguage(XContentParser parser) {
-        String defaultScriptLanguage = ScriptSettings.getLegacyDefaultLang(indexSettings.getNodeSettings());
-        return new QueryParseContext(defaultScriptLanguage, indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
-    }
-
     public long nowInMillis() {
         return nowInMillis.getAsLong();
     }

@@ -92,11 +92,6 @@ public final class Script implements ToXContent, Writeable {
     public static final ParseField PARAMS_PARSE_FIELD = new ParseField("params");
 
     /**
-     * Unreleased version used for {@link Script} non-null members format of read/write.
-     */
-    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
-
-    /**
      * Helper class used by {@link ObjectParser} to store mutable {@link Script} variables and then
      * construct an immutable {@link Script} object based on parsed XContent.
      */
@@ -382,7 +377,7 @@ public final class Script implements ToXContent, Writeable {
         // Version 5.1+ requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the read in contents to be in
         // same order as the constructor.
-        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             this.type = ScriptType.readFrom(in);
             this.lang = in.readString();
             this.idOrCode = in.readString();
@@ -434,7 +429,7 @@ public final class Script implements ToXContent, Writeable {
         // Version 5.1+ requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
         // same order as the constructor.
-        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             type.writeTo(out);
             out.writeString(lang);
             out.writeString(idOrCode);

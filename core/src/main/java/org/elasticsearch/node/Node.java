@@ -28,6 +28,8 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.Client;
@@ -401,7 +403,6 @@ public class Node implements Closeable {
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
                 networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
-            pluginsService.processModules(modules);
             modules.add(b -> {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
                     b.bind(SearchRequestParsers.class).toInstance(searchModule.getSearchRequestParsers());
@@ -425,6 +426,9 @@ public class Node implements Closeable {
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
                         threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase()));
+                    b.bind(SearchTransportService.class).toInstance(new SearchTransportService(settings, transportService));
+                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings, bigArrays,
+                            scriptModule.getScriptService()));
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);

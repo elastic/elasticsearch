@@ -23,6 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -30,6 +31,7 @@ import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logger
 import org.gradle.api.tasks.Copy
@@ -82,12 +84,17 @@ class ClusterFormationTasks {
             // from mirrors using gradles built-in mechanism etc.
             project.configurations {
                 elasticsearchBwcDistro
+                elasticsearchBwcPlugins
             }
             configureDistributionDependency(project, config.distribution, project.configurations.elasticsearchBwcDistro, config.bwcVersion)
+            for (Map.Entry<String, Project> entry : config.plugins.entrySet()) {
+                configureBwcPluginDependency("${task.name}_elasticsearchBwcPlugins", project, entry.getValue(),
+                        project.configurations.elasticsearchBwcPlugins, config.bwcVersion)
+            }
         }
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
-            // for each of those nodes we might have a different configuratioon
+            // for each of those nodes we might have a different configuration
             String elasticsearchVersion = VersionProperties.elasticsearch
             Configuration distro = currentDistro
             if (i < config.numBwcNodes) {
@@ -114,6 +121,13 @@ class ClusterFormationTasks {
             packaging = 'zip'
         }
         project.dependencies.add(configuration.name, "org.elasticsearch.distribution.${distro}:elasticsearch:${elasticsearchVersion}@${packaging}")
+    }
+
+    /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
+    static void configureBwcPluginDependency(String name, Project project, Project pluginProject, Configuration configuration, String elasticsearchVersion) {
+        verifyProjectHasBuildPlugin(name, elasticsearchVersion, project, pluginProject)
+        PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin');
+        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${extension.name}:${elasticsearchVersion}@zip")
     }
 
     /**
@@ -147,7 +161,13 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
-        setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
+        if (node.config.plugins.isEmpty() == false) {
+            if (node.nodeVersion == VersionProperties.elasticsearch) {
+                setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
+            } else {
+                setup = configureCopyBwcPluginsTask(taskName(task, node, 'copyBwcPlugins'), project, setup, node)
+            }
+        }
 
         // install modules
         for (Project module : node.config.modules) {
@@ -317,18 +337,13 @@ class ClusterFormationTasks {
      * to the test resources for this project.
      */
     static Task configureCopyPluginsTask(String name, Project project, Task setup, NodeInfo node) {
-        if (node.config.plugins.isEmpty()) {
-            return setup
-        }
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
         List<FileCollection> pluginFiles = []
         for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
 
             Project pluginProject = plugin.getValue()
-            if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
-                throw new GradleException("Task ${name} cannot project ${pluginProject.path} which is not an esplugin")
-            }
+            verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
             String configurationName = "_plugin_${pluginProject.path}"
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
@@ -358,6 +373,31 @@ class ClusterFormationTasks {
         return copyPlugins
     }
 
+    /** Configures task to copy a plugin based on a zip file resolved using dependencies for an older version */
+    static Task configureCopyBwcPluginsTask(String name, Project project, Task setup, NodeInfo node) {
+        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
+            Project pluginProject = plugin.getValue()
+            verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
+            String configurationName = "_plugin_bwc_${pluginProject.path}"
+            Configuration configuration = project.configurations.findByName(configurationName)
+            if (configuration == null) {
+                configuration = project.configurations.create(configurationName)
+            }
+
+            final String depName = pluginProject.extensions.findByName('esplugin').name
+            Dependency dep = project.configurations.elasticsearchBwcPlugins.dependencies.find {
+                it.name == depName
+            }
+            configuration.dependencies.add(dep)
+        }
+
+        Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup) {
+            from project.configurations.elasticsearchBwcPlugins
+            into node.pluginsTmpDir
+        }
+        return copyPlugins
+    }
+
     static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
         if (node.config.distribution != 'integ-test-zip') {
             throw new GradleException("Module ${module.path} not allowed be installed distributions other than integ-test-zip because they should already have all modules bundled!")
@@ -373,7 +413,12 @@ class ClusterFormationTasks {
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin) {
-        FileCollection pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
+        final FileCollection pluginZip;
+        if (node.nodeVersion != VersionProperties.elasticsearch) {
+            pluginZip = project.configurations.getByName("_plugin_bwc_${plugin.path}")
+        } else {
+            pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
+        }
         // delay reading the file location until execution time by wrapping in a closure within a GString
         Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
         Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
@@ -622,5 +667,12 @@ class ClusterFormationTasks {
         Object retVal = command(project.ant)
         project.ant.project.removeBuildListener(listener)
         return retVal
+    }
+
+    static void verifyProjectHasBuildPlugin(String name, String version, Project project, Project pluginProject) {
+        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
+            throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
+                    "[${project.path}] dependencies: the plugin is not an esplugin")
+        }
     }
 }

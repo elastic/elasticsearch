@@ -93,6 +93,9 @@ class NodeInfo {
     /** buffer for ant output when starting this node */
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
+    /** the version of elasticsearch that this node runs */
+    String nodeVersion
+
     /** Creates a node to run as part of a cluster for the given task */
     NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task, String nodeVersion, File sharedDir) {
         this.config = config
@@ -105,6 +108,7 @@ class NodeInfo {
         }
         baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
+        this.nodeVersion = nodeVersion
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         confDir = confDir(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {

@@ -414,7 +414,7 @@ public class InternalEngine extends Engine {
             final long expectedVersion,
             final boolean deleted) {
         if (op.versionType() == VersionType.FORCE) {
-            if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
+            if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
                 // If index was created in 5.0 or later, 'force' is not allowed at all
                 throw new IllegalArgumentException("version type [FORCE] may not be used for indices created after 6.0");
             } else if (op.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
@@ -528,7 +528,7 @@ public class InternalEngine extends Engine {
     }
 
     private boolean assertSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // legacy support
             assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no." +
                 " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ". seq no: " + seqNo;
@@ -1097,15 +1097,21 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @SuppressWarnings("finally")
     private void failOnTragicEvent(AlreadyClosedException ex) {
         // if we are already closed due to some tragic exception
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
         if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-            final Exception tragedy = indexWriter.getTragicException() instanceof Exception ?
-                (Exception) indexWriter.getTragicException() :
-                new Exception(indexWriter.getTragicException());
-            failEngine("already closed by tragic event on the index writer", tragedy);
+            if (indexWriter.getTragicException() instanceof Error) {
+                try {
+                    logger.error("tragic event in index writer", ex);
+                } finally {
+                    throw (Error) indexWriter.getTragicException();
+                }
+            } else {
+                failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+            }
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
         } else if (failedEngine.get() == null) { // we are closed but the engine is not failed yet?

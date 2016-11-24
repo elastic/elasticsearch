@@ -37,6 +37,10 @@ public class ElvisTests extends ScriptTestCase {
         assertCannotReturnPrimitive("int i = params.a ?: 1; return i");
         assertCannotReturnPrimitive("Integer a = Integer.valueOf(1); int b = a ?: 2; return b");
         assertCannotReturnPrimitive("Integer a = Integer.valueOf(1); int b = a ?: Integer.valueOf(2); return b");
+        assertEquals(2, exec("int i = (params.a ?: Integer.valueOf(2)).intValue(); return i"));
+        assertEquals(1, exec("int i = (params.a ?: Integer.valueOf(2)).intValue(); return i", singletonMap("a", 1), true));
+        assertEquals(1, exec("Integer a = Integer.valueOf(1); int b = (a ?: Integer.valueOf(2)).intValue(); return b"));
+        assertEquals(2, exec("Integer a = null; int b = (a ?: Integer.valueOf(2)).intValue(); return b"));
 
         // Assigning to an object
         assertEquals(1, exec("Integer i = params.a ?: Integer.valueOf(1); return i"));

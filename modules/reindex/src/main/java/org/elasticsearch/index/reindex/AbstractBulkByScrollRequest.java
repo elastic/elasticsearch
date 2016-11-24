@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -38,8 +39,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
-public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
-        extends ActionRequest {
+public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
+
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
     private static final int DEFAULT_SCROLL_SIZE = 1000;
@@ -401,7 +402,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
-        if (in.getVersion().onOrAfter(BulkByScrollTask.V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             slices = in.readVInt();
         } else {
             slices = 1;
@@ -420,12 +421,12 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().onOrAfter(BulkByScrollTask.V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             out.writeVInt(slices);
         } else {
             if (slices > 1) {
                 throw new IllegalArgumentException("Attempting to send sliced reindex-style request to a node that doesn't support "
-                        + "it. Version is [" + out.getVersion() + "] but must be [" + BulkByScrollTask.V_5_1_0_UNRELEASED + "]");
+                        + "it. Version is [" + out.getVersion() + "] but must be [" + Version.V_5_1_0_UNRELEASED + "]");
             }
         }
     }
@@ -444,4 +445,5 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             b.append(Arrays.toString(searchRequest.types()));
         }
     }
+
 }

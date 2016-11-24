@@ -79,6 +79,7 @@ import java.util.TreeMap;
  * > online documentation</a>.
  */
 public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
+
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
     /** Default for wildcard analysis.*/
@@ -90,8 +91,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
-
-    public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
@@ -160,19 +159,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
             in.readBoolean(); // lowercase_expanded_terms
         }
         settings.lenient(in.readBoolean());
-        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             this.lenientSet = in.readBoolean();
         }
         settings.analyzeWildcard(in.readBoolean());
-        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
             in.readString(); // locale
         }
         minimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             settings.quoteFieldSuffix(in.readOptionalString());
             useAllFields = in.readOptionalBoolean();
         }
@@ -189,19 +188,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
             out.writeBoolean(true); // lowercase_expanded_terms
         }
         out.writeBoolean(settings.lenient());
-        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             out.writeBoolean(lenientSet);
         }
         out.writeBoolean(settings.analyzeWildcard());
-        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
             out.writeString(Locale.ROOT.toLanguageTag()); // locale
         }
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getVersion().onOrAfter(V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
             out.writeOptionalBoolean(useAllFields);
         }
@@ -603,4 +602,5 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 && (flags == other.flags)
                 && (useAllFields == other.useAllFields);
     }
+
 }

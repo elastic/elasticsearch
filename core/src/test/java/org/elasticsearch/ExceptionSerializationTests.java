@@ -842,9 +842,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
         Version version = VersionUtils.randomVersionBetween(random(),
             Version.V_5_0_0, Version.CURRENT);
-        if (version.before(ElasticsearchException.V_5_1_0_UNRELEASED)) {
-            // remove this once 5_1_0 is released randomVersionBetween asserts that this version is in the constant table..
-            version = ElasticsearchException.V_5_1_0_UNRELEASED;
+        if (version.before(Version.V_5_0_2_UNRELEASED)) {
+            // remove this once 5_0_2 is released randomVersionBetween asserts that this version is in the constant table..
+            version = Version.V_5_0_2_UNRELEASED;
         }
         ShardLockObtainFailedException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
@@ -854,7 +854,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testBWCShardLockObtainFailedException() throws IOException {
         ShardId shardId = new ShardId("foo", "_na_", 1);
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
-        Exception ex = serialize((Exception)orig, Version.V_5_0_0);
+        Exception ex = serialize((Exception)orig, randomFrom(Version.V_5_0_0, Version.V_5_0_1));
         assertThat(ex, instanceOf(NotSerializableExceptionWrapper.class));
         assertEquals("shard_lock_obtain_failed_exception: [foo][1]: boom", ex.getMessage());
     }

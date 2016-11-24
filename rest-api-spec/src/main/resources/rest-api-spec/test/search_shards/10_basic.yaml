@@ -31,26 +31,38 @@
                 field:
                   type: text
           aliases:
-            test_alias_1: {}
-            test_alias_2:
+            test_alias_no_filter: {}
+            test_alias_filter_1:
               filter:
                 term:
-                  field : value
+                  field : value1
+            test_alias_filter_2:
+              filter:
+                term:
+                  field : value2
 
   - do:
       search_shards:
-        index:  test_alias_1
+        index:  test_alias_no_filter
 
   - length: { shards: 1 }
   - match: { shards.0.0.index: test_index }
   - is_true: indices.test_index
   - is_false: indices.test_index.filter
+  - is_false: indices.test_index.aliases
 
   - do:
       search_shards:
-        index:  test_alias_2
+        index:  test_alias_filter_1
 
   - length: { shards: 1 }
   - match: { shards.0.0.index: test_index }
-  - match: { indices.test_index: {filter: { term : { field: { value: value, boost: 1.0}}}}}
+  - match: { indices.test_index: {aliases: [test_alias_filter_1], filter: { term : { field: { value: value1, boost: 1.0}}}}}
 
+  - do:
+      search_shards:
+        index:  ["test_alias_filter_1","test_alias_filter_2"]
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index: {aliases: [test_alias_filter_1, test_alias_filter_2], filter: { bool: { should : [{ term : { field: { value: value1, boost: 1.0}}}, { term : { field: { value: value2, boost: 1.0}}}], adjust_pure_negative: true, boost: 1.0, disable_coord: false }}}}

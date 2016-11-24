@@ -35,10 +35,8 @@ task mixedClusterTest(type: RestIntegTestTask) {
   dependsOn(remoteClusterTest)
   cluster {
     distribution = 'zip'
-    dynamicSettings = {  ->
-      Collections.singletonMap("action.search.remote.my_remote_cluster",
-              "\"${remoteClusterTest.nodes.get(0).transportUri()}\"")
-    }
+    setting 'action.search.remote.my_remote_cluster', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
+
   }
   systemProperty 'tests.rest.suite', 'multi_cluster'
   finalizedBy 'remoteClusterTest#stop'

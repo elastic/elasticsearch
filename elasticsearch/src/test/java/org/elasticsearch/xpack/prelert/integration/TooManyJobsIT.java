@@ -60,6 +60,7 @@ public class TooManyJobsIT extends ESIntegTestCase {
                 assertEquals(1, postDataResponse.getDataCounts().getInputRecordCount());
                 logger.info("Posted data {} times", i);
             } catch (Exception e) {
+                logger.info("Handling exception", e);
                 Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
                 assertEquals(ElasticsearchStatusException.class, cause.getClass());
                 assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) cause).status());

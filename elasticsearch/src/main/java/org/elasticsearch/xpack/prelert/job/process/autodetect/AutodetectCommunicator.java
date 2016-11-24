@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.prelert.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
@@ -36,11 +38,12 @@ import java.util.function.Supplier;
 
 public class AutodetectCommunicator implements Closeable {
 
+    private static final Logger LOGGER = Loggers.getLogger(AutodetectCommunicator.class);
+
     private static final int DEFAULT_TRY_COUNT = 5;
     private static final int DEFAULT_TRY_TIMEOUT_SECS = 6;
 
     private final String jobId;
-    private final Logger jobLogger;
     private final StatusReporter statusReporter;
     private final AutodetectProcess autodetectProcess;
     private final DataToProcessWriter autoDetectWriter;
@@ -48,19 +51,17 @@ public class AutodetectCommunicator implements Closeable {
 
     final AtomicBoolean inUse = new AtomicBoolean(false);
 
-    public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process, Logger jobLogger,
-                                  StatusReporter statusReporter, AutoDetectResultProcessor autoDetectResultProcessor,
-                                  StateProcessor stateProcessor) {
+    public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process, StatusReporter statusReporter,
+                                  AutoDetectResultProcessor autoDetectResultProcessor, StateProcessor stateProcessor) {
         this.jobId = job.getJobId();
         this.autodetectProcess = process;
-        this.jobLogger = jobLogger;
         this.statusReporter = statusReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;
 
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         boolean usePerPartitionNormalization = analysisConfig.getUsePerPartitionNormalization();
         autoDetectExecutor.execute(() ->
-            autoDetectResultProcessor.process(jobLogger, process.getProcessOutStream(), usePerPartitionNormalization)
+            autoDetectResultProcessor.process(jobId, process.getProcessOutStream(), usePerPartitionNormalization)
         );
         autoDetectExecutor.execute(() ->
             stateProcessor.process(job.getId(), process.getPersistStream())
@@ -70,7 +71,7 @@ public class AutodetectCommunicator implements Closeable {
 
     private DataToProcessWriter createProcessWriter(Job job, AutodetectProcess process, StatusReporter statusReporter) {
         return DataToProcessWriterFactory.create(true, process, job.getDataDescription(), job.getAnalysisConfig(),
-                job.getSchedulerConfig(), new TransformConfigs(job.getTransforms()) , statusReporter, jobLogger);
+                job.getSchedulerConfig(), new TransformConfigs(job.getTransforms()) , statusReporter, LOGGER);
     }
 
     public DataCounts writeToJob(InputStream inputStream, DataLoadParams params) throws IOException {
@@ -117,17 +118,18 @@ public class AutodetectCommunicator implements Closeable {
             while (isFlushComplete == false && --tryCountCounter >= 0) {
                 // Check there wasn't an error in the flush
                 if (!autodetectProcess.isProcessAlive()) {
-                    String msg = Messages.getMessage(Messages.AUTODETECT_FLUSH_UNEXPTECTED_DEATH) + " " + autodetectProcess.readError();
-                    jobLogger.error(msg);
+                    String msg = Messages.getMessage(Messages.AUTODETECT_FLUSH_UNEXPTECTED_DEATH, jobId) +
+                            " " + autodetectProcess.readError();
+                    LOGGER.error(msg);
                     throw ExceptionsHelper.serverError(msg);
                 }
                 isFlushComplete = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, intermittentTimeout);
-                jobLogger.info("isFlushComplete={}", isFlushComplete);
+                LOGGER.info("[{}] isFlushComplete={}", jobId, isFlushComplete);
             }
 
             if (!isFlushComplete) {
-                String msg = Messages.getMessage(Messages.AUTODETECT_FLUSH_TIMEOUT) + " " + autodetectProcess.readError();
-                jobLogger.error(msg);
+                String msg = Messages.getMessage(Messages.AUTODETECT_FLUSH_TIMEOUT, jobId) + " " + autodetectProcess.readError();
+                LOGGER.error(msg);
                 throw ExceptionsHelper.serverError(msg);
             }
 
@@ -143,9 +145,10 @@ public class AutodetectCommunicator implements Closeable {
      */
     private void checkProcessIsAlive() {
         if (!autodetectProcess.isProcessAlive()) {
-            String errorMsg = "Unexpected death of autodetect: " + autodetectProcess.readError();
-            jobLogger.error(errorMsg);
-            throw ExceptionsHelper.serverError(errorMsg);
+            ParameterizedMessage message =
+                    new ParameterizedMessage("[{}] Unexpected death of autodetect: {}", jobId, autodetectProcess.readError());
+            LOGGER.error(message);
+            throw ExceptionsHelper.serverError(message.getFormattedMessage());
         }
     }
 

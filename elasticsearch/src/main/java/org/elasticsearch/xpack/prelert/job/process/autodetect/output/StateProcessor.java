@@ -39,7 +39,7 @@ public class StateProcessor extends AbstractComponent {
                 } else {
                     bytesRef = new CompositeBytesReference(bytesRef, new BytesArray(readBuf, 0, bytesRead));
                 }
-                bytesRef = splitAndPersist(bytesRef);
+                bytesRef = splitAndPersist(jobId, bytesRef);
                 readBuf = new byte[READ_BUF_SIZE];
             }
         } catch (IOException e) {
@@ -53,7 +53,7 @@ public class StateProcessor extends AbstractComponent {
      * data is expected to be a series of Elasticsearch bulk requests in UTF-8 JSON
      * (as would be uploaded to the public REST API) separated by zero bytes ('\0').
      */
-    private BytesReference splitAndPersist(BytesReference bytesRef) {
+    private BytesReference splitAndPersist(String jobId, BytesReference bytesRef) {
         int from = 0;
         while (true) {
             int nextZeroByte = findNextZeroByte(bytesRef, from);
@@ -61,7 +61,7 @@ public class StateProcessor extends AbstractComponent {
                 // No more zero bytes in this block
                 break;
             }
-            persister.persistBulkState(bytesRef.slice(from, nextZeroByte - from));
+            persister.persistBulkState(jobId, bytesRef.slice(from, nextZeroByte - from));
             from = nextZeroByte + 1;
         }
         return bytesRef.slice(from, bytesRef.length() - from);

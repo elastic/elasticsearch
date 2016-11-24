@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.normalizer;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 
 public interface Renormaliser {
@@ -13,14 +12,14 @@ public interface Renormaliser {
      * Update the anomaly score field on all previously persisted buckets
      * and all contained records
      */
-    void renormalise(Quantiles quantiles, Logger logger);
+    void renormalise(Quantiles quantiles);
 
     /**
      * Update the anomaly score field on all previously persisted buckets
      * and all contained records and aggregate records to the partition
      * level
      */
-    void renormaliseWithPartition(Quantiles quantiles, Logger logger);
+    void renormaliseWithPartition(Quantiles quantiles);
 
 
     /**
@@ -31,5 +30,5 @@ public interface Renormaliser {
     /**
      * Shut down the renormaliser
      */
-    boolean shutdown(Logger logger);
+    boolean shutdown();
 }

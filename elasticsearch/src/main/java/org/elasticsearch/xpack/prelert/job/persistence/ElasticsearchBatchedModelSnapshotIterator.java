@@ -21,7 +21,7 @@ class ElasticsearchBatchedModelSnapshotIterator extends ElasticsearchBatchedDocu
 {
     public ElasticsearchBatchedModelSnapshotIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher)
     {
-        super(client, ElasticsearchPersister.getJobIndexName(jobId), parserFieldMatcher);
+        super(client, JobResultsPersister.getJobIndexName(jobId), parserFieldMatcher);
     }
 
     @Override

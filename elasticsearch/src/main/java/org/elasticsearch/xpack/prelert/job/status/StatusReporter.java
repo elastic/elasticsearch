@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.prelert.job.status;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
@@ -25,7 +24,7 @@ import java.util.Locale;
  * returns true then the count will be logged and the counts persisted
  * via the {@linkplain JobDataCountsPersister}.
  */
-public class StatusReporter {
+public class StatusReporter extends AbstractComponent {
     /**
      * The max percentage of date parse errors allowed before
      * an exception is thrown.
@@ -43,7 +42,6 @@ public class StatusReporter {
     private final String jobId;
     private final UsageReporter usageReporter;
     private final JobDataCountsPersister dataCountsPersister;
-    private final Logger logger;
 
     private final DataCounts totalRecordStats;
     private volatile DataCounts incrementalRecordStats;
@@ -58,22 +56,22 @@ public class StatusReporter {
     private final int acceptablePercentDateParseErrors;
     private final int acceptablePercentOutOfOrderErrors;
 
-    public StatusReporter(Environment env, Settings settings, String jobId, UsageReporter usageReporter,
-                          JobDataCountsPersister dataCountsPersister, Logger logger, long bucketSpan) {
-        this(env, settings, jobId, usageReporter, dataCountsPersister, logger, new DataCounts(jobId), bucketSpan);
+    public StatusReporter(Settings settings, String jobId, UsageReporter usageReporter,
+                          JobDataCountsPersister dataCountsPersister) {
+        this(settings, jobId, usageReporter, dataCountsPersister, new DataCounts(jobId));
     }
 
-    public StatusReporter(Environment env, Settings settings, String jobId, DataCounts counts, UsageReporter usageReporter,
-                          JobDataCountsPersister dataCountsPersister, Logger logger, long bucketSpan) {
-        this(env, settings, jobId, usageReporter, dataCountsPersister, logger, new DataCounts(counts), bucketSpan);
+    public StatusReporter(Settings settings, String jobId, DataCounts counts, UsageReporter usageReporter,
+                          JobDataCountsPersister dataCountsPersister) {
+        this(settings, jobId, usageReporter, dataCountsPersister, new DataCounts(counts));
     }
 
-    private StatusReporter(Environment env, Settings settings, String jobId, UsageReporter usageReporter,
-                           JobDataCountsPersister dataCountsPersister, Logger logger, DataCounts totalCounts, long bucketSpan) {
+    private StatusReporter(Settings settings, String jobId, UsageReporter usageReporter, JobDataCountsPersister dataCountsPersister,
+                           DataCounts totalCounts) {
+        super(settings);
         this.jobId = jobId;
         this.usageReporter = usageReporter;
         this.dataCountsPersister = dataCountsPersister;
-        this.logger = logger;
 
         totalRecordStats = totalCounts;
         incrementalRecordStats = new DataCounts(jobId);

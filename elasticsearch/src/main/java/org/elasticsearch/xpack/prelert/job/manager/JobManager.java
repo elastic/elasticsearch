@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -58,7 +59,7 @@ import java.util.stream.Collectors;
  * <li>starting/stopping of scheduled jobs</li>
  * </ul>
  */
-public class JobManager {
+public class JobManager extends AbstractComponent {
 
     private static final Logger LOGGER = Loggers.getLogger(JobManager.class);
 
@@ -69,21 +70,20 @@ public class JobManager {
 
     public static final String DEFAULT_RECORD_SORT_FIELD = AnomalyRecord.PROBABILITY.getPreferredName();
     private final JobProvider jobProvider;
-    private final JobDataCountsPersister jobDataCountsPersister;
     private final ClusterService clusterService;
-    private final Environment env;
-    private final Settings settings;
+    private final JobResultsPersister jobResultsPersister;
+    private final JobDataCountsPersister jobDataCountsPersister;
 
 
     /**
      * Create a JobManager
      */
-    public JobManager(Environment env, Settings settings, JobProvider jobProvider,
+    public JobManager(Settings settings, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
                       JobDataCountsPersister jobDataCountsPersister, ClusterService clusterService) {
-        this.env = env;
-        this.settings = settings;
+        super(settings);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.clusterService = clusterService;
+        this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
     }
 
@@ -540,6 +540,32 @@ public class JobManager {
                         return new UpdateJobStatusAction.Response(acknowledged);
                     }
                 });
+    }
+
+    /**
+     * Update a persisted model snapshot metadata document to match the
+     * argument supplied.
+     *
+     * @param jobId                 the job id
+     * @param modelSnapshot         the updated model snapshot object to be stored
+     * @param restoreModelSizeStats should the model size stats in this
+     *                              snapshot be made the current ones for this job?
+     */
+    public void updateModelSnapshot(String jobId, ModelSnapshot modelSnapshot, boolean restoreModelSizeStats) {
+        // For Elasticsearch the update can be done in exactly the same way as
+        // the original persist
+        jobResultsPersister.persistModelSnapshot(modelSnapshot);
+        if (restoreModelSizeStats) {
+            if (modelSnapshot.getModelSizeStats() != null) {
+                jobResultsPersister.persistModelSizeStats(modelSnapshot.getModelSizeStats());
+            }
+            if (modelSnapshot.getQuantiles() != null) {
+                jobResultsPersister.persistQuantiles(modelSnapshot.getQuantiles());
+            }
+        }
+        // Commit so that when the REST API call that triggered the update
+        // returns the updated document is searchable
+        jobResultsPersister.commitWrites(jobId);
     }
 
     private ClusterState innerSetJobStatus(String jobId, JobStatus newStatus, ClusterState currentState) {

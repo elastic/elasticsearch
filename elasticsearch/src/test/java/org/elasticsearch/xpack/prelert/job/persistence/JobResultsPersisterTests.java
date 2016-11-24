@@ -11,12 +11,13 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
@@ -27,16 +28,16 @@ import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 
 
-public class ElasticsearchPersisterTests extends ESTestCase {
+public class JobResultsPersisterTests extends ESTestCase {
 
     private static final String CLUSTER_NAME = "myCluster";
-    private static final String JOB_ID = "testJobId";
+    private static final String JOB_ID = "foo";
 
     public void testPersistBucket_NoRecords() {
         Client client = mock(Client.class);
         Bucket bucket = mock(Bucket.class);
         when(bucket.getRecords()).thenReturn(null);
-        ElasticsearchPersister persister = new ElasticsearchPersister(JOB_ID, client);
+        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.persistBucket(bucket);
         verifyNoMoreInteractions(client);
     }
@@ -53,7 +54,7 @@ public class ElasticsearchPersisterTests extends ESTestCase {
                 .prepareBulk(response);
 
         Client client = clientBuilder.build();
-        Bucket bucket = getBucket(1, 0);
+        Bucket bucket = getBucket(1);
         bucket.setId(responseId);
         bucket.setAnomalyScore(99.9);
         bucket.setBucketSpan(123456);
@@ -63,7 +64,7 @@ public class ElasticsearchPersisterTests extends ESTestCase {
         bucket.setProcessingTimeMs(8888);
         bucket.setRecordCount(1);
 
-        BucketInfluencer bi = new BucketInfluencer("foo");
+        BucketInfluencer bi = new BucketInfluencer(JOB_ID);
         bi.setAnomalyScore(14.15);
         bi.setInfluencerFieldName("biOne");
         bi.setInitialAnomalyScore(18.12);
@@ -77,7 +78,7 @@ public class ElasticsearchPersisterTests extends ESTestCase {
         inf.setInitialAnomalyScore(55.5);
         inf.setProbability(0.4);
         inf.setTimestamp(bucket.getTimestamp());
-        bucket.setInfluencers(Arrays.asList(inf));
+        bucket.setInfluencers(Collections.singletonList(inf));
 
         AnomalyRecord record = bucket.getRecords().get(0);
         List<Double> actuals = new ArrayList<>();
@@ -105,7 +106,7 @@ public class ElasticsearchPersisterTests extends ESTestCase {
         typicals.add(998765.3);
         record.setTypical(typicals);
 
-        ElasticsearchPersister persister = new ElasticsearchPersister(JOB_ID, client);
+        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.persistBucket(bucket);
         List<XContentBuilder> list = captor.getAllValues();
         assertEquals(4, list.size());
@@ -154,8 +155,8 @@ public class ElasticsearchPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*overFieldValue.:.overValue.*"));
     }
 
-    private Bucket getBucket(int numRecords, int numInfluencers) {
-        Bucket b = new Bucket("foo");
+    private Bucket getBucket(int numRecords) {
+        Bucket b = new Bucket(JOB_ID);
         b.setId("1");
         b.setTimestamp(new Date());
         List<AnomalyRecord> records = new ArrayList<>();

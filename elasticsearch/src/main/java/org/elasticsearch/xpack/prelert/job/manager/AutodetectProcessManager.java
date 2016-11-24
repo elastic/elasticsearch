@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.prelert.job.manager;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
@@ -23,10 +20,8 @@ import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobDataCountsPersister;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchPersister;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchUsagePersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
+import org.elasticsearch.xpack.prelert.job.persistence.UsagePersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectCommunicator;
@@ -59,8 +54,6 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
             Setting.intSetting("max_running_jobs", 10, Setting.Property.NodeScope);
 
-    private final Client client;
-    private final Environment env;
     private final int maxRunningJobs;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
@@ -68,20 +61,30 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     private final AutodetectResultsParser parser;
     private final AutodetectProcessFactory autodetectProcessFactory;
 
+    private final UsagePersister usagePersister;
+    private final StateProcessor stateProcessor;
+    private final JobResultsPersister jobResultsPersister;
+    private final JobDataCountsPersister jobDataCountsPersister;
+
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
 
-    public AutodetectProcessManager(Settings settings, Client client, Environment env, ThreadPool threadPool, JobManager jobManager,
-                                    JobProvider jobProvider, AutodetectResultsParser parser,
+    public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
+                                    JobProvider jobProvider, JobResultsPersister jobResultsPersister,
+                                    JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
                                     AutodetectProcessFactory autodetectProcessFactory) {
         super(settings);
-        this.client = client;
-        this.env = env;
         this.threadPool = threadPool;
         this.maxRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
         this.parser = parser;
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.jobManager = jobManager;
         this.jobProvider = jobProvider;
+
+        this.jobResultsPersister = jobResultsPersister;
+        this.stateProcessor = new StateProcessor(settings, jobResultsPersister);
+        this.usagePersister = new UsagePersister(settings, client);
+        this.jobDataCountsPersister = jobDataCountsPersister;
+
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
     }
 
@@ -114,27 +117,22 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
                     RestStatus.TOO_MANY_REQUESTS);
         }
 
-        // TODO norelease, once we remove black hole process and all persisters are singletons then we can
-        // remove this method and move not enough threads logic to the auto detect process factory
+        // TODO norelease, once we remove black hole process
+        // then we can  remove this method and move not enough threads logic to the auto detect process factory
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
-        Logger jobLogger = Loggers.getLogger(job.getJobId());
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService executorService = threadPool.executor(PrelertPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME);
 
-        ElasticsearchUsagePersister usagePersister = new ElasticsearchUsagePersister(client, jobLogger);
-        UsageReporter usageReporter = new UsageReporter(settings, job.getJobId(), usagePersister, jobLogger);
-        JobDataCountsPersister jobDataCountsPersister = new ElasticsearchJobDataCountsPersister(client);
-        JobResultsPersister persister = new ElasticsearchPersister(jobId, client);
-        StatusReporter statusReporter = new StatusReporter(env, settings, job.getJobId(), jobProvider.dataCounts(jobId),
-                usageReporter, jobDataCountsPersister, jobLogger, job.getAnalysisConfig().getBucketSpanOrDefault());
-        AutoDetectResultProcessor processor =  new AutoDetectResultProcessor(new NoOpRenormaliser(), persister, parser);
-        StateProcessor stateProcessor = new StateProcessor(settings, persister);
+        UsageReporter usageReporter = new UsageReporter(settings, job.getJobId(), usagePersister);
+        StatusReporter statusReporter =
+                new StatusReporter(settings, job.getJobId(), jobProvider.dataCounts(jobId), usageReporter, jobDataCountsPersister);
+        AutoDetectResultProcessor processor =  new AutoDetectResultProcessor(new NoOpRenormaliser(), jobResultsPersister, parser);
 
         AutodetectProcess process = null;
         try {
             process = autodetectProcessFactory.createAutodetectProcess(job, ignoreDowntime, executorService);
             // TODO Port the normalizer from the old project
-            return new AutodetectCommunicator(executorService, job, process, jobLogger, statusReporter, processor, stateProcessor);
+            return new AutodetectCommunicator(executorService, job, process, statusReporter, processor, stateProcessor);
         } catch (Exception e) {
             try {
                 IOUtils.close(process);
@@ -193,11 +191,11 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         }
     }
 
-    public int numberOfRunningJobs() {
+    int numberOfRunningJobs() {
         return autoDetectCommunicatorByJob.size();
     }
 
-    public boolean jobHasActiveAutodetectProcess(String jobId) {
+    boolean jobHasActiveAutodetectProcess(String jobId) {
         return autoDetectCommunicatorByJob.get(jobId) != null;
     }
 

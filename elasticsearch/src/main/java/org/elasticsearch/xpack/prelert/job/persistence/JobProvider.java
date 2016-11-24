@@ -56,18 +56,6 @@ public interface JobProvider extends JobResultsProvider {
             String snapshotId, String description);
 
     /**
-     * Update a persisted model snapshot metadata document to match the
-     * argument supplied.
-     *
-     * @param jobId                 the job id
-     * @param modelSnapshot         the updated model snapshot object to be stored
-     * @param restoreModelSizeStats should the model size stats in this
-     *                              snapshot be made the current ones for this job?
-     */
-    void updateModelSnapshot(String jobId, ModelSnapshot modelSnapshot,
-            boolean restoreModelSizeStats);
-
-    /**
      * Given a model snapshot, get the corresponding state and write it to the supplied
      * stream.  If there are multiple state documents they are separated using <code>'\0'</code>
      * when written to the stream.

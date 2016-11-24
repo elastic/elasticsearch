@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
+import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -240,12 +241,14 @@ PutModelSnapshotDescriptionAction.RequestBuilder> {
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
+        private final JobManager jobManager;
         private final ElasticsearchJobProvider jobProvider;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, ElasticsearchJobProvider jobProvider) {
+                IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, ElasticsearchJobProvider jobProvider) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+            this.jobManager = jobManager;
             this.jobProvider = jobProvider;
         }
 
@@ -264,7 +267,7 @@ PutModelSnapshotDescriptionAction.RequestBuilder> {
             }
             ModelSnapshot modelSnapshot = changeCandidates.get(0);
             modelSnapshot.setDescription(request.getDescriptionString());
-            jobProvider.updateModelSnapshot(request.getJobId(), modelSnapshot, false);
+            jobManager.updateModelSnapshot(request.getJobId(), modelSnapshot, false);
 
             modelSnapshot.setDescription(request.getDescriptionString());
 

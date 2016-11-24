@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -18,6 +17,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -40,12 +40,12 @@ public class StateProcessorTests extends ESTestCase {
         ByteArrayInputStream stream = new ByteArrayInputStream(STATE_SAMPLE.getBytes(StandardCharsets.UTF_8));
 
         ArgumentCaptor<BytesReference> bytesRefCaptor = ArgumentCaptor.forClass(BytesReference.class);
-        JobResultsPersister persister = Mockito.mock(ElasticsearchPersister.class);
+        JobResultsPersister persister = Mockito.mock(JobResultsPersister.class);
 
         StateProcessor stateParser = new StateProcessor(Settings.EMPTY, persister);
         stateParser.process("_id", stream);
 
-        verify(persister, times(3)).persistBulkState(bytesRefCaptor.capture());
+        verify(persister, times(3)).persistBulkState(eq("_id"), bytesRefCaptor.capture());
 
         String[] threeStates = STATE_SAMPLE.split("\0");
         List<BytesReference> capturedBytes = bytesRefCaptor.getAllValues();

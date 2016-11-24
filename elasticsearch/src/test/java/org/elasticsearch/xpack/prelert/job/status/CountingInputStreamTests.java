@@ -10,9 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.persistence.UsagePersister;
 import org.junit.Assert;
@@ -22,20 +20,14 @@ import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 public class CountingInputStreamTests extends ESTestCase {
 
     public void testRead_OneByteAtATime() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Environment env = new Environment(
-                settings);
-        UsageReporter usageReporter = new UsageReporter(settings, "foo", Mockito.mock(UsagePersister.class), Mockito.mock(Logger.class));
-        DummyStatusReporter statusReporter = new DummyStatusReporter(env, usageReporter);
+        UsageReporter usageReporter = new UsageReporter(Settings.EMPTY, "foo", Mockito.mock(UsagePersister.class));
+        DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
 
         final String TEXT = "123";
         InputStream source = new ByteArrayInputStream(TEXT.getBytes(StandardCharsets.UTF_8));
 
-        try (CountingInputStream counting = new CountingInputStream(source,
-                statusReporter)) {
-            while (counting.read() >= 0) {
-                ;
-            }
+        try (CountingInputStream counting = new CountingInputStream(source, statusReporter)) {
+            while (counting.read() >= 0) {}
             // an extra byte is read because we don't check the return
             // value of the read() method
             Assert.assertEquals(TEXT.length() + 1, usageReporter.getBytesReadSinceLastReport());
@@ -46,23 +38,17 @@ public class CountingInputStreamTests extends ESTestCase {
     }
 
     public void testRead_WithBuffer() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Environment env = new Environment(
-                settings);
         final String TEXT = "To the man who only has a hammer,"
                 + " everything he encounters begins to look like a nail.";
 
-        UsageReporter usageReporter = new UsageReporter(settings, "foo", Mockito.mock(UsagePersister.class), Mockito.mock(Logger.class));
-        DummyStatusReporter statusReporter = new DummyStatusReporter(env, usageReporter);
+        UsageReporter usageReporter = new UsageReporter(Settings.EMPTY, "foo", Mockito.mock(UsagePersister.class));
+        DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
 
         InputStream source = new ByteArrayInputStream(TEXT.getBytes(StandardCharsets.UTF_8));
 
-        try (CountingInputStream counting = new CountingInputStream(source,
-                statusReporter)) {
+        try (CountingInputStream counting = new CountingInputStream(source, statusReporter)) {
             byte buf[] = new byte[256];
-            while (counting.read(buf) >= 0) {
-                ;
-            }
+            while (counting.read(buf) >= 0) {}
             // one less byte is reported because we don't check
             // the return value of the read() method
             Assert.assertEquals(TEXT.length() - 1, usageReporter.getBytesReadSinceLastReport());
@@ -73,23 +59,17 @@ public class CountingInputStreamTests extends ESTestCase {
     }
 
     public void testRead_WithTinyBuffer() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Environment env = new Environment(
-                settings);
         final String TEXT = "To the man who only has a hammer,"
                 + " everything he encounters begins to look like a nail.";
 
-        UsageReporter usageReporter = new UsageReporter(settings, "foo", Mockito.mock(UsagePersister.class), Mockito.mock(Logger.class));
-        DummyStatusReporter statusReporter = new DummyStatusReporter(env, usageReporter);
+        UsageReporter usageReporter = new UsageReporter(Settings.EMPTY, "foo", Mockito.mock(UsagePersister.class));
+        DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
 
         InputStream source = new ByteArrayInputStream(TEXT.getBytes(StandardCharsets.UTF_8));
 
-        try (CountingInputStream counting = new CountingInputStream(source,
-                statusReporter)) {
+        try (CountingInputStream counting = new CountingInputStream(source, statusReporter)) {
             byte buf[] = new byte[8];
-            while (counting.read(buf, 0, 8) >= 0) {
-                ;
-            }
+            while (counting.read(buf, 0, 8) >= 0) {}
             // an extra byte is read because we don't check the return
             // value of the read() method
             Assert.assertEquals(TEXT.length() - 1, usageReporter.getBytesReadSinceLastReport());

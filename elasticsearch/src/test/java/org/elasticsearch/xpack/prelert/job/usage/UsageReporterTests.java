@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.job.usage;
 
-
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -19,7 +17,7 @@ public class UsageReporterTests extends ESTestCase {
                 .put(UsageReporter.UPDATE_INTERVAL_SETTING.getKey(), 1).build();
 
         UsagePersister persister = Mockito.mock(UsagePersister.class);
-        UsageReporter usage = new UsageReporter(settings, "job1", persister, Mockito.mock(Logger.class));
+        UsageReporter usage = new UsageReporter(settings, "job1", persister);
 
         usage.addBytesRead(10);
         usage.addFieldsRecordsRead(5);

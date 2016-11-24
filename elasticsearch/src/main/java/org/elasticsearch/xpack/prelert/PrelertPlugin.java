@@ -58,8 +58,9 @@ import org.elasticsearch.xpack.prelert.job.metadata.JobAllocator;
 import org.elasticsearch.xpack.prelert.job.metadata.JobLifeCycleService;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobDataCountsPersister;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.NativeController;
 import org.elasticsearch.xpack.prelert.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessFactory;
@@ -151,10 +152,11 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         //  `bind(Implementation.class).toInstance(INSTANCE);`
         // For this reason we can't use interfaces in the constructor of transport actions.
         // This ok for now as we will remove Guice soon
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
         ElasticsearchJobProvider jobProvider = new ElasticsearchJobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());
-        ElasticsearchJobDataCountsPersister jobDataCountsPersister = new ElasticsearchJobDataCountsPersister(client);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
-        JobManager jobManager = new JobManager(env, settings, jobProvider, jobDataCountsPersister, clusterService);
+        JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, jobDataCountsPersister, clusterService);
         AutodetectProcessFactory processFactory;
         if (USE_NATIVE_PROCESS_OPTION.get(settings)) {
             try {
@@ -168,8 +170,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
             processFactory = (JobDetails, ignoreDowntime, executorService) -> new BlackHoleAutodetectProcess();
         }
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
-        DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, env, threadPool,
-                                            jobManager, jobProvider, autodetectResultsParser, processFactory);
+        DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
+                jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, processFactory);
         ScheduledJobService scheduledJobService = new ScheduledJobService(threadPool, client, jobProvider, dataProcessor,
                 new HttpDataExtractorFactory(), System::currentTimeMillis);
         return Arrays.asList(

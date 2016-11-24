@@ -15,13 +15,14 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 
 class ElasticsearchBatchedModelDebugOutputIterator extends ElasticsearchBatchedDocumentsIterator<ModelDebugOutput>
 {
     public ElasticsearchBatchedModelDebugOutputIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher)
     {
-        super(client, ElasticsearchPersister.getJobIndexName(jobId), parserFieldMatcher);
+        super(client, JobResultsPersister.getJobIndexName(jobId), parserFieldMatcher);
     }
 
     @Override

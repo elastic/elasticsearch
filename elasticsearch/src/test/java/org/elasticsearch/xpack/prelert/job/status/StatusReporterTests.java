@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.job.status;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +29,6 @@ public class StatusReporterTests extends ESTestCase {
 
     private UsageReporter usageReporter;
     private JobDataCountsPersister jobDataCountsPersister;
-    private Logger mockLogger;
 
     private StatusReporter statusReporter;
     private Settings settings;
@@ -40,11 +38,9 @@ public class StatusReporterTests extends ESTestCase {
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(StatusReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.getKey(), MAX_PERCENT_DATE_PARSE_ERRORS)
                 .put(StatusReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.getKey(), MAX_PERCENT_OUT_OF_ORDER_ERRORS).build();
-        Environment env = new Environment(settings);
         usageReporter = Mockito.mock(UsageReporter.class);
         jobDataCountsPersister = Mockito.mock(JobDataCountsPersister.class);
-        mockLogger = Mockito.mock(Logger.class);
-        statusReporter = new StatusReporter(env, settings, JOB_ID, usageReporter, jobDataCountsPersister, mockLogger, 10L);
+        statusReporter = new StatusReporter(settings, JOB_ID, usageReporter, jobDataCountsPersister);
     }
 
     public void testSettingAcceptablePercentages() {
@@ -64,7 +60,7 @@ public class StatusReporterTests extends ESTestCase {
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, new Date(), new Date());
 
-        statusReporter = new StatusReporter(env, settings, JOB_ID, counts, usageReporter, jobDataCountsPersister, mockLogger, 1);
+        statusReporter = new StatusReporter(settings, JOB_ID, counts, usageReporter, jobDataCountsPersister);
         DataCounts stats = statusReporter.incrementalStats();
         assertNotNull(stats);
         assertAllCountFieldsEqualZero(stats);

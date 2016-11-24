@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -36,10 +37,11 @@ import java.util.concurrent.TimeoutException;
  */
 public class CppLogMessageHandler implements Closeable {
 
+    private static final Logger LOGGER = Loggers.getLogger(CppLogMessageHandler.class);
     private static final int DEFAULT_READBUF_SIZE = 1024;
     private static final int DEFAULT_ERROR_STORE_SIZE = 5;
 
-    private final Logger logger;
+    private final String jobId;
     private final InputStream inputStream;
     private final int readBufSize;
     private final int errorStoreSize;
@@ -54,15 +56,14 @@ public class CppLogMessageHandler implements Closeable {
      * @param inputStream May not be null.
      */
     public CppLogMessageHandler(String jobId, InputStream inputStream) {
-        this(inputStream, Strings.isNullOrEmpty(jobId) ? Loggers.getLogger(CppLogMessageHandler.class) : Loggers.getLogger(jobId),
-                DEFAULT_READBUF_SIZE, DEFAULT_ERROR_STORE_SIZE);
+        this(inputStream, jobId, DEFAULT_READBUF_SIZE, DEFAULT_ERROR_STORE_SIZE);
     }
 
     /**
      * For testing - allows meddling with the logger, read buffer size and error store size.
      */
-    CppLogMessageHandler(InputStream inputStream, Logger logger, int readBufSize, int errorStoreSize) {
-        this.logger = Objects.requireNonNull(logger);
+    CppLogMessageHandler(InputStream inputStream, String jobId, int readBufSize, int errorStoreSize) {
+        this.jobId = jobId;
         this.inputStream = Objects.requireNonNull(inputStream);
         this.readBufSize = readBufSize;
         this.errorStoreSize = errorStoreSize;
@@ -179,10 +180,20 @@ public class CppLogMessageHandler implements Closeable {
                 pidLatch.countDown();
             }
             // TODO: Is there a way to preserve the original timestamp when re-logging?
-            logger.log(level, "{}/{} {}@{} {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), msg.getMessage());
+            if (jobId != null) {
+                LOGGER.log(level, "[{}] {}/{} {}@{} {}", jobId, msg.getLogger(), latestPid, msg.getFile(), msg.getLine(),
+                        msg.getMessage());
+            } else {
+                LOGGER.log(level, "{}/{} {}@{} {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), msg.getMessage());
+            }
             // TODO: Could send the message for indexing instead of or as well as logging it
         } catch (IOException e) {
-            logger.warn("Failed to parse C++ log message: " + bytesRef.utf8ToString(), e);
+            if (jobId != null) {
+                LOGGER.warn(new ParameterizedMessage("[{}] Failed to parse C++ log message: {}",
+                        new Object[] {jobId, bytesRef.utf8ToString()}, e));
+            } else {
+                LOGGER.warn(new ParameterizedMessage("Failed to parse C++ log message: {}", new Object[] {bytesRef.utf8ToString()}, e));
+            }
         }
     }
 

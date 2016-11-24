@@ -20,6 +20,7 @@ import java.util.Map;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +40,7 @@ public class ElasticsearchUsagePersisterTests extends ESTestCase {
         when(client.prepareUpdate(anyString(), anyString(), anyString())).thenReturn(
                 updateRequestBuilder);
 
-        ElasticsearchUsagePersister persister = new ElasticsearchUsagePersister(client, logger);
+        UsagePersister persister = new UsagePersister(Settings.EMPTY, client);
 
         persister.persistUsage("job1", 10L, 30L, 1L);
 

@@ -237,7 +237,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
             String jobId = job.getId();
             LOGGER.trace("ES API CALL: create index " + job.getId());
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest(ElasticsearchPersister.getJobIndexName(jobId));
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(JobResultsPersister.getJobIndexName(jobId));
             createIndexRequest.settings(prelertIndexSettings());
             createIndexRequest.mapping(Bucket.TYPE.getPreferredName(), bucketMapping);
             createIndexRequest.mapping(BucketInfluencer.TYPE.getPreferredName(), bucketInfluencerMapping);
@@ -272,7 +272,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
     @Override
     public void deleteJobRelatedIndices(String jobId, ActionListener<DeleteJobAction.Response> listener) {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
         LOGGER.trace("ES API CALL: delete index " + indexName);
 
         try {
@@ -295,7 +295,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
     @Override
     public DataCounts dataCounts(String jobId) {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
 
         try {
             GetResponse response = client.prepareGet(indexName, DataCounts.TYPE.getPreferredName(),
@@ -378,7 +378,7 @@ public class ElasticsearchJobProvider implements JobProvider
                                       QueryBuilder fb, SortBuilder<?> sb) throws ResourceNotFoundException {
         SearchResponse searchResponse;
         try {
-            String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+            String indexName = JobResultsPersister.getJobIndexName(jobId);
             LOGGER.trace("ES API CALL: search all of type " + Bucket.TYPE +
                     " from index " + indexName + " sort ascending " + ElasticsearchMappings.ES_TIMESTAMP +
                     " with filter after sort from " + from + " size " + size);
@@ -416,7 +416,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
     @Override
     public QueryPage<Bucket> bucket(String jobId, BucketQueryBuilder.BucketQuery query) throws ResourceNotFoundException {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
         SearchHits hits;
         try {
             LOGGER.trace("ES API CALL: get Bucket with timestamp " + query.getTimestamp() +
@@ -502,7 +502,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
         FieldSortBuilder sb = new FieldSortBuilder(ElasticsearchMappings.ES_TIMESTAMP)
                 .order(SortOrder.ASC);
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
         SearchRequestBuilder searchBuilder = client
                 .prepareSearch(indexName)
                 .setPostFilter(qb)
@@ -623,7 +623,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
     @Override
     public QueryPage<CategoryDefinition> categoryDefinitions(String jobId, int from, int size) {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
         LOGGER.trace("ES API CALL: search all of type " + CategoryDefinition.TYPE +
                 " from index " + indexName + " sort ascending " + CategoryDefinition.CATEGORY_ID +
                 " from " + from + " size " + size);
@@ -658,7 +658,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
     @Override
     public QueryPage<CategoryDefinition> categoryDefinition(String jobId, String categoryId) {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
         GetResponse response;
 
         try {
@@ -720,7 +720,7 @@ public class ElasticsearchJobProvider implements JobProvider
     private QueryPage<AnomalyRecord> records(String jobId, int from, int size,
             QueryBuilder recordFilter, FieldSortBuilder sb, List<String> secondarySort,
             boolean descending) throws ResourceNotFoundException {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
 
         recordFilter = new BoolQueryBuilder()
                 .filter(recordFilter)
@@ -785,7 +785,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
     private QueryPage<Influencer> influencers(String jobId, int from, int size, QueryBuilder filterBuilder, String sortField,
             boolean sortDescending) throws ResourceNotFoundException {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
         LOGGER.trace("ES API CALL: search all of type " + Influencer.TYPE + " from index " + indexName
                 + ((sortField != null)
                         ? " with sort " + (sortDescending ? "descending" : "ascending") + " on field " + esSortField(sortField) : "")
@@ -862,7 +862,7 @@ public class ElasticsearchJobProvider implements JobProvider
     @Override
     public Optional<Quantiles> getQuantiles(String jobId)
     {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
         try
         {
             LOGGER.trace("ES API CALL: get ID " + Quantiles.QUANTILES_ID +
@@ -935,7 +935,7 @@ public class ElasticsearchJobProvider implements JobProvider
         SearchResponse searchResponse;
         try
         {
-            String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+            String indexName = JobResultsPersister.getJobIndexName(jobId);
             LOGGER.trace("ES API CALL: search all of type " + ModelSnapshot.TYPE +
                     " from index " + indexName + " sort ascending " + esSortField(sortField) +
                     " with filter after sort from " + from + " size " + size);
@@ -984,34 +984,8 @@ public class ElasticsearchJobProvider implements JobProvider
         return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
     }
 
-    @Override
-    public void updateModelSnapshot(String jobId, ModelSnapshot modelSnapshot,
-            boolean restoreModelSizeStats)
-    {
-        // For Elasticsearch the update can be done in exactly the same way as
-        // the original persist
-        ElasticsearchPersister persister = new ElasticsearchPersister(jobId, client);
-        persister.persistModelSnapshot(modelSnapshot);
-
-        if (restoreModelSizeStats)
-        {
-            if (modelSnapshot.getModelSizeStats() != null)
-            {
-                persister.persistModelSizeStats(modelSnapshot.getModelSizeStats());
-            }
-            if (modelSnapshot.getQuantiles() != null)
-            {
-                persister.persistQuantiles(modelSnapshot.getQuantiles());
-            }
-        }
-
-        // Commit so that when the REST API call that triggered the update
-        // returns the updated document is searchable
-        persister.commitWrites();
-    }
-
     public void restoreStateToStream(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) throws IOException {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
 
         // First try to restore categorizer state.  There are no snapshots for this, so the IDs simply
         // count up until a document is not found.  It's NOT an error to have no categorizer state.
@@ -1084,26 +1058,20 @@ public class ElasticsearchJobProvider implements JobProvider
     }
 
     @Override
-    public Optional<ModelSizeStats> modelSizeStats(String jobId)
-    {
-        String indexName = ElasticsearchPersister.getJobIndexName(jobId);
-
-        try
-        {
+    public Optional<ModelSizeStats> modelSizeStats(String jobId) {
+        String indexName = JobResultsPersister.getJobIndexName(jobId);
+        try {
             LOGGER.trace("ES API CALL: get ID " + ModelSizeStats.TYPE +
                     " type " + ModelSizeStats.TYPE + " from index " + indexName);
 
             GetResponse modelSizeStatsResponse = client.prepareGet(
                     indexName, ModelSizeStats.TYPE.getPreferredName(), ModelSizeStats.TYPE.getPreferredName()).get();
 
-            if (!modelSizeStatsResponse.isExists())
-            {
+            if (!modelSizeStatsResponse.isExists()) {
                 String msg = "No memory usage details for job with id " + jobId;
                 LOGGER.warn(msg);
                 return Optional.empty();
-            }
-            else
-            {
+            } else {
                 BytesReference source = modelSizeStatsResponse.getSourceAsBytesRef();
                 XContentParser parser;
                 try {
@@ -1114,9 +1082,7 @@ public class ElasticsearchJobProvider implements JobProvider
                 ModelSizeStats modelSizeStats = ModelSizeStats.PARSER.apply(parser, () -> parseFieldMatcher).build();
                 return Optional.of(modelSizeStats);
             }
-        }
-        catch (IndexNotFoundException e)
-        {
+        } catch (IndexNotFoundException e) {
             LOGGER.warn("Missing index " + indexName, e);
             return Optional.empty();
         }

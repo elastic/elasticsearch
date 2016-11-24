@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.usage;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -19,11 +20,11 @@ import java.util.Locale;
  * The main difference betweeen this and the {@linkplain org.elasticsearch.xpack.prelert.job.status.StatusReporter}
  * is that this writes hourly reports i.e. how much data was read in an hour
  */
-public class UsageReporter {
+public class UsageReporter extends AbstractComponent {
+
     public static final Setting<Long> UPDATE_INTERVAL_SETTING = Setting.longSetting("usage.update.interval", 300, 0, Property.NodeScope);
 
     private final String jobId;
-    private final Logger logger;
 
     private long bytesReadSinceLastReport;
     private long fieldsReadSinceLastReport;
@@ -34,15 +35,14 @@ public class UsageReporter {
 
     private final UsagePersister persister;
 
-    public UsageReporter(Settings settings, String jobId, UsagePersister persister, Logger logger) {
+    public UsageReporter(Settings settings, String jobId, UsagePersister persister) {
+        super(settings);
         bytesReadSinceLastReport = 0;
         fieldsReadSinceLastReport = 0;
         recordsReadSinceLastReport = 0;
 
         this.jobId = jobId;
         this.persister = persister;
-        this.logger = logger;
-
         lastUpdateTimeMs = System.currentTimeMillis();
 
         long interval = UPDATE_INTERVAL_SETTING.get(settings);

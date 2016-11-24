@@ -17,14 +17,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.junit.Before;
 
@@ -217,9 +216,8 @@ public class JobManagerTests extends ESTestCase {
 
     private JobManager createJobManager() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Environment env = new Environment(
-                settings);
-        return new JobManager(env, settings, jobProvider, jobDataCountsPersister, clusterService);
+        JobResultsPersister jobResultsPersister = mock(JobResultsPersister.class);
+        return new JobManager(settings, jobProvider, jobResultsPersister, jobDataCountsPersister, clusterService);
     }
 
     private ClusterState createClusterState() {

@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchPersister;
+import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.junit.After;
 
 import java.io.IOException;
@@ -175,7 +175,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
     }
 
     private DataCounts getDataCounts(String jobId) {
-        GetResponse getResponse = client().prepareGet(ElasticsearchPersister.getJobIndexName(jobId),
+        GetResponse getResponse = client().prepareGet(JobResultsPersister.getJobIndexName(jobId),
                 DataCounts.TYPE.getPreferredName(), jobId + "-data-counts").get();
         if (getResponse.isExists() == false) {
             return new DataCounts("_job_id");

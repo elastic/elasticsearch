@@ -149,12 +149,12 @@ public final class RebalanceDecision extends RelocationDecision {
         builder.field("current_weight", currentWeight);
         builder.startObject("can_rebalance_decision");
         {
-            builder.field("final_decision", canRebalanceDecision.type().toString());
+            builder.field("decision", canRebalanceDecision.type().toString());
             canRebalanceDecision.toXContent(builder, params);
         }
         builder.endObject();
         if (nodeDecisions != null) {
-            builder.startObject("nodes");
+            builder.startObject("node_decisions");
             {
                 List<String> nodeIds = new ArrayList<>(nodeDecisions.keySet());
                 Collections.sort(nodeIds);

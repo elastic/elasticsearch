@@ -6,13 +6,29 @@ if (project.projectDir.name != 'x-plugins') {
 }
 
 subprojects {
-  // we must not publish to sonatype until we have set up x-plugins to only publish the parts we want to publish!
-  project.afterEvaluate {
-    if (project.plugins.hasPlugin('com.bmuschko.nexus') && project.nexus.repositoryUrl.startsWith('file://') == false) {
-      uploadArchives.enabled = false
+  plugins.withType(MavenPublishPlugin).whenPluginAdded {
+    publishing {
+      publications {
+        // add license information to generated poms
+        all {
+          pom.withXml { XmlProvider xml ->
+            Node node = xml.asNode()
+
+            Node license = node.appendNode('licenses').appendNode('license')
+            license.appendNode('name', 'Elastic Commercial Software End User License Agreement')
+            license.appendNode('url', 'https://www.elastic.co/eula/')
+            license.appendNode('distribution', 'repo')
+
+            Node developer = node.appendNode('developers').appendNode('developer')
+            developer.appendNode('name', 'Elastic')
+            developer.appendNode('url', 'http://www.elastic.co')
+          }
+        }
+      }
     }
   }
 }
+
 
 task bundlePack(type: Zip) {
   onlyIf { project('kibana').bundlePlugin.enabled }

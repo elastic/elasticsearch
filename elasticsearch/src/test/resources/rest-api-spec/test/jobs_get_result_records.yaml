@@ -4,7 +4,7 @@ setup:
         index:  prelertresults-farequote
         body:
           mappings:
-            results:
+            record:
               properties:
                 "jobId":
                   type: keyword
@@ -30,7 +30,7 @@ setup:
   - do:
       index:
         index:  prelertresults-farequote
-        type:   results
+        type:   record
         id:     2
         body:   { "jobId": "farequote", "timestamp": "2016-06-01T00:00:00Z", "result_type": "record" }
 

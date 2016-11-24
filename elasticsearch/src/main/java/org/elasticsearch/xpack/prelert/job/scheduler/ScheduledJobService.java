@@ -12,6 +12,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
@@ -31,9 +32,9 @@ import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
 public class ScheduledJobService extends AbstractComponent {
@@ -77,7 +78,7 @@ public class ScheduledJobService extends AbstractComponent {
         Holder holder = createJobScheduler(job);
         registry.put(job.getId(), holder);
 
-        threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME).execute(() -> {
+        holder.future = threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME).submit(() -> {
             try {
                 Long next = holder.scheduledJob.runLookBack(allocation.getSchedulerState());
                 if (next != null) {
@@ -113,30 +114,22 @@ public class ScheduledJobService extends AbstractComponent {
                     schedulerState.getStatus()  + "] instead");
         }
 
-        if (registry.containsKey(allocation.getJobId()) == false) {
+        Holder holder = registry.remove(allocation.getJobId());
+        if (holder == null) {
             throw new IllegalStateException("job [" + allocation.getJobId() + "] has not been started");
         }
-
         logger.info("Stopping scheduler for job [{}]", allocation.getJobId());
-        Holder holder = registry.remove(allocation.getJobId());
-        holder.scheduledJob.stop();
-        dataProcessor.closeJob(allocation.getJobId());
+        holder.stop();
+        // Don't close the job directly without going via the close data api to change the job status:
+//        dataProcessor.closeJob(allocation.getJobId());
         setJobSchedulerStatus(allocation.getJobId(), JobSchedulerStatus.STOPPED);
-    }
-
-    public void stopAllJobs() {
-        for (Map.Entry<String, Holder> entry : registry.entrySet()) {
-            entry.getValue().scheduledJob.stop();
-            dataProcessor.closeJob(entry.getKey());
-        }
-        registry.clear();
     }
 
     private void doScheduleRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
         if (holder.scheduledJob.isRunning()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            threadPool.schedule(delay, PrelertPlugin.SCHEDULER_THREAD_POOL_NAME, () -> {
+            holder.future = threadPool.schedule(delay, PrelertPlugin.SCHEDULER_THREAD_POOL_NAME, () -> {
                 long nextDelayInMsSinceEpoch;
                 try {
                     nextDelayInMsSinceEpoch = holder.scheduledJob.runRealtime();
@@ -161,8 +154,6 @@ public class ScheduledJobService extends AbstractComponent {
                 holder.problemTracker.finishReport();
                 doScheduleRealtime(nextDelayInMsSinceEpoch, jobId, holder);
             });
-        } else {
-            requestStopping(jobId);
         }
     }
 
@@ -243,10 +234,17 @@ public class ScheduledJobService extends AbstractComponent {
 
         private final ScheduledJob scheduledJob;
         private final ProblemTracker problemTracker;
+        volatile Future<?> future;
 
         private Holder(ScheduledJob scheduledJob, ProblemTracker problemTracker) {
             this.scheduledJob = scheduledJob;
             this.problemTracker = problemTracker;
         }
+
+        void stop() {
+            scheduledJob.stop();
+            FutureUtils.cancel(future);
+        }
+
     }
 }

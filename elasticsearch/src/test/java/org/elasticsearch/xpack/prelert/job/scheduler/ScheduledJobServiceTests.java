@@ -80,7 +80,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
-        }).when(executorService).execute(any(Runnable.class));
+        }).when(executorService).submit(any(Runnable.class));
         when(threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME)).thenReturn(executorService);
 
         scheduledJobService =
@@ -136,7 +136,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
         allocation = new Allocation(allocation.getNodeId(), allocation.getJobId(), allocation.getStatus(),
                 new SchedulerState(JobSchedulerStatus.STOPPING, 0L, 60000L));
         scheduledJobService.stop(allocation);
-        verify(dataProcessor).closeJob("foo");
+        verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STOPPED)), any());
     }
 
     public void testStop_GivenNonScheduledJob() {
@@ -166,8 +166,8 @@ public class ScheduledJobServiceTests extends ESTestCase {
         scheduledJobService.stop(allocation2);
 
         // We stopped twice but the first time should have been ignored. We can assert that indirectly
-        // by verifying that the job was closed only once.
-        verify(dataProcessor, times(1)).closeJob("foo");
+        // by verifying that the scheduler status was set to STOPPED.
+        verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STOPPED)), any());
     }
 
     private static Job.Builder createScheduledJob() {

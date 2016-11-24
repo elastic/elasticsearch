@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadPar
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PipedInputStream;
@@ -29,7 +28,7 @@ import java.time.ZonedDateTime;
  * message is expected on the {@link #getProcessOutStream()} stream. This class writes the flush
  * acknowledgement immediately.
  */
-public class BlackHoleAutodetectProcess implements AutodetectProcess, Closeable {
+public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     private static final Logger LOGGER = Loggers.getLogger(BlackHoleAutodetectProcess.class);
     private static final String FLUSH_ID = "flush-1";

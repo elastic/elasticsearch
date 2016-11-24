@@ -21,8 +21,8 @@ import java.util.Objects;
 /**
  * Influence field name and list of influence field values/score pairs
  */
-public class Influence extends ToXContentToBytes implements Writeable
-{
+public class Influence extends ToXContentToBytes implements Writeable {
+
     /**
      * Note all publicly exposed field names are "influencer" not "influence"
      */
@@ -42,8 +42,7 @@ public class Influence extends ToXContentToBytes implements Writeable
     private String field;
     private List<String> fieldValues;
 
-    public Influence(String field, List<String> fieldValues)
-    {
+    public Influence(String field, List<String> fieldValues) {
         this.field = field;
         this.fieldValues = fieldValues;
     }
@@ -68,43 +67,34 @@ public class Influence extends ToXContentToBytes implements Writeable
         return builder;
     }
 
-    public String getInfluencerFieldName()
-    {
+    public String getInfluencerFieldName() {
         return field;
     }
 
-    public List<String> getInfluencerFieldValues()
-    {
+    public List<String> getInfluencerFieldValues() {
         return fieldValues;
     }
 
     @Override
-    public int hashCode()
-    {
+    public int hashCode() {
         return Objects.hash(field, fieldValues);
     }
 
     @Override
-    public boolean equals(Object obj)
-    {
-        if (this == obj)
-        {
+    public boolean equals(Object obj) {
+        if (this == obj) {
             return true;
         }
 
-        if (obj == null)
-        {
+        if (obj == null) {
             return false;
         }
 
-        if (getClass() != obj.getClass())
-        {
+        if (getClass() != obj.getClass()) {
             return false;
         }
 
         Influence other = (Influence) obj;
-
-        return Objects.equals(field, other.field) &&
-                Objects.equals(fieldValues, other.fieldValues);
+        return Objects.equals(field, other.field) && Objects.equals(fieldValues, other.fieldValues);
     }
 }

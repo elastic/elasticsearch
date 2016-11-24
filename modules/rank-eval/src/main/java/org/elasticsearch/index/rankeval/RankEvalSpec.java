@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -157,11 +159,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         RankEvalSpec spec = PARSER.parse(parser, context);
 
         if (templated) {
+            CompiledScript scriptWithoutParams = 
+                    context.getScriptService().compile(spec.template, ScriptContext.Standard.SEARCH, new HashMap<>());
             for (RatedRequest query_spec : spec.getSpecifications()) {
                 Map<String, Object> params = query_spec.getParams();
-                Script scriptWithParams = new Script(spec.template.getType(), spec.template.getLang(), spec.template.getIdOrCode(), params);
                 String resolvedRequest = ((BytesReference) (context.getScriptService()
-                        .executable(scriptWithParams, ScriptContext.Standard.SEARCH).run())).utf8ToString();
+                        .executable(scriptWithoutParams, params).run())).utf8ToString();
                 try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
                     QueryParseContext parseContext = new QueryParseContext(context.getSearchRequestParsers().queryParsers, subParser,
                             context.getParseFieldMatcher());

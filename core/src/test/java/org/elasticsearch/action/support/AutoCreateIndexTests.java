@@ -25,10 +25,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -55,6 +60,24 @@ public class AutoCreateIndexTests extends ESTestCase {
             assertEquals("Can't parse [" + prefix + "] for setting [action.auto_create_index] must contain an index name after ["
                     + prefix + "]", ex.getMessage());
         }
+    }
+
+    public void testHandleSpaces() { // see #21449
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(),
+            randomFrom(".marvel-, .security, .watches, .triggered_watches, .watcher-history-",
+                ".marvel-,.security,.watches,.triggered_watches,.watcher-history-")).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        List<Tuple<String, Boolean>> expressions = autoCreateIndex.getAutoCreate().getExpressions();
+        Map<String, Boolean> map = new HashMap<>();
+        for (Tuple<String, Boolean> t : expressions) {
+            map.put(t.v1(), t.v2());
+        }
+        assertTrue(map.get(".marvel-"));
+        assertTrue(map.get(".security"));
+        assertTrue(map.get(".watches"));
+        assertTrue(map.get(".triggered_watches"));
+        assertTrue(map.get(".watcher-history-"));
+        assertEquals(5, map.size());
     }
 
     public void testAutoCreationDisabled() {

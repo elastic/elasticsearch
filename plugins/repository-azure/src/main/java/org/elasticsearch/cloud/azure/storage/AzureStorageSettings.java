@@ -34,12 +34,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 public final class AzureStorageSettings {
-    private static final String TIMEOUT_SUFFIX = "timeout";
-    private static final String ACCOUNT_SUFFIX = "account";
-    private static final String KEY_SUFFIX = "key";
-    private static final String DEFAULT_SUFFIX = "default";
-
-    private static final Setting.AffixKey TIMEOUT_KEY = Setting.AffixKey.withAdfix(Storage.PREFIX, TIMEOUT_SUFFIX);
+    private static final Setting.AffixKey TIMEOUT_KEY = Setting.AffixKey.withAffix(Storage.PREFIX, "timeout");
 
     private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
         TIMEOUT_KEY,
@@ -47,11 +42,11 @@ public final class AzureStorageSettings {
         (s) -> Setting.parseTimeValue(s, TimeValue.timeValueSeconds(-1), TIMEOUT_KEY.toString()),
         Setting.Property.NodeScope);
     private static final Setting<String> ACCOUNT_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, ACCOUNT_SUFFIX, "", Function.identity(), Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "account", "", Function.identity(), Setting.Property.NodeScope);
     private static final Setting<String> KEY_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, KEY_SUFFIX, "", Function.identity(), Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "key", "", Function.identity(), Setting.Property.NodeScope);
     private static final Setting<Boolean> DEFAULT_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, DEFAULT_SUFFIX, "false", Boolean::valueOf, Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "default", "false", Boolean::valueOf, Setting.Property.NodeScope);
 
 
     private final String name;

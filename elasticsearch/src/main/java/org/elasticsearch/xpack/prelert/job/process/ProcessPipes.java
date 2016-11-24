@@ -69,9 +69,9 @@ public class ProcessPipes {
                         boolean wantRestorePipe, boolean wantPersistPipe) {
         this.namedPipeHelper = namedPipeHelper;
 
-        // The way the pipe names are formed MUST match what is done in the prelert_controller main()
+        // The way the pipe names are formed MUST match what is done in the controller main()
         // function, as it does not get any command line arguments when started as a daemon.  If
-        // you change the code here then you MUST also change the C++ code in prelert_controller's
+        // you change the code here then you MUST also change the C++ code in controller's
         // main() function.
         StringBuilder prefixBuilder = new StringBuilder();
         prefixBuilder.append(namedPipeHelper.getDefaultPipeDirectoryPrefix(env)).append(Objects.requireNonNull(processName)).append('_');

@@ -37,19 +37,19 @@ public class ProcessCtrl {
     /**
      * Autodetect API native program name - always loaded from the same directory as the controller process
      */
-    public static final String AUTODETECT = "prelert_autodetect";
+    public static final String AUTODETECT = "autodetect";
     static final String AUTODETECT_PATH = "./" + AUTODETECT;
 
     /**
      * The normalisation native program name - always loaded from the same directory as the controller process
      */
-    public static final String NORMALIZE = "prelert_normalize";
+    public static final String NORMALIZE = "normalize";
     static final String NORMALIZE_PATH = "./" + NORMALIZE;
 
     /**
      * Process controller native program name
      */
-    public static final String CONTROLLER = "prelert_controller";
+    public static final String CONTROLLER = "controller";
 
     /**
      * Name of the config setting containing the path to the logs directory
@@ -73,7 +73,7 @@ public class ProcessCtrl {
     static final String LICENSE_VALIDATION_ARG = "--licenseValidation=";
 
     /*
-     * Arguments used by both prelert_autodetect and prelert_normalize
+     * Arguments used by both autodetect and normalize
      */
     static final String BUCKET_SPAN_ARG = "--bucketspan=";
     public static final String DELETE_STATE_FILES_ARG = "--deleteStateFiles";
@@ -85,7 +85,7 @@ public class ProcessCtrl {
     static final String PER_PARTITION_NORMALIZATION = "--perPartitionNormalization";
 
     /*
-     * Arguments used by prelert_autodetect
+     * Arguments used by autodetect
      */
     static final String BATCH_SPAN_ARG = "--batchspan=";
     static final String LATENCY_ARG = "--latency=";

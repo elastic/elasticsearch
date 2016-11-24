@@ -25,10 +25,10 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
@@ -258,8 +258,8 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public BatchResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
-            BatchResult.Builder<ShardEntry> batchResultBuilder = BatchResult.builder();
+        public ClusterTaskResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
+            ClusterTaskResult.Builder<ShardEntry> batchResultBuilder = ClusterTaskResult.builder();
             List<ShardEntry> tasksToBeApplied = new ArrayList<>();
             List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
@@ -393,8 +393,8 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public BatchResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
-            BatchResult.Builder<ShardEntry> builder = BatchResult.builder();
+        public ClusterTaskResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
+            ClusterTaskResult.Builder<ShardEntry> builder = ClusterTaskResult.builder();
             List<ShardEntry> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates

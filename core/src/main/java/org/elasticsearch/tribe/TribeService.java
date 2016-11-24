@@ -360,18 +360,13 @@ public class TribeService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public boolean runOnlyOnMaster() {
-            return false;
-        }
-
-        @Override
         public String describeTasks(List<ClusterChangedEvent> tasks) {
             return tasks.stream().map(ClusterChangedEvent::source).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
         }
 
         @Override
-        public BatchResult<ClusterChangedEvent> execute(ClusterState currentState, List<ClusterChangedEvent> tasks) throws Exception {
-            BatchResult.Builder<ClusterChangedEvent> builder = BatchResult.builder();
+        public ClusterTaskResult<ClusterChangedEvent> execute(ClusterState currentState, List<ClusterChangedEvent> tasks) throws Exception {
+            ClusterTaskResult.Builder<ClusterChangedEvent> builder = ClusterTaskResult.builder();
             ClusterState.Builder newState = ClusterState.builder(currentState).incrementVersion();
             boolean clusterStateChanged = updateNodes(currentState, tasks, newState);
             clusterStateChanged |= updateIndicesAndMetaData(currentState, tasks, newState);

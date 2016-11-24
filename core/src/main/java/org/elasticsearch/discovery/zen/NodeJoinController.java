@@ -24,12 +24,11 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -408,8 +407,9 @@ public class NodeJoinController extends AbstractComponent {
     class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
 
         @Override
-        public BatchResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
-            final BatchResult.Builder<DiscoveryNode> results = BatchResult.builder();
+        public ClusterTaskResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
+            final ClusterTaskResult.Builder<DiscoveryNode> results = ClusterTaskResult.builder();
+
             final DiscoveryNodes currentNodes = currentState.nodes();
             boolean nodesChanged = false;
             ClusterState.Builder newState;
@@ -471,8 +471,6 @@ public class NodeJoinController extends AbstractComponent {
             DiscoveryNodes currentNodes = currentState.nodes();
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
-            ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
             for (final DiscoveryNode joiningNode : joiningNodes) {
                 final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
                 if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
@@ -490,7 +488,7 @@ public class NodeJoinController extends AbstractComponent {
 
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above
-            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
+            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
             return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
                 "removed dead nodes on election"));
         }

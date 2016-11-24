@@ -20,9 +20,8 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -84,16 +83,11 @@ public class ClusterServiceUtils {
 
     public static void setState(ClusterService clusterService, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test setting state", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test setting state", new LocalClusterUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 // make sure we increment versions as listener may depend on it for change
-                return ClusterState.builder(clusterState).version(currentState.version() + 1).build();
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
+                return newState(ClusterState.builder(clusterState).version(currentState.version() + 1).build());
             }
 
             @Override

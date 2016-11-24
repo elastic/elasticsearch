@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.Nullable;
@@ -26,46 +25,47 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.util.List;
 
 /**
- * A task that can update the cluster state.
+ * Used to apply state updates on nodes that are not necessarily master
  */
-public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+public abstract class LocalClusterUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<LocalClusterUpdateTask>,
+    ClusterStateTaskListener {
 
     private final Priority priority;
 
-    public ClusterStateUpdateTask() {
+    public LocalClusterUpdateTask() {
         this(Priority.NORMAL);
     }
 
-    public ClusterStateUpdateTask(Priority priority) {
+    public LocalClusterUpdateTask(Priority priority) {
         this.priority = priority;
     }
 
+    public abstract ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception;
+
     @Override
-    public final ClusterTaskResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
-        ClusterState result = execute(currentState);
-        return ClusterTaskResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
+    public final ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState,
+                                                                   List<LocalClusterUpdateTask> tasks) throws Exception {
+        ClusterTaskResult<LocalClusterUpdateTask> result = execute(currentState);
+        return ClusterTaskResult.<LocalClusterUpdateTask>builder().successes(tasks).build(result);
+    }
+
+    public static ClusterTaskResult<LocalClusterUpdateTask> noMaster() {
+        return new ClusterTaskResult(true, null, null);
+    }
+
+    public static ClusterTaskResult<LocalClusterUpdateTask> unchanged() {
+        return new ClusterTaskResult(false, null, null);
+    }
+
+    public static ClusterTaskResult<LocalClusterUpdateTask> newState(ClusterState clusterState) {
+        return new ClusterTaskResult(false, clusterState, null);
     }
 
     @Override
-    public String describeTasks(List<ClusterStateUpdateTask> tasks) {
+    public String describeTasks(List<LocalClusterUpdateTask> tasks) {
         return ""; // one of task, source is enough
     }
 
-    /**
-     * Update the cluster state based on the current state. Return the *same instance* if no state
-     * should be changed.
-     */
-    public abstract ClusterState execute(ClusterState currentState) throws Exception;
-
-    /**
-     * A callback called when execute fails.
-     */
-    public abstract void onFailure(String source, Exception e);
-
-    /**
-     * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link ClusterStateTaskListener#onFailure(String, Exception)}. May return null to indicate no timeout is needed (default).
-     */
     @Nullable
     public TimeValue timeout() {
         return null;
@@ -78,6 +78,6 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
 
     @Override
     public final boolean runOnlyOnMaster() {
-        return true;
+        return false;
     }
 }

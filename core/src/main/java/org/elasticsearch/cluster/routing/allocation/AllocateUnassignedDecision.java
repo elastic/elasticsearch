@@ -108,11 +108,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
 
         Map<String, NodeAllocationResult> nodeDecisions = null;
         if (in.readBoolean()) {
-            final int size = in.readVInt();
-            nodeDecisions = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                nodeDecisions.put(in.readString(), new NodeAllocationResult(in));
-            }
+            nodeDecisions = in.readMap(StreamInput::readString, NodeAllocationResult::new);
         }
         this.nodeDecisions = (nodeDecisions != null) ? Collections.unmodifiableMap(nodeDecisions) : null;
 
@@ -343,18 +339,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (decision != null) {
-            out.writeBoolean(true);
-            decision.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-        if (allocationStatus != null) {
-            out.writeBoolean(true);
-            allocationStatus.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(decision);
+        out.writeOptionalWriteable(allocationStatus);
         out.writeOptionalWriteable(assignedNode);
         out.writeOptionalString(allocationId);
         if (nodeDecisions != null) {

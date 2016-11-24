@@ -79,7 +79,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        Decision.writeTo(canAllocateDecision, out);
+        canAllocateDecision.writeTo(out);
         out.writeInt(weightRanking);
     }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,18 +58,10 @@ public final class RebalanceDecision extends RelocationDecision {
 
     public RebalanceDecision(StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            canRebalanceDecision = Decision.readFrom(in);
-        } else {
-            canRebalanceDecision = null;
-        }
+        canRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
         Map<String, NodeRebalanceResult> nodeDecisionsMap = null;
         if (in.readBoolean()) {
-            final int size = in.readVInt();
-            nodeDecisionsMap = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                nodeDecisionsMap.put(in.readString(), new NodeRebalanceResult(in));
-            }
+            nodeDecisionsMap = in.readMap(StreamInput::readString, NodeRebalanceResult::new);
         }
         nodeDecisions = nodeDecisionsMap == null ? null : Collections.unmodifiableMap(nodeDecisionsMap);
         currentWeight = in.readFloat();
@@ -80,12 +71,7 @@ public final class RebalanceDecision extends RelocationDecision {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (canRebalanceDecision != null) {
-            out.writeBoolean(true);
-            Decision.writeTo(canRebalanceDecision, out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(canRebalanceDecision);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
             out.writeVInt(nodeDecisions.size());

@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +58,7 @@ public class RerouteExplanation implements ToXContent {
 
     public static void writeTo(RerouteExplanation explanation, StreamOutput out) throws IOException {
         out.writeNamedWriteable(explanation.command);
-        Decision.writeTo(explanation.decisions, out);
+        explanation.decisions.writeTo(out);
     }
 
     @Override

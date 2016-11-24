@@ -45,22 +45,13 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
     }
 
     public RelocationDecision(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            finalDecision = Decision.Type.readFrom(in);
-        } else {
-            finalDecision = null;
-        }
+        finalDecision = in.readOptionalWriteable(Decision.Type::readFrom);
         assignedNode = in.readOptionalWriteable(DiscoveryNode::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (finalDecision != null) {
-            out.writeBoolean(true);
-            finalDecision.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(finalDecision);
         out.writeOptionalWriteable(assignedNode);
     }
 

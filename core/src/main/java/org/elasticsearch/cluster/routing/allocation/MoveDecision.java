@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -58,18 +57,10 @@ public final class MoveDecision extends RelocationDecision {
 
     public MoveDecision(StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            canRemainDecision = Decision.readFrom(in);
-        } else {
-            canRemainDecision = null;
-        }
+        canRemainDecision = in.readOptionalWriteable(Decision::readFrom);
         Map<String, NodeAllocationResult> nodeDecisionsMap = null;
         if (in.readBoolean()) {
-            final int size = in.readVInt();
-            nodeDecisionsMap = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                nodeDecisionsMap.put(in.readString(), new NodeAllocationResult(in));
-            }
+            nodeDecisionsMap = in.readMap(StreamInput::readString, NodeAllocationResult::new);
         }
         nodeDecisions = nodeDecisionsMap == null ? null : Collections.unmodifiableMap(nodeDecisionsMap);
     }
@@ -77,12 +68,7 @@ public final class MoveDecision extends RelocationDecision {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (canRemainDecision != null) {
-            out.writeBoolean(true);
-            Decision.writeTo(canRemainDecision, out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(canRemainDecision);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
             out.writeVInt(nodeDecisions.size());

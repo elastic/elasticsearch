@@ -39,7 +39,7 @@ import java.util.Objects;
  *
  * @see AllocationDecider
  */
-public abstract class Decision implements ToXContent {
+public abstract class Decision implements ToXContent, Writeable {
 
     public static final Decision ALWAYS = new Single(Type.YES);
     public static final Decision YES = new Single(Type.YES);
@@ -56,26 +56,6 @@ public abstract class Decision implements ToXContent {
      */
     public static Decision single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
         return new Single(type, label, explanation, explanationParams);
-    }
-
-    public static void writeTo(Decision decision, StreamOutput out) throws IOException {
-        if (decision instanceof Multi) {
-            // Flag specifying whether it is a Multi or Single Decision
-            out.writeBoolean(true);
-            out.writeVInt(((Multi) decision).decisions.size());
-            for (Decision d : ((Multi) decision).decisions) {
-                writeTo(d, out);
-            }
-        } else {
-            // Flag specifying whether it is a Multi or Single Decision
-            out.writeBoolean(false);
-            Single d = ((Single) decision);
-            d.type.writeTo(out);
-            out.writeOptionalString(d.label);
-            // Flatten explanation on serialization, so that explanationParams
-            // do not need to be serialized
-            out.writeOptionalString(d.getExplanation());
-        }
     }
 
     public static Decision readFrom(StreamInput in) throws IOException {
@@ -271,6 +251,16 @@ public abstract class Decision implements ToXContent {
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(false); // flag specifying its a single decision
+            type.writeTo(out);
+            out.writeOptionalString(label);
+            // Flatten explanation on serialization, so that explanationParams
+            // do not need to be serialized
+            out.writeOptionalString(getExplanation());
+        }
     }
 
     /**
@@ -353,6 +343,15 @@ public abstract class Decision implements ToXContent {
             }
             builder.endArray();
             return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(true); // flag indicating it is a multi decision
+            out.writeVInt(getDecisions().size());
+            for (Decision d : getDecisions()) {
+                d.writeTo(out);
+            }
         }
     }
 }

@@ -32,7 +32,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     /**
      * Serialisation fields
      */
-    public static final ParseField TYPE = new ParseField("results");
+    public static final ParseField TYPE = new ParseField("record");
 
     /**
      * Result fields (all detector types)

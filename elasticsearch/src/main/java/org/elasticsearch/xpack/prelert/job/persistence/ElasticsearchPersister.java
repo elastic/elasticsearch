@@ -149,8 +149,7 @@ public class ElasticsearchPersister implements JobResultsPersister, JobRenormali
                             " to index " + indexName + " with auto-generated ID, for bucket "
                             + bucket.getId());
                     addRecordsRequest.add(client.prepareIndex(indexName, AnomalyRecord.TYPE.getPreferredName())
-                            .setSource(content)
-                            .setParent(bucket.getId()));
+                            .setSource(content));
                 }
 
                 LOGGER.trace("ES API CALL: bulk request with " + addRecordsRequest.numberOfActions() + " actions");

@@ -111,9 +111,10 @@ public final class AutoCreateIndex {
                 try {
                     String[] patterns = Strings.commaDelimitedListToStringArray(value);
                     for (String pattern : patterns) {
-                        if (pattern == null || pattern.length() == 0) {
+                        if (pattern == null || pattern.trim().length() == 0) {
                             throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must be either [true, false, or a comma separated list of index patterns]");
                         }
+                        pattern = pattern.trim();
                         Tuple<String, Boolean> expression;
                         if (pattern.startsWith("-")) {
                             if (pattern.length() == 1) {

@@ -859,7 +859,7 @@ final class DocumentParser {
                             Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
                             mapper = (ObjectMapper) builder.build(builderContext);
                             if (mapper.nested() != ObjectMapper.Nested.NO) {
-                                throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i]) + "]) through `copy_to`");
+                                throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i]) + "])");
                             }
                             context.addDynamicMapper(mapper);
                             break;
@@ -909,6 +909,11 @@ final class DocumentParser {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;
+            if (objectMapper.nested().isNested()) {
+                throw new MapperParsingException("Cannot add a value for field ["
+                        + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["
+                        + mapper.name() + "]");
+            }
         }
         return objectMapper.getMapper(subfields[subfields.length - 1]);
     }

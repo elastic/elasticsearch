@@ -57,6 +57,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
+    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+(?:[*][.])+[-\\w]+$");
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
@@ -86,7 +87,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     protected void validateSettingKey(Setting setting) {
-        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
+        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())
+            || isValidAffixKey(setting.getKey())) == false) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
         }
     }
@@ -109,6 +111,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     private static boolean isValidGroupKey(String key) {
         return GROUP_KEY_PATTERN.matcher(key).matches();
+    }
+
+    private static boolean isValidAffixKey(String key) {
+        return AFFIX_KEY_PATTERN.matcher(key).matches();
     }
 
     public Setting.Property getScope() {
@@ -372,14 +378,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     public Settings diff(Settings source, Settings defaultSettings) {
         Settings.Builder builder = Settings.builder();
         for (Setting<?> setting : keySettings.values()) {
-            if (setting.exists(source) == false) {
-                builder.put(setting.getKey(), setting.getRaw(defaultSettings));
-            }
+            setting.diff(builder, source, defaultSettings);
         }
         for (Setting<?> setting : complexMatchers.values()) {
-            if (setting.exists(source) == false) {
-                builder.put(setting.getKey(), setting.getRaw(defaultSettings));
-            }
+            setting.diff(builder, source, defaultSettings);
         }
         return builder.build();
     }

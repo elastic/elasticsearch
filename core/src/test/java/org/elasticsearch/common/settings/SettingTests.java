@@ -442,9 +442,9 @@ public class SettingTests extends ESTestCase {
         }
     }
 
-    public void testAdfixKeySetting() {
+    public void testAffixKeySetting() {
         Setting<Boolean> setting =
-            Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, Property.NodeScope);
+            Setting.affixKeySetting("foo.", "enable", "false", Boolean::parseBoolean, Property.NodeScope);
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar.enable"));
         assertTrue(setting.match("foo.baz.enable"));
@@ -456,12 +456,12 @@ public class SettingTests extends ESTestCase {
         assertTrue(concreteSetting.get(Settings.builder().put("foo.bar.enable", "true").build()));
         assertFalse(concreteSetting.get(Settings.builder().put("foo.baz.enable", "true").build()));
 
-        try {
-            setting.getConcreteSetting("foo");
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertEquals("key [foo] must match [foo*enable.] but didn't.", ex.getMessage());
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSetting("foo"));
+        assertEquals("key [foo] must match [foo.*.enable] but didn't.", exc.getMessage());
+
+        exc = expectThrows(IllegalArgumentException.class, () -> Setting.affixKeySetting("foo", "enable", "false",
+            Boolean::parseBoolean, Property.NodeScope));
+        assertEquals("prefix must end with a '.'", exc.getMessage());
     }
 
     public void testMinMaxInt() {

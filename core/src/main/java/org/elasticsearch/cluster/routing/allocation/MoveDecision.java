@@ -147,7 +147,7 @@ public final class MoveDecision extends RelocationDecision {
         if (cannotRemain() == false) {
             explanation = "can remain on its current node";
         } else if (getFinalDecisionType() == Type.YES) {
-            explanation = "can move shard to another node";
+            explanation = "shard cannot remain on this node and is force-moved to another node";
         } else if (getFinalDecisionType() == Type.THROTTLE) {
             explanation = "throttled on moving shard to another node";
         } else {

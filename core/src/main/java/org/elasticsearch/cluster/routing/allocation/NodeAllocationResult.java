@@ -61,11 +61,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
 
     public NodeAllocationResult(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
-        if (in.readBoolean()) {
-            shardStore = new ShardStore(in);
-        } else {
-            shardStore = null;
-        }
+        shardStore = in.readOptionalWriteable(ShardStore::new);
         canAllocateDecision = Decision.readFrom(in);
         weightRanking = in.readInt();
     }
@@ -73,12 +69,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
-        if (shardStore != null) {
-            out.writeBoolean(true);
-            shardStore.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(shardStore);
         canAllocateDecision.writeTo(out);
         out.writeInt(weightRanking);
     }

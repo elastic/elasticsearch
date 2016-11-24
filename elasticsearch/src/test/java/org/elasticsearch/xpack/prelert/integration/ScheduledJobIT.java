@@ -32,12 +32,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ScheduledJobIT extends ESRestTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/381")
     public void testStartJobScheduler_GivenMissingJob() {
         ResponseException e = expectThrows(ResponseException.class,
                 () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/invalid-job/_start"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/381")
     public void testStartJobScheduler_GivenNonScheduledJob() throws Exception {
         createNonScheduledJob();
 
@@ -72,6 +74,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         waitForSchedulerToBeStopped();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/381")
     public void testStartJobScheduler_GivenRealtime() throws Exception {
         createAirlineDataIndex();
         createScheduledJob();

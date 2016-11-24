@@ -193,16 +193,19 @@ public class SearchTransportService extends AbstractComponent {
         try {
             //TODO we should call liveness api and get back an updated discovery node. that would have the updated version
             // and would make the search shards call more future-proof. Also validating the cluster name may be a thing.
-            connectToRemoteNode(node);
+            return connectToRemoteNode(node);
         } catch(ConnectTransportException e) {
             throw new ConnectTransportException(node, "unable to connect to remote cluster [" + clusterName + "]", e);
         }
-        return node;
     }
 
-    void connectToRemoteNode(DiscoveryNode remoteNode) {
+    DiscoveryNode connectToRemoteNode(DiscoveryNode remoteNode) {
+        DiscoveryNode discoveryNode = transportService.connectToNodeLightAndHandshake(remoteNode, 10000, false);
+        transportService.disconnectFromNode(remoteNode); // disconnect the light connection
         //TODO should the list of seeds get updated based on nodes that we get back from the remote cluster through search_shards?
-        transportService.connectToNode(remoteNode);
+        // now go and do a real connection with the updated version of the node
+        transportService.connectToNode(discoveryNode);
+        return discoveryNode;
         //TODO is it ok to connect and leave the node connected? It will be pinged from now on?
     }
 

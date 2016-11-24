@@ -14,15 +14,15 @@
         refresh: true
         body:
           - '{"index": {"_index": "test_index_1", "_type": "test_type"}}'
-          - '{"f1": "v1_old", "f2": 0}'
+          - '{"f1": "local_cluster", "filter_field": 0}'
           - '{"index": {"_index": "test_index_1", "_type": "test_type"}}'
-          - '{"f1": "v2_old", "f2": 1}'
+          - '{"f1": "local_cluster", "filter_field": 1}'
           - '{"index": {"_index": "test_index_1", "_type": "test_type"}}'
-          - '{"f1": "v3_old", "f2": 2}'
+          - '{"f1": "local_cluster", "filter_field": 0}'
           - '{"index": {"_index": "test_index_1", "_type": "test_type"}}'
-          - '{"f1": "v4_old", "f2": 3}'
+          - '{"f1": "local_cluster", "filter_field": 1}'
           - '{"index": {"_index": "test_index_1", "_type": "test_type"}}'
-          - '{"f1": "v5_old", "f2": 4}'
+          - '{"f1": "local_cluster", "filter_field": 0}'
 
   - do:
      indices.flush:
@@ -35,6 +35,18 @@
   - match: { hits.total: 10 }
 
   - do:
+       search:
+          index: test_index_1,my_remote_cluster|test_index
+          body:
+            query:
+              term:
+                f1: remote_cluster
+
+  - match: { hits.total: 5}
+  - match: { hits.hits.0._index: "my_remote_cluster|test_index"}
+
+
+  - do:
       search:
          index: my_remote_cluster|test_index
 
@@ -45,3 +57,42 @@
          index: test_index_1
 
   - match: { hits.total: 5}
+
+---
+"Add transient remote cluster based on the preset cluster":
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+
+  - set: { defaults.action.search.remote.my_remote_cluster: remote_ip }
+
+  - do:
+     cluster.put_settings:
+       body:
+         transient:
+           action.search.remote.test_remote_cluster: $remote_ip
+       flat_settings: true
+
+  - match: {transient: {action.search.remote.test_remote_cluster: $remote_ip}}
+
+  - do:
+     search:
+        index: test_remote_cluster|test_index
+
+  - match: { hits.total: 5 }
+  - match: { hits.hits.0._index: "test_remote_cluster|test_index" }
+
+
+---
+"Search an filtered alias on the remote cluster":
+
+  - do:
+     search:
+        index: my_remote_cluster|aliased_test_index
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.filter_field: 1 }
+  - match: { hits.hits.0._index: "my_remote_cluster|test_index" }
+
+
+

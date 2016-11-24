@@ -213,7 +213,7 @@ then Elasticsearch will handle it as if there was a mapping of type
 [[geo-sorting]]
 ==== Geo Distance Sorting
 
-Allow to sort by `_geo_distance`. Here is an example, assuming `pin.location` is a simple object storing the location of the item (otherwise `nested_path` should be set as well):
+Allow to sort by `_geo_distance`. Here is an example, assuming `pin.location` is a field of type `geo_point`:
 
 [source,js]
 --------------------------------------------------

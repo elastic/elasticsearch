@@ -19,14 +19,11 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -45,9 +42,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -108,8 +108,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            BooleanQuery booleanQuery = (BooleanQuery) query;
+            assertThat(query, either(instanceOf(TermsQuery.class)).or(instanceOf(PointInSetQuery.class)));
 
             // we only do the check below for string fields (otherwise we'd have to decode the values)
             if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
@@ -125,24 +124,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 terms = queryBuilder.values();
             }
 
-            // compare whether we have the expected list of terms returned
-            final List<Term> booleanTerms = new ArrayList<>();
-            for (BooleanClause booleanClause : booleanQuery) {
-                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
-                Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
-                booleanTerms.add(term);
-            }
-            CollectionUtil.timSort(booleanTerms);
-            List<Term> expectedTerms = new ArrayList<>();
-            for (Object term : terms) {
-                if (term != null) { // terms lookup filters this out
-                    expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
-                }
-            }
-            CollectionUtil.timSort(expectedTerms);
-            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
-            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
+            TermsQuery expected = new TermsQuery(queryBuilder.fieldName(),
+                    terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
+            assertEquals(expected, query);
         }
     }
 

@@ -19,12 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.action.get.GetRequest;
@@ -406,7 +402,17 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (values == null || values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
-        return handleTermsQuery(values, fieldName, context);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+
+        if (fieldType != null) {
+            return fieldType.termsQuery(values, context);
+        } else {
+            BytesRef[] filterValues = new BytesRef[values.size()];
+            for (int i = 0; i < filterValues.length; i++) {
+                filterValues[i] = BytesRefs.toBytesRef(values.get(i));
+            }
+            return new TermsQuery(fieldName, filterValues);
+        }
     }
 
     private List<Object> fetch(TermsLookup termsLookup, Client client) {
@@ -419,40 +425,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             terms.addAll(extractedValues);
         }
         return terms;
-    }
-
-    private static Query handleTermsQuery(List<?> terms, String fieldName, QueryShardContext context) {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        String indexFieldName;
-        if (fieldType != null) {
-            indexFieldName = fieldType.name();
-        } else {
-            indexFieldName = fieldName;
-        }
-
-        Query query;
-        if (context.isFilter()) {
-            if (fieldType != null) {
-                query = fieldType.termsQuery(terms, context);
-            } else {
-                BytesRef[] filterValues = new BytesRef[terms.size()];
-                for (int i = 0; i < filterValues.length; i++) {
-                    filterValues[i] = BytesRefs.toBytesRef(terms.get(i));
-                }
-                query = new TermsQuery(indexFieldName, filterValues);
-            }
-        } else {
-            BooleanQuery.Builder bq = new BooleanQuery.Builder();
-            for (Object term : terms) {
-                if (fieldType != null) {
-                    bq.add(fieldType.termQuery(term, context), BooleanClause.Occur.SHOULD);
-                } else {
-                    bq.add(new TermQuery(new Term(indexFieldName, BytesRefs.toBytesRef(term))), BooleanClause.Occur.SHOULD);
-                }
-            }
-            query = bq.build();
-        }
-        return query;
     }
 
     @Override

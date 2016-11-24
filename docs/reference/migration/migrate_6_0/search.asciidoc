@@ -18,6 +18,9 @@
 
 * The `fuzzy_match` and `match_fuzzy` query (synonyma for the `match` query) have been removed
 
+* The `terms` query now always returns scores equal to `1` and is not subject to
+  `indices.query.bool.max_clause_count` anymore.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't

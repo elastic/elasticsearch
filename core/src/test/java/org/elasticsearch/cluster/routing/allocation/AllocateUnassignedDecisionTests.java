@@ -48,7 +48,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertNull(allocateUnassignedDecision.getDecision());
         assertNull(allocateUnassignedDecision.getAllocationStatus());
         assertNull(allocateUnassignedDecision.getAllocationId());
-        assertNull(allocateUnassignedDecision.getAssignedNodeId());
+        assertNull(allocateUnassignedDecision.getAssignedNode());
         assertNull(allocateUnassignedDecision.getNodeDecisions());
         expectThrows(IllegalArgumentException.class, () -> allocateUnassignedDecision.getDecisionSafe());
         expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getExplanation());
@@ -72,7 +72,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
                 startsWith("cannot allocate because a previous copy of the shard existed"));
         }
         assertNull(noDecision.getNodeDecisions());
-        assertNull(noDecision.getAssignedNodeId());
+        assertNull(noDecision.getAssignedNode());
         assertNull(noDecision.getAllocationId());
 
         Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
@@ -90,7 +90,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
             assertEquals("cannot allocate because allocation is not permitted to any of the nodes", noDecision.getExplanation());
         }
         assertEquals(nodeDecisions, noDecision.getNodeDecisions());
-        assertNull(noDecision.getAssignedNodeId());
+        assertNull(noDecision.getAssignedNode());
         assertNull(noDecision.getAllocationId());
 
         // test bad values
@@ -107,7 +107,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), startsWith("allocation temporarily throttled"));
         assertEquals(nodeDecisions, throttleDecision.getNodeDecisions());
-        assertNull(throttleDecision.getAssignedNodeId());
+        assertNull(throttleDecision.getAssignedNode());
         assertNull(throttleDecision.getAllocationId());
     }
 
@@ -123,7 +123,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertNull(yesDecision.getAllocationStatus());
         assertEquals("can allocate the shard", yesDecision.getExplanation());
         assertEquals(nodeDecisions, yesDecision.getNodeDecisions());
-        assertEquals("node1", yesDecision.getAssignedNodeId());
+        assertEquals("node1", yesDecision.getAssignedNode().getId());
         assertEquals(allocId, yesDecision.getAllocationId());
     }
 

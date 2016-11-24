@@ -156,7 +156,7 @@ public final class MoveDecision extends RelocationDecision {
      * Gets the final explanation for the decision to move a shard.
      */
     @Override
-    public String getFinalExplanation() {
+    public String getExplanation() {
         String explanation;
         if (cannotRemain() == false) {
             explanation = "can remain on its current node";

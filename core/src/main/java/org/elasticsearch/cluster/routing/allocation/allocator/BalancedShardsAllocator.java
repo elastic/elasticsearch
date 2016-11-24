@@ -627,7 +627,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 final MoveDecision moveDecision = makeMoveDecision(shardRouting);
                 if (moveDecision.move()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
-                    final ModelNode targetNode = nodes.get(moveDecision.getAssignedNodeId());
+                    final ModelNode targetNode = nodes.get(moveDecision.getAssignedNode().getId());
                     sourceNode.removeShard(shardRouting);
                     Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(shardRouting, targetNode.getNodeId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
@@ -649,7 +649,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          *      {@link MoveDecision#canRemainDecision} will have a decision type of YES.  All other fields in the object will be null.
          *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#finalDecision} will be populated
          *      with the decision of moving to another node.  If {@link MoveDecision#finalDecision} returns YES, then
-         *      {@link MoveDecision#assignedNodeId} will return a non-null value, otherwise the assignedNodeId will be null.
+         *      {@link MoveDecision#assignedNode} will return a non-null value, otherwise the assignedNodeId will be null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#nodeDecisions} will have a non-null value.
          */
@@ -788,7 +788,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     ShardRouting shard = primary[i];
                     AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard, throttledNodes);
                     final Type decisionType = allocationDecision.getDecision();
-                    final String assignedNodeId = allocationDecision.getAssignedNodeId();
+                    final String assignedNodeId = allocationDecision.getAssignedNode().getId();
                     final ModelNode minNode = assignedNodeId != null ? nodes.get(assignedNodeId) : null;
 
                     if (decisionType == Type.YES) {

@@ -37,19 +37,11 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
     @Nullable
     private final Decision.Type finalDecision;
     @Nullable
-    private final String assignedNodeId;
-    @Nullable
-    private final String assignedNodeName;
+    private final DiscoveryNode assignedNode;
 
     protected RelocationDecision(Decision.Type finalDecision, DiscoveryNode assignedNode) {
         this.finalDecision = finalDecision;
-        if (assignedNode != null) {
-            this.assignedNodeId = assignedNode.getId();
-            this.assignedNodeName = assignedNode.getName();
-        } else {
-            this.assignedNodeId = null;
-            this.assignedNodeName = null;
-        }
+        this.assignedNode = assignedNode;
     }
 
     public RelocationDecision(StreamInput in) throws IOException {
@@ -58,8 +50,7 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
         } else {
             finalDecision = null;
         }
-        assignedNodeId = in.readOptionalString();
-        assignedNodeName = in.readOptionalString();
+        assignedNode = in.readOptionalWriteable(DiscoveryNode::new);
     }
 
     @Override
@@ -70,8 +61,7 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeOptionalString(assignedNodeId);
-        out.writeOptionalString(assignedNodeName);
+        out.writeOptionalWriteable(assignedNode);
     }
 
     /**
@@ -91,21 +81,12 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Get the node id that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
+     * Get the node that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */
     @Nullable
-    public String getAssignedNodeId() {
-        return assignedNodeId;
-    }
-
-    /**
-     * Get the node name that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
-     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
-     */
-    @Nullable
-    public String getAssignedNodeName() {
-        return assignedNodeName;
+    public DiscoveryNode getAssignedNode() {
+        return assignedNode;
     }
 
     @Override
@@ -113,11 +94,11 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
         if (finalDecision != null) {
             builder.field("final_decision", finalDecision);
         }
-        builder.field("final_explanation", getFinalExplanation());
-        if (assignedNodeId != null) {
+        builder.field("final_explanation", getExplanation());
+        if (assignedNode != null) {
             builder.startObject("assigned_node");
-            builder.field("id", assignedNodeId);
-            builder.field("name", assignedNodeName);
+            builder.field("id", assignedNode.getId());
+            builder.field("name", assignedNode.getName());
             builder.endObject();
         }
         return builder;
@@ -126,5 +107,5 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
     /**
      * Gets the final explanation for the decision taken.
      */
-    public abstract String getFinalExplanation();
+    public abstract String getExplanation();
 }

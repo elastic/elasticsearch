@@ -70,9 +70,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     @Nullable
     private final AllocationStatus allocationStatus;
     @Nullable
-    private final String assignedNodeId;
-    @Nullable
-    private final String assignedNodeName;
+    private final DiscoveryNode assignedNode;
     @Nullable
     private final String allocationId;
     @Nullable
@@ -95,13 +93,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
             "allocation id can only be null if the assigned node is null";
         this.decision = decision;
         this.allocationStatus = allocationStatus;
-        if (assignedNode != null) {
-            this.assignedNodeId = assignedNode.getId();
-            this.assignedNodeName = assignedNode.getName();
-        } else {
-            this.assignedNodeId = null;
-            this.assignedNodeName = null;
-        }
+        this.assignedNode = assignedNode;
         this.allocationId = allocationId;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
         this.reuseStore = reuseStore;
@@ -111,8 +103,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     public AllocateUnassignedDecision(StreamInput in) throws IOException {
         decision = in.readOptionalWriteable(Type::readFrom);
         allocationStatus = in.readOptionalWriteable(AllocationStatus::readFrom);
-        assignedNodeId = in.readOptionalString();
-        assignedNodeName = in.readOptionalString();
+        assignedNode = in.readOptionalWriteable(DiscoveryNode::new);
         allocationId = in.readOptionalString();
 
         Map<String, NodeAllocationResult> nodeDecisions = null;
@@ -240,26 +231,17 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Get the node id that the allocator will assign the shard to, unless {@link #getDecision()} returns
+     * Get the node that the allocator will assign the shard to, unless {@link #getDecision()} returns
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */
     @Nullable
-    public String getAssignedNodeId() {
-        return assignedNodeId;
-    }
-
-    /**
-     * Get the node name that the allocator will assign the shard to, unless {@link #getDecision()} returns
-     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
-     */
-    @Nullable
-    public String getAssignedNodeName() {
-        return assignedNodeName;
+    public DiscoveryNode getAssignedNode() {
+        return assignedNode;
     }
 
     /**
      * Gets the allocation id for the existing shard copy that the allocator is assigning the shard to.
-     * This method returns a non-null value iff {@link #getAssignedNodeId()} returns a non-null value
+     * This method returns a non-null value iff {@link #getAssignedNode()} returns a non-null value
      * and the node on which the shard is assigned already has a shard copy with an in-sync allocation id
      * that we can re-use.
      */
@@ -332,10 +314,10 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         if (allocationStatus != null) {
             builder.field("allocation_status", allocationStatus.value());
         }
-        if (assignedNodeId != null) {
+        if (assignedNode != null) {
             builder.startObject("assigned_node");
-            builder.field("id", assignedNodeId);
-            builder.field("name", assignedNodeName);
+            builder.field("id", assignedNode.getId());
+            builder.field("name", assignedNode.getName());
             builder.endObject();
         }
         if (allocationId != null) {
@@ -373,7 +355,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeOptionalString(assignedNodeId);
+        out.writeOptionalWriteable(assignedNode);
         out.writeOptionalString(allocationId);
         if (nodeDecisions != null) {
             out.writeBoolean(true);

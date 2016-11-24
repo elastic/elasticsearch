@@ -134,7 +134,7 @@ public final class RebalanceDecision extends RelocationDecision {
     }
 
     @Override
-    public String getFinalExplanation() {
+    public String getExplanation() {
         String explanation;
         if (fetchPending) {
             explanation = "cannot rebalance because information about existing shard data is still being retrieved from " +
@@ -143,7 +143,7 @@ public final class RebalanceDecision extends RelocationDecision {
         } else if (canRebalanceDecision.type() != Type.YES) {
             explanation = "cannot rebalance because rebalancing is not allowed";
         } else {
-            if (getAssignedNodeId() != null) {
+            if (getAssignedNode() != null) {
                 if (getFinalDecisionType() == Type.THROTTLE) {
                     explanation = "throttled on rebalancing shard to another node";
                 } else {

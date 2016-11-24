@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.prelert.action.ResumeJobAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.StopJobSchedulerAction;
+import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
@@ -525,19 +526,20 @@ public class JobManager {
         return getJobAllocation(jobId).getStatus();
     }
 
-    public void setJobStatus(String jobId, JobStatus newStatus) {
-        clusterService.submitStateUpdateTask("set-paused-status-job-" + jobId, new ClusterStateUpdateTask() {
+    public void setJobStatus(UpdateJobStatusAction.Request request, ActionListener<UpdateJobStatusAction.Response> actionListener) {
+        clusterService.submitStateUpdateTask("set-paused-status-job-" + request.getJobId(),
+                new AckedClusterStateUpdateTask<UpdateJobStatusAction.Response>(request, actionListener) {
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerSetJobStatus(jobId, newStatus, currentState);
-            }
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        return innerSetJobStatus(request.getJobId(), request.getStatus(), currentState);
+                    }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                LOGGER.error("Error updating job status: source=[" + source + "], new status [" + newStatus + "]", e);
-            }
-        });
+                    @Override
+                    protected UpdateJobStatusAction.Response newResponse(boolean acknowledged) {
+                        return new UpdateJobStatusAction.Response(acknowledged);
+                    }
+                });
     }
 
     private ClusterState innerSetJobStatus(String jobId, JobStatus newStatus, ClusterState currentState) {

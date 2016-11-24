@@ -46,6 +46,12 @@ setup:
   - match: { acknowledged: true }
 
   - do:
+      xpack.prelert.get_jobs:
+        job_id: farequote
+        metric: status
+  - match: { jobs.0.status: "CLOSED" }
+
+  - do:
     get:
       index: prelertresults-farequote
       type: dataCounts

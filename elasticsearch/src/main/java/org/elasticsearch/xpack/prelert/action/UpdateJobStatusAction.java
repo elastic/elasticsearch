@@ -172,7 +172,7 @@ public class UpdateJobStatusAction
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.setJobStatus(request.getJobId(), request.getStatus());
+            jobManager.setJobStatus(request, listener);
         }
 
         @Override

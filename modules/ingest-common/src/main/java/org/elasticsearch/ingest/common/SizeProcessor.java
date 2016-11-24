@@ -28,10 +28,11 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Map;
 
 /**
- * Processor that adds the size of the current JSON payload as `_meta.size` field by default.
+ * Processor that adds the size in bytes of the current JSON payload, excluding the addition of the size field itself.
  */
 public final class SizeProcessor extends AbstractProcessor {
 
@@ -54,7 +55,7 @@ public final class SizeProcessor extends AbstractProcessor {
         SizeIngestDocument sizeIngestDocument = new SizeIngestDocument(document);
         String s = XContentHelper.toString(sizeIngestDocument);
         // Note that the size does not include the new size field itself which is added here
-        document.setFieldValue(target, s.length());
+        document.setFieldValue(target, s.getBytes(Charset.defaultCharset()).length);
     }
 
     @Override
@@ -84,8 +85,8 @@ public final class SizeProcessor extends AbstractProcessor {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // We want to ignore metadata
             document.extractMetadata();
-            for (String key : document.getSourceAndMetadata().keySet()) {
-                builder.field(key, document.getSourceAndMetadata().get(key));
+            for (Map.Entry<String, Object> source : document.getSourceAndMetadata().entrySet()) {
+                builder.field(source.getKey(), source.getValue());
             }
             return builder;
         }

@@ -1643,6 +1643,9 @@ For example the following size processor will generate a field `my_object.my_siz
 }
 --------------------------------------------------
 
+
+NOTE: that the computed size does not contain the addition of the size field itself.
+
 [[split-processor]]
 === Split Processor
 Splits a field into an array using a separator character. Only works on string fields.

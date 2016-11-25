@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.metadata.JobAllocator;
 import org.elasticsearch.xpack.prelert.job.metadata.JobLifeCycleService;
+import org.elasticsearch.xpack.prelert.job.metadata.PrelertInitializationService;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
@@ -180,7 +181,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new JobAllocator(settings, clusterService, threadPool),
                 new JobLifeCycleService(settings, client, clusterService, scheduledJobService, dataProcessor, threadPool.generic()),
                 new ElasticsearchBulkDeleterFactory(client), //NORELEASE: this should use Delete-by-query
-                dataProcessor
+                dataProcessor,
+                new PrelertInitializationService(settings, threadPool, clusterService, jobProvider)
                 );
     }
 

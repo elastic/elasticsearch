@@ -133,7 +133,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
                 .addClusterStatusYellowResponse(ElasticsearchJobProvider.PRELERT_USAGE_INDEX);
         Client client = clientBuilder.build();
         ElasticsearchJobProvider provider = createProvider(client);
-        provider.initialize();
+        provider.createUsageMeteringIndex((result, error) -> logger.info("result={}", result));
         clientBuilder.verifyIndexCreated(ElasticsearchJobProvider.PRELERT_USAGE_INDEX);
     }
 

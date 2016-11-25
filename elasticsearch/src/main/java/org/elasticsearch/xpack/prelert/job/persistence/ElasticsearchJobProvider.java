@@ -9,20 +9,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -80,10 +76,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 
-public class ElasticsearchJobProvider implements JobProvider
-{
+public class ElasticsearchJobProvider implements JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(ElasticsearchJobProvider.class);
 
     /**
@@ -110,7 +105,7 @@ public class ElasticsearchJobProvider implements JobProvider
             AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),
             AnomalyRecord.FIELD_NAME.getPreferredName(),
             AnomalyRecord.FUNCTION.getPreferredName()
-            );
+    );
 
     private static final int RECORDS_SIZE_PARAM = 500;
 
@@ -125,63 +120,32 @@ public class ElasticsearchJobProvider implements JobProvider
         this.numberOfReplicas = numberOfReplicas;
     }
 
-    public void initialize() {
-        LOGGER.info("Connecting to Elasticsearch cluster '" + client.settings().get("cluster.name")
-                + "'");
-
-        // This call was added because if we try to connect to Elasticsearch
-        // while it's doing the recovery operations it does at startup then we
-        // can get weird effects like indexes being reported as not existing
-        // when they do.  See EL16-182 in Jira.
-        LOGGER.trace("ES API CALL: wait for yellow status on whole cluster");
-        ClusterHealthResponse response = client.admin().cluster()
-                .prepareHealth()
-                .setWaitForYellowStatus()
-                .execute().actionGet();
-
-        // The wait call above can time out.
-        // Throw an error if in cluster health is red
-        if (response.getStatus() == ClusterHealthStatus.RED) {
-            String msg = "Waited for the Elasticsearch status to be YELLOW but is RED after wait timeout";
-            LOGGER.error(msg);
-            throw new IllegalStateException(msg);
-        }
-
-        LOGGER.info("Elasticsearch cluster '" + client.settings().get("cluster.name")
-                + "' now ready to use");
-
-
-        createUsageMeteringIndex();
-    }
-
     /**
      * If the {@value ElasticsearchJobProvider#PRELERT_USAGE_INDEX} index does
      * not exist then create it here with the usage document mapping.
      */
-    private void createUsageMeteringIndex() {
+    public void createUsageMeteringIndex(BiConsumer<Boolean, Exception> listener) {
         try {
-            LOGGER.trace("ES API CALL: index exists? {}", PRELERT_USAGE_INDEX);
-            boolean indexExists = client.admin().indices()
-                    .exists(new IndicesExistsRequest(PRELERT_USAGE_INDEX))
-                    .get().isExists();
+            LOGGER.info("Creating the internal '{}' index", PRELERT_USAGE_INDEX);
+            XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
+            LOGGER.trace("ES API CALL: create index {}", PRELERT_USAGE_INDEX);
+            client.admin().indices().prepareCreate(PRELERT_USAGE_INDEX)
+                    .setSettings(prelertIndexSettings())
+                    .addMapping(Usage.TYPE, usageMapping)
+                    .execute(new ActionListener<CreateIndexResponse>() {
+                        @Override
+                        public void onResponse(CreateIndexResponse createIndexResponse) {
+                            listener.accept(true, null);
+                        }
 
-            if (indexExists == false) {
-                LOGGER.info("Creating the internal '" + PRELERT_USAGE_INDEX + "' index");
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.accept(false, e);
+                        }
+                    });
 
-                XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
-
-                LOGGER.trace("ES API CALL: create index {}", PRELERT_USAGE_INDEX);
-                client.admin().indices().prepareCreate(PRELERT_USAGE_INDEX)
-                .setSettings(prelertIndexSettings())
-                .addMapping(Usage.TYPE, usageMapping)
-                .get();
-                LOGGER.trace("ES API CALL: wait for yellow status {}", PRELERT_USAGE_INDEX);
-                client.admin().cluster().prepareHealth(PRELERT_USAGE_INDEX).setWaitForYellowStatus().execute().actionGet();
-            }
-        } catch (InterruptedException | ExecutionException | IOException e) {
+        } catch (IOException e) {
             LOGGER.warn("Error checking the usage metering index", e);
-        } catch (ResourceAlreadyExistsException e) {
-            LOGGER.debug("Usage metering index already exists", e);
         }
     }
 
@@ -191,11 +155,11 @@ public class ElasticsearchJobProvider implements JobProvider
      * because then the settings can be applied regardless of whether we're
      * using our own Elasticsearch to store results or a customer's pre-existing
      * Elasticsearch.
+     *
      * @return An Elasticsearch builder initialised with the desired settings
      * for Prelert indexes.
      */
-    private Settings.Builder prelertIndexSettings()
-    {
+    private Settings.Builder prelertIndexSettings() {
         return Settings.builder()
                 // Our indexes are small and one shard puts the
                 // least possible burden on Elasticsearch
@@ -478,22 +442,19 @@ public class ElasticsearchJobProvider implements JobProvider
         return new QueryPage<>(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
     }
 
-    final class ScoreTimestamp
-    {
+    final class ScoreTimestamp {
         double score;
         Date timestamp;
 
-        public ScoreTimestamp(Date timestamp, double score)
-        {
+        public ScoreTimestamp(Date timestamp, double score) {
             this.score = score;
             this.timestamp = timestamp;
         }
     }
 
     private List<ScoreTimestamp> partitionScores(String jobId, Object epochStart,
-            Object epochEnd, String partitionFieldValue)
-                    throws ResourceNotFoundException
-    {
+                                                 Object epochEnd, String partitionFieldValue)
+            throws ResourceNotFoundException {
         QueryBuilder qb = new ResultsFilterBuilder()
                 .timeRange(ElasticsearchMappings.ES_TIMESTAMP, epochStart, epochEnd)
                 .build();
@@ -517,18 +478,15 @@ public class ElasticsearchJobProvider implements JobProvider
         List<ScoreTimestamp> results = new ArrayList<>();
 
         // expect 1 document per bucket
-        if (searchResponse.getHits().totalHits() > 0)
-        {
+        if (searchResponse.getHits().totalHits() > 0) {
 
-            Map<String, Object> m  = searchResponse.getHits().getAt(0).getSource();
+            Map<String, Object> m = searchResponse.getHits().getAt(0).getSource();
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> probs = (List<Map<String, Object>>)
-            m.get(ReservedFieldNames.PARTITION_NORMALIZED_PROBS);
-            for (Map<String, Object> prob : probs)
-            {
-                if (partitionFieldValue.equals(prob.get(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())))
-                {
+                    m.get(ReservedFieldNames.PARTITION_NORMALIZED_PROBS);
+            for (Map<String, Object> prob : probs) {
+                if (partitionFieldValue.equals(prob.get(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName()))) {
                     Date ts = new Date(TimeUtils.dateStringToEpoch((String) m.get(ElasticsearchMappings.ES_TIMESTAMP)));
                     results.add(new ScoreTimestamp(ts,
                             (Double) prob.get(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName())));
@@ -540,8 +498,7 @@ public class ElasticsearchJobProvider implements JobProvider
     }
 
     public int expandBucketForPartitionValue(String jobId, boolean includeInterim, Bucket bucket,
-            String partitionFieldValue) throws ResourceNotFoundException
-    {
+                                             String partitionFieldValue) throws ResourceNotFoundException {
         int from = 0;
 
         QueryPage<AnomalyRecord> page = bucketRecords(
@@ -549,8 +506,7 @@ public class ElasticsearchJobProvider implements JobProvider
                 AnomalyRecord.PROBABILITY.getPreferredName(), false, partitionFieldValue);
         bucket.setRecords(page.results());
 
-        while (page.count() > from + RECORDS_SIZE_PARAM)
-        {
+        while (page.count() > from + RECORDS_SIZE_PARAM) {
             from += RECORDS_SIZE_PARAM;
             page = bucketRecords(
                     jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim,
@@ -563,8 +519,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
 
     @Override
-    public BatchedDocumentsIterator<Bucket> newBatchedBucketsIterator(String jobId)
-    {
+    public BatchedDocumentsIterator<Bucket> newBatchedBucketsIterator(String jobId) {
         return new ElasticsearchBatchedBucketsIterator(client, jobId, parseFieldMatcher);
     }
 
@@ -577,8 +532,7 @@ public class ElasticsearchJobProvider implements JobProvider
                 AnomalyRecord.PROBABILITY.getPreferredName(), false, null);
         bucket.setRecords(page.results());
 
-        while (page.count() > from + RECORDS_SIZE_PARAM)
-        {
+        while (page.count() > from + RECORDS_SIZE_PARAM) {
             from += RECORDS_SIZE_PARAM;
             page = bucketRecords(
                     jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim,
@@ -590,10 +544,9 @@ public class ElasticsearchJobProvider implements JobProvider
     }
 
     QueryPage<AnomalyRecord> bucketRecords(String jobId,
-            Bucket bucket, int from, int size, boolean includeInterim,
-            String sortField, boolean descending, String partitionFieldValue)
-                    throws ResourceNotFoundException
-    {
+                                           Bucket bucket, int from, int size, boolean includeInterim,
+                                           String sortField, boolean descending, String partitionFieldValue)
+            throws ResourceNotFoundException {
         // Find the records using the time stamp rather than a parent-child
         // relationship.  The parent-child filter involves two queries behind
         // the scenes, and Elasticsearch documentation claims it's significantly
@@ -607,8 +560,7 @@ public class ElasticsearchJobProvider implements JobProvider
                 .build();
 
         FieldSortBuilder sb = null;
-        if (sortField != null)
-        {
+        if (sortField != null) {
             sb = new FieldSortBuilder(esSortField(sortField))
                     .missing("_last")
                     .order(descending ? SortOrder.DESC : SortOrder.ASC);
@@ -698,13 +650,11 @@ public class ElasticsearchJobProvider implements JobProvider
 
 
     private QueryPage<AnomalyRecord> records(String jobId,
-            int from, int size, QueryBuilder recordFilter,
-            String sortField, boolean descending)
-                    throws ResourceNotFoundException
-    {
+                                             int from, int size, QueryBuilder recordFilter,
+                                             String sortField, boolean descending)
+            throws ResourceNotFoundException {
         FieldSortBuilder sb = null;
-        if (sortField != null)
-        {
+        if (sortField != null) {
             sb = new FieldSortBuilder(esSortField(sortField))
                     .missing("_last")
                     .order(descending ? SortOrder.DESC : SortOrder.ASC);
@@ -718,8 +668,8 @@ public class ElasticsearchJobProvider implements JobProvider
      * The returned records have their id set.
      */
     private QueryPage<AnomalyRecord> records(String jobId, int from, int size,
-            QueryBuilder recordFilter, FieldSortBuilder sb, List<String> secondarySort,
-            boolean descending) throws ResourceNotFoundException {
+                                             QueryBuilder recordFilter, FieldSortBuilder sb, List<String> secondarySort,
+                                             boolean descending) throws ResourceNotFoundException {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
 
         recordFilter = new BoolQueryBuilder()
@@ -733,8 +683,7 @@ public class ElasticsearchJobProvider implements JobProvider
                 .addSort(sb == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC) : sb)
                 .setFetchSource(true);  // the field option turns off source so request it explicitly
 
-        for (String sortField : secondarySort)
-        {
+        for (String sortField : secondarySort) {
             searchBuilder.addSort(esSortField(sortField), descending ? SortOrder.DESC : SortOrder.ASC);
         }
 
@@ -750,8 +699,7 @@ public class ElasticsearchJobProvider implements JobProvider
         }
 
         List<AnomalyRecord> results = new ArrayList<>();
-        for (SearchHit hit : searchResponse.getHits().getHits())
-        {
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
             XContentParser parser;
             try {
@@ -770,9 +718,7 @@ public class ElasticsearchJobProvider implements JobProvider
     }
 
     @Override
-    public QueryPage<Influencer> influencers(String jobId, InfluencersQuery query) throws ResourceNotFoundException
-    {
-
+    public QueryPage<Influencer> influencers(String jobId, InfluencersQuery query) throws ResourceNotFoundException {
         QueryBuilder fb = new ResultsFilterBuilder()
                 .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getEpochStart(), query.getEpochEnd())
                 .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
@@ -784,7 +730,7 @@ public class ElasticsearchJobProvider implements JobProvider
     }
 
     private QueryPage<Influencer> influencers(String jobId, int from, int size, QueryBuilder filterBuilder, String sortField,
-            boolean sortDescending) throws ResourceNotFoundException {
+                                              boolean sortDescending) throws ResourceNotFoundException {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
         LOGGER.trace("ES API CALL: search all of result type {} from index {}{}  with filter from {} size {}",
                 () -> Influencer.RESULT_TYPE_VALUE, () -> indexName,
@@ -801,19 +747,15 @@ public class ElasticsearchJobProvider implements JobProvider
                 : new FieldSortBuilder(esSortField(sortField)).order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
         searchRequestBuilder.addSort(sb);
 
-        SearchResponse response = null;
-        try
-        {
+        SearchResponse response;
+        try {
             response = searchRequestBuilder.get();
-        }
-        catch (IndexNotFoundException e)
-        {
+        } catch (IndexNotFoundException e) {
             throw new ResourceNotFoundException("job " + jobId + " not found");
         }
 
         List<Influencer> influencers = new ArrayList<>();
-        for (SearchHit hit : response.getHits().getHits())
-        {
+        for (SearchHit hit : response.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
             XContentParser parser;
             try {
@@ -831,101 +773,83 @@ public class ElasticsearchJobProvider implements JobProvider
     }
 
     @Override
-    public Optional<Influencer> influencer(String jobId, String influencerId)
-    {
+    public Optional<Influencer> influencer(String jobId, String influencerId) {
         throw new IllegalStateException();
     }
 
     @Override
-    public BatchedDocumentsIterator<Influencer> newBatchedInfluencersIterator(String jobId)
-    {
+    public BatchedDocumentsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
         return new ElasticsearchBatchedInfluencersIterator(client, jobId, parseFieldMatcher);
     }
 
     @Override
-    public BatchedDocumentsIterator<ModelSnapshot> newBatchedModelSnapshotIterator(String jobId)
-    {
+    public BatchedDocumentsIterator<ModelSnapshot> newBatchedModelSnapshotIterator(String jobId) {
         return new ElasticsearchBatchedModelSnapshotIterator(client, jobId, parseFieldMatcher);
     }
 
     @Override
-    public BatchedDocumentsIterator<ModelDebugOutput> newBatchedModelDebugOutputIterator(String jobId)
-    {
+    public BatchedDocumentsIterator<ModelDebugOutput> newBatchedModelDebugOutputIterator(String jobId) {
         return new ElasticsearchBatchedModelDebugOutputIterator(client, jobId, parseFieldMatcher);
     }
 
     @Override
-    public BatchedDocumentsIterator<ModelSizeStats> newBatchedModelSizeStatsIterator(String jobId)
-    {
+    public BatchedDocumentsIterator<ModelSizeStats> newBatchedModelSizeStatsIterator(String jobId) {
         return new ElasticsearchBatchedModelSizeStatsIterator(client, jobId, parseFieldMatcher);
     }
 
     @Override
-    public Optional<Quantiles> getQuantiles(String jobId)
-    {
+    public Optional<Quantiles> getQuantiles(String jobId) {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
-        try
-        {
+        try {
             LOGGER.trace("ES API CALL: get ID " + Quantiles.QUANTILES_ID +
                     " type " + Quantiles.TYPE + " from index " + indexName);
             GetResponse response = client.prepareGet(
                     indexName, Quantiles.TYPE.getPreferredName(), Quantiles.QUANTILES_ID).get();
-            if (!response.isExists())
-            {
+            if (!response.isExists()) {
                 LOGGER.info("There are currently no quantiles for job " + jobId);
                 return Optional.empty();
             }
             return Optional.of(createQuantiles(jobId, response));
-        }
-        catch (IndexNotFoundException e)
-        {
+        } catch (IndexNotFoundException e) {
             LOGGER.error("Missing index when getting quantiles", e);
             throw e;
         }
     }
 
     @Override
-    public QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size)
-    {
+    public QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size) {
         return modelSnapshots(jobId, from, size, null, null, null, true, null, null);
     }
 
     @Override
     public QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size,
                                                    String startEpochMs, String endEpochMs, String sortField, boolean sortDescending,
-                                                   String snapshotId, String description)
-    {
+                                                   String snapshotId, String description) {
         boolean haveId = snapshotId != null && !snapshotId.isEmpty();
         boolean haveDescription = description != null && !description.isEmpty();
         ResultsFilterBuilder fb;
-        if (haveId || haveDescription)
-        {
+        if (haveId || haveDescription) {
             BoolQueryBuilder query = QueryBuilders.boolQuery();
-            if (haveId)
-            {
+            if (haveId) {
                 query.must(QueryBuilders.termQuery(ModelSnapshot.SNAPSHOT_ID.getPreferredName(), snapshotId));
             }
-            if (haveDescription)
-            {
+            if (haveDescription) {
                 query.must(QueryBuilders.termQuery(ModelSnapshot.DESCRIPTION.getPreferredName(), description));
             }
 
             fb = new ResultsFilterBuilder(query);
-        }
-        else
-        {
+        } else {
             fb = new ResultsFilterBuilder();
         }
 
         return modelSnapshots(jobId, from, size,
                 (sortField == null || sortField.isEmpty()) ? ModelSnapshot.RESTORE_PRIORITY.getPreferredName() : sortField,
-                        sortDescending, fb.timeRange(
-                                ElasticsearchMappings.ES_TIMESTAMP, startEpochMs, endEpochMs).build());
+                sortDescending, fb.timeRange(
+                        ElasticsearchMappings.ES_TIMESTAMP, startEpochMs, endEpochMs).build());
     }
 
     private QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size,
-            String sortField, boolean sortDescending, QueryBuilder fb)
-    {
+                                                    String sortField, boolean sortDescending, QueryBuilder fb) {
         FieldSortBuilder sb = new FieldSortBuilder(esSortField(sortField))
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
 
@@ -934,8 +858,7 @@ public class ElasticsearchJobProvider implements JobProvider
         fb = new ConstantScoreQueryBuilder(fb);
 
         SearchResponse searchResponse;
-        try
-        {
+        try {
             String indexName = JobResultsPersister.getJobIndexName(jobId);
             LOGGER.trace("ES API CALL: search all of type " + ModelSnapshot.TYPE +
                     " from index " + indexName + " sort ascending " + esSortField(sortField) +
@@ -946,27 +869,23 @@ public class ElasticsearchJobProvider implements JobProvider
                     .setQuery(fb)
                     .setFrom(from).setSize(size)
                     .get();
-        }
-        catch (IndexNotFoundException e)
-        {
+        } catch (IndexNotFoundException e) {
             LOGGER.error("Failed to read modelSnapshots", e);
             throw e;
         }
 
         List<ModelSnapshot> results = new ArrayList<>();
 
-        for (SearchHit hit : searchResponse.getHits().getHits())
-        {
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
             // Remove the Kibana/Logstash '@timestamp' entry as stored in Elasticsearch,
             // and replace using the API 'timestamp' key.
             Object timestamp = hit.getSource().remove(ElasticsearchMappings.ES_TIMESTAMP);
             hit.getSource().put(ModelSnapshot.TIMESTAMP.getPreferredName(), timestamp);
 
             Object o = hit.getSource().get(ModelSizeStats.TYPE.getPreferredName());
-            if (o instanceof Map)
-            {
+            if (o instanceof Map) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>)o;
+                Map<String, Object> map = (Map<String, Object>) o;
                 Object ts = map.remove(ElasticsearchMappings.ES_TIMESTAMP);
                 map.put(ModelSizeStats.TIMESTAMP_FIELD.getPreferredName(), ts);
             }
@@ -1050,8 +969,7 @@ public class ElasticsearchJobProvider implements JobProvider
             throw new ElasticsearchParseException("failed to parser quantiles", e);
         }
         Quantiles quantiles = Quantiles.PARSER.apply(parser, () -> parseFieldMatcher);
-        if (quantiles.getQuantileState() == null)
-        {
+        if (quantiles.getQuantileState() == null) {
             LOGGER.error("Inconsistency - no " + Quantiles.QUANTILE_STATE
                     + " field in quantiles for job " + jobId);
         }
@@ -1092,8 +1010,7 @@ public class ElasticsearchJobProvider implements JobProvider
     @Override
     public Optional<ListDocument> getList(String listId) {
         GetResponse response = client.prepareGet(PRELERT_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId).get();
-        if (!response.isExists())
-        {
+        if (!response.isExists()) {
             return Optional.empty();
         }
         BytesReference source = response.getSourceAsBytesRef();
@@ -1108,8 +1025,7 @@ public class ElasticsearchJobProvider implements JobProvider
     }
 
     @Override
-    public Auditor audit(String jobId)
-    {
+    public Auditor audit(String jobId) {
         // NORELEASE Create proper auditor or remove
         // return new ElasticsearchAuditor(client, PRELERT_INFO_INDEX, jobId);
         return new Auditor() {
@@ -1136,8 +1052,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
     }
 
-    private String esSortField(String sortField)
-    {
+    private String esSortField(String sortField) {
         // Beware: There's an assumption here that Bucket.TIMESTAMP,
         // AnomalyRecord.TIMESTAMP, Influencer.TIMESTAMP and
         // ModelSnapshot.TIMESTAMP are all the same

@@ -67,6 +67,10 @@ public class JobAllocator extends AbstractComponent implements ClusterStateListe
 
     boolean shouldAllocate(ClusterState current) {
         PrelertMetadata prelertMetadata = current.getMetaData().custom(PrelertMetadata.TYPE);
+        if (prelertMetadata == null) {
+            return false;
+        }
+
         for (String jobId : prelertMetadata.getJobs().keySet()) {
             if (prelertMetadata.getAllocations().containsKey(jobId) == false) {
                 return true;
@@ -75,32 +79,10 @@ public class JobAllocator extends AbstractComponent implements ClusterStateListe
         return false;
     }
 
-    boolean prelertMetaDataMissing(ClusterState clusterState) {
-        return clusterState.getMetaData().custom(PrelertMetadata.TYPE) == null;
-    }
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster()) {
-            if (prelertMetaDataMissing(event.state())) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                    clusterService.submitStateUpdateTask("install-prelert-metadata", new ClusterStateUpdateTask() {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) throws Exception {
-                            ClusterState.Builder builder = new ClusterState.Builder(currentState);
-                            MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                            metadataBuilder.putCustom(PrelertMetadata.TYPE, PrelertMetadata.PROTO);
-                            builder.metaData(metadataBuilder.build());
-                            return builder.build();
-                        }
-
-                        @Override
-                        public void onFailure(String source, Exception e) {
-                            logger.error("unable to install prelert metadata upon startup", e);
-                        }
-                    });
-                });
-            } else if (shouldAllocate(event.state())) {
+            if (shouldAllocate(event.state())) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                     clusterService.submitStateUpdateTask("allocate_jobs", new ClusterStateUpdateTask() {
                         @Override

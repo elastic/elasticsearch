@@ -289,6 +289,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * The current cluster state.
      */
     public ClusterState state() {
+        assert assertNotClusterStateUpdateThread("you are sampling the cluster state from the cluster service");
         return clusterServiceState().getClusterState();
     }
 

@@ -72,7 +72,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
         InterimResultsParams params = InterimResultsParams.builder().build();
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> communicator.flushJob(params));
-        assertEquals("[foo] Flush failed: Unexpected death of the Autodetect process flushing job. Mock process is dead", e.getMessage());
+        assertEquals("[foo] Unexpected death of autodetect: Mock process is dead", e.getMessage());
     }
 
     public void testFlushJob_throwsOnTimeout() throws IOException {
@@ -83,7 +83,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(autoDetectResultProcessor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(false);
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
             InterimResultsParams params = InterimResultsParams.builder().build();
-            ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> communicator.flushJob(params, 1, 1));
+            ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> communicator.flushJob(params, 1));
             assertEquals("[foo] Timed out flushing job. Mock process has stalled", e.getMessage());
         }
     }

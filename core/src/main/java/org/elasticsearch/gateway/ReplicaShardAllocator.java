@@ -159,10 +159,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
         Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
         Decision allocateDecision = result.v1();
-        if (allocateDecision.type() != Decision.Type.YES) {
-            // only return early if we are not in explain mode, because if we are in explain mode,
-            // its still possible that the shard store information is fetchable and we can add it
-            // to the node explanations
+        if (allocateDecision.type() != Decision.Type.YES
+                && (explain == false || hasInitiatedFetching(unassignedShard) == false)) {
+            // only return early if we are not in explain mode, or we are in explain mode but we have not
+            // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.v2());
         }
@@ -272,7 +272,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // cases for only allocating a replica after a primary
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
             if (decision.type() == Decision.Type.YES && madeDecision.type() != Decision.Type.YES) {
-                if (allocation.debugDecision()) {
+                if (explain) {
                     madeDecision = decision;
                 } else {
                     return Tuple.tuple(decision, nodeDecisions);
@@ -400,6 +400,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     }
 
     protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation);
+
+    /**
+     * Returns a boolean indicating whether fetching shard data has been triggered at any point for the given shard.
+     */
+    protected abstract boolean hasInitiatedFetching(ShardRouting shard);
 
     static class MatchingNodes {
         private final ObjectLongMap<DiscoveryNode> nodesToSize;

@@ -55,6 +55,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -255,7 +256,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                        dnode -> new NodeAllocationResult(dnode.nodeShardState.getNode(),
                                                          shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
                                                          dnode.decision),
-                       (dnode1, dnode2) ->  { throw new IllegalStateException(String.format("Duplicate key %s", dnode1)); },
+                       (dnode1, dnode2) ->  { throw new IllegalStateException(String.format(Locale.ROOT, "Duplicate key %s", dnode1)); },
                        LinkedHashMap::new));
     }
 

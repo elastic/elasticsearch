@@ -115,7 +115,8 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
                 String index = entry.getKey();
                 builder.startObject(index);
                 AliasFilter aliasFilter = entry.getValue();
-                if (aliasFilter.getQueryBuilder() != null) {
+                if (aliasFilter.getAliases().length > 0) {
+                    builder.array("aliases", aliasFilter.getAliases());
                     builder.field("filter");
                     aliasFilter.getQueryBuilder().toXContent(builder, params);
                 }

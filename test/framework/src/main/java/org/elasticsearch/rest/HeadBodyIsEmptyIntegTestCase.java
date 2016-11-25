@@ -25,7 +25,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -43,7 +42,7 @@ public class HeadBodyIsEmptyIntegTestCase extends ESRestTestCase {
         headTestCase("/", singletonMap("pretty", "true"), greaterThan(0));
     }
 
-    private void createTestDoc() throws UnsupportedEncodingException, IOException {
+    private void createTestDoc() throws IOException {
         client().performRequest("PUT", "test/test/1", emptyMap(), new StringEntity("{\"test\": \"test\"}"));
     }
 

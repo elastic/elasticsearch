@@ -19,7 +19,6 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -32,13 +31,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URI;
@@ -61,94 +58,16 @@ public class ClientYamlTestClient {
     //query_string params that don't need to be declared in the spec, they are supported by default
     private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet("pretty", "source", "filter_path");
 
-    private static boolean loggedInit = false;
-
     private final ClientYamlSuiteRestSpec restSpec;
     private final RestClient restClient;
     private final Version esVersion;
 
-    public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts) throws IOException {
+    public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
+                                Version esVersion) throws IOException {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClient = restClient;
-        Tuple<Version, Version> versionTuple = readMasterAndMinNodeVersion(hosts.size());
-        this.esVersion = versionTuple.v1();
-        Version masterVersion = versionTuple.v2();
-        if (false == loggedInit) {
-            /* This will be logged once per suite which lines up with randomized runner's dumping the output of all failing suites. It'd
-             * be super noisy to log this once per test. We can't log it in a @BeforeClass method because we need the class variables. */
-            logger.info("initializing client, minimum es version: [{}] master version: [{}] hosts: {}", esVersion, masterVersion, hosts);
-            loggedInit = true;
-        }
-    }
-
-    /**
-     * Reset {@link #loggedInit} so we log the connection setup before this suite.
-     */
-    @BeforeClass
-    public static void clearLoggedInit() {
-        loggedInit = false;
-    }
-
-    private Tuple<Version, Version> readMasterAndMinNodeVersion(int numHosts) throws IOException {
-        try {
-            // we simply go to the _cat/nodes API and parse all versions in the cluster
-            Response response = restClient.performRequest("GET", "/_cat/nodes", Collections.singletonMap("h", "version,master"));
-            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-            String nodesCatResponse = restTestResponse.getBodyAsString();
-            String[] split = nodesCatResponse.split("\n");
-            Version version = null;
-            Version masterVersion = null;
-            for (String perNode : split) {
-                final String[] versionAndMaster = perNode.split("\\s+");
-                assert versionAndMaster.length == 2 : "invalid line: " + perNode + " length: " + versionAndMaster.length;
-                final Version currentVersion = Version.fromString(versionAndMaster[0]);
-                final boolean master = versionAndMaster[1].trim().equals("*");
-                if (master) {
-                    assert masterVersion == null;
-                    masterVersion = currentVersion;
-                }
-                if (version == null) {
-                    version = currentVersion;
-                } else if (version.onOrAfter(currentVersion)) {
-                        version = currentVersion;
-                }
-            }
-            return new Tuple<>(version, masterVersion);
-        } catch (ResponseException ex) {
-            if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
-                logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
-                final Version version = readAndCheckVersion(numHosts);
-                return new Tuple<>(version, version);
-            }
-            throw ex;
-        }
-    }
-
-    private Version readAndCheckVersion(int numHosts) throws IOException {
-        ClientYamlSuiteRestApi restApi = restApi("info");
-        assert restApi.getPaths().size() == 1;
-        assert restApi.getMethods().size() == 1;
-        Version version = null;
-        for (int i = 0; i < numHosts; i++) {
-            //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
-            String method = restApi.getMethods().get(0);
-            String endpoint = restApi.getPaths().get(0);
-            Response response = restClient.performRequest(method, endpoint);
-            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-
-            Object latestVersion = restTestResponse.evaluate("version.number");
-            if (latestVersion == null) {
-                throw new RuntimeException("elasticsearch version not found in the response");
-            }
-            final Version currentVersion = Version.fromString(restTestResponse.evaluate("version.number").toString());
-            if (version == null) {
-                version = currentVersion;
-            } else if (version.onOrAfter(currentVersion)) {
-                version = currentVersion;
-            }
-        }
-        return version;
+        this.esVersion = esVersion;
     }
 
     public Version getEsVersion() {

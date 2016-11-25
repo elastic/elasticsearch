@@ -156,12 +156,12 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         BytesReference bytes = XContentFactory.jsonBuilder()
             .startObject()
-            .field("foo.bar", 123)
+            .field("foo.bar",42)
             .endObject().bytes();
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapper.parse("test", "type", "1", bytes));
         assertEquals(
-                "It is forbidden to create dynamic nested objects ([foo])",
+                "It is forbidden to create dynamic nested objects ([foo]) through `copy_to` or dots in field names",
                 e.getMessage());
     }
 

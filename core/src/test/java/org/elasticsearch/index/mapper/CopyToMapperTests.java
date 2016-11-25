@@ -442,7 +442,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
           docMapper.parse("test", "type1", "1", json).rootDoc();
           fail();
         } catch (MapperParsingException ex) {
-            assertThat(ex.getMessage(), startsWith("It is forbidden to create dynamic nested objects ([very])"));
+            assertThat(ex.getMessage(), startsWith("It is forbidden to create dynamic nested objects ([very]) through `copy_to`"));
         }
     }
 

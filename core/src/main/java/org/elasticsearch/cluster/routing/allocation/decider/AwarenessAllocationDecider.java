@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -87,22 +86,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     private String[] awarenessAttributes;
 
     private volatile Map<String, String[]> forcedAwarenessAttributes;
-
-    /**
-     * Creates a new {@link AwarenessAllocationDecider} instance
-     */
-    public AwarenessAllocationDecider() {
-        this(Settings.Builder.EMPTY_SETTINGS);
-    }
-
-    /**
-     * Creates a new {@link AwarenessAllocationDecider} instance from given settings
-     *
-     * @param settings {@link Settings} to use
-     */
-    public AwarenessAllocationDecider(Settings settings) {
-        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-    }
 
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
@@ -212,9 +195,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             // if we are above with leftover, then we know we are not good, even with mod
             if (currentNodeCount > (requiredCountPerAttribute + leftoverPerAttribute)) {
                 return allocation.decision(Decision.NO, NAME,
-                        "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total shards " +
-                        "for the index and [%d] total attributes values, expected the allocated shard count per attribute [%d] to be " +
-                        "less than or equal to the upper bound of the required number of shards per attribute [%d]",
+                        "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
+                        "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per " +
+                        "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
                         awarenessAttribute,
                         shardCount,
                         numberOfAttributes,

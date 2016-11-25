@@ -148,7 +148,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                         explanation.getFinalExplanation());
                 assertEquals(ClusterAllocationExplanation.FinalDecision.NO, finalDecision);
             } else if (fooBarAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("the shard cannot be allocated to the same node id"));
+                assertThat(d.toString(), containsString("the shard cannot be allocated to the same node"));
                 fooBarAttrWeight = weight;
                 assertEquals(storeStatus.getAllocationStatus(),
                         IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY);

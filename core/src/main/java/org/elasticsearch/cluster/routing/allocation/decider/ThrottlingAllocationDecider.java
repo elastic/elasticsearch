@@ -140,11 +140,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
             if (currentInRecoveries >= concurrentIncomingRecoveries) {
                 return allocation.decision(THROTTLE, NAME,
-                    "reached the limit of incoming shard recoveries [%d], [%s=%d], [%s=%d]",
+                    "reached the limit of incoming shard recoveries [%d], [%s=%d] (can also be set via [%s])",
                     currentInRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                     concurrentIncomingRecoveries,
-                    CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(),
-                    CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.get(settings));
+                    CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey());
             } else {
                 // search for corresponding recovery source (= primary shard) and check number of outgoing recoveries on that node
                 ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
@@ -154,11 +153,12 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 int primaryNodeOutRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
                 if (primaryNodeOutRecoveries >= concurrentOutgoingRecoveries) {
                     return allocation.decision(THROTTLE, NAME,
-                        "reached the limit of outgoing shard recoveries [%d], [%s=%d], [%s=%d]",
-                        primaryNodeOutRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                        "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, " +
+                        "[%s=%d] (can also be set via [%s])",
+                        primaryNodeOutRecoveries, node.nodeId(),
+                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                         concurrentOutgoingRecoveries,
-                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(),
-                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.get(settings));
+                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey());
                 } else {
                     return allocation.decision(YES, NAME, "below shard recovery limit of outgoing: [%d < %d] incoming: [%d < %d]",
                         primaryNodeOutRecoveries,

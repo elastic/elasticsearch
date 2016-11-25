@@ -100,8 +100,7 @@ public class FilterAllocationDecider extends AllocationDecider {
                 RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) &&
                 initialRecoveryFilters.match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME,
-                    "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index",
-                    indexMd.includeFilters());
+                    "initial allocation of the index is only allowed on nodes [%s]", indexMd.includeFilters());
             }
         }
         return shouldFilter(shardRouting, node, allocation);

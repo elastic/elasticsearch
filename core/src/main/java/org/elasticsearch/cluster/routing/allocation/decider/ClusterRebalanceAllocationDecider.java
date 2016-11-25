@@ -81,6 +81,11 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             throw new IllegalArgumentException("Illegal value for " +
                             CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING + ": " + typeString);
         }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     private volatile ClusterRebalanceType type;
@@ -95,8 +100,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
                     CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getRaw(settings));
             type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
         }
-        logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
-                type.toString().toLowerCase(Locale.ROOT));
+        logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
 
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
     }

@@ -787,7 +787,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     ShardRouting shard = primary[i];
                     AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard, throttledNodes);
                     final Type decisionType = allocationDecision.getDecision();
-                    final String assignedNodeId = allocationDecision.getAssignedNode().getId();
+                    final String assignedNodeId = allocationDecision.getAssignedNode() != null ?
+                                                      allocationDecision.getAssignedNode().getId() : null;
                     final ModelNode minNode = assignedNodeId != null ? nodes.get(assignedNodeId) : null;
 
                     if (decisionType == Type.YES) {

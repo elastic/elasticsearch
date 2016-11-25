@@ -82,9 +82,9 @@ public abstract class Decision implements ToXContent, Writeable {
      * possible types of decisions
      */
     public enum Type implements Writeable {
+        NO(0),
         YES(1),
-        NO(2),
-        THROTTLE(3);
+        THROTTLE(2);
 
         private final int id;
 

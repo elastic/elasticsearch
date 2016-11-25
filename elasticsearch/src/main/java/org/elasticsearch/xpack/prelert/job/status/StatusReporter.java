@@ -255,7 +255,7 @@ public class StatusReporter extends AbstractComponent {
         }
 
         String status = String.format(Locale.ROOT,
-                "%d records written to autodetect; missingFieldCount=%d, invalidDateCount=%d, outOfOrderCount=%d",
+                "[%s] %d records written to autodetect; missingFieldCount=%d, invalidDateCount=%d, outOfOrderCount=%d", jobId,
                 getProcessedRecordCount(), getMissingFieldErrorCount(), getDateParseErrorsCount(), getOutOfOrderRecordCount());
 
         logger.info(status);

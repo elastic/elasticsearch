@@ -1020,7 +1020,6 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
 
         for (Map<String, Object> map : source) {
             SearchHit hit = mock(SearchHit.class);
-            // remove the _parent from the field we use for _source
             Map<String, Object> _source = new HashMap<>(map);
             when(hit.getSourceRef()).thenReturn(XContentFactory.jsonBuilder().map(_source).bytes());
             when(hit.getId()).thenReturn(String.valueOf(map.hashCode()));

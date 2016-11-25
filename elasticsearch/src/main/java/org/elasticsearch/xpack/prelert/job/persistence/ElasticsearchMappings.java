@@ -61,7 +61,6 @@ public class ElasticsearchMappings {
     static final String INCLUDE_IN_ALL = "include_in_all";
     static final String NESTED = "nested";
     static final String COPY_TO = "copy_to";
-    static final String PARENT = "_parent";
     static final String PROPERTIES = "properties";
     static final String TYPE = "type";
     static final String DYNAMIC = "dynamic";
@@ -370,8 +369,6 @@ public class ElasticsearchMappings {
     }
 
     /**
-     * Records have a _parent mapping to a {@linkplain org.elasticsearch.xpack.prelert.job.results.Bucket}.
-     *
      * @param termFieldNames Optionally, other field names to include in the
      *                       mappings.  Pass <code>null</code> if not required.
      */

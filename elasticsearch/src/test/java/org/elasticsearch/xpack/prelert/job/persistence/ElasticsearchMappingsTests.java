@@ -80,7 +80,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(ElasticsearchMappings.INDEX);
         overridden.add(ElasticsearchMappings.NESTED);
         overridden.add(ElasticsearchMappings.NO);
-        overridden.add(ElasticsearchMappings.PARENT);
         overridden.add(ElasticsearchMappings.PROPERTIES);
         overridden.add(ElasticsearchMappings.TYPE);
         overridden.add(ElasticsearchMappings.WHITESPACE);

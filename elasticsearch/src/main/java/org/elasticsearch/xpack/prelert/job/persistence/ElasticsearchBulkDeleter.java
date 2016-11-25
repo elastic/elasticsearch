@@ -118,10 +118,6 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
                 .setIndex(JobResultsPersister.getJobIndexName(jobId))
                 .setType(hit.getType())
                 .setId(hit.getId());
-        SearchHitField parentField = hit.field(ElasticsearchMappings.PARENT);
-        if (parentField != null) {
-            deleteRequest.setParent(parentField.getValue().toString());
-        }
         bulkRequestBuilder.add(deleteRequest);
     }
 

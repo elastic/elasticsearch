@@ -715,7 +715,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
 
     /**
-     * The returned records have the parent bucket id set.
+     * The returned records have their id set.
      */
     private QueryPage<AnomalyRecord> records(String jobId, int from, int size,
             QueryBuilder recordFilter, FieldSortBuilder sb, List<String> secondarySort,
@@ -761,7 +761,7 @@ public class ElasticsearchJobProvider implements JobProvider
             }
             AnomalyRecord record = AnomalyRecord.PARSER.apply(parser, () -> parseFieldMatcher);
 
-            // set the ID and parent ID
+            // set the ID
             record.setId(hit.getId());
             results.add(record);
         }

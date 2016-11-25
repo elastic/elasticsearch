@@ -6,14 +6,15 @@
 package org.elasticsearch.xpack.prelert.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
@@ -45,7 +46,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     public static final ParseField EVENT_COUNT = new ParseField("eventCount");
     public static final ParseField RECORDS = new ParseField("records");
     public static final ParseField BUCKET_INFLUENCERS = new ParseField("bucketInfluencers");
-    public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucketSpan");
     public static final ParseField PROCESSING_TIME_MS = new ParseField("processingTimeMs");
     public static final ParseField PARTITION_SCORES = new ParseField("partitionScores");
@@ -79,7 +79,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(Bucket::setEventCount, EVENT_COUNT);
         PARSER.declareObjectArray(Bucket::setRecords, AnomalyRecord.PARSER, RECORDS);
         PARSER.declareObjectArray(Bucket::setBucketInfluencers, BucketInfluencer.PARSER, BUCKET_INFLUENCERS);
-        PARSER.declareObjectArray(Bucket::setInfluencers, Influencer.PARSER, INFLUENCERS);
         PARSER.declareLong(Bucket::setBucketSpan, BUCKET_SPAN);
         PARSER.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
         PARSER.declareObjectArray(Bucket::setPartitionScores, PartitionScore.PARSER, PARTITION_SCORES);
@@ -100,7 +99,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     private boolean isInterim;
     private boolean hadBigNormalisedUpdate;
     private List<BucketInfluencer> bucketInfluencers = new ArrayList<>();
-    private List<Influencer> influencers = Collections.emptyList();
     private long processingTimeMs;
     private Map<String, Double> perPartitionMaxProbability = Collections.emptyMap();
     private List<PartitionScore> partitionScores = Collections.emptyList();
@@ -126,7 +124,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         isInterim = in.readBoolean();
         hadBigNormalisedUpdate = in.readBoolean();
         bucketInfluencers = in.readList(BucketInfluencer::new);
-        influencers = in.readList(Influencer::new);
         processingTimeMs = in.readLong();
         perPartitionMaxProbability = (Map<String, Double>) in.readGenericValue();
         partitionScores = in.readList(PartitionScore::new);
@@ -151,7 +148,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         out.writeBoolean(isInterim);
         out.writeBoolean(hadBigNormalisedUpdate);
         out.writeList(bucketInfluencers);
-        out.writeList(influencers);
         out.writeLong(processingTimeMs);
         out.writeGenericValue(perPartitionMaxProbability);
         out.writeList(partitionScores);
@@ -169,11 +165,12 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);
         builder.field(MAX_NORMALIZED_PROBABILITY.getPreferredName(), maxNormalizedProbability);
         builder.field(RECORD_COUNT.getPreferredName(), recordCount);
-        builder.field(RECORDS.getPreferredName(), records);
+        if (records != null && !records.isEmpty()) {
+            builder.field(RECORDS.getPreferredName(), records);
+        }
         builder.field(EVENT_COUNT.getPreferredName(), eventCount);
         builder.field(IS_INTERIM.getPreferredName(), isInterim);
         builder.field(BUCKET_INFLUENCERS.getPreferredName(), bucketInfluencers);
-        builder.field(INFLUENCERS.getPreferredName(), influencers);
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTimeMs);
         builder.field(PARTITION_SCORES.getPreferredName(), partitionScores);
         builder.endObject();
@@ -256,10 +253,15 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     }
 
     /**
-     * Get all the anomaly records associated with this bucket
+     * Get all the anomaly records associated with this bucket.
+     * The records are not part of the bucket document. They will
+     * only be present when the bucket was retrieved and expanded
+     * to contain the associated records.
      *
-     * @return All the anomaly records
+     * @return <code>null</code> or the anomaly records for the bucket
+     * if the bucket was expanded.
      */
+    @Nullable
     public List<AnomalyRecord> getRecords() {
         return records;
     }
@@ -293,14 +295,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
     public void setProcessingTimeMs(long timeMs) {
         processingTimeMs = timeMs;
-    }
-
-    public List<Influencer> getInfluencers() {
-        return influencers;
-    }
-
-    public void setInfluencers(List<Influencer> influences) {
-        this.influencers = influences;
     }
 
     public List<BucketInfluencer> getBucketInfluencers() {
@@ -377,7 +371,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         // hadBigNormalisedUpdate is deliberately excluded from the hash
         // as is id, which is generated by the datastore
         return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, maxNormalizedProbability, recordCount, records,
-                isInterim, bucketSpan, bucketInfluencers, influencers);
+                isInterim, bucketSpan, bucketInfluencers);
     }
 
     /**
@@ -402,7 +396,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
                 && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
                 && (this.maxNormalizedProbability == that.maxNormalizedProbability) && (this.recordCount == that.recordCount)
                 && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
-                && Objects.equals(this.bucketInfluencers, that.bucketInfluencers) && Objects.equals(this.influencers, that.influencers);
+                && Objects.equals(this.bucketInfluencers, that.bucketInfluencers);
     }
 
     public boolean hadBigNormalisedUpdate() {

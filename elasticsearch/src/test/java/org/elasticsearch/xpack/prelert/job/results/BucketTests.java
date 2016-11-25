@@ -52,22 +52,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             bucket.setId(randomAsciiOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            int size = randomInt(10);
-            List<Influencer> influencers = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                Influencer influencer = new Influencer(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
-                        randomAsciiOfLengthBetween(1, 20));
-                influencer.setAnomalyScore(randomDouble());
-                influencer.setInitialAnomalyScore(randomDouble());
-                influencer.setProbability(randomDouble());
-                influencer.setId(randomAsciiOfLengthBetween(1, 20));
-                influencer.setInterim(randomBoolean());
-                influencer.setTimestamp(new Date(randomLong()));
-                influencers.add(influencer);
-            }
-            bucket.setInfluencers(influencers);
-        }
-        if (randomBoolean()) {
             bucket.setInitialAnomalyScore(randomDouble());
         }
         if (randomBoolean()) {
@@ -238,16 +222,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertFalse(bucket2.equals(bucket1));
     }
 
-    public void testEquals_GivenDifferentInfluencers() {
-        Bucket bucket1 = new Bucket("foo");
-        Influencer influencer = new Influencer("foo", "inf_field", "inf_value");
-        Bucket bucket2 = new Bucket("foo");
-        bucket2.setInfluencers(Arrays.asList(influencer));
-
-        assertFalse(bucket1.equals(bucket2));
-        assertFalse(bucket2.equals(bucket1));
-    }
-
     public void testEquals_GivenDifferentBucketInfluencers() {
         Bucket bucket1 = new Bucket("foo");
         BucketInfluencer influencer1 = new BucketInfluencer("foo");
@@ -266,10 +240,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
     public void testEquals_GivenEqualBuckets() {
         AnomalyRecord record = new AnomalyRecord("jobId");
-        Influencer influencer = new Influencer("jobId", "testField", "testValue");
         BucketInfluencer bucketInfluencer = new BucketInfluencer("foo");
-        influencer.setProbability(0.1);
-        influencer.setInitialAnomalyScore(10.0);
         Date date = new Date();
 
         Bucket bucket1 = new Bucket("foo");
@@ -282,7 +253,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         bucket1.setRecordCount(4);
         bucket1.setRecords(Arrays.asList(record));
         bucket1.addBucketInfluencer(bucketInfluencer);
-        bucket1.setInfluencers(Arrays.asList(influencer));
         bucket1.setTimestamp(date);
 
         Bucket bucket2 = new Bucket("foo");
@@ -295,7 +265,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         bucket2.setRecordCount(4);
         bucket2.setRecords(Arrays.asList(record));
         bucket2.addBucketInfluencer(bucketInfluencer);
-        bucket2.setInfluencers(Arrays.asList(influencer));
         bucket2.setTimestamp(date);
 
         assertTrue(bucket1.equals(bucket2));

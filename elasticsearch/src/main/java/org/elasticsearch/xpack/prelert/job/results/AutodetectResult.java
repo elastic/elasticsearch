@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
@@ -19,19 +20,25 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class AutodetectResult extends ToXContentToBytes implements Writeable {
 
     public static final ParseField TYPE = new ParseField("autodetect_result");
+    public static final ParseField RECORDS = new ParseField("records");
+    public static final ParseField INFLUENCERS = new ParseField("influencers");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<AutodetectResult, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            TYPE.getPreferredName(), a -> new AutodetectResult((Bucket) a[0], (Quantiles) a[1], (ModelSnapshot) a[2],
-                    a[3] == null ? null : ((ModelSizeStats.Builder) a[3]).build(), (ModelDebugOutput) a[4], (CategoryDefinition) a[5],
-                    (FlushAcknowledgement) a[6]));
+            TYPE.getPreferredName(), a -> new AutodetectResult((Bucket) a[0], (List<AnomalyRecord>) a[1], (List<Influencer>) a[2],
+                    (Quantiles) a[3], (ModelSnapshot) a[4], a[5] == null ? null : ((ModelSizeStats.Builder) a[5]).build(),
+                    (ModelDebugOutput) a[6], (CategoryDefinition) a[7], (FlushAcknowledgement) a[8]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Bucket.PARSER, Bucket.TYPE);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), AnomalyRecord.PARSER, RECORDS);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Influencer.PARSER, INFLUENCERS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Quantiles.PARSER, Quantiles.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSnapshot.PARSER, ModelSnapshot.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSizeStats.PARSER, ModelSizeStats.TYPE);
@@ -41,6 +48,8 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
     }
 
     private final Bucket bucket;
+    private final List<AnomalyRecord> records;
+    private final List<Influencer> influencers;
     private final Quantiles quantiles;
     private final ModelSnapshot modelSnapshot;
     private final ModelSizeStats modelSizeStats;
@@ -48,9 +57,12 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
     private final CategoryDefinition categoryDefinition;
     private final FlushAcknowledgement flushAcknowledgement;
 
-    public AutodetectResult(Bucket bucket, Quantiles quantiles, ModelSnapshot modelSnapshot, ModelSizeStats modelSizeStats,
-            ModelDebugOutput modelDebugOutput, CategoryDefinition categoryDefinition, FlushAcknowledgement flushAcknowledgement) {
+    public AutodetectResult(Bucket bucket, List<AnomalyRecord> records, List<Influencer> influencers, Quantiles quantiles,
+                            ModelSnapshot modelSnapshot, ModelSizeStats modelSizeStats, ModelDebugOutput modelDebugOutput,
+                            CategoryDefinition categoryDefinition, FlushAcknowledgement flushAcknowledgement) {
         this.bucket = bucket;
+        this.records = records;
+        this.influencers = influencers;
         this.quantiles = quantiles;
         this.modelSnapshot = modelSnapshot;
         this.modelSizeStats = modelSizeStats;
@@ -64,6 +76,16 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
             this.bucket = new Bucket(in);
         } else {
             this.bucket = null;
+        }
+        if (in.readBoolean()) {
+            this.records = in.readList(AnomalyRecord::new);
+        } else {
+            this.records = null;
+        }
+        if (in.readBoolean()) {
+            this.influencers = in.readList(Influencer::new);
+        } else {
+            this.influencers = null;
         }
         if (in.readBoolean()) {
             this.quantiles = new Quantiles(in);
@@ -99,73 +121,71 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        boolean hasBucket = bucket != null;
-        out.writeBoolean(hasBucket);
-        if (hasBucket) {
-            bucket.writeTo(out);
+        writeNullable(bucket, out);
+        writeNullable(records, out);
+        writeNullable(influencers, out);
+        writeNullable(quantiles, out);
+        writeNullable(modelSnapshot, out);
+        writeNullable(modelSizeStats, out);
+        writeNullable(modelDebugOutput, out);
+        writeNullable(categoryDefinition, out);
+        writeNullable(flushAcknowledgement, out);
+    }
+
+    private static void writeNullable(Writeable writeable, StreamOutput out) throws IOException {
+        boolean isPresent = writeable != null;
+        out.writeBoolean(isPresent);
+        if (isPresent) {
+            writeable.writeTo(out);
         }
-        boolean hasQuantiles = quantiles != null;
-        out.writeBoolean(hasQuantiles);
-        if (hasQuantiles) {
-            quantiles.writeTo(out);
-        }
-        boolean hasModelSnapshot = modelSnapshot != null;
-        out.writeBoolean(hasModelSnapshot);
-        if (hasModelSnapshot) {
-            modelSnapshot.writeTo(out);
-        }
-        boolean hasModelSizeStats = modelSizeStats != null;
-        out.writeBoolean(hasModelSizeStats);
-        if (hasModelSizeStats) {
-            modelSizeStats.writeTo(out);
-        }
-        boolean hasModelDebugOutput = modelDebugOutput != null;
-        out.writeBoolean(hasModelDebugOutput);
-        if (hasModelDebugOutput) {
-            modelDebugOutput.writeTo(out);
-        }
-        boolean hasCategoryDefinition = categoryDefinition != null;
-        out.writeBoolean(hasCategoryDefinition);
-        if (hasCategoryDefinition) {
-            categoryDefinition.writeTo(out);
-        }
-        boolean hasFlushAcknowledgement = flushAcknowledgement != null;
-        out.writeBoolean(hasFlushAcknowledgement);
-        if (hasFlushAcknowledgement) {
-            flushAcknowledgement.writeTo(out);
+    }
+
+    private static void writeNullable(List<? extends Writeable> writeables, StreamOutput out) throws IOException {
+        boolean isPresent = writeables != null;
+        out.writeBoolean(isPresent);
+        if (isPresent) {
+            out.writeList(writeables);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (bucket != null) {
-            builder.field(Bucket.TYPE.getPreferredName(), bucket);
-        }
-        if (quantiles != null) {
-            builder.field(Quantiles.TYPE.getPreferredName(), quantiles);
-        }
-        if (modelSnapshot != null) {
-            builder.field(ModelSnapshot.TYPE.getPreferredName(), modelSnapshot);
-        }
-        if (modelSizeStats != null) {
-            builder.field(ModelSizeStats.TYPE.getPreferredName(), modelSizeStats);
-        }
-        if (modelDebugOutput != null) {
-            builder.field(ModelDebugOutput.TYPE.getPreferredName(), modelDebugOutput);
-        }
-        if (categoryDefinition != null) {
-            builder.field(CategoryDefinition.TYPE.getPreferredName(), categoryDefinition);
-        }
-        if (flushAcknowledgement != null) {
-            builder.field(FlushAcknowledgement.TYPE.getPreferredName(), flushAcknowledgement);
-        }
+        addNullableField(Bucket.TYPE, bucket, builder);
+        addNullableField(RECORDS, records, builder);
+        addNullableField(INFLUENCERS, influencers, builder);
+        addNullableField(Quantiles.TYPE, quantiles, builder);
+        addNullableField(ModelSnapshot.TYPE, modelSnapshot, builder);
+        addNullableField(ModelSizeStats.TYPE, modelSizeStats, builder);
+        addNullableField(ModelDebugOutput.TYPE, modelDebugOutput, builder);
+        addNullableField(CategoryDefinition.TYPE, categoryDefinition, builder);
+        addNullableField(FlushAcknowledgement.TYPE, flushAcknowledgement, builder);
         builder.endObject();
         return builder;
     }
 
+    private static void addNullableField(ParseField field, ToXContent value, XContentBuilder builder) throws IOException {
+        if (value != null) {
+            builder.field(field.getPreferredName(), value);
+        }
+    }
+
+    private static void addNullableField(ParseField field, List<? extends ToXContent> values, XContentBuilder builder) throws IOException {
+        if (values != null) {
+            builder.field(field.getPreferredName(), values);
+        }
+    }
+
     public Bucket getBucket() {
         return bucket;
+    }
+
+    public List<AnomalyRecord> getRecords() {
+        return records;
+    }
+
+    public List<Influencer> getInfluencers() {
+        return influencers;
     }
 
     public Quantiles getQuantiles() {
@@ -194,7 +214,8 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(bucket, categoryDefinition, flushAcknowledgement, modelDebugOutput, modelSizeStats, modelSnapshot, quantiles);
+        return Objects.hash(bucket, records, influencers, categoryDefinition, flushAcknowledgement, modelDebugOutput, modelSizeStats,
+                modelSnapshot, quantiles);
     }
 
     @Override
@@ -207,6 +228,8 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
         }
         AutodetectResult other = (AutodetectResult) obj;
         return Objects.equals(bucket, other.bucket) &&
+                Objects.equals(records, other.records) &&
+                Objects.equals(influencers, other.influencers) &&
                 Objects.equals(categoryDefinition, other.categoryDefinition) &&
                 Objects.equals(flushAcknowledgement, other.flushAcknowledgement) &&
                 Objects.equals(modelDebugOutput, other.modelDebugOutput) &&

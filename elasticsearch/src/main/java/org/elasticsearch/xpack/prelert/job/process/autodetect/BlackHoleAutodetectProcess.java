@@ -78,7 +78,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     @Override
     public String flushJob(InterimResultsParams params) throws IOException {
         FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID);
-        AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, flushAcknowledgement);
+        AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, flushAcknowledgement);
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.value(result);
         pipedProcessOutStream.write(builder.string().getBytes(StandardCharsets.UTF_8));

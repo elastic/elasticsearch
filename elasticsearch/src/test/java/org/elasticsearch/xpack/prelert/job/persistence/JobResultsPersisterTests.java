@@ -5,27 +5,24 @@
  */
 package org.elasticsearch.xpack.prelert.job.persistence;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.mockito.ArgumentCaptor;
-
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
+import org.mockito.ArgumentCaptor;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+
+import static org.mockito.Mockito.mock;
 
 
 public class JobResultsPersisterTests extends ESTestCase {
@@ -33,28 +30,19 @@ public class JobResultsPersisterTests extends ESTestCase {
     private static final String CLUSTER_NAME = "myCluster";
     private static final String JOB_ID = "foo";
 
-    public void testPersistBucket_NoRecords() {
-        Client client = mock(Client.class);
-        Bucket bucket = mock(Bucket.class);
-        when(bucket.getRecords()).thenReturn(null);
-        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
-        persister.persistBucket(bucket);
-        verifyNoMoreInteractions(client);
-    }
-
     public void testPersistBucket_OneRecord() throws IOException {
         ArgumentCaptor<XContentBuilder> captor = ArgumentCaptor.forClass(XContentBuilder.class);
         BulkResponse response = mock(BulkResponse.class);
         String responseId = "abcXZY54321";
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
                 .prepareIndex("prelertresults-" + JOB_ID, Bucket.TYPE.getPreferredName(), responseId, captor)
-                .prepareIndex("prelertresults-" + JOB_ID, AnomalyRecord.TYPE.getPreferredName(), "", captor)
                 .prepareIndex("prelertresults-" + JOB_ID, BucketInfluencer.TYPE.getPreferredName(), "", captor)
-                .prepareIndex("prelertresults-" + JOB_ID, Influencer.TYPE.getPreferredName(), "", captor)
                 .prepareBulk(response);
 
         Client client = clientBuilder.build();
-        Bucket bucket = getBucket(1);
+        Bucket bucket = new Bucket("foo");
+        bucket.setId("1");
+        bucket.setTimestamp(new Date());
         bucket.setId(responseId);
         bucket.setAnomalyScore(99.9);
         bucket.setBucketSpan(123456);
@@ -72,44 +60,15 @@ public class JobResultsPersisterTests extends ESTestCase {
         bi.setRawAnomalyScore(19.19);
         bucket.addBucketInfluencer(bi);
 
-        Influencer inf = new Influencer("jobname", "infName1", "infValue1");
-        inf.setAnomalyScore(16);
-        inf.setId("infID");
-        inf.setInitialAnomalyScore(55.5);
-        inf.setProbability(0.4);
-        inf.setTimestamp(bucket.getTimestamp());
-        bucket.setInfluencers(Collections.singletonList(inf));
-
-        AnomalyRecord record = bucket.getRecords().get(0);
-        List<Double> actuals = new ArrayList<>();
-        actuals.add(5.0);
-        actuals.add(5.1);
-        record.setActual(actuals);
+        // We are adding a record but it shouldn't be persisted as part of the bucket
+        AnomalyRecord record = new AnomalyRecord(JOB_ID);
         record.setAnomalyScore(99.8);
-        record.setBucketSpan(42);
-        record.setByFieldName("byName");
-        record.setByFieldValue("byValue");
-        record.setCorrelatedByFieldValue("testCorrelations");
-        record.setDetectorIndex(3);
-        record.setFieldName("testFieldName");
-        record.setFunction("testFunction");
-        record.setFunctionDescription("testDescription");
-        record.setInitialNormalizedProbability(23.4);
-        record.setNormalizedProbability(0.005);
-        record.setOverFieldName("overName");
-        record.setOverFieldValue("overValue");
-        record.setPartitionFieldName("partName");
-        record.setPartitionFieldValue("partValue");
-        record.setProbability(0.1);
-        List<Double> typicals = new ArrayList<>();
-        typicals.add(0.44);
-        typicals.add(998765.3);
-        record.setTypical(typicals);
+        bucket.setRecords(Arrays.asList(record));
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.persistBucket(bucket);
         List<XContentBuilder> list = captor.getAllValues();
-        assertEquals(4, list.size());
+        assertEquals(2, list.size());
 
         String s = list.get(0).string();
         assertTrue(s.matches(".*anomalyScore.:99\\.9.*"));
@@ -126,15 +85,50 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*initialAnomalyScore.:18\\.12.*"));
         assertTrue(s.matches(".*anomalyScore.:14\\.15.*"));
         assertTrue(s.matches(".*rawAnomalyScore.:19\\.19.*"));
+    }
 
-        s = list.get(2).string();
-        assertTrue(s.matches(".*probability.:0\\.4.*"));
-        assertTrue(s.matches(".*influencerFieldName.:.infName1.*"));
-        assertTrue(s.matches(".*influencerFieldValue.:.infValue1.*"));
-        assertTrue(s.matches(".*initialAnomalyScore.:55\\.5.*"));
-        assertTrue(s.matches(".*anomalyScore.:16\\.0.*"));
+    public void testPersistRecords() throws IOException {
+        ArgumentCaptor<XContentBuilder> captor = ArgumentCaptor.forClass(XContentBuilder.class);
+        BulkResponse response = mock(BulkResponse.class);
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
+                .prepareIndex("prelertresults-" + JOB_ID, AnomalyRecord.TYPE.getPreferredName(), "", captor)
+                .prepareBulk(response);
+        Client client = clientBuilder.build();
 
-        s = list.get(3).string();
+        List<AnomalyRecord> records = new ArrayList<>();
+        AnomalyRecord r1 = new AnomalyRecord(JOB_ID);
+        records.add(r1);
+        List<Double> actuals = new ArrayList<>();
+        actuals.add(5.0);
+        actuals.add(5.1);
+        r1.setActual(actuals);
+        r1.setAnomalyScore(99.8);
+        r1.setBucketSpan(42);
+        r1.setByFieldName("byName");
+        r1.setByFieldValue("byValue");
+        r1.setCorrelatedByFieldValue("testCorrelations");
+        r1.setDetectorIndex(3);
+        r1.setFieldName("testFieldName");
+        r1.setFunction("testFunction");
+        r1.setFunctionDescription("testDescription");
+        r1.setInitialNormalizedProbability(23.4);
+        r1.setNormalizedProbability(0.005);
+        r1.setOverFieldName("overName");
+        r1.setOverFieldValue("overValue");
+        r1.setPartitionFieldName("partName");
+        r1.setPartitionFieldValue("partValue");
+        r1.setProbability(0.1);
+        List<Double> typicals = new ArrayList<>();
+        typicals.add(0.44);
+        typicals.add(998765.3);
+        r1.setTypical(typicals);
+
+        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+        persister.persistRecords(records);
+        List<XContentBuilder> captured = captor.getAllValues();
+        assertEquals(1, captured.size());
+
+        String s = captured.get(0).string();
         assertTrue(s.matches(".*detectorIndex.:3.*"));
         assertTrue(s.matches(".*\"probability\":0\\.1.*"));
         assertTrue(s.matches(".*\"anomalyScore\":99\\.8.*"));
@@ -155,18 +149,32 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*overFieldValue.:.overValue.*"));
     }
 
-    private Bucket getBucket(int numRecords) {
-        Bucket b = new Bucket(JOB_ID);
-        b.setId("1");
-        b.setTimestamp(new Date());
-        List<AnomalyRecord> records = new ArrayList<>();
-        for (int i = 0; i < numRecords; ++i) {
-            AnomalyRecord r = new AnomalyRecord("foo");
-            records.add(r);
-        }
-        b.setRecords(records);
-        return b;
+    public void testPersistInfluencers() throws IOException {
+        ArgumentCaptor<XContentBuilder> captor = ArgumentCaptor.forClass(XContentBuilder.class);
+        BulkResponse response = mock(BulkResponse.class);
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
+                .prepareIndex("prelertresults-" + JOB_ID, Influencer.TYPE.getPreferredName(), "", captor)
+                .prepareBulk(response);
+        Client client = clientBuilder.build();
+
+        List<Influencer> influencers = new ArrayList<>();
+        Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1");
+        inf.setAnomalyScore(16);
+        inf.setId("infID");
+        inf.setInitialAnomalyScore(55.5);
+        inf.setProbability(0.4);
+        influencers.add(inf);
+
+        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+        persister.persistInfluencers(influencers);
+        List<XContentBuilder> captured = captor.getAllValues();
+        assertEquals(1, captured.size());
+
+        String s = captured.get(0).string();
+        assertTrue(s.matches(".*probability.:0\\.4.*"));
+        assertTrue(s.matches(".*influencerFieldName.:.infName1.*"));
+        assertTrue(s.matches(".*influencerFieldValue.:.infValue1.*"));
+        assertTrue(s.matches(".*initialAnomalyScore.:55\\.5.*"));
+        assertTrue(s.matches(".*anomalyScore.:16\\.0.*"));
     }
-
-
 }

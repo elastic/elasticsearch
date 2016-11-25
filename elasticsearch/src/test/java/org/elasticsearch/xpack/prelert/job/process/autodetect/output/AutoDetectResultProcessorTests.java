@@ -11,14 +11,18 @@ import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormaliser;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
+import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.utils.CloseableIterator;
 import org.mockito.InOrder;
 
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.inOrder;
@@ -100,6 +104,42 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verify(bucket, never()).calcMaxNormalizedProbabilityPerPartition();
         verifyNoMoreInteractions(persister);
         assertFalse(context.deleteInterimRequired);
+    }
+
+    public void testProcessResult_records() {
+        Renormaliser renormaliser = mock(Renormaliser.class);
+        JobResultsPersister persister = mock(JobResultsPersister.class);
+        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormaliser, persister, null);
+
+        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", false);
+        context.deleteInterimRequired = false;
+        AutodetectResult result = mock(AutodetectResult.class);
+        AnomalyRecord record1 = new AnomalyRecord("foo");
+        AnomalyRecord record2 = new AnomalyRecord("foo");
+        List<AnomalyRecord> records = Arrays.asList(record1, record2);
+        when(result.getRecords()).thenReturn(records);
+        processor.processResult(context, result);
+
+        verify(persister, times(1)).persistRecords(records);
+        verifyNoMoreInteractions(persister);
+    }
+
+    public void testProcessResult_influencers() {
+        Renormaliser renormaliser = mock(Renormaliser.class);
+        JobResultsPersister persister = mock(JobResultsPersister.class);
+        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormaliser, persister, null);
+
+        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", false);
+        context.deleteInterimRequired = false;
+        AutodetectResult result = mock(AutodetectResult.class);
+        Influencer influencer1 = new Influencer("foo", "infField", "infValue");
+        Influencer influencer2 = new Influencer("foo", "infField2", "infValue2");
+        List<Influencer> influencers = Arrays.asList(influencer1, influencer2);
+        when(result.getInfluencers()).thenReturn(influencers);
+        processor.processResult(context, result);
+
+        verify(persister, times(1)).persistInfluencers(influencers);
+        verifyNoMoreInteractions(persister);
     }
 
     public void testProcessResult_categoryDefinition() {

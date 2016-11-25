@@ -69,13 +69,9 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist the result bucket
      */
     public void persistBucket(Bucket bucket) {
-        if (bucket.getRecords() == null)  {
-            return;
-        }
-
         String jobId = bucket.getJobId();
         try {
-            XContentBuilder content = serialiseWithJobId(Bucket.TYPE.getPreferredName(), bucket);
+            XContentBuilder content = toXContentBuilder(bucket);
             String indexName = getJobIndexName(jobId);
             logger.trace("[{}] ES API CALL: index type {} to index {} at epoch {}", jobId, Bucket.TYPE, indexName, bucket.getEpoch());
             IndexResponse response = client.prepareIndex(indexName, Bucket.TYPE.getPreferredName())
@@ -84,43 +80,71 @@ public class JobResultsPersister extends AbstractComponent {
             bucket.setId(response.getId());
             persistBucketInfluencersStandalone(jobId, bucket.getId(), bucket.getBucketInfluencers(), bucket.getTimestamp(),
                     bucket.isInterim());
-            if (bucket.getInfluencers() != null && bucket.getInfluencers().isEmpty() == false) {
-                BulkRequestBuilder addInfluencersRequest = client.prepareBulk();
-                for (Influencer influencer : bucket.getInfluencers()) {
-                    influencer.setTimestamp(bucket.getTimestamp());
-                    influencer.setInterim(bucket.isInterim());
-                    content = serialiseWithJobId(Influencer.TYPE.getPreferredName(), influencer);
-                    logger.trace("[{}] ES BULK ACTION: index type {} to index {} with auto-generated ID",
-                            jobId, Influencer.TYPE, indexName);
-                    addInfluencersRequest.add(client.prepareIndex(indexName, Influencer.TYPE.getPreferredName())
-                                    .setSource(content));
-                }
-                logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, addInfluencersRequest.numberOfActions());
-                BulkResponse addInfluencersResponse = addInfluencersRequest.execute().actionGet();
-                if (addInfluencersResponse.hasFailures()) {
-                    logger.error("[{}] Bulk index of Influencers has errors: {}", jobId, addInfluencersResponse.buildFailureMessage());
-                }
-            }
-            if (bucket.getRecords().isEmpty() == false) {
-                BulkRequestBuilder addRecordsRequest = client.prepareBulk();
-                for (AnomalyRecord record : bucket.getRecords()) {
-                    record.setTimestamp(bucket.getTimestamp());
-                    content = serialiseWithJobId(AnomalyRecord.TYPE.getPreferredName(), record);
-                    logger.trace("[{}] ES BULK ACTION: index type {} to index {} with auto-generated ID, for bucket {}",
-                            jobId, AnomalyRecord.TYPE, indexName, bucket.getId());
-                    addRecordsRequest.add(client.prepareIndex(indexName, AnomalyRecord.TYPE.getPreferredName())
-                            .setSource(content));
-                }
-
-                logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, addRecordsRequest.numberOfActions());
-                BulkResponse addRecordsResponse = addRecordsRequest.execute().actionGet();
-                if (addRecordsResponse.hasFailures()) {
-                    logger.error("[{}] Bulk index of AnomalyRecord has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
-                }
-            }
             persistPerPartitionMaxProbabilities(bucket);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] Error writing bucket state", new Object[] {jobId}, e));
+            logger.error(new ParameterizedMessage("[{}] Error persisting bucket", new Object[] {jobId}, e));
+        }
+    }
+
+    /**
+     * Persist a list of anomaly records
+     * @param records the records to persist
+     */
+    public void persistRecords(List<AnomalyRecord> records) {
+        if (records.isEmpty()) {
+            return;
+        }
+        String jobId = records.get(0).getJobId();
+        String indexName = getJobIndexName(jobId);
+        BulkRequestBuilder addRecordsRequest = client.prepareBulk();
+        XContentBuilder content = null;
+        try {
+            for (AnomalyRecord record : records) {
+                content = toXContentBuilder(record);
+
+                logger.trace("[{}] ES BULK ACTION: index type {} to index {} with auto-generated ID", jobId, AnomalyRecord.TYPE, indexName);
+                addRecordsRequest.add(client.prepareIndex(indexName, AnomalyRecord.TYPE.getPreferredName()).setSource(content));
+            }
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}] Error persisting records", new Object[] {jobId}, e));
+            return;
+        }
+
+        logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, addRecordsRequest.numberOfActions());
+        BulkResponse addRecordsResponse = addRecordsRequest.execute().actionGet();
+        if (addRecordsResponse.hasFailures()) {
+            logger.error("[{}] Bulk index of AnomalyRecord has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+        }
+    }
+
+    /**
+     * Persist a list of influencers
+     * @param influencers the influencers to persist
+     */
+    public void persistInfluencers(List<Influencer> influencers) {
+        if (influencers.isEmpty()) {
+            return;
+        }
+        String jobId = influencers.get(0).getJobId();
+        String indexName = getJobIndexName(jobId);
+        BulkRequestBuilder addInfluencersRequest = client.prepareBulk();
+        XContentBuilder content = null;
+        try {
+            for (Influencer influencer : influencers) {
+                content = toXContentBuilder(influencer);
+                logger.trace("[{}] ES BULK ACTION: index type {} to index {} with auto-generated ID",
+                        jobId, Influencer.TYPE, indexName);
+                addInfluencersRequest.add(client.prepareIndex(indexName, Influencer.TYPE.getPreferredName()).setSource(content));
+            }
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}] Error persisting influencers", new Object[] {jobId}, e));
+            return;
+        }
+
+        logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, addInfluencersRequest.numberOfActions());
+        BulkResponse addInfluencersResponse = addInfluencersRequest.execute().actionGet();
+        if (addInfluencersResponse.hasFailures()) {
+            logger.error("[{}] Bulk index of Influencers has errors: {}", jobId, addInfluencersResponse.buildFailureMessage());
         }
     }
 
@@ -141,7 +165,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE::getPreferredName,
-                () -> Quantiles.QUANTILES_ID, () -> serialiseWithJobId(Quantiles.TYPE.getPreferredName(), quantiles));
+                () -> Quantiles.QUANTILES_ID, () -> toXContentBuilder(quantiles));
         if (persistable.persist()) {
             // Refresh the index when persisting quantiles so that previously
             // persisted results will be available for searching.  Do this using the
@@ -157,7 +181,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE::getPreferredName,
-                modelSnapshot::getSnapshotId, () -> serialiseWithJobId(ModelSnapshot.TYPE.getPreferredName(), modelSnapshot));
+                modelSnapshot::getSnapshotId, () -> toXContentBuilder(modelSnapshot));
         persistable.persist();
     }
 
@@ -168,10 +192,10 @@ public class JobResultsPersister extends AbstractComponent {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, ModelSizeStats.TYPE::getPreferredName,
-                () -> jobId, () -> serialiseWithJobId(ModelSizeStats.TYPE.getPreferredName(), modelSizeStats));
+                () -> jobId, () -> toXContentBuilder(modelSizeStats));
         persistable.persist();
         persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, ModelSizeStats.TYPE::getPreferredName,
-                () -> null, () -> serialiseWithJobId(ModelSizeStats.TYPE.getPreferredName(), modelSizeStats));
+                () -> null, () -> toXContentBuilder(modelSizeStats));
         persistable.persist();
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level
@@ -182,7 +206,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistModelDebugOutput(ModelDebugOutput modelDebugOutput) {
         Persistable persistable = new Persistable(modelDebugOutput.getJobId(), modelDebugOutput, ModelDebugOutput.TYPE::getPreferredName,
-                () -> null, () -> serialiseWithJobId(ModelDebugOutput.TYPE.getPreferredName(), modelDebugOutput));
+                () -> null, () -> toXContentBuilder(modelDebugOutput));
         persistable.persist();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
@@ -193,7 +217,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistInfluencer(Influencer influencer) {
         Persistable persistable = new Persistable(influencer.getJobId(), influencer, Influencer.TYPE::getPreferredName,
-                influencer::getId, () -> serialiseWithJobId(Influencer.TYPE.getPreferredName(), influencer));
+                influencer::getId, () -> toXContentBuilder(influencer));
         persistable.persist();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
@@ -251,7 +275,7 @@ public class JobResultsPersister extends AbstractComponent {
     }
 
 
-    XContentBuilder serialiseWithJobId(String objField, ToXContent obj) throws IOException {
+    XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
         XContentBuilder builder = jsonBuilder();
         obj.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder;

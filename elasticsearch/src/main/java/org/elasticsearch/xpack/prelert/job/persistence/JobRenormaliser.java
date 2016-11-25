@@ -48,7 +48,7 @@ public class JobRenormaliser extends AbstractComponent {
             String indexName = JobResultsPersister.getJobIndexName(jobId);
             logger.trace("[{}] ES API CALL: index type {} to index {} with ID {}", jobId, Bucket.TYPE, indexName, bucket.getId());
             client.prepareIndex(indexName, Bucket.TYPE.getPreferredName(), bucket.getId())
-                    .setSource(jobResultsPersister.serialiseWithJobId(Bucket.TYPE.getPreferredName(), bucket)).execute().actionGet();
+                    .setSource(jobResultsPersister.toXContentBuilder(bucket)).execute().actionGet();
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Error updating bucket state", new Object[]{jobId}, e));
             return;
@@ -88,7 +88,7 @@ public class JobRenormaliser extends AbstractComponent {
 
                 bulkRequest.add(
                         client.prepareIndex(indexName, AnomalyRecord.TYPE.getPreferredName(), recordId)
-                                .setSource(jobResultsPersister.serialiseWithJobId(AnomalyRecord.TYPE.getPreferredName(), record)));
+                                .setSource(jobResultsPersister.toXContentBuilder(record)));
 
                 addedAny = true;
             }

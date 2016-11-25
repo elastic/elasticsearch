@@ -14,14 +14,17 @@ import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormaliser;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
+import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.utils.CloseableIterator;
 
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -69,8 +72,10 @@ public class AutoDetectResultProcessor {
             while (iterator.hasNext()) {
                 AutodetectResult result = iterator.next();
                 processResult(context, result);
-                bucketCount++;
-                LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                if (result.getBucket() != null) {
+                    bucketCount++;
+                    LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                }
             }
             LOGGER.info("[{}] {} buckets parsed from autodetect output - about to refresh indexes", jobId, bucketCount);
             LOGGER.info("[{}] Parse results Complete", jobId);
@@ -101,6 +106,14 @@ public class AutoDetectResultProcessor {
                 bucket.calcMaxNormalizedProbabilityPerPartition();
             }
             persister.persistBucket(bucket);
+        }
+        List<AnomalyRecord> records = result.getRecords();
+        if (records != null && !records.isEmpty()) {
+            persister.persistRecords(records);
+        }
+        List<Influencer> influencers = result.getInfluencers();
+        if (influencers != null && !influencers.isEmpty()) {
+            persister.persistInfluencers(influencers);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {

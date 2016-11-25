@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public class AutodetectResultTests extends AbstractSerializingTestCase<AutodetectResult> {
 
@@ -26,6 +28,8 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
     @Override
     protected AutodetectResult createTestInstance() {
         Bucket bucket;
+        List<AnomalyRecord> records = null;
+        List<Influencer> influencers = null;
         Quantiles quantiles;
         ModelSnapshot modelSnapshot;
         ModelSizeStats.Builder modelSizeStats;
@@ -38,6 +42,25 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             bucket.setId(randomAsciiOfLengthBetween(1, 20));
         } else {
             bucket = null;
+        }
+        if (randomBoolean()) {
+            int size = randomInt(10);
+            records = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                AnomalyRecord record = new AnomalyRecord(jobId);
+                record.setProbability(randomDoubleBetween(0.0, 1.0, true));
+                records.add(record);
+            }
+
+        }
+        if (randomBoolean()) {
+            int size = randomInt(10);
+            influencers = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                Influencer influencer = new Influencer(jobId, randomAsciiOfLength(10), randomAsciiOfLength(10));
+                influencer.setProbability(randomDoubleBetween(0.0, 1.0, true));
+                influencers.add(influencer);
+            }
         }
         if (randomBoolean()) {
             quantiles = new Quantiles(jobId, new Date(randomLong()), randomAsciiOfLengthBetween(1, 20));
@@ -73,8 +96,8 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         } else {
             flushAcknowledgement = null;
         }
-        return new AutodetectResult(bucket, quantiles, modelSnapshot, modelSizeStats == null ? null : modelSizeStats.build(),
-                modelDebugOutput, categoryDefinition, flushAcknowledgement);
+        return new AutodetectResult(bucket, records, influencers, quantiles, modelSnapshot,
+                modelSizeStats == null ? null : modelSizeStats.build(), modelDebugOutput, categoryDefinition, flushAcknowledgement);
     }
 
     @Override

@@ -44,7 +44,7 @@ import java.util.Objects;
 public class AllocateUnassignedDecision implements ToXContent, Writeable {
     /** a constant representing a shard decision where no decision was taken */
     public static final AllocateUnassignedDecision NOT_TAKEN =
-        new AllocateUnassignedDecision(null, null, null, null, null, false, 0);
+        new AllocateUnassignedDecision(null, null, null, null, null, false, 0L, 0L);
     /**
      * a map of cached common no/throttle decisions that don't need explanations,
      * this helps prevent unnecessary object allocations for the non-explain API case
@@ -53,15 +53,15 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     static {
         Map<AllocationStatus, AllocateUnassignedDecision> cachedDecisions = new HashMap<>();
         cachedDecisions.put(AllocationStatus.FETCHING_SHARD_DATA,
-            new AllocateUnassignedDecision(Type.NO, AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0));
+            new AllocateUnassignedDecision(Type.NO, AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0L, 0L));
         cachedDecisions.put(AllocationStatus.NO_VALID_SHARD_COPY,
-            new AllocateUnassignedDecision(Type.NO, AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, 0));
+            new AllocateUnassignedDecision(Type.NO, AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, 0L, 0L));
         cachedDecisions.put(AllocationStatus.DECIDERS_NO,
-            new AllocateUnassignedDecision(Type.NO, AllocationStatus.DECIDERS_NO, null, null, null, false, 0));
+            new AllocateUnassignedDecision(Type.NO, AllocationStatus.DECIDERS_NO, null, null, null, false, 0L, 0L));
         cachedDecisions.put(AllocationStatus.DECIDERS_THROTTLED,
-            new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0));
+            new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L));
         cachedDecisions.put(AllocationStatus.DELAYED_ALLOCATION,
-            new AllocateUnassignedDecision(Type.NO, AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, 0));
+            new AllocateUnassignedDecision(Type.NO, AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, 0L, 0L));
         CACHED_DECISIONS = Collections.unmodifiableMap(cachedDecisions);
     }
 
@@ -77,6 +77,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     private final Map<String, NodeAllocationResult> nodeDecisions;
     private final boolean reuseStore;
     private final long remainingDelayInMillis;
+    private final long totalDelayInMillis;
 
     private AllocateUnassignedDecision(Type decision,
                                        AllocationStatus allocationStatus,
@@ -84,7 +85,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
                                        String allocationId,
                                        Map<String, NodeAllocationResult> nodeDecisions,
                                        boolean reuseStore,
-                                       long remainingDelayInMillis) {
+                                       long remainingDelayInMillis,
+                                       long totalDelayInMillis) {
         assert assignedNode != null || decision == null || decision != Type.YES :
             "a yes decision must have a node to assign the shard to";
         assert allocationStatus != null || decision == null || decision == Type.YES :
@@ -98,6 +100,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
         this.reuseStore = reuseStore;
         this.remainingDelayInMillis = remainingDelayInMillis;
+        this.totalDelayInMillis = totalDelayInMillis;
     }
 
     public AllocateUnassignedDecision(StreamInput in) throws IOException {
@@ -114,6 +117,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
 
         reuseStore = in.readBoolean();
         remainingDelayInMillis = in.readVLong();
+        totalDelayInMillis = in.readVLong();
     }
 
     /**
@@ -129,8 +133,9 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
      * decisions that comprised the final NO decision, if in explain mode.  Instances created with this
      * method will return {@link AllocationStatus#DELAYED_ALLOCATION} for {@link #getAllocationStatus()}.
      */
-    public static AllocateUnassignedDecision delayed(long remainingDelay, @Nullable Map<String, NodeAllocationResult> decisions) {
-        return no(AllocationStatus.DELAYED_ALLOCATION, decisions, false, remainingDelay);
+    public static AllocateUnassignedDecision delayed(long remainingDelay, long totalDelay,
+                                                     @Nullable Map<String, NodeAllocationResult> decisions) {
+        return no(AllocationStatus.DELAYED_ALLOCATION, decisions, false, remainingDelay, totalDelay);
     }
 
     /**
@@ -139,13 +144,13 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
      */
     public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Map<String, NodeAllocationResult> decisions,
                                                 boolean reuseStore) {
-        return no(allocationStatus, decisions, reuseStore, 0L);
+        return no(allocationStatus, decisions, reuseStore, 0L, 0L);
     }
 
     private static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Map<String, NodeAllocationResult> decisions,
-                                                 boolean reuseStore, long remainingDelay) {
+                                                 boolean reuseStore, long remainingDelay, long totalDelay) {
         if (decisions != null) {
-            return new AllocateUnassignedDecision(Type.NO, allocationStatus, null, null, decisions, reuseStore, remainingDelay);
+            return new AllocateUnassignedDecision(Type.NO, allocationStatus, null, null, decisions, reuseStore, remainingDelay, totalDelay);
         } else {
             return getCachedDecision(allocationStatus);
         }
@@ -157,7 +162,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
      */
     public static AllocateUnassignedDecision throttle(@Nullable Map<String, NodeAllocationResult> decisions) {
         if (decisions != null) {
-            return new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, decisions, false, 0);
+            return new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, decisions, false, 0L, 0L);
         } else {
             return getCachedDecision(AllocationStatus.DECIDERS_THROTTLED);
         }
@@ -170,7 +175,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
      */
     public static AllocateUnassignedDecision yes(DiscoveryNode assignedNode, @Nullable String allocationId,
                                                  @Nullable Map<String, NodeAllocationResult> decisions, boolean reuseStore) {
-        return new AllocateUnassignedDecision(Type.YES, null, assignedNode, allocationId, decisions, reuseStore, 0);
+        return new AllocateUnassignedDecision(Type.YES, null, assignedNode, allocationId, decisions, reuseStore, 0L, 0L);
     }
 
     /**
@@ -180,7 +185,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
                                                           @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
         final Type decisionType = decision.type();
         AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
-        return new AllocateUnassignedDecision(decisionType, allocationStatus, assignedNode, null, nodeDecisions, false, 0L);
+        return new AllocateUnassignedDecision(decisionType, allocationStatus, assignedNode, null, nodeDecisions, false, 0L, 0L);
     }
 
     private static AllocateUnassignedDecision getCachedDecision(AllocationStatus allocationStatus) {
@@ -267,6 +272,16 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     /**
+     * Gets the total configured delay for allocating the replica shard when a node holding the replica left
+     * the cluster and the deciders are waiting to see if the node returns before allocating the replica
+     * elsewhere.  Only returns a meaningful positive value if {@link #getAllocationStatus()} returns
+     * {@link AllocationStatus#DELAYED_ALLOCATION}.
+     */
+    public long getTotalDelayInMillis() {
+        return totalDelayInMillis;
+    }
+
+    /**
      * Returns the explanation behind the {@link #getDecision()} that is returned for this decision.
      */
     public String getExplanation() {
@@ -321,6 +336,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         }
         if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
             builder.field("remaining_delay_in_millis", remainingDelayInMillis);
+            builder.field("total_delay_in_millis", totalDelayInMillis);
         }
         if (nodeDecisions != null) {
             builder.startObject("node_decisions");
@@ -355,6 +371,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         }
         out.writeBoolean(reuseStore);
         out.writeVLong(remainingDelayInMillis);
+        out.writeVLong(totalDelayInMillis);
     }
 
 }

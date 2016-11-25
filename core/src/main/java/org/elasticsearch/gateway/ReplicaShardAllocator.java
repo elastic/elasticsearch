@@ -53,6 +53,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+
 public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     public ReplicaShardAllocator(Settings settings) {
@@ -220,14 +222,16 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // node with the shard copy will rejoin so we can re-use the copy it has
             logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
             long remainingDelayMillis = 0L;
+            long totalDelayMillis = 0L;
             if (explain) {
                 UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
                 MetaData metadata = allocation.metaData();
                 IndexMetaData indexMetaData = metadata.index(unassignedShard.index());
+                totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetaData.getSettings()).getMillis();
                 long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), indexMetaData.getSettings());
                 remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
             }
-            return AllocateUnassignedDecision.delayed(remainingDelayMillis, matchingNodes.nodeDecisions);
+            return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, matchingNodes.nodeDecisions);
         }
 
         return AllocateUnassignedDecision.NOT_TAKEN;

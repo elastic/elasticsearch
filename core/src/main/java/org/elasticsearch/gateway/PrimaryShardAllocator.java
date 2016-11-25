@@ -280,7 +280,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             // The ids are only empty if dealing with a legacy index
             storeStatus = StoreStatus.UNKNOWN;
         } else if (startedShards.allocationId() != null && inSyncAllocationIds.contains(startedShards.allocationId())) {
-            storeStatus = StoreStatus.AVAILABLE;
+            storeStatus = StoreStatus.CURRENT;
         } else {
             // Otherwise, this is a stale copy of the data (allocation ids don't match)
             storeStatus = StoreStatus.STALE;

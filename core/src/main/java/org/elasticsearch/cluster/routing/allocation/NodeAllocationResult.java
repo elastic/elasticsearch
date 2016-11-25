@@ -270,8 +270,8 @@ public class NodeAllocationResult implements ToXContent, Writeable {
 
     /** An enum representing the state of the shard store's copy of the data on a node */
     public enum StoreStatus {
-        // A copy of the data is available on this node
-        AVAILABLE((byte) 0),
+        // A current and valid copy of the data is available on this node
+        CURRENT((byte) 0),
         // The copy of the data on the node is corrupt
         CORRUPT((byte) 1),
         // There was an error reading this node's copy of the data
@@ -291,7 +291,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
 
         private static StoreStatus fromId(byte id) {
             switch (id) {
-                case 0: return AVAILABLE;
+                case 0: return CURRENT;
                 case 1: return CORRUPT;
                 case 2: return IO_ERROR;
                 case 3: return STALE;
@@ -305,7 +305,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         @Override
         public String toString() {
             switch (id) {
-                case 0: return "AVAILABLE";
+                case 0: return "CURRENT";
                 case 1: return "CORRUPT";
                 case 2: return "IO_ERROR";
                 case 3: return "STALE";

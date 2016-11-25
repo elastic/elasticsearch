@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStore;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreReadability;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -267,17 +268,21 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     private static ShardStore shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
         final Exception storeErr = nodeShardState.storeException();
-        final StoreStatus storeStatus;
+        final StoreReadability storeReadability;
         if (storeErr != null) {
             Throwable unwrapped = ExceptionsHelper.unwrapCause(storeErr);
             if (unwrapped instanceof CorruptIndexException) {
-                storeStatus = StoreStatus.CORRUPT;
+                storeReadability = StoreReadability.CORRUPT;
             } else if (unwrapped instanceof ShardLockObtainFailedException) {
-                storeStatus = StoreStatus.SHARD_LOCK;
+                storeReadability = StoreReadability.SHARD_LOCK;
             } else {
-                storeStatus = StoreStatus.IO_ERROR;
+                storeReadability = StoreReadability.IO_ERROR;
             }
-        } else if (inSyncAllocationIds.isEmpty()) {
+        } else {
+            storeReadability = StoreReadability.READABLE;
+        }
+        final StoreStatus storeStatus;
+        if (inSyncAllocationIds.isEmpty()) {
             // The ids are only empty if dealing with a legacy index
             storeStatus = StoreStatus.UNKNOWN;
         } else if (nodeShardState.allocationId() != null && inSyncAllocationIds.contains(nodeShardState.allocationId())) {
@@ -287,7 +292,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             storeStatus = StoreStatus.STALE;
         }
 
-        return new ShardStore(storeStatus, nodeShardState.allocationId(), nodeShardState.legacyVersion(), storeErr);
+        return new ShardStore(storeStatus, storeReadability, nodeShardState.allocationId(), nodeShardState.legacyVersion(), storeErr);
     }
 
     /**

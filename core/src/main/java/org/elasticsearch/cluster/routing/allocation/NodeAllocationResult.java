@@ -158,6 +158,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     /** A class that captures metadata about a shard store on a node. */
     public static final class ShardStore implements ToXContent, Writeable {
         private final StoreStatus storeStatus;
+        private final StoreReadability storeReadability;
         @Nullable
         private final String allocationId;
         private final long version;
@@ -165,16 +166,19 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         @Nullable
         private final Exception storeException;
 
-        public ShardStore(StoreStatus storeStatus, String allocationId, long version, Exception storeException) {
+        public ShardStore(StoreStatus storeStatus, StoreReadability storeReadability, String allocationId,
+                          long version, Exception storeException) {
             this.storeStatus = storeStatus;
+            this.storeReadability = storeReadability;
             this.allocationId = allocationId;
             this.version = version;
             this.matchingBytes = -1;
             this.storeException = storeException;
         }
 
-        public ShardStore(StoreStatus storeStatus, long matchingBytes) {
+        public ShardStore(StoreStatus storeStatus, StoreReadability storeReadability, long matchingBytes) {
             this.storeStatus = storeStatus;
+            this.storeReadability = storeReadability;
             this.allocationId = null;
             this.version = -1;
             this.matchingBytes = matchingBytes;
@@ -183,6 +187,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
 
         public ShardStore(StreamInput in) throws IOException {
             this.storeStatus = StoreStatus.readFrom(in);
+            this.storeReadability = StoreReadability.readFrom(in);
             this.allocationId = in.readOptionalString();
             this.version = in.readLong();
             this.matchingBytes = in.readLong();
@@ -193,9 +198,18 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             }
         }
 
-        /** Gets the store status for the shard copy. */
+        /**
+         * Gets the store status for the shard copy.
+         */
         public StoreStatus getStoreStatus() {
             return storeStatus;
+        }
+
+        /**
+         * Gets the store readability status for the shard copy.
+         */
+        public StoreReadability getStoreReadability() {
+            return storeReadability;
         }
 
         /**
@@ -224,8 +238,8 @@ public class NodeAllocationResult implements ToXContent, Writeable {
 
         /**
          * Gets the store exception, if one exists.  Otherwise, {@code null} is returned.  A store
-         * exception will only exist if {@link ShardStore#getStoreStatus()} returns
-         * {@link StoreStatus#CORRUPT} or {@link StoreStatus#IO_ERROR}.
+         * exception will only exist if {@link ShardStore#getStoreReadability()} ()} returns
+         * {@link StoreReadability#CORRUPT} or {@link StoreReadability#IO_ERROR}.
          */
         public Exception getStoreException() {
             return storeException;
@@ -234,6 +248,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             storeStatus.writeTo(out);
+            storeReadability.writeTo(out);
             out.writeOptionalString(allocationId);
             out.writeLong(version);
             out.writeLong(matchingBytes);
@@ -250,6 +265,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             builder.startObject("store");
             {
                 builder.field("status", storeStatus.toString());
+                builder.field("readability", storeReadability.toString());
                 if (allocationId != null) {
                     builder.field("allocation_id", allocationId);
                 }
@@ -269,21 +285,15 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     }
 
     /** An enum representing the state of the shard store's copy of the data on a node */
-    public enum StoreStatus {
+    public enum StoreStatus implements Writeable {
         // A current and valid copy of the data is available on this node
         CURRENT((byte) 0),
-        // The copy of the data on the node is corrupt
-        CORRUPT((byte) 1),
-        // There is a shard lock held on the node's copy of the data, preventing reading of the shard copy
-        SHARD_LOCK((byte) 2),
-        // There was an error reading this node's copy of the data
-        IO_ERROR((byte) 3),
         // The copy of the data on the node is stale
-        STALE((byte) 4),
+        STALE((byte) 1),
         // The copy matches sync ids with the primary
-        MATCHING_SYNC_ID((byte) 5),
+        MATCHING_SYNC_ID((byte) 2),
         // It's unknown what the copy of the data is
-        UNKNOWN((byte) 6);
+        UNKNOWN((byte) 3);
 
         private final byte id;
 
@@ -294,12 +304,9 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         private static StoreStatus fromId(byte id) {
             switch (id) {
                 case 0: return CURRENT;
-                case 1: return CORRUPT;
-                case 2: return SHARD_LOCK;
-                case 3: return IO_ERROR;
-                case 4: return STALE;
-                case 5: return MATCHING_SYNC_ID;
-                case 6: return UNKNOWN;
+                case 1: return STALE;
+                case 2: return MATCHING_SYNC_ID;
+                case 3: return UNKNOWN;
                 default:
                     throw new IllegalArgumentException("unknown id for store status: [" + id + "]");
             }
@@ -309,14 +316,11 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         public String toString() {
             switch (id) {
                 case 0: return "CURRENT";
-                case 1: return "CORRUPT";
-                case 2: return "SHARD_LOCK";
-                case 3: return "IO_ERROR";
-                case 4: return "STALE";
-                case 5: return "MATCHING_SYNC_ID";
-                case 6: return "UNKNOWN";
+                case 1: return "STALE";
+                case 2: return "MATCHING_SYNC_ID";
+                case 3: return "UNKNOWN";
                 default:
-                    throw new IllegalArgumentException("unknown id for store copy: [" + id + "]");
+                    throw new IllegalArgumentException("unknown id for store status: [" + id + "]");
             }
         }
 
@@ -324,7 +328,57 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             return fromId(in.readByte());
         }
 
-        void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
+        }
+    }
+
+    public enum StoreReadability implements Writeable {
+        // The copy of the data on the node is corrupt
+        CORRUPT((byte) 0),
+        // There is a shard lock held on the node's copy of the data, preventing reading of the shard copy
+        SHARD_LOCK((byte) 1),
+        // There was an error reading this node's copy of the data
+        IO_ERROR((byte) 2),
+        // The store can be read
+        READABLE((byte) 3);
+
+        private final byte id;
+
+        StoreReadability(byte id) {
+            this.id = id;
+        }
+
+        private static StoreReadability fromId(byte id) {
+            switch (id) {
+                case 0: return CORRUPT;
+                case 1: return SHARD_LOCK;
+                case 2: return IO_ERROR;
+                case 3: return READABLE;
+                default:
+                    throw new IllegalArgumentException("unknown id for StoreReadability: [" + id + "]");
+            }
+        }
+
+        @Override
+        public String toString() {
+            switch (id) {
+                case 0: return "CORRUPT";
+                case 1: return "SHARD_LOCK";
+                case 2: return "IO_ERROR";
+                case 3: return "READABLE";
+                default:
+                    throw new IllegalArgumentException("unknown id for StoreReadability: [" + id + "]");
+            }
+        }
+
+        static StoreReadability readFrom(StreamInput in) throws IOException {
+            return fromId(in.readByte());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
         }
     }

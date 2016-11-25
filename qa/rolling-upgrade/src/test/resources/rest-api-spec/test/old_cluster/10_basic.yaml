@@ -3,6 +3,7 @@
  - do:
      indices.create:
         index: test_index
+        wait_for_active_shards : all
         body:
           settings:
             index:
@@ -35,6 +36,6 @@
 
  - do:
      cluster.health:
-       wait_for_status: green
-       wait_for_nodes: 2
-       timeout: 25s
+        index: ".monitoring-*" # include monitoring-data-* and monitoring-es-*
+        wait_for_active_shards: 4 # 1 primary and 1 replica each for the two monitoring indices
+        timeout: 25s

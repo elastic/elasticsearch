@@ -30,7 +30,7 @@ import org.mockito.stubbing.Answer;
 
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 
-public class ElasticsearchUsagePersisterTests extends ESTestCase {
+public class UsagePersisterTests extends ESTestCase {
     @SuppressWarnings("rawtypes")
     public void testPersistUsageCounts() throws ParseException {
         Client client = mock(Client.class);

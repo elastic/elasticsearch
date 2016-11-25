@@ -20,10 +20,12 @@
 package org.elasticsearch.fieldstats;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -73,83 +75,153 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         testNumberRange("field1", "long", -312321312312422L, -312321312312412L);
     }
 
+    private static String makeType(String type, boolean indexed, boolean docValues, boolean stored) {
+        return new StringBuilder()
+            .append("type=").append(type)
+            .append(",index=").append(indexed)
+            .append(",doc_values=").append(docValues)
+            .append(",store=").append(stored).toString();
+    }
+
     public void testString() {
-        createIndex("test", Settings.EMPTY, "test", "field", "type=text");
+        createIndex("test", Settings.EMPTY, "test",
+            "field_index", makeType("keyword", true, false, false),
+            "field_dv", makeType("keyword", false, true, false),
+            "field_stored", makeType("keyword", false, true, true),
+            "field_source", makeType("keyword", false, false, false));
         for (int value = 0; value <= 10; value++) {
-            client().prepareIndex("test", "test").setSource("field",
-                String.format(Locale.ENGLISH, "%03d", value)).get();
+            String keyword =  String.format(Locale.ENGLISH, "%03d", value);
+            client().prepareIndex("test", "test")
+                .setSource("field_index", keyword,
+                    "field_dv", keyword,
+                    "field_stored", keyword,
+                    "field_source", keyword).get();
         }
         client().admin().indices().prepareRefresh().get();
 
-        FieldStatsResponse result = client().prepareFieldStats().setFields("field").get();
-        assertThat(result.getAllFieldStats().get("field").getMaxDoc(), equalTo(11L));
-        assertThat(result.getAllFieldStats().get("field").getDocCount(), equalTo(11L));
-        assertThat(result.getAllFieldStats().get("field").getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get("field").getMinValue(),
-            equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 0))));
-        assertThat(result.getAllFieldStats().get("field").getMaxValue(),
-            equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 10))));
-        assertThat(result.getAllFieldStats().get("field").getMinValueAsString(),
-            equalTo(String.format(Locale.ENGLISH, "%03d", 0)));
-        assertThat(result.getAllFieldStats().get("field").getMaxValueAsString(),
-            equalTo(String.format(Locale.ENGLISH, "%03d", 10)));
-        assertThat(result.getAllFieldStats().get("field").getDisplayType(),
-            equalTo("string"));
+        FieldStatsResponse result = client().prepareFieldStats()
+            .setFields("field_index", "field_dv", "field_stored", "field_source").get();
+        assertThat(result.getAllFieldStats().size(), equalTo(3));
+        for (String field : new String[] {"field_index", "field_dv", "field_stored"}) {
+            assertThat(result.getAllFieldStats().get(field).getMaxDoc(), equalTo(11L));
+            assertThat(result.getAllFieldStats().get(field).getDisplayType(),
+                equalTo("string"));
+            if ("field_index".equals(field)) {
+                assertThat(result.getAllFieldStats().get(field).getMinValue(),
+                    equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 0))));
+                assertThat(result.getAllFieldStats().get(field).getMaxValue(),
+                    equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 10))));
+                assertThat(result.getAllFieldStats().get(field).getMinValueAsString(),
+                    equalTo(String.format(Locale.ENGLISH, "%03d", 0)));
+                assertThat(result.getAllFieldStats().get(field).getMaxValueAsString(),
+                    equalTo(String.format(Locale.ENGLISH, "%03d", 10)));
+                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(11L));
+                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(100));
+            } else {
+                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(0L));
+                assertNull(result.getAllFieldStats().get(field).getMinValue());
+                assertNull(result.getAllFieldStats().get(field).getMaxValue());
+                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(0));
+            }
+        }
     }
 
     public void testDouble() {
-        String fieldName = "field";
-        createIndex("test", Settings.EMPTY, "test", fieldName, "type=double");
+        createIndex("test", Settings.EMPTY, "test",
+            "field_index", makeType("double", true, false, false),
+            "field_dv", makeType("double", false, true, false),
+            "field_stored", makeType("double", false, true, true),
+            "field_source", makeType("double", false, false, false));
         for (double value = -1; value <= 9; value++) {
-            client().prepareIndex("test", "test").setSource(fieldName, value).get();
+            client().prepareIndex("test", "test")
+                .setSource("field_index", value, "field_dv", value, "field_stored", value, "field_source", value).get();
         }
         client().admin().indices().prepareRefresh().get();
-
-        FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
-        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
-        assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Double.toString(-1)));
-        assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
+        FieldStatsResponse result = client().prepareFieldStats()
+            .setFields("field_index", "field_dv", "field_stored", "field_source").get();
+        for (String field : new String[] {"field_index", "field_dv", "field_stored"}) {
+            assertThat(result.getAllFieldStats().get(field).getMaxDoc(), equalTo(11L));
+            assertThat(result.getAllFieldStats().get(field).getDisplayType(), equalTo("float"));
+            if ("field_index".equals(field)) {
+                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(11L));
+                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(100));
+                assertThat(result.getAllFieldStats().get(field).getMinValue(), equalTo(-1d));
+                assertThat(result.getAllFieldStats().get(field).getMaxValue(), equalTo(9d));
+                assertThat(result.getAllFieldStats().get(field).getMinValueAsString(), equalTo(Double.toString(-1)));
+            } else {
+                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(0L));
+                assertNull(result.getAllFieldStats().get(field).getMinValue());
+                assertNull(result.getAllFieldStats().get(field).getMaxValue());
+                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(0));
+            }
+        }
     }
 
     public void testHalfFloat() {
-        String fieldName = "field";
-        createIndex("test", Settings.EMPTY, "test", fieldName, "type=half_float");
+        createIndex("test", Settings.EMPTY, "test",
+            "field_index", makeType("half_float", true, false, false),
+            "field_dv", makeType("half_float", false, true, false),
+            "field_stored", makeType("half_float", false, true, true),
+            "field_source", makeType("half_float", false, false, false));
         for (float value = -1; value <= 9; value++) {
-            client().prepareIndex("test", "test").setSource(fieldName, value).get();
+            client().prepareIndex("test", "test")
+                .setSource("field_index", value, "field_dv", value, "field_stored", value, "field_source", value).get();
         }
         client().admin().indices().prepareRefresh().get();
 
-        FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
-        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
-        assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
-        assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
+        FieldStatsResponse result = client().prepareFieldStats()
+            .setFields("field_index", "field_dv", "field_stored", "field_source").get();
+        for (String field : new String[] {"field_index", "field_dv", "field_stored"}) {
+            assertThat(result.getAllFieldStats().get(field).getMaxDoc(), equalTo(11L));
+            assertThat(result.getAllFieldStats().get(field).getDisplayType(), equalTo("float"));
+            if (field.equals("field_index")) {
+                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(11L));
+                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(100));
+                assertThat(result.getAllFieldStats().get(field).getMinValue(), equalTo(-1d));
+                assertThat(result.getAllFieldStats().get(field).getMaxValue(), equalTo(9d));
+                assertThat(result.getAllFieldStats().get(field).getMinValueAsString(), equalTo(Float.toString(-1)));
+                assertThat(result.getAllFieldStats().get(field).getMaxValueAsString(), equalTo(Float.toString(9)));
+            } else {
+                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(0L));
+                assertNull(result.getAllFieldStats().get(field).getMinValue());
+                assertNull(result.getAllFieldStats().get(field).getMaxValue());
+                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(0));
+            }
+        }
     }
 
     public void testFloat() {
         String fieldName = "field";
-        createIndex("test", Settings.EMPTY, "test", fieldName, "type=float");
+        createIndex("test", Settings.EMPTY, "test",
+            "field_index", makeType("float", true, false, false),
+            "field_dv", makeType("float", false, true, false),
+            "field_stored", makeType("float", false, true, true),
+            "field_source", makeType("float", false, false, false));
         for (float value = -1; value <= 9; value++) {
-            client().prepareIndex("test", "test").setSource(fieldName, value).get();
+            client().prepareIndex("test", "test")
+                .setSource("field_index", value, "field_dv", value, "field_stored", value, "field_source", value).get();
         }
         client().admin().indices().prepareRefresh().get();
 
-        FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
-        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
-        assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
+        FieldStatsResponse result = client().prepareFieldStats()
+            .setFields("field_index", "field_dv", "field_stored", "field_source").get();
+        for (String field : new String[]{"field_index", "field_dv", "field_stored"}) {
+            assertThat(result.getAllFieldStats().get(field).getMaxDoc(), equalTo(11L));
+            assertThat(result.getAllFieldStats().get(field).getDisplayType(), equalTo("float"));
+            if (field.equals("field_index")) {
+                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(11L));
+                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(100));
+                assertThat(result.getAllFieldStats().get(field).getMinValue(), equalTo(-1d));
+                assertThat(result.getAllFieldStats().get(field).getMaxValue(), equalTo(9d));
+                assertThat(result.getAllFieldStats().get(field).getMinValueAsString(), equalTo(Float.toString(-1)));
+                assertThat(result.getAllFieldStats().get(field).getMaxValueAsString(), equalTo(Float.toString(9)));
+            } else {
+                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(0L));
+                assertNull(result.getAllFieldStats().get(field).getMinValue());
+                assertNull(result.getAllFieldStats().get(field).getMaxValue());
+                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(0));
+            }
+        }
     }
 
     private void testNumberRange(String fieldName, String fieldType, long min, long max) {
@@ -193,6 +265,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         stats.add(new FieldStats.Long(1, 1L, 1L, 1L, true, false, 1L, 1L));
         stats.add(new FieldStats.Long(1, 1L, 1L, 1L, true, false, 1L, 1L));
         stats.add(new FieldStats.Long(1, 1L, 1L, 1L, true, false, 1L, 1L));
+        stats.add(new FieldStats.Long(0, 0, 0, 0, false, false));
 
         FieldStats stat = new FieldStats.Long(1, 1L, 1L, 1L, true, false, 1L, 1L);
         for (FieldStats otherStat : stats) {
@@ -225,7 +298,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(stat.isAggregatable(), equalTo(true));
         assertThat(stat.getDisplayType(), equalTo("integer"));
 
-        stats.add(new FieldStats.Long(1, -1L, -1L, -1L, true, true, 1L, 1L));
+        stats.add(new FieldStats.Long(1, -1L, -1L, -1L, false, true));
         stat = stats.remove(0);
         for (FieldStats otherStat : stats) {
             stat.accumulate(otherStat);
@@ -347,8 +420,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         DateTime dateTime2 = new DateTime(2014, 1, 2, 0, 0, 0, 0, DateTimeZone.UTC);
         String dateTime2Str = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().print(dateTime2);
 
-        createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
-        client().prepareIndex("test1", "test").setSource("value", dateTime1Str).get();
+        createIndex("test1", Settings.EMPTY, "type", "value", "type=date", "value2", "type=date,index=false");
+        client().prepareIndex("test1", "test")
+            .setSource("value", dateTime1Str, "value2", dateTime1Str).get();
         createIndex("test2", Settings.EMPTY, "type", "value", "type=date");
         client().prepareIndex("test2", "test").setSource("value", dateTime2Str).get();
         client().admin().indices().prepareRefresh().get();
@@ -458,6 +532,13 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime2Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
             equalTo("date"));
+
+        response = client().prepareFieldStats()
+            .setFields("value2")
+            .setIndexContraints(new IndexConstraint("value2", MAX, LTE, "2014-01-02T00:00:00.000Z"))
+            .setLevel("indices")
+            .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
     }
 
     public void testDateFiltering_optionalFormat() {
@@ -519,49 +600,84 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testSerialization() throws IOException {
+        Version version = randomBoolean() ? Version.CURRENT : Version.V_5_1_0_UNRELEASED;
         for (int i = 0; i < 20; i++) {
-            assertSerialization(randomFieldStats());
+            assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0_UNRELEASED)),
+                version);
         }
     }
 
     /**
      * creates a random field stats which does not guarantee that {@link FieldStats#maxValue} is greater than {@link FieldStats#minValue}
      **/
-    private FieldStats randomFieldStats() throws UnknownHostException {
+    private FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
         int type = randomInt(5);
         switch (type) {
             case 0:
-                return new FieldStats.Long(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                    randomPositiveLong(), randomBoolean(), randomBoolean(), randomLong(), randomLong());
+                if (withNullMinMax && randomBoolean()) {
+                    return new FieldStats.Long(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                } else {
+                    return new FieldStats.Long(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean(), randomLong(), randomLong());
+                }
             case 1:
-                return new FieldStats.Double(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                    randomPositiveLong(), randomBoolean(), randomBoolean(), randomDouble(), randomDouble());
+                if (withNullMinMax && randomBoolean()) {
+                    return new FieldStats.Double(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                } else {
+                    return new FieldStats.Double(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean(), randomDouble(), randomDouble());
+                }
             case 2:
-                return new FieldStats.Date(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                    randomPositiveLong(), randomBoolean(), randomBoolean(), Joda.forPattern("basicDate"),
-                    new Date().getTime(), new Date().getTime());
+                if (withNullMinMax && randomBoolean()) {
+                    return new FieldStats.Date(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                } else {
+                    return new FieldStats.Date(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean(), Joda.forPattern("basicDate"),
+                        new Date().getTime(), new Date().getTime());
+                }
             case 3:
-                return new FieldStats.Text(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                    randomPositiveLong(), randomBoolean(), randomBoolean(),
-                    new BytesRef(randomAsciiOfLength(10)), new BytesRef(randomAsciiOfLength(20)));
+                if (withNullMinMax && randomBoolean()) {
+                    return new FieldStats.Text(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                } else {
+                    return new FieldStats.Text(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean(),
+                        new BytesRef(randomAsciiOfLength(10)), new BytesRef(randomAsciiOfLength(20)));
+                }
             case 4:
-                return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                    randomPositiveLong(), randomBoolean(), randomBoolean(),
-                    InetAddress.getByName("::1"), InetAddress.getByName("::1"));
+                if (withNullMinMax && randomBoolean()) {
+                    return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                } else {
+                    return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean(),
+                        InetAddress.getByName("::1"), InetAddress.getByName("::1"));
+                }
             case 5:
-                return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                    randomPositiveLong(), randomBoolean(), randomBoolean(),
-                    InetAddress.getByName("1.2.3.4"), InetAddress.getByName("1.2.3.4"));
+                if (withNullMinMax && randomBoolean()) {
+                    return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                } else {
+                    return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                        randomPositiveLong(), randomBoolean(), randomBoolean(),
+                        InetAddress.getByName("1.2.3.4"), InetAddress.getByName("1.2.3.4"));
+                }
             default:
                 throw new IllegalArgumentException("Invalid type");
         }
     }
 
-    private void assertSerialization(FieldStats stats) throws IOException {
+    private void assertSerialization(FieldStats stats, Version version) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(version);
         stats.writeTo(output);
         output.flush();
-        FieldStats deserializedStats = FieldStats.readFrom(output.bytes().streamInput());
+        StreamInput input = output.bytes().streamInput();
+        input.setVersion(version);
+        FieldStats deserializedStats = FieldStats.readFrom(input);
         assertThat(stats, equalTo(deserializedStats));
         assertThat(stats.hashCode(), equalTo(deserializedStats.hashCode()));
     }

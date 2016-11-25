@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
@@ -23,8 +23,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
-public class AuditMessage extends ToXContentToBytes implements Writeable
-{
+public class AuditMessage extends ToXContentToBytes implements Writeable {
     public static final ParseField TYPE = new ParseField("auditMessage");
 
     public static final ParseField MESSAGE = new ParseField("message");
@@ -58,13 +57,11 @@ public class AuditMessage extends ToXContentToBytes implements Writeable
     private Level level;
     private Date timestamp;
 
-    public AuditMessage()
-    {
+    public AuditMessage() {
         // Default constructor
     }
 
-    private AuditMessage(String jobId, String message, Level severity)
-    {
+    private AuditMessage(String jobId, String message, Level severity) {
         this.jobId = jobId;
         this.message = message;
         level = severity;
@@ -98,63 +95,51 @@ public class AuditMessage extends ToXContentToBytes implements Writeable
         }
     }
 
-    public String getJobId()
-    {
+    public String getJobId() {
         return jobId;
     }
 
-    public void setJobId(String jobId)
-    {
+    public void setJobId(String jobId) {
         this.jobId = jobId;
     }
 
-    public String getMessage()
-    {
+    public String getMessage() {
         return message;
     }
 
-    public void setMessage(String message)
-    {
+    public void setMessage(String message) {
         this.message = message;
     }
 
-    public Level getLevel()
-    {
+    public Level getLevel() {
         return level;
     }
 
-    public void setLevel(Level level)
-    {
+    public void setLevel(Level level) {
         this.level = level;
     }
 
-    public Date getTimestamp()
-    {
+    public Date getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(Date timestamp)
-    {
+    public void setTimestamp(Date timestamp) {
         this.timestamp = timestamp;
     }
 
-    public static AuditMessage newInfo(String jobId, String message)
-    {
+    public static AuditMessage newInfo(String jobId, String message) {
         return new AuditMessage(jobId, message, Level.INFO);
     }
 
-    public static AuditMessage newWarning(String jobId, String message)
-    {
+    public static AuditMessage newWarning(String jobId, String message) {
         return new AuditMessage(jobId, message, Level.WARNING);
     }
 
-    public static AuditMessage newActivity(String jobId, String message)
-    {
+    public static AuditMessage newActivity(String jobId, String message) {
         return new AuditMessage(jobId, message, Level.ACTIVITY);
     }
 
-    public static AuditMessage newError(String jobId, String message)
-    {
+    public static AuditMessage newError(String jobId, String message) {
         return new AuditMessage(jobId, message, Level.ERROR);
     }
 
@@ -176,12 +161,12 @@ public class AuditMessage extends ToXContentToBytes implements Writeable
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(jobId, message, level, timestamp);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {

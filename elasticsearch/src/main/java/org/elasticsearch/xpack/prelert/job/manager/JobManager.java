@@ -179,9 +179,7 @@ public class JobManager extends AbstractComponent {
                 jobProvider.createJobRelatedIndices(job, new ActionListener<Boolean>() {
                     @Override
                     public void onResponse(Boolean indicesCreated) {
-                        // NORELEASE: make auditing async too (we can't do
-                        // blocking stuff here):
-                        // audit(jobDetails.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
+                         audit(job.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
 
                         // Also I wonder if we need to audit log infra
                         // structure in prelert as when we merge into xpack
@@ -252,11 +250,7 @@ public class JobManager extends AbstractComponent {
             public void onResponse(Boolean jobDeleted) {
                 if (jobDeleted) {
                     jobProvider.deleteJobRelatedIndices(request.getJobId(), actionListener);
-                    // NORELEASE: This is not the place the audit log
-                    // (indexes a document), because this method is
-                    // executed on the cluster state update task thread and any
-                    // action performed on that thread should be quick.
-                    //audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
+                    audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
                 } else {
                     actionListener.onResponse(new DeleteJobAction.Response(false));
                 }
@@ -423,10 +417,6 @@ public class JobManager extends AbstractComponent {
         return jobProvider.audit(jobId);
     }
 
-    public Auditor systemAudit() {
-        return jobProvider.audit("");
-    }
-
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,
             ModelSnapshot modelSnapshot) {
 
@@ -436,16 +426,9 @@ public class JobManager extends AbstractComponent {
             @Override
             protected RevertModelSnapshotAction.Response newResponse(boolean acknowledged) {
                 if (acknowledged) {
+                    audit(request.getJobId())
+                            .info(Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
                     return new RevertModelSnapshotAction.Response(modelSnapshot);
-
-                    // NORELEASE: This is not the place the audit log
-                    // (indexes a document), because this method is
-                    // executed on the cluster state update task thread
-                    // and any action performed on that thread should be
-                    // quick. (so no indexing documents)
-                    // audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_REVERTED,
-                    // modelSnapshot.getDescription()));
-
                 }
                 throw new IllegalStateException("Could not revert modelSnapshot on job ["
                         + request.getJobId() + "], not acknowledged by master.");

@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
@@ -21,8 +21,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
-public class AuditActivity extends ToXContentToBytes implements Writeable
-{
+public class AuditActivity extends ToXContentToBytes implements Writeable {
     public static final ParseField TYPE = new ParseField("auditActivity");
 
     public static final ParseField TOTAL_JOBS = new ParseField("totalJobs");
@@ -58,8 +57,7 @@ public class AuditActivity extends ToXContentToBytes implements Writeable
     public AuditActivity() {
     }
 
-    private AuditActivity(int totalJobs, int totalDetectors, int runningJobs, int runningDetectors)
-    {
+    private AuditActivity(int totalJobs, int totalDetectors, int runningJobs, int runningDetectors) {
         this.totalJobs = totalJobs;
         this.totalDetectors = totalDetectors;
         this.runningJobs = runningJobs;
@@ -90,58 +88,47 @@ public class AuditActivity extends ToXContentToBytes implements Writeable
         }
     }
 
-    public int getTotalJobs()
-    {
+    public int getTotalJobs() {
         return totalJobs;
     }
 
-    public void setTotalJobs(int totalJobs)
-    {
+    public void setTotalJobs(int totalJobs) {
         this.totalJobs = totalJobs;
     }
 
-    public int getTotalDetectors()
-    {
+    public int getTotalDetectors() {
         return totalDetectors;
     }
 
-    public void setTotalDetectors(int totalDetectors)
-    {
+    public void setTotalDetectors(int totalDetectors) {
         this.totalDetectors = totalDetectors;
     }
 
-    public int getRunningJobs()
-    {
+    public int getRunningJobs() {
         return runningJobs;
     }
 
-    public void setRunningJobs(int runningJobs)
-    {
+    public void setRunningJobs(int runningJobs) {
         this.runningJobs = runningJobs;
     }
 
-    public int getRunningDetectors()
-    {
+    public int getRunningDetectors() {
         return runningDetectors;
     }
 
-    public void setRunningDetectors(int runningDetectors)
-    {
+    public void setRunningDetectors(int runningDetectors) {
         this.runningDetectors = runningDetectors;
     }
 
-    public Date getTimestamp()
-    {
+    public Date getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(Date timestamp)
-    {
+    public void setTimestamp(Date timestamp) {
         this.timestamp = timestamp;
     }
 
-    public static AuditActivity newActivity(int totalJobs, int totalDetectors, int runningJobs, int runningDetectors)
-    {
+    public static AuditActivity newActivity(int totalJobs, int totalDetectors, int runningJobs, int runningDetectors) {
         return new AuditActivity(totalJobs, totalDetectors, runningJobs, runningDetectors);
     }
 
@@ -158,12 +145,12 @@ public class AuditActivity extends ToXContentToBytes implements Writeable
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(totalDetectors, totalJobs, runningDetectors, runningJobs, timestamp);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {

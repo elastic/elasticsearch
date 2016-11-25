@@ -1021,30 +1021,7 @@ public class ElasticsearchJobProvider implements JobProvider {
 
     @Override
     public Auditor audit(String jobId) {
-        // NORELEASE Create proper auditor or remove
-        // return new ElasticsearchAuditor(client, PRELERT_INFO_INDEX, jobId);
-        return new Auditor() {
-            @Override
-            public void info(String message) {
-            }
-
-            @Override
-            public void warning(String message) {
-            }
-
-            @Override
-            public void error(String message) {
-            }
-
-            @Override
-            public void activity(String message) {
-            }
-
-            @Override
-            public void activity(int totalJobs, int totalDetectors, int runningJobs, int runningDetectors) {
-            }
-        };
-
+         return new Auditor(client, JobResultsPersister.getJobIndexName(jobId), jobId);
     }
 
     private String esSortField(String sortField) {

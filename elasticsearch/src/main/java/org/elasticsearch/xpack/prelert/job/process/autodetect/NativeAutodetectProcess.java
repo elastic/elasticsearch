@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.prelert.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.prelert.job.logging.CppLogMessageHandler;
@@ -35,6 +36,7 @@ import java.util.concurrent.TimeoutException;
 class NativeAutodetectProcess implements AutodetectProcess {
     private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcess.class);
 
+    private final String jobId;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream processInStream;
     private final InputStream processOutStream;
@@ -48,6 +50,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
     NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                             InputStream persistStream, int numberOfAnalysisFields, List<Path> filesToDelete,
                             ExecutorService executorService) throws EsRejectedExecutionException {
+        this.jobId = jobId;
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
         this.processInStream = new BufferedOutputStream(processInStream);
         this.processOutStream = processOutStream;
@@ -60,7 +63,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
-                LOGGER.error("Error tailing C++ process logs", e);
+                LOGGER.error(new ParameterizedMessage("[{}] Error tailing C++ process logs", new Object[] { jobId }, e));
             }
         });
     }
@@ -105,11 +108,11 @@ class NativeAutodetectProcess implements AutodetectProcess {
             if (cppLogHandler.seenFatalError()) {
                 throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
             }
-            LOGGER.info("Process exited");
+            LOGGER.info("[{}] Process exited", jobId);
         } catch (ExecutionException | TimeoutException e) {
-            LOGGER.warn("Exception closing the running native process", e);
+            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running native process", new Object[] { jobId }, e));
         } catch (InterruptedException e) {
-            LOGGER.warn("Exception closing the running native process");
+            LOGGER.warn("[{}] Exception closing the running native process", jobId);
             Thread.currentThread().interrupt();
         } finally {
             deleteAssociatedFiles();
@@ -123,9 +126,9 @@ class NativeAutodetectProcess implements AutodetectProcess {
 
         for (Path fileToDelete : filesToDelete) {
             if (Files.deleteIfExists(fileToDelete)) {
-                LOGGER.debug("Deleted file {}", fileToDelete::toString);
+                LOGGER.debug("[{}] Deleted file {}", jobId, fileToDelete.toString());
             } else {
-                LOGGER.warn("Failed to delete file {}", fileToDelete::toString);
+                LOGGER.warn("[{}] Failed to delete file {}", jobId, fileToDelete.toString());
             }
         }
     }

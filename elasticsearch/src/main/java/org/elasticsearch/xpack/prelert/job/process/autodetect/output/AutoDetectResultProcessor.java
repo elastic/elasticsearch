@@ -70,7 +70,7 @@ public class AutoDetectResultProcessor {
                 AutodetectResult result = iterator.next();
                 processResult(context, result);
                 bucketCount++;
-                LOGGER.trace("[{}]Bucket number {} parsed from output", jobId, bucketCount);
+                LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
             }
             LOGGER.info("[{}] {} buckets parsed from autodetect output - about to refresh indexes", jobId, bucketCount);
             LOGGER.info("[{}] Parse results Complete", jobId);

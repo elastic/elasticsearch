@@ -44,13 +44,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -60,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The primary shard allocator allocates unassigned primary shards to nodes that hold
@@ -249,18 +249,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * Builds a map of nodes to the corresponding allocation decisions for those nodes.
      */
     private static Map<String, NodeAllocationResult> buildNodeDecisions(NodesToAllocate nodesToAllocate, Set<String> inSyncAllocationIds) {
-        Map<String, NodeAllocationResult> nodeDecisions = new LinkedHashMap<>();
-        Iterable<DecidedNode> allShards = Iterables.concat(
-            nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards
-        );
-        for (final DecidedNode decidedNode : allShards) {
-            NodeAllocationResult result =
-                new NodeAllocationResult(decidedNode.nodeShardState.getNode(),
-                                            shardStoreInfo(decidedNode.nodeShardState, inSyncAllocationIds),
-                                            decidedNode.decision);
-            nodeDecisions.put(decidedNode.nodeShardState.getNode().getId(), result);
-        }
-        return nodeDecisions;
+        return Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
+                   .flatMap(Collection::stream)
+                   .collect(Collectors.toMap(dnode -> dnode.nodeShardState.getNode().getId(),
+                       dnode -> new NodeAllocationResult(dnode.nodeShardState.getNode(),
+                                                         shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
+                                                         dnode.decision),
+                       (dnode1, dnode2) ->  { throw new IllegalStateException(String.format("Duplicate key %s", dnode1)); },
+                       LinkedHashMap::new));
     }
 
     private static final Comparator<NodeGatewayStartedShards> NO_STORE_EXCEPTION_FIRST_COMPARATOR =
@@ -268,8 +264,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     private static final Comparator<NodeGatewayStartedShards> PRIMARY_FIRST_COMPARATOR =
         Comparator.comparing(NodeGatewayStartedShards::primary).reversed();
 
-    private static ShardStore shardStoreInfo(NodeGatewayStartedShards startedShards, Set<String> inSyncAllocationIds) {
-        final Exception storeErr = startedShards.storeException();
+    private static ShardStore shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
+        final Exception storeErr = nodeShardState.storeException();
         final StoreStatus storeStatus;
         if (storeErr != null) {
             Throwable unwrapped = ExceptionsHelper.unwrapCause(storeErr);
@@ -283,14 +279,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         } else if (inSyncAllocationIds.isEmpty()) {
             // The ids are only empty if dealing with a legacy index
             storeStatus = StoreStatus.UNKNOWN;
-        } else if (startedShards.allocationId() != null && inSyncAllocationIds.contains(startedShards.allocationId())) {
+        } else if (nodeShardState.allocationId() != null && inSyncAllocationIds.contains(nodeShardState.allocationId())) {
             storeStatus = StoreStatus.CURRENT;
         } else {
             // Otherwise, this is a stale copy of the data (allocation ids don't match)
             storeStatus = StoreStatus.STALE;
         }
 
-        return new ShardStore(storeStatus, startedShards.allocationId(), startedShards.legacyVersion(), storeErr);
+        return new ShardStore(storeStatus, nodeShardState.allocationId(), nodeShardState.legacyVersion(), storeErr);
     }
 
     /**

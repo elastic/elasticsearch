@@ -32,7 +32,28 @@ setup:
         index:  prelertresults-farequote
         type:   result
         id:     2
-        body:   { "jobId": "farequote", "result_type": "record", "timestamp": "2016-06-01T00:00:00Z", "result_type": "record" }
+        body:
+          {
+            "jobId": "farequote",
+            "result_type": "record",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "anomalyScore": 60.0,
+            "result_type": "record"
+          }
+
+  - do:
+        index:
+          index:  prelertresults-farequote
+          type:   result
+          id:     3
+          body:
+            {
+              "jobId": "farequote",
+              "result_type": "record",
+              "timestamp": "2016-06-02T00:00:00Z",
+              "anomalyScore": 80.0,
+              "result_type": "record"
+            }
 
   - do:
       indices.refresh:
@@ -43,8 +64,22 @@ setup:
   - do:
       xpack.prelert.get_records:
         job_id: "farequote"
+
+  - match: { count: 2 }
+  - match: { records.0.timestamp: 1464825600000 }
+  - match: { records.0.jobId: farequote}
+  - match: { records.0.result_type: record}
+  - match: { records.1.timestamp: 1464739200000 }
+  - match: { records.1.jobId: farequote}
+  - match: { records.1.result_type: record}
+
+---
+"Test result records api with time range":
+  - do:
+      xpack.prelert.get_records:
+        job_id: "farequote"
         start: "2016-05-01T00:00:00Z"
-        end: "2016-07-01T00:00:00Z"
+        end: "2016-06-01T01:00:00Z"
 
   - match: { count: 1 }
   - match: { records.0.timestamp: 1464739200000 }

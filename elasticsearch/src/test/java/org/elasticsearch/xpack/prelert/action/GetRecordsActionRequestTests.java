@@ -20,8 +20,15 @@ public class GetRecordsActionRequestTests extends AbstractStreamableXContentTest
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
-                randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAsciiOfLengthBetween(1, 20));
+        if (randomBoolean()) {
+            String start = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomPositiveLong());
+            request.setStart(start);
+        }
+        if (randomBoolean()) {
+            String end = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomPositiveLong());
+            request.setEnd(end);
+        }
         if (randomBoolean()) {
             request.setPartitionValue(randomAsciiOfLengthBetween(1, 20));
         }

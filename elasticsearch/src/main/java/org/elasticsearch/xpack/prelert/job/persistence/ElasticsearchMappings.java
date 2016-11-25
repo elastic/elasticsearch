@@ -217,6 +217,7 @@ public class ElasticsearchMappings {
                             .endObject();
 
         addAnomalyRecordFieldsToMapping(builder);
+        addInfluencerFieldsToMapping(builder);
 
         if (termFieldNames != null) {
             ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
@@ -244,7 +245,7 @@ public class ElasticsearchMappings {
      * @return builder
      * @throws IOException On write error
      */
-    private static XContentBuilder  addAnomalyRecordFieldsToMapping(XContentBuilder builder)
+    private static XContentBuilder addAnomalyRecordFieldsToMapping(XContentBuilder builder)
             throws IOException {
         builder.startObject(AnomalyRecord.DETECTOR_INDEX.getPreferredName())
             .field(TYPE, INTEGER).field(INCLUDE_IN_ALL, false)
@@ -346,6 +347,26 @@ public class ElasticsearchMappings {
                     .field(TYPE, KEYWORD)
                 .endObject()
             .endObject()
+        .endObject();
+
+        return builder;
+    }
+
+    private static XContentBuilder addInfluencerFieldsToMapping(XContentBuilder builder) throws IOException {
+        builder.startObject(Influencer.INFLUENCER_FIELD_NAME.getPreferredName())
+            .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+        .endObject()
+        .startObject(Influencer.INFLUENCER_FIELD_VALUE.getPreferredName())
+            .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+        .endObject()
+        .startObject(Influencer.ANOMALY_SCORE.getPreferredName())
+            .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+        .endObject()
+        .startObject(Influencer.INITIAL_ANOMALY_SCORE.getPreferredName())
+            .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+        .endObject()
+        .startObject(Influencer.PROBABILITY.getPreferredName())
+            .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
         .endObject();
 
         return builder;

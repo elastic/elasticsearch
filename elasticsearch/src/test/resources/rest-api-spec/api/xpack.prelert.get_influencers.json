@@ -25,13 +25,11 @@
         },
         "start": {
           "type": "string",
-          "description": "start timestamp for the requested influencers",
-          "required": true
+          "description": "start timestamp for the requested influencers"
         },
         "end": {
           "type": "string",
-          "description": "end timestamp for the requested influencers",
-          "required": true
+          "description": "end timestamp for the requested influencers"
         },
         "anomalyScore": {
           "type": "double",

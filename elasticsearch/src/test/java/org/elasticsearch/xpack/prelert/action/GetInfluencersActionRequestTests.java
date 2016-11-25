@@ -15,13 +15,20 @@ public class GetInfluencersActionRequestTests extends AbstractStreamableXContent
 
     @Override
     protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return GetInfluencersAction.Request.parseRequest(null, null, null, parser, () -> matcher);
+        return GetInfluencersAction.Request.parseRequest(null, parser, () -> matcher);
     }
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
-                randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAsciiOfLengthBetween(1, 20));
+        if (randomBoolean()) {
+            String start = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomPositiveLong());
+            request.setStart(start);
+        }
+        if (randomBoolean()) {
+            String end = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomPositiveLong());
+            request.setEnd(end);
+        }
         if (randomBoolean()) {
             request.setAnomalyScore(randomDouble());
         }

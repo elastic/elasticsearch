@@ -198,7 +198,7 @@ public final class BucketsQueryBuilder {
                     Objects.equals(expand, other.expand) &&
                     Objects.equals(includeInterim, other.includeInterim) &&
                     Objects.equals(epochStart, other.epochStart) &&
-                    Objects.equals(epochStart, other.epochStart) &&
+                    Objects.equals(epochEnd, other.epochEnd) &&
                     Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter) &&
                     Objects.equals(normalizedProbability, other.normalizedProbability) &&
                     Objects.equals(partitionValue, other.partitionValue) &&

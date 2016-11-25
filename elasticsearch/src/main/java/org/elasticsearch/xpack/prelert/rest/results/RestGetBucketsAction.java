@@ -63,7 +63,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
                 request.setTimestamp(timestamp);
                 request.setExpand(restRequest.paramAsBoolean(GetBucketsAction.Request.EXPAND.getPreferredName(), false));
                 request.setIncludeInterim(restRequest.paramAsBoolean(GetBucketsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
-            } else if (start != null && !start.isEmpty() && end != null && !end.isEmpty()) {
+            } else {
                 // Multiple buckets
                 request.setStart(start);
                 request.setEnd(end);
@@ -77,8 +77,6 @@ public class RestGetBucketsAction extends BaseRestHandler {
                 if (restRequest.hasParam(GetBucketsAction.Request.PARTITION_VALUE.getPreferredName())) {
                     request.setPartitionValue(restRequest.param(GetBucketsAction.Request.PARTITION_VALUE.getPreferredName()));
                 }
-            } else {
-                throw new IllegalArgumentException("Either [timestamp] or [start, end] parameters must be set.");
             }
 
             // Common options

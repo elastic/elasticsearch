@@ -158,7 +158,7 @@ public final class InfluencersQueryBuilder {
                     Objects.equals(size, other.size) &&
                     Objects.equals(includeInterim, other.includeInterim) &&
                     Objects.equals(epochStart, other.epochStart) &&
-                    Objects.equals(epochStart, other.epochStart) &&
+                    Objects.equals(epochEnd, other.epochEnd) &&
                     Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter) &&
                     Objects.equals(sortField, other.sortField) &&
                     this.sortDescending == other.sortDescending;

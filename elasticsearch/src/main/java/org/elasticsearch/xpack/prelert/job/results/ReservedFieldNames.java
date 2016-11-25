@@ -80,6 +80,7 @@ public final class ReservedFieldNames {
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
 
             Bucket.ANOMALY_SCORE.getPreferredName(),
+            Bucket.BUCKET_INFLUENCERS.getPreferredName(),
             Bucket.BUCKET_SPAN.getPreferredName(),
             Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(),
             Bucket.IS_INTERIM.getPreferredName(),

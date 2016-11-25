@@ -47,9 +47,11 @@ public class RestGetInfluencersAction extends BaseRestHandler {
         final GetInfluencersAction.Request request;
         if (bodyBytes != null && bodyBytes.length() > 0) {
             XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
-            request = GetInfluencersAction.Request.parseRequest(jobId, start, end, parser, () -> parseFieldMatcher);
+            request = GetInfluencersAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         } else {
-            request = new GetInfluencersAction.Request(jobId, start, end);
+            request = new GetInfluencersAction.Request(jobId);
+            request.setStart(start);
+            request.setEnd(end);
             request.setIncludeInterim(restRequest.paramAsBoolean(GetInfluencersAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
@@ -57,7 +59,7 @@ public class RestGetInfluencersAction extends BaseRestHandler {
                     Double.parseDouble(restRequest.param(GetInfluencersAction.Request.ANOMALY_SCORE.getPreferredName(), "0.0")));
             request.setSort(restRequest.param(GetInfluencersAction.Request.SORT_FIELD.getPreferredName(),
                     Influencer.ANOMALY_SCORE.getPreferredName()));
-            request.setDecending(restRequest.paramAsBoolean(GetInfluencersAction.Request.DESCENDING_SORT.getPreferredName(), false));
+            request.setDecending(restRequest.paramAsBoolean(GetInfluencersAction.Request.DESCENDING_SORT.getPreferredName(), true));
         }
 
         return channel -> transportAction.execute(request, new RestToXContentListener<GetInfluencersAction.Response>(channel));

@@ -21,11 +21,18 @@ setup:
         body:   { "jobId": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z", "bucketSpan":1 }
 
   - do:
+      index:
+        index:  prelertresults-farequote
+        type:   result
+        id:     "farequote_1464739200000_2"
+        body:   { "jobId": "farequote", "result_type": "bucket", "timestamp": "2016-08-01T00:00:00Z", "bucketSpan":1 }
+
+  - do:
       indices.refresh:
         index: prelertresults-farequote
 
 ---
-"Test result buckets api":
+"Test result buckets api with time range":
   - do:
       xpack.prelert.get_buckets:
         job_id: "farequote"
@@ -36,6 +43,20 @@ setup:
   - match: { buckets.0.timestamp: 1464739200000 }
   - match: { buckets.0.jobId: farequote}
   - match: { buckets.0.result_type: bucket}
+
+---
+"Test result buckets api":
+  - do:
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+
+  - match: { count: 2 }
+  - match: { buckets.0.timestamp: 1464739200000 }
+  - match: { buckets.0.jobId: farequote}
+  - match: { buckets.0.result_type: bucket}
+  - match: { buckets.1.timestamp: 1470009600000 }
+  - match: { buckets.1.jobId: farequote}
+  - match: { buckets.1.result_type: bucket}
 
 ---
 "Test result single bucket api":

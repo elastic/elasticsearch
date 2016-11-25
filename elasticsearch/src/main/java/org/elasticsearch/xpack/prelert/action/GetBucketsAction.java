@@ -83,8 +83,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             PARSER.declareString(Request::setPartitionValue, PARTITION_VALUE);
             PARSER.declareBoolean(Request::setExpand, EXPAND);
             PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
-            PARSER.declareString(Request::setStart, START);
-            PARSER.declareString(Request::setEnd, END);
+            PARSER.declareStringOrNull(Request::setStart, START);
+            PARSER.declareStringOrNull(Request::setEnd, END);
             PARSER.declareBoolean(Request::setExpand, EXPAND);
             PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
@@ -161,7 +161,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setStart(String start) {
-            this.start = ExceptionsHelper.requireNonNull(start, START.getPreferredName());
+            this.start = start;
         }
 
         public String getEnd() {
@@ -169,7 +169,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setEnd(String end) {
-            this.end = ExceptionsHelper.requireNonNull(end, END.getPreferredName());
+            this.end = end;
         }
 
         public PageParams getPageParams() {
@@ -198,12 +198,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if ((timestamp == null || timestamp.isEmpty())
-                    && (start == null || start.isEmpty() || end == null || end.isEmpty())) {
-                validationException = addValidationError("Either [timestamp] or [start, end] parameters must be set.", validationException);
-            }
-            return validationException;
+            return null;
         }
 
         @Override
@@ -248,12 +243,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             if (partitionValue != null) {
                 builder.field(PARTITION_VALUE.getPreferredName(), partitionValue);
             }
-            if (start != null) {
-                builder.field(START.getPreferredName(), start);
-            }
-            if (end != null) {
-                builder.field(END.getPreferredName(), end);
-            }
+            builder.field(START.getPreferredName(), start);
+            builder.field(END.getPreferredName(), end);
             if (pageParams != null) {
                 builder.field(PageParams.PAGE.getPreferredName(), pageParams);
             }

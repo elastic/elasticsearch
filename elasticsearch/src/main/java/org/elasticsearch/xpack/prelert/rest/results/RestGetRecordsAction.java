@@ -34,9 +34,9 @@ public class RestGetRecordsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetRecordsAction.Request request = new GetRecordsAction.Request(restRequest.param(Job.ID.getPreferredName()),
-                restRequest.param(GetRecordsAction.Request.START.getPreferredName()),
-                restRequest.param(GetRecordsAction.Request.END.getPreferredName()));
+        GetRecordsAction.Request request = new GetRecordsAction.Request(restRequest.param(Job.ID.getPreferredName()));
+        request.setStart(restRequest.param(GetRecordsAction.Request.START.getPreferredName()));
+        request.setEnd(restRequest.param(GetRecordsAction.Request.END.getPreferredName()));
         request.setIncludeInterim(restRequest.paramAsBoolean(GetRecordsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
         request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                 restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
@@ -44,7 +44,7 @@ public class RestGetRecordsAction extends BaseRestHandler {
                 Double.parseDouble(restRequest.param(GetRecordsAction.Request.ANOMALY_SCORE_FILTER.getPreferredName(), "0.0")));
         request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(),
                 AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName()));
-        request.setDecending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(), false));
+        request.setDecending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(), true));
         request.setMaxNormalizedProbability(
                 Double.parseDouble(restRequest.param(GetRecordsAction.Request.MAX_NORMALIZED_PROBABILITY.getPreferredName(), "0.0")));
         String partitionValue = restRequest.param(GetRecordsAction.Request.PARTITION_VALUE.getPreferredName());

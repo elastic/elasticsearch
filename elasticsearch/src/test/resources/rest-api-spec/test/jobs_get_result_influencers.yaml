@@ -25,9 +25,24 @@ setup:
             "timestamp": "2016-06-01T00:00:00Z",
             "influencerFieldName": "foo",
             "influencerFieldValue": "bar",
+            "anomalyScore": 80.0,
             "result_type" : "influencer"
           }
 
+  - do:
+      index:
+        index:  prelertresults-farequote
+        type:   result
+        id:     2
+        body:
+          {
+            "jobId": "farequote",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "influencerFieldName": "foo",
+            "influencerFieldValue": "zoo",
+            "anomalyScore": 50.0,
+            "result_type" : "influencer"
+          }
   - do:
       indices.refresh:
         index: prelertresults-farequote
@@ -37,9 +52,18 @@ setup:
   - do:
       xpack.prelert.get_influencers:
         job_id: "farequote"
-        start: "2016-05-01T00:00:00Z"
-        end: "2016-07-01T00:00:00Z"
+
+  - match: { count: 2 }
+  - match: { influencers.0.timestamp: 1464739200000 }
+  - match: { influencers.1.timestamp: 1464825600000 }
+
+---
+"Test result influencers api with time range":
+  - do:
+      xpack.prelert.get_influencers:
+        job_id: "farequote"
+        start: "2016-06-01T00:00:00Z"
+        end: "2016-06-01T01:00:00Z"
 
   - match: { count: 1 }
   - match: { influencers.0.timestamp: 1464739200000 }
-

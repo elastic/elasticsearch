@@ -69,7 +69,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 suspendedThreads = ConcurrentHashMap.newKeySet();
 
                 final String currentThreadName = Thread.currentThread().getName();
-                assert currentThreadName.contains("[" + disruptedNode + "]") == false :
+                assert isDisruptedNodeThread(currentThreadName) == false :
                     "current thread match pattern. thread name: " + currentThreadName + ", node: " + disruptedNode;
                 // we spawn a background thread to protect against deadlock which can happen
                 // if there are shared resources between caller thread and and suspended threads
@@ -84,7 +84,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                     @Override
                     protected void doRun() throws Exception {
                         // keep trying to stop threads, until no new threads are discovered.
-                        while (stopNodeThreads(disruptedNode, suspendedThreads)) {
+                        while (stopNodeThreads(suspendedThreads)) {
                             if (Thread.interrupted()) {
                                 return;
                             }
@@ -124,9 +124,9 @@ public class LongGCDisruption extends SingleNodeDisruption {
                             while (Thread.currentThread().isInterrupted() == false) {
                                 ThreadInfo[] threadInfos = threadBean.dumpAllThreads(true, true);
                                 for (ThreadInfo threadInfo : threadInfos) {
-                                    if (threadInfo.getThreadName().contains("[" + disruptedNode + "]") == false &&
+                                    if (isDisruptedNodeThread(threadInfo.getThreadName()) == false &&
                                         threadInfo.getLockOwnerName() != null &&
-                                        threadInfo.getLockOwnerName().contains("[" + disruptedNode + "]")) {
+                                        isDisruptedNodeThread(threadInfo.getLockOwnerName())) {
 
                                         // find ThreadInfo object of the blocking thread (if available)
                                         ThreadInfo blockingThreadInfo = null;
@@ -149,15 +149,19 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 success = true;
             } finally {
                 if (success == false) {
+                    stopBlockDetection();
                     // resume threads if failed
                     resumeThreads(suspendedThreads);
                     suspendedThreads = null;
-                    stopBlockDetection();
                 }
             }
         } else {
             throw new IllegalStateException("can't disrupt twice, call stopDisrupting() first");
         }
+    }
+
+    public boolean isDisruptedNodeThread(String threadName) {
+        return threadName.contains("[" + disruptedNode + "]");
     }
 
     private String stackTrace(StackTraceElement[] stackTraceElements) {
@@ -166,11 +170,11 @@ public class LongGCDisruption extends SingleNodeDisruption {
 
     @Override
     public synchronized void stopDisrupting() {
+        stopBlockDetection();
         if (suspendedThreads != null) {
             resumeThreads(suspendedThreads);
             suspendedThreads = null;
         }
-        stopBlockDetection();
     }
 
     private void stopBlockDetection() {
@@ -205,7 +209,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
      */
     @SuppressWarnings("deprecation") // stops/resumes threads intentionally
     @SuppressForbidden(reason = "stops/resumes threads intentionally")
-    protected boolean stopNodeThreads(String node, Set<Thread> nodeThreads) {
+    protected boolean stopNodeThreads(Set<Thread> nodeThreads) {
         Thread[] allThreads = null;
         while (allThreads == null) {
             allThreads = new Thread[Thread.activeCount()];
@@ -215,16 +219,15 @@ public class LongGCDisruption extends SingleNodeDisruption {
             }
         }
         boolean liveThreadsFound = false;
-        final String nodeThreadNamePart = "[" + node + "]";
         for (Thread thread : allThreads) {
             if (thread == null) {
                 continue;
             }
-            String name = thread.getName();
-            if (name.contains(nodeThreadNamePart)) {
+            String threadName = thread.getName();
+            if (isDisruptedNodeThread(threadName)) {
                 if (thread.isAlive() && nodeThreads.add(thread)) {
                     liveThreadsFound = true;
-                    logger.trace("stopping thread [{}]", name);
+                    logger.trace("stopping thread [{}]", threadName);
                     thread.suspend();
                     // double check the thread is not in a shared resource like logging. If so, let it go and come back..
                     boolean safe = true;
@@ -239,7 +242,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                         }
                     }
                     if (!safe) {
-                        logger.trace("resuming thread [{}] as it is in a critical section", name);
+                        logger.trace("resuming thread [{}] as it is in a critical section", threadName);
                         thread.resume();
                         nodeThreads.remove(thread);
                     }

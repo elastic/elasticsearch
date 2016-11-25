@@ -168,7 +168,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     threadPool.executor(executor).execute(new ActionRunnable(delegate) {
                         @Override
                         protected void doRun() throws Exception {
-                            masterOperation(task, request, clusterService.state(), delegate);
+                            masterOperation(task, request, clusterState, delegate);
                         }
                     });
                 }

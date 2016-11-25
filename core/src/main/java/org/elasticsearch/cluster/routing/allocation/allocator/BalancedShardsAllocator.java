@@ -382,7 +382,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 boolean rebalanceConditionsMet = false;
                 boolean deltaAboveThreshold = false;
                 boolean betterWeightWithShardAdded = false;
-                float proposedDelta = Float.POSITIVE_INFINITY;
                 if (betterWeightThanCurrent) {
                     // get the delta between the weights of the node we are checking and the node that holds the shard
                     float currentDelta = absDelta(nodeWeight, currentWeight);
@@ -395,7 +394,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     float weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
-                    proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
+                    float proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
                     betterWeightWithShardAdded = proposedDelta < currentDelta;
                     rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta
@@ -943,7 +942,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 // decision was not set and a node was not assigned, so treat it as a NO decision
                 decision = Decision.NO;
             }
-            if (nodeExplanationMap != null) {
+            if (explain) {
                 // fill in the correct weight ranking, once we've been through all nodes
                 nodeWeights.sort((nodeWeight1, nodeWeight2) -> Float.compare(nodeWeight1.v2(), nodeWeight2.v2()));
                 int weightRanking = 0;

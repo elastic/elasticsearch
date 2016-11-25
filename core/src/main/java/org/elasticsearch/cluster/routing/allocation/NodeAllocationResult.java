@@ -274,14 +274,16 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         CURRENT((byte) 0),
         // The copy of the data on the node is corrupt
         CORRUPT((byte) 1),
+        // There is a shard lock held on the node's copy of the data, preventing reading of the shard copy
+        SHARD_LOCK((byte) 2),
         // There was an error reading this node's copy of the data
-        IO_ERROR((byte) 2),
+        IO_ERROR((byte) 3),
         // The copy of the data on the node is stale
-        STALE((byte) 3),
+        STALE((byte) 4),
         // The copy matches sync ids with the primary
-        MATCHING_SYNC_ID((byte) 4),
+        MATCHING_SYNC_ID((byte) 5),
         // It's unknown what the copy of the data is
-        UNKNOWN((byte) 5);
+        UNKNOWN((byte) 6);
 
         private final byte id;
 
@@ -293,10 +295,11 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             switch (id) {
                 case 0: return CURRENT;
                 case 1: return CORRUPT;
-                case 2: return IO_ERROR;
-                case 3: return STALE;
-                case 4: return MATCHING_SYNC_ID;
-                case 5: return UNKNOWN;
+                case 2: return SHARD_LOCK;
+                case 3: return IO_ERROR;
+                case 4: return STALE;
+                case 5: return MATCHING_SYNC_ID;
+                case 6: return UNKNOWN;
                 default:
                     throw new IllegalArgumentException("unknown id for store status: [" + id + "]");
             }
@@ -307,10 +310,11 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             switch (id) {
                 case 0: return "CURRENT";
                 case 1: return "CORRUPT";
-                case 2: return "IO_ERROR";
-                case 3: return "STALE";
-                case 4: return "MATCHING_SYNC_ID";
-                case 5: return "UNKNOWN";
+                case 2: return "SHARD_LOCK";
+                case 3: return "IO_ERROR";
+                case 4: return "STALE";
+                case 5: return "MATCHING_SYNC_ID";
+                case 6: return "UNKNOWN";
                 default:
                     throw new IllegalArgumentException("unknown id for store copy: [" + id + "]");
             }

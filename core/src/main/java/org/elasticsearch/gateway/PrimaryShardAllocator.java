@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardStateMetaData;
@@ -271,8 +272,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final Exception storeErr = startedShards.storeException();
         final StoreStatus storeStatus;
         if (storeErr != null) {
-            if (ExceptionsHelper.unwrapCause(storeErr) instanceof CorruptIndexException) {
+            Throwable unwrapped = ExceptionsHelper.unwrapCause(storeErr);
+            if (unwrapped instanceof CorruptIndexException) {
                 storeStatus = StoreStatus.CORRUPT;
+            } else if (unwrapped instanceof ShardLockObtainFailedException) {
+                storeStatus = StoreStatus.SHARD_LOCK;
             } else {
                 storeStatus = StoreStatus.IO_ERROR;
             }

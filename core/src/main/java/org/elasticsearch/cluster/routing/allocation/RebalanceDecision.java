@@ -123,21 +123,19 @@ public final class RebalanceDecision extends RelocationDecision {
     public String getExplanation() {
         String explanation;
         if (fetchPending) {
-            explanation = "cannot rebalance because information about existing shard data is still being retrieved from " +
-                              "some of the nodes, otherwise allocation may prematurely rebalance a shard to a node that will be soon" +
-                              "be imbalanced once shard data retrieval is completed";
+            explanation = "cannot rebalance as information about existing copies of this shard in the cluster is still being gathered";
         } else if (canRebalanceDecision.type() != Type.YES) {
-            explanation = "cannot rebalance because rebalancing is not allowed";
+            explanation = "rebalancing is not allowed";
         } else {
             if (getAssignedNode() != null) {
                 if (getFinalDecisionType() == Type.THROTTLE) {
-                    explanation = "throttled on rebalancing shard to another node";
+                    explanation = "shard rebalancing throttled";
                 } else {
                     explanation = "can rebalance shard";
                 }
             } else {
-                explanation = "cannot rebalance because no other node exists where moving the shard " +
-                                  "to it would form a more balanced cluster";
+                explanation = "cannot rebalance as no target node node exists that can both allocate this shard " +
+                              "and improve the cluster balance";
             }
         }
         return explanation;

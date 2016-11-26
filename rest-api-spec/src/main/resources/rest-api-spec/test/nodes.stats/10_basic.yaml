@@ -38,6 +38,7 @@
 ---
 "Node stats warns on percolate":
   - skip:
+      features: "warnings"
       version: " - 5.0.99"
       reason:  The warning was introduced in 5.1
   - do:

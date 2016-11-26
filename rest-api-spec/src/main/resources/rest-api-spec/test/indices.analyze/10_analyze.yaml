@@ -40,6 +40,7 @@ setup:
 ---
 "Index and field":
     - skip:
+        features: "warnings"
         version: " - 5.0.99"
         reason:  text was deprecated in 5.1.0
     - do:

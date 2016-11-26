@@ -14,9 +14,9 @@
 ---
 "Search shards with type":
   - skip:
-    features: "warnings"
-    version: " - 5.0.99"
-    reason: type was deprecated in 5.1.0
+      features: "warnings"
+      version: " - 5.0.99"
+      reason: type was deprecated in 5.1.0
 
   - do:
       indices.create:

@@ -388,7 +388,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             null,
             null,
-            null,
             shardId -> {});
     }
 
@@ -396,11 +395,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         private Set<Index> deletedIndices = Collections.emptySet();
 
         @Override
-        public synchronized void deleteIndex(Index index, String reason) {
-            super.deleteIndex(index, reason);
-            Set<Index> newSet = Sets.newHashSet(deletedIndices);
-            newSet.add(index);
-            deletedIndices = Collections.unmodifiableSet(newSet);
+        public synchronized void removeIndex(Index index, IndexRemovalReason reason, String extraInfo) {
+            super.removeIndex(index, reason, extraInfo);
+            if (reason == IndexRemovalReason.DELETED) {
+                Set<Index> newSet = Sets.newHashSet(deletedIndices);
+                newSet.add(index);
+                deletedIndices = Collections.unmodifiableSet(newSet);
+            }
         }
 
         public synchronized boolean isDeleted(Index index) {

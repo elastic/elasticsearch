@@ -68,7 +68,6 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -86,6 +85,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
@@ -102,7 +105,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     final ConcurrentMap<ShardId, ShardRouting> failedShardsCache = ConcurrentCollections.newConcurrentMap();
-    private final RestoreService restoreService;
     private final RepositoriesService repositoriesService;
 
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
@@ -115,13 +117,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                       ThreadPool threadPool, PeerRecoveryTargetService recoveryTargetService,
                                       ShardStateAction shardStateAction,
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
-                                      RepositoriesService repositoriesService, RestoreService restoreService,
+                                      RepositoriesService repositoriesService,
                                       SearchService searchService, SyncedFlushService syncedFlushService,
                                       PeerRecoverySourceService peerRecoverySourceService, SnapshotShardsService snapshotShardsService,
                                       GlobalCheckpointSyncAction globalCheckpointSyncAction) {
-        this(settings, (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
+        this(settings, indicesService,
             clusterService, threadPool, recoveryTargetService, shardStateAction,
-            nodeMappingRefreshAction, repositoriesService, restoreService, searchService, syncedFlushService, peerRecoverySourceService,
+            nodeMappingRefreshAction, repositoriesService, searchService, syncedFlushService, peerRecoverySourceService,
             snapshotShardsService, globalCheckpointSyncAction::updateCheckpointForShard);
     }
 
@@ -132,7 +134,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                ThreadPool threadPool, PeerRecoveryTargetService recoveryTargetService,
                                ShardStateAction shardStateAction,
                                NodeMappingRefreshAction nodeMappingRefreshAction,
-                               RepositoriesService repositoriesService, RestoreService restoreService,
+                               RepositoriesService repositoriesService,
                                SearchService searchService, SyncedFlushService syncedFlushService,
                                PeerRecoverySourceService peerRecoverySourceService, SnapshotShardsService snapshotShardsService,
                                Consumer<ShardId> globalCheckpointSyncer) {
@@ -145,7 +147,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.recoveryTargetService = recoveryTargetService;
         this.shardStateAction = shardStateAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
-        this.restoreService = restoreService;
         this.repositoriesService = repositoriesService;
         this.sendRefreshMapping = this.settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
         this.globalCheckpointSyncer = globalCheckpointSyncer;
@@ -183,7 +184,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-                indicesService.removeIndex(indexService.index(), "cleaning index (disabled block persistence)"); // also cleans shards
+                indicesService.removeIndex(indexService.index(), NO_LONGER_ASSIGNED,
+                    "cleaning index (disabled block persistence)"); // also cleans shards
             }
             return;
         }
@@ -256,7 +258,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexSettings indexSettings;
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
-                indicesService.deleteIndex(index, "index no longer part of the metadata");
+                indicesService.removeIndex(index, DELETED, "index no longer part of the metadata");
             } else if (previousState.metaData().hasIndex(index.getName())) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
                 final IndexMetaData metaData = previousState.metaData().index(index);
@@ -334,7 +336,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     "index " + index + " does not exist in the cluster state, it should either " +
                         "have been deleted or the cluster must be new";
                 logger.debug("{} removing index, no shards allocated", index);
-                indicesService.removeIndex(index, "removing index (no shards allocated)");
+                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "removing index (no shards allocated)");
             }
         }
     }
@@ -451,7 +453,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     failShardReason = "failed to create index";
                 } else {
                     failShardReason = "failed to update mapping for index";
-                    indicesService.removeIndex(index, "removing index (mapping update failed)");
+                    indicesService.removeIndex(index, FAILURE, "removing index (mapping update failed)");
                 }
                 for (ShardRouting shardRouting : entry.getValue()) {
                     sendFailShard(shardRouting, failShardReason, e);
@@ -480,7 +482,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         );
                     }
                 } catch (Exception e) {
-                    indicesService.removeIndex(indexService.index(), "removing index (mapping update failed)");
+                    indicesService.removeIndex(indexService.index(), FAILURE, "removing index (mapping update failed)");
 
                     // fail shards that would be created or updated by createOrUpdateShards
                     RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
@@ -783,20 +785,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         IndexMetaData verifyIndexIsDeleted(Index index, ClusterState clusterState);
 
-        /**
-         * Deletes the given index. Persistent parts of the index
-         * like the shards files, state and transaction logs are removed once all resources are released.
-         *
-         * Equivalent to {@link #removeIndex(Index, String)} but fires
-         * different lifecycle events to ensure pending resources of this index are immediately removed.
-         * @param index the index to delete
-         * @param reason the high level reason causing this delete
-         */
-        void deleteIndex(Index index, String reason);
 
         /**
          * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
-         * but does not deal with in-memory structures. For those call {@link #deleteIndex(Index, String)}
+         * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
          */
         void deleteUnassignedIndex(String reason, IndexMetaData metaData, ClusterState clusterState);
 
@@ -804,9 +796,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index
          * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
          * @param index the index to remove
-         * @param reason  the high level reason causing this removal
+         * @param reason the reason to remove the index
+         * @param extraInfo extra information that will be used for logging and reporting
          */
-        void removeIndex(Index index, String reason);
+        void removeIndex(Index index, IndexRemovalReason reason, String extraInfo);
 
         /**
          * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
@@ -833,5 +826,32 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue)
             throws IOException, InterruptedException, ShardLockObtainFailedException;
+
+        enum IndexRemovalReason {
+            /**
+             * Shard of this index were previously assigned to this node but all shards have been relocated.
+             * The index should be removed and all associated resources released. Persistent parts of the index
+             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
+             */
+            NO_LONGER_ASSIGNED,
+            /**
+             * The index is deleted. Persistent parts of the index  like the shards files, state and transaction logs are removed once
+             * all resources are released.
+             */
+            DELETED,
+
+            /**
+             * The index have been closed. The index should be removed and all associated resources released. Persistent parts of the index
+             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
+             */
+            CLOSED,
+
+            /**
+             * Something around index management has failed and the index should be removed.
+             * Persistent parts of the index like the shards files, state and transaction logs are kept around in the
+             * case of a disaster recovery.
+             */
+            FAILURE
+        }
     }
 }

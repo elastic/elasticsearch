@@ -391,7 +391,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                         logger.trace("connecting to listed node (light) [{}]", listedNode);
                         transportService.connectToNodeLight(listedNode);
                     } catch (Exception e) {
-                        logger.debug(
+                        logger.info(
                             (Supplier<?>)
                                 () -> new ParameterizedMessage("failed to connect to node [{}], removed from nodes list", listedNode), e);
                         hostFailureListener.onNodeDisconnected(listedNode, e);

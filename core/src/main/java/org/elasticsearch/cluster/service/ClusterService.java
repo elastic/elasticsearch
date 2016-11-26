@@ -274,7 +274,13 @@ public class ClusterService extends AbstractLifecycleComponent {
      * The local node.
      */
     public DiscoveryNode localNode() {
-        DiscoveryNode localNode = state().getNodes().getLocalNode();
+        // direct access to local node, to avoid assertions in state(). This is needed
+        // to create parentTasks when sending requests from the cluster update thread, see
+        // TransportRequest.setParentTask(java.lang.String, long)
+        // nocommit: if node ids are used for parent tasks and the TaskId class, should we
+        // make it part of the id of Task in general? feels weird that Task#id() return type
+        // is different than TaskId. Maybe TaskId is just poorly named?
+        DiscoveryNode localNode = state.get().getClusterState().getNodes().getLocalNode();
         if (localNode == null) {
             throw new IllegalStateException("No local node found. Is the node started?");
         }

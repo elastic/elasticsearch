@@ -471,7 +471,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
                 similarityService(), scriptService, queryRegistry,
                 client, indexReader,
-                clusterService.state(),
             nowInMillis);
     }
 

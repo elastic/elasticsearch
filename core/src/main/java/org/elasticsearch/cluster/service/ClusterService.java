@@ -274,13 +274,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * The local node.
      */
     public DiscoveryNode localNode() {
-        // direct access to local node, to avoid assertions in state(). This is needed
-        // to create parentTasks when sending requests from the cluster update thread, see
-        // TransportRequest.setParentTask(java.lang.String, long)
-        // nocommit: if node ids are used for parent tasks and the TaskId class, should we
-        // make it part of the id of Task in general? feels weird that Task#id() return type
-        // is different than TaskId. Maybe TaskId is just poorly named?
-        DiscoveryNode localNode = state.get().getClusterState().getNodes().getLocalNode();
+        DiscoveryNode localNode = state().getNodes().getLocalNode();
         if (localNode == null) {
             throw new IllegalStateException("No local node found. Is the node started?");
         }
@@ -295,7 +289,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * The current cluster state.
      */
     public ClusterState state() {
-        assert assertNotClusterStateUpdateThread("you are sampling the cluster state from the cluster service");
+        assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
         return clusterServiceState().getClusterState();
     }
 
@@ -579,6 +573,19 @@ public class ClusterService extends AbstractLifecycleComponent {
         return true;
     }
 
+    /** asserts that the current stack trace does <b>NOT</b> invlove a cluster state applier */
+    private static boolean assertNotCalledFromClusterStateApplier(String reason) {
+        if (Thread.currentThread().getName().contains(UPDATE_THREAD_NAME)) {
+            for (StackTraceElement element: Thread.currentThread().getStackTrace()) {
+                if (element.getClassName().equals(ClusterService.class.getName())
+                    && element.getMethodName().equals("callClusterStateAppliers")) {
+                   throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
+                }
+            }
+        }
+        return true;
+    }
+
     public ClusterName getClusterName() {
         return clusterName;
     }
@@ -786,14 +793,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         } catch (Exception ex) {
             logger.warn("failed to apply cluster settings", ex);
         }
-        for (ClusterStateListener listener : preAppliedListeners) {
-            try {
-                logger.trace("calling [{}] with change to version [{}]", listener, newClusterState.version());
-                listener.clusterChanged(clusterChangedEvent);
-            } catch (Exception ex) {
-                logger.warn("failed to notify ClusterStateListener", ex);
-            }
-        }
+
+        callClusterStateAppliers(newClusterState, clusterChangedEvent);
 
         nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().removedNodes());
 
@@ -830,6 +831,17 @@ public class ClusterService extends AbstractLifecycleComponent {
                     "exception thrown while notifying executor of new cluster state publication [{}]",
                     taskInputs.summary),
                 e);
+        }
+    }
+
+    private void callClusterStateAppliers(ClusterState newClusterState, ClusterChangedEvent clusterChangedEvent) {
+        for (ClusterStateListener listener : preAppliedListeners) {
+            try {
+                logger.trace("calling [{}] with change to version [{}]", listener, newClusterState.version());
+                listener.clusterChanged(clusterChangedEvent);
+            } catch (Exception ex) {
+                logger.warn("failed to notify ClusterStateListener", ex);
+            }
         }
     }
 

@@ -1190,6 +1190,41 @@ public class ClusterServiceTests extends ESTestCase {
         timedClusterService.close();
     }
 
+    public void testClusterStateApplierCantSampleClusterState() throws InterruptedException {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        clusterService.add(event -> {
+            try {
+                clusterService.state();
+                error.set(new AssertionError("successfully sampled state"));
+            } catch (AssertionError e) {
+                if (e.getMessage().contains("should not be called by a cluster state applier") == false) {
+                    error.set(e);
+                }
+            }
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return ClusterState.builder(currentState).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                error.compareAndSet(null, e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+        });
+
+        latch.await();
+        assertNull(error.get());
+    }
+
     private static class SimpleTask {
         private final int id;
 

@@ -181,7 +181,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
         }
 
-        danglingIndicesState.processDanglingIndices(newMetaData);
         if (success) {
             previousMetaData = newMetaData;
             previouslyWrittenIndices = unmodifiableSet(relevantIndices);

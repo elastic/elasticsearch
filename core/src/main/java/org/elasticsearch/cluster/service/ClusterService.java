@@ -321,6 +321,14 @@ public class ClusterService extends AbstractLifecycleComponent {
         clusterStateListeners.add(listener);
     }
 
+
+    /**
+     * Add a listener for updated cluster states
+     */
+    public void addPostApplied(ClusterStateListener listener) {
+        postAppliedListeners.add(listener);
+    }
+
     /**
      * Removes a listener for updated cluster states.
      */

@@ -92,7 +92,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     private void sendShardAction(final String actionName, final ClusterStateObserver observer, final ShardEntry shardEntry, final Listener listener) {
-        DiscoveryNode masterNode = observer.observedState().getClusterState().nodes().getMasterNode();
+        DiscoveryNode masterNode = observer.observedState().nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("{} no master known for action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry);
             waitForNewMasterAndRetry(actionName, observer, shardEntry, listener);
@@ -180,7 +180,7 @@ public class ShardStateAction extends AbstractComponent {
                 // we wait indefinitely for a new master
                 assert false;
             }
-        }, MasterNodeChangePredicate.INSTANCE);
+        }, MasterNodeChangePredicate.build(observer.observedState()));
     }
 
     private static class ShardFailedTransportHandler implements TransportRequestHandler<ShardEntry> {

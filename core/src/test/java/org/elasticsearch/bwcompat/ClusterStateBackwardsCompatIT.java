@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.service.ClusterStateStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.transport.MockTransportClient;
@@ -38,7 +37,6 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
-import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
     public void testClusterState() throws Exception {

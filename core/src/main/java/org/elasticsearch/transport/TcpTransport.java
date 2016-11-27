@@ -314,7 +314,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     public final class NodeChannels implements Closeable {
-        private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping = new EnumMap<>(TransportRequestOptions.Type.class);
+        private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping
+            = new EnumMap<>(TransportRequestOptions.Type.class);
         private final Channel[] channels;
         private final AtomicBoolean establishedAllConnections = new AtomicBoolean(false);
 

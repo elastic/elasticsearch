@@ -100,13 +100,13 @@ public final class ConnectionProfile {
      * Returns the type handles for this connection profile
      */
     List<ConnectionTypeHandle> getHandles() {
-        return handles;
+        return Collections.unmodifiableList(handles);
     }
 
     /**
      * Connection type handle encapsulates the logic which connection
      */
-    final static class ConnectionTypeHandle {
+    static final class ConnectionTypeHandle {
         public final int length;
         public final int offset;
         private final TransportRequestOptions.Type[] types;

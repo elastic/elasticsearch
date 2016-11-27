@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Netty4Utils {
 
@@ -122,7 +123,13 @@ public class Netty4Utils {
         }
     }
 
-    public static void maybeDie(final Throwable cause) throws IOException {
+    /**
+     * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
+     * caught and bubbles up to the uncaught exception handler.
+     *
+     * @param cause the throwable to test
+     */
+    public static void maybeDie(final Throwable cause) {
         if (cause instanceof Error) {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
@@ -131,20 +138,17 @@ public class Netty4Utils {
              * the exception so as to not lose the original cause during exit, so we give the thread a name based on the previous stack
              * frame so that at least we know where it came from (in case logging the current stack trace fails).
              */
-            try (
-                final StringWriter sw = new StringWriter();
-                final PrintWriter pw = new PrintWriter(sw)) {
+            try {
                 // try to log the current stack trace
-                Arrays.stream(Thread.currentThread().getStackTrace()).skip(1).map(e -> "\tat " + e).forEach(pw::println);
-                ESLoggerFactory.getLogger(Netty4Utils.class).error("fatal error on the network layer\n{}", sw.toString());
+                final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+                final String formatted = Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
+                ESLoggerFactory.getLogger(Netty4Utils.class).error("fatal error on the network layer\n{}", formatted);
             } finally {
-                final StackTraceElement previous = Thread.currentThread().getStackTrace()[2];
                 new Thread(
-                    () -> {
-                        throw (Error) cause;
-                    },
-                    previous.getClassName() + "#" + previous.getMethodName())
-                    .start();
+                        () -> {
+                            throw (Error) cause;
+                        })
+                        .start();
             }
         }
     }

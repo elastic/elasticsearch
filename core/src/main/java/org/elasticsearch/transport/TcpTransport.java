@@ -321,7 +321,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         public NodeChannels(Channel[] channels, ConnectionProfile connectionProfile) {
             this.channels = channels;
-            assert channels.length == connectionProfile.getNumConnection();
+            assert channels.length == connectionProfile.getNumConnection() : "expected channels size to be == "
+                + connectionProfile.getNumConnection() + " but was: [" + channels.length + "]";
             for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
                 for (TransportRequestOptions.Type type : handle.getTypes())
                 typeMapping.put(type, handle);

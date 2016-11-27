@@ -234,7 +234,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
-                    shardStateAction.localShardFailed(matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER);
+                    shardStateAction.localShardFailed(matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER, state);
                 }
             }
         }
@@ -361,7 +361,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 failedShardsCache.containsKey(shardId) == false &&
                 indicesService.getShardOrNull(shardId) == null) {
                 // the master thinks we are active, but we don't have this shard at all, mark it as failed
-                sendFailShard(shardRouting, "master marked shard as active, but shard has not been created, mark shard as failed", null);
+                sendFailShard(shardRouting, "master marked shard as active, but shard has not been created, mark shard as failed", null,
+                    state);
             }
         }
     }
@@ -460,7 +461,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     indicesService.removeIndex(index, FAILURE, "removing index (mapping update failed)");
                 }
                 for (ShardRouting shardRouting : entry.getValue()) {
-                    sendFailShard(shardRouting, failShardReason, e);
+                    sendFailShard(shardRouting, failShardReason, e, state);
                 }
             }
         }
@@ -493,7 +494,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     if (localRoutingNode != null) {
                         for (final ShardRouting shardRouting : localRoutingNode) {
                             if (shardRouting.index().equals(index) && failedShardsCache.containsKey(shardRouting.shardId()) == false) {
-                                sendFailShard(shardRouting, "failed to update mapping for index", e);
+                                sendFailShard(shardRouting, "failed to update mapping for index", e, state);
                             }
                         }
                     }
@@ -519,15 +520,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 Shard shard = indexService.getShardOrNull(shardId.id());
                 if (shard == null) {
                     assert shardRouting.initializing() : shardRouting + " should have been removed by failMissingShards";
-                    createShard(nodes, routingTable, shardRouting);
+                    createShard(nodes, routingTable, shardRouting, state);
                 } else {
-                    updateShard(nodes, shardRouting, shard, routingTable);
+                    updateShard(nodes, shardRouting, shard, routingTable, state);
                 }
             }
         }
     }
 
-    private void createShard(DiscoveryNodes nodes, RoutingTable routingTable, ShardRouting shardRouting) {
+    private void createShard(DiscoveryNodes nodes, RoutingTable routingTable, ShardRouting shardRouting, ClusterState state) {
         assert shardRouting.initializing() : "only allow shard creation for initializing shard but was " + shardRouting;
 
         DiscoveryNode sourceNode = null;
@@ -545,11 +546,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             indicesService.createShard(shardRouting, recoveryState, recoveryTargetService, new RecoveryListener(shardRouting),
                 repositoriesService, failedShardHandler);
         } catch (Exception e) {
-            failAndRemoveShard(shardRouting, true, "failed to create shard", e);
+            failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
         }
     }
 
-    private void updateShard(DiscoveryNodes nodes, ShardRouting shardRouting, Shard shard, RoutingTable routingTable) {
+    private void updateShard(DiscoveryNodes nodes, ShardRouting shardRouting, Shard shard, RoutingTable routingTable,
+                             ClusterState clusterState) {
         final ShardRouting currentRoutingEntry = shard.routingEntry();
         assert currentRoutingEntry.isSameAllocation(shardRouting) :
             "local shard has a different allocation id but wasn't cleaning by removeShards. "
@@ -566,7 +568,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                shard.updateAllocationIdsFromMaster(activeIds, initializingIds);
             }
         } catch (Exception e) {
-            failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e);
+            failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
             return;
         }
 
@@ -582,7 +584,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (nodes.getMasterNode() != null) {
                 shardStateAction.shardStarted(shardRouting, "master " + nodes.getMasterNode() +
                         " marked shard as initializing, but shard state is [" + state + "], mark shard as started",
-                    SHARD_STATE_ACTION_LISTENER);
+                    SHARD_STATE_ACTION_LISTENER, clusterState);
             }
         }
     }
@@ -638,10 +640,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
-        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure);
+        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
     }
 
-    private void failAndRemoveShard(ShardRouting shardRouting, boolean sendShardFailure, String message, @Nullable Exception failure) {
+    private void failAndRemoveShard(ShardRouting shardRouting, boolean sendShardFailure, String message, @Nullable Exception failure,
+                                    ClusterState state) {
         try {
             AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardRouting.shardId().getIndex());
             if (indexService != null) {
@@ -660,17 +663,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 inner);
         }
         if (sendShardFailure) {
-            sendFailShard(shardRouting, message, failure);
+            sendFailShard(shardRouting, message, failure, state);
         }
     }
 
-    private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure) {
+    private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
         try {
             logger.warn(
                 (Supplier<?>) () -> new ParameterizedMessage(
                     "[{}] marking and sending shard failed due to [{}]", shardRouting.shardId(), message), failure);
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
-            shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER);
+            shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER, state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(
@@ -689,7 +692,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ShardRouting shardRouting = shardFailure.routing;
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
-                    failAndRemoveShard(shardRouting, true, "shard failure, reason [" + shardFailure.reason + "]", shardFailure.cause);
+                    failAndRemoveShard(shardRouting, true, "shard failure, reason [" + shardFailure.reason + "]", shardFailure.cause,
+                        clusterService.state());
                 }
             });
         }

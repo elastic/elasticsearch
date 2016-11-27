@@ -63,8 +63,17 @@ public class ClusterStateObserver {
      *                       to wait indefinitely
      */
     public ClusterStateObserver(ClusterService clusterService, @Nullable TimeValue timeout, Logger logger, ThreadContext contextHolder) {
+        this(clusterService.state(), clusterService, timeout, logger, contextHolder);
+    }
+    /**
+     * @param timeout        a global timeout for this observer. After it has expired the observer
+     *                       will fail any existing or new #waitForNextChange calls. Set to null
+     *                       to wait indefinitely
+     */
+    public ClusterStateObserver(ClusterState initialState, ClusterService clusterService, @Nullable TimeValue timeout, Logger logger,
+                                ThreadContext contextHolder) {
         this.clusterService = clusterService;
-        this.lastObservedState = new AtomicReference<>(clusterService.state());
+        this.lastObservedState = new AtomicReference<>(initialState);
         this.timeOutValue = timeout;
         if (timeOutValue != null) {
             this.startTimeNS = System.nanoTime();

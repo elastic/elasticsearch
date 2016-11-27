@@ -81,9 +81,11 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -250,6 +252,151 @@ public class UnicastZenPingTests extends ESTestCase {
         pingResponses = zenPingD.pingAndWait(TimeValue.timeValueSeconds(1));
         assertThat(pingResponses.size(), equalTo(0));
         assertCounters(handleD, handleA, handleB, handleC, handleD);
+    }
+
+    public void testHostProviderBuildDynamicNodesShouldBeCalledOnlyOnceInEachRound() throws IOException, InterruptedException {
+        final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
+
+        NetworkService networkService = new NetworkService(settings, Collections.emptyList());
+
+        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockTcpTransport(
+            s,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            networkService,
+            v);
+
+        NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier);
+        closeables.push(handleA.transportService);
+
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+
+        Settings hostsSettings = Settings.builder()
+            .putArray("discovery.zen.ping.unicast.hosts",
+                NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())))
+            .put("cluster.name", "test")
+            .build();
+
+        UnicastHostsProvider unicastHostsProviderA = mock(UnicastHostsProvider.class);
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, unicastHostsProviderA);
+        zenPingA.start(new PingContextProvider() {
+            @Override
+            public DiscoveryNodes nodes() {
+                return DiscoveryNodes.builder().add(handleA.node).localNodeId("UZP_A").build();
+            }
+
+            @Override
+            public ClusterState clusterState() {
+                return ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)).build();
+            }
+        });
+        closeables.push(zenPingA);
+
+        zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
+        verify(unicastHostsProviderA, times(1)).buildDynamicNodes();
+    }
+
+    public void testShouldPingDiscoveredNodes() throws IOException, InterruptedException {
+        final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
+
+        NetworkService networkService = new NetworkService(settings, Collections.emptyList());
+
+        final BiFunction<Settings, Version, Transport> supplier = (s, v) -> new MockTcpTransport(
+            s,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            networkService,
+            v);
+
+        NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier);
+        closeables.push(handleA.transportService);
+        NetworkHandle handleB = startServices(settings, threadPool, "UZP_B", Version.CURRENT, supplier);
+        closeables.push(handleB.transportService);
+        NetworkHandle handleC = startServices(settings, threadPool, "UZP_C", Version.CURRENT, supplier);
+        closeables.push(handleC.transportService);
+
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+
+        Settings hostsSettingsA = Settings.builder()
+            .putArray("discovery.zen.ping.unicast.hosts",
+                NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
+                NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())))
+            .put("cluster.name", "test")
+            .build();
+
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettingsA, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
+        zenPingA.start(new PingContextProvider() {
+            @Override
+            public DiscoveryNodes nodes() {
+                return DiscoveryNodes.builder().add(handleA.node).localNodeId("UZP_A").build();
+            }
+
+            @Override
+            public ClusterState clusterState() {
+                return ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)).build();
+            }
+        });
+        closeables.push(zenPingA);
+
+        Settings hostsSettingsB = Settings.builder()
+            .putArray("discovery.zen.ping.unicast.hosts",
+                NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
+                NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())),
+                NetworkAddress.format(new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort())))
+            .put("cluster.name", "test")
+            .build();
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettingsB, threadPool, handleB.transportService, EMPTY_HOSTS_PROVIDER);
+        zenPingB.start(new PingContextProvider() {
+            @Override
+            public DiscoveryNodes nodes() {
+                return DiscoveryNodes.builder().add(handleB.node).localNodeId("UZP_B").build();
+            }
+
+            @Override
+            public ClusterState clusterState() {
+                return state;
+            }
+        });
+        closeables.push(zenPingB);
+
+        Settings hostsSettingsC = Settings.builder()
+            .putArray("discovery.zen.ping.unicast.hosts",
+                NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())),
+                NetworkAddress.format(new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort())))
+            .put("cluster.name", "test")
+            .build();
+        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettingsC, threadPool, handleC.transportService, EMPTY_HOSTS_PROVIDER);
+        zenPingC.start(new PingContextProvider() {
+            @Override
+            public DiscoveryNodes nodes() {
+                return DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C").build();
+            }
+
+            @Override
+            public ClusterState clusterState() {
+                return state;
+            }
+        });
+        closeables.push(zenPingC);
+
+
+        logger.info("ping from UZP_C");
+        Collection<ZenPing.PingResponse> pingResponsesC = zenPingC.pingAndWait(TimeValue.timeValueSeconds(1));
+        assertThat(pingResponsesC.size(), equalTo(1));
+        ZenPing.PingResponse pingC = pingResponsesC.iterator().next();
+        assertThat(pingC.node().getId(), equalTo("UZP_B"));
+
+        logger.info("ping from UZP_A");
+        Collection<ZenPing.PingResponse> pingResponsesA = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
+        assertThat(pingResponsesA.size(), equalTo(2));
+        List<String> responseIds =
+            pingResponsesA.stream().map(response -> response.node().getId()).collect(Collectors.toList());
+        assertThat(responseIds, hasItem("UZP_B"));
+        assertThat(responseIds, hasItem("UZP_C"));
     }
 
     public void testUnknownHostNotCached() {

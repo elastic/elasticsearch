@@ -85,6 +85,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
@@ -332,11 +333,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // to remove the in-memory structures for the index and not delete the
                 // contents on disk because the index will later be re-imported as a
                 // dangling index
-                assert state.metaData().index(index) != null || event.isNewCluster() :
+                final IndexMetaData indexMetaData = state.metaData().index(index);
+                assert indexMetaData != null || event.isNewCluster() :
                     "index " + index + " does not exist in the cluster state, it should either " +
                         "have been deleted or the cluster must be new";
-                logger.debug("{} removing index, no shards allocated", index);
-                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "removing index (no shards allocated)");
+                final AllocatedIndices.IndexRemovalReason reason =
+                    indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
+                logger.debug("{} removing index, [{}]", index, reason);
+                indicesService.removeIndex(index, reason, "removing index (no shards allocated)");
             }
         }
     }

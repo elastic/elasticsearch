@@ -292,7 +292,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * Connect to the specified node with the given connection profile
      *
      * @param node the node to connect to
-     * @param connectionProfile
+     * @param connectionProfile the connection profile to use when connecting to this node
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
         if (node.equals(localNode)) {

@@ -62,9 +62,8 @@ public final class ConnectionProfile {
 
         /**
          * Adds a number of connections for one or more types. Each type can only be added once.
-         * @param numConnections
-         * @param types
-         * @return
+         * @param numConnections the number of connections to use in the pool for the given connection types
+         * @param types a set of types that should share the given number of connections
          */
         public void addConnections(int numConnections, TransportRequestOptions.Type... types) {
             if (types == null || types.length == 0) {

@@ -33,6 +33,18 @@ public final class MasterNodeChangePredicate {
      */
     public static Predicate<ClusterState> build(ClusterState currentState) {
         final long currentVersion = currentState.version();
-        return newState -> newState.version() > currentVersion;
+        final String currentMaster = currentState.nodes().getMasterNodeId();
+        return newState -> {
+            final String newMaster = newState.nodes().getMasterNodeId();
+            final boolean accept;
+            if (newMaster == null) {
+                accept = false;
+            } else if (newMaster.equals(currentMaster) == false){
+                accept = true;
+            } else {
+                accept = newState.version() > currentVersion;
+            }
+            return accept;
+        };
     }
 }

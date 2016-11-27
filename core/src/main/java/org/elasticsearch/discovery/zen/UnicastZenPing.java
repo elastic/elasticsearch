@@ -292,6 +292,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
      */
     @Override
     public void ping(final PingListener listener, final TimeValue duration) {
+        final List<DiscoveryNode> sortedNodesToPing = buildNodesToPing();
         final List<DiscoveryNode> resolvedDiscoveryNodes;
         try {
             resolvedDiscoveryNodes = resolveDiscoveryNodes(
@@ -309,7 +310,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         try {
             receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
             try {
-                sendPings(duration, null, sendPingsHandler, resolvedDiscoveryNodes);
+                sendPings(duration, null, sendPingsHandler, resolvedDiscoveryNodes, sortedNodesToPing);
             } catch (RejectedExecutionException e) {
                 logger.debug("Ping execution rejected", e);
                 // The RejectedExecutionException can come from the fact unicastZenPingExecutorService is at its max down in sendPings
@@ -319,11 +320,12 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    sendPings(duration, null, sendPingsHandler, resolvedDiscoveryNodes);
+                    sendPings(duration, null, sendPingsHandler, resolvedDiscoveryNodes, sortedNodesToPing);
                     threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
-                            sendPings(duration, TimeValue.timeValueMillis(duration.millis() / 2), sendPingsHandler, resolvedDiscoveryNodes);
+                            sendPings(duration, TimeValue.timeValueMillis(duration.millis() / 2),
+                                sendPingsHandler, resolvedDiscoveryNodes, sortedNodesToPing);
                             sendPingsHandler.close();
                             listener.onPing(sendPingsHandler.pingCollection().toList());
                             for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
@@ -392,30 +394,13 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         final TimeValue timeout,
         @Nullable TimeValue waitTime,
         final SendPingsHandler sendPingsHandler,
-        final List<DiscoveryNode> resolvedDiscoveryNodes) {
+        final List<DiscoveryNode> resolvedDiscoveryNodes, final List<DiscoveryNode> sortedNodesToPing) {
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = sendPingsHandler.id();
         pingRequest.timeout = timeout;
         DiscoveryNodes discoNodes = contextProvider.nodes();
 
         pingRequest.pingResponse = createPingResponse(discoNodes);
-
-        HashSet<DiscoveryNode> nodesToPingSet = new HashSet<>();
-        for (PingResponse temporalResponse : temporalResponses) {
-            // Only send pings to nodes that have the same cluster name.
-            if (clusterName.equals(temporalResponse.clusterName())) {
-                nodesToPingSet.add(temporalResponse.node());
-            }
-        }
-        nodesToPingSet.addAll(hostsProvider.buildDynamicNodes());
-
-        // add all possible master nodes that were active in the last known cluster configuration
-        for (ObjectCursor<DiscoveryNode> masterNode : discoNodes.getMasterNodes().values()) {
-            nodesToPingSet.add(masterNode.value);
-        }
-
-        // sort the nodes by likelihood of being an active master
-        List<DiscoveryNode> sortedNodesToPing = ElectMasterService.sortByMasterLikelihood(nodesToPingSet);
 
         // add the configured hosts first
         final List<DiscoveryNode> nodesToPing = new ArrayList<>(resolvedDiscoveryNodes.size() + sortedNodesToPing.size());
@@ -516,6 +501,25 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 // ignore
             }
         }
+    }
+
+    private List<DiscoveryNode> buildNodesToPing() {
+        HashSet<DiscoveryNode> nodesToPingSet = new HashSet<>();
+        for (PingResponse temporalResponse : temporalResponses) {
+            // Only send pings to nodes that have the same cluster name.
+            if (clusterName.equals(temporalResponse.clusterName())) {
+                nodesToPingSet.add(temporalResponse.node());
+            }
+        }
+        nodesToPingSet.addAll(hostsProvider.buildDynamicNodes());
+
+        // add all possible master nodes that were active in the last known cluster configuration
+        for (ObjectCursor<DiscoveryNode> masterNode : contextProvider.nodes().getMasterNodes().values()) {
+            nodesToPingSet.add(masterNode.value);
+        }
+
+        // sort the nodes by likelihood of being an active master
+        return ElectMasterService.sortByMasterLikelihood(nodesToPingSet);
     }
 
     private void sendPingRequestToNode(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest,

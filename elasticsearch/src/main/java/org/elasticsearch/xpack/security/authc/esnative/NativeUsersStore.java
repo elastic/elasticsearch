@@ -63,7 +63,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -108,13 +107,15 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     /**
      * Blocking version of {@code getUser} that blocks until the User is returned
      */
-    public User getUser(String username) {
+    public void getUser(String username, ActionListener<User> listener) {
         if (state() != State.STARTED) {
             logger.trace("attempted to get user [{}] before service was started", username);
-            return null;
+            listener.onResponse(null);
+        } else {
+            getUserAndPassword(username, ActionListener.wrap((uap) -> {
+                listener.onResponse(uap == null ? null : uap.user());
+            }, listener::onFailure));
         }
-        UserAndPassword uap = getUserAndPassword(username);
-        return uap == null ? null : uap.user();
     }
 
     /**
@@ -586,22 +587,22 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
      *
      * @param username username to lookup the user by
      * @param password the plaintext password to verify
-     * @return {@link} User object if successful or {@code null} if verification fails
      */
-    User verifyPassword(String username, final SecuredString password) {
+    void verifyPassword(String username, final SecuredString password, ActionListener<User> listener) {
         if (state() != State.STARTED) {
             logger.trace("attempted to verify user credentials for [{}] but service was not started", username);
-            return null;
+            listener.onResponse(null);
+        } else {
+            getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
+                if (userAndPassword == null || userAndPassword.passwordHash() == null) {
+                    listener.onResponse(null);
+                } else if (hasher.verify(password, userAndPassword.passwordHash())) {
+                    listener.onResponse(userAndPassword.user());
+                } else {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure));
         }
-
-        UserAndPassword user = getUserAndPassword(username);
-        if (user == null || user.passwordHash() == null) {
-            return null;
-        }
-        if (hasher.verify(password, user.passwordHash())) {
-            return user.user();
-        }
-        return null;
     }
 
     public boolean started() {
@@ -612,14 +613,11 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         return securityIndexExists;
     }
 
-    ReservedUserInfo getReservedUserInfo(String username) throws Exception {
+    void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
         assert started();
-        final AtomicReference<ReservedUserInfo> userInfoRef = new AtomicReference<>();
-        final AtomicReference<Exception> failure = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
 
         client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
-                .execute(new LatchedActionListener<>(new ActionListener<GetResponse>() {
+                .execute(new ActionListener<GetResponse>() {
                     @Override
                     public void onResponse(GetResponse getResponse) {
                         if (getResponse.isExists()) {
@@ -627,12 +625,14 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                             String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
                             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
                             if (password == null || password.isEmpty()) {
-                                failure.set(new IllegalStateException("password hash must not be empty!"));
+                                listener.onFailure(new IllegalStateException("password hash must not be empty!"));
                             } else if (enabled == null) {
-                                failure.set(new IllegalStateException("enabled must not be null!"));
+                                listener.onFailure(new IllegalStateException("enabled must not be null!"));
                             } else {
-                                userInfoRef.set(new ReservedUserInfo(password.toCharArray(), enabled));
+                                listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled));
                             }
+                        } else {
+                            listener.onResponse(null);
                         }
                     }
 
@@ -641,30 +641,15 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         if (e instanceof IndexNotFoundException) {
                             logger.trace((Supplier<?>) () -> new ParameterizedMessage(
                                     "could not retrieve built in user [{}] info since security index does not exist", username), e);
+                            listener.onResponse(null);
                         } else {
                             logger.error(
                                     (Supplier<?>) () -> new ParameterizedMessage(
                                             "failed to retrieve built in user [{}] info", username), e);
-                            failure.set(e);
+                            listener.onFailure(null);
                         }
                     }
-                }, latch));
-
-        try {
-            final boolean responseReceived = latch.await(30, TimeUnit.SECONDS);
-            if (responseReceived == false) {
-                failure.set(new TimeoutException("timed out trying to get built in user [" + username + "]"));
-            }
-        } catch (InterruptedException e) {
-            failure.set(e);
-        }
-
-        Exception failureCause = failure.get();
-        if (failureCause != null) {
-            // if there is any sort of failure we need to throw an exception to prevent the fallback to the default password...
-            throw failureCause;
-        }
-        return userInfoRef.get();
+                });
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {

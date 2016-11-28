@@ -20,6 +20,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.common.IteratingActionListener;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -233,19 +235,32 @@ public class AuthenticationService extends AbstractComponent {
                 handleNullToken();
             } else {
                 authenticationToken = token;
-                Runnable action = () -> consumeUser(null);
-                try {
-                    for (Realm realm : realms) {
-                        User user = authenticateToken(realm);
-                        if (user != null) {
-                            action = () -> consumeUser(user);
-                            break;
-                        }
+                final List<Realm> realmsList = realms.asList();
+                final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
+                    if (realm.supports(authenticationToken)) {
+                        realm.authenticate(authenticationToken, ActionListener.wrap((user) -> {
+                            if (user == null) {
+                                // the user was not authenticated, call this so we can audit the correct event
+                                request.realmAuthenticationFailed(authenticationToken, realm.name());
+                            } else {
+                                // user was authenticated, populate the authenticated by information
+                                authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                            }
+                            userListener.onResponse(user);
+                        }, userListener::onFailure));
+                    } else {
+                        userListener.onResponse(null);
                     }
+                };
+                final IteratingActionListener<User, Realm> authenticatingListener =
+                        new IteratingActionListener<>(ActionListener.wrap(this::consumeUser,
+                                (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))),
+                        realmAuthenticatingConsumer, realmsList);
+                try {
+                    authenticatingListener.run();
                 } catch (Exception e) {
-                    action = () -> listener.onFailure(request.exceptionProcessingRequest(e, token));
+                    listener.onFailure(request.exceptionProcessingRequest(e, token));
                 }
-                action.run();
             }
         }
 
@@ -294,24 +309,6 @@ public class AuthenticationService extends AbstractComponent {
         }
 
         /**
-         * Encapsulates the interaction with the realm and audit trail when attempting to authenticate a token. If the realm supports the
-         * token, authentication will be attempted. A successful authentication results in returning a non-null user in addition to setting
-         * the authenticatedBy value. A failed authentication will result in returning {@code null}
-         */
-        private User authenticateToken(Realm realm) {
-            User user = null;
-            if (realm.supports(authenticationToken)) {
-                user = realm.authenticate(authenticationToken);
-                if (user == null) {
-                    request.realmAuthenticationFailed(authenticationToken, realm.name());
-                } else {
-                    authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
-                }
-            }
-            return user;
-        }
-
-        /**
          * Consumes the {@link User} that resulted from attempting to authenticate a token against the {@link Realms}. When the user is
          * {@code null}, authentication fails and does not proceed. When there is a user, the request is inspected to see if the run as
          * functionality is in use. When run as is not in use, {@link #finishAuthentication(User)} is called, otherwise we try to lookup
@@ -345,51 +342,31 @@ public class AuthenticationService extends AbstractComponent {
          * names of users that exist using a timing attack
          */
         private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
-            // FIXME there are certain actions that could be allowed now with the default role that we should probably bail on!
-            Runnable action = () -> {
-                if (lookedupBy != null) {
-                    // the requested run as user does not exist, but we don't throw an error here otherwise this could let
-                    // information leak about users in the system... instead we'll just let the authz service fail throw an
-                    // authorization error
-                    if (lookedupBy != null) {
-                        throw new IllegalStateException("we could not lookup the user but created a realm reference");
-                    }
+            final List<Realm> realmsList = realms.asList();
+            final BiConsumer<Realm, ActionListener<User>> realmLookupConsumer = (realm, lookupUserListener) -> {
+                if (realm.userLookupSupported()) {
+                    realm.lookupUser(runAsUsername, ActionListener.wrap((lookedupUser) -> {
+                        if (lookedupUser != null) {
+                            lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                            lookupUserListener.onResponse(lookedupUser);
+                        } else {
+                            lookupUserListener.onResponse(null);
+                        }
+                    }, lookupUserListener::onFailure));
                 } else {
-                    userConsumer.accept(new User(user, new User(runAsUsername, Strings.EMPTY_ARRAY)));
+                    lookupUserListener.onResponse(null);
                 }
             };
 
+            final IteratingActionListener<User, Realm> userLookupListener =
+                    new IteratingActionListener<>(ActionListener.wrap((lookupUser) -> userConsumer.accept(new User(user, lookupUser)),
+                            (e) -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken))),
+                            realmLookupConsumer, realmsList);
             try {
-                for (Realm realm : realms) {
-                    User runAsUser = lookupUser(realm, runAsUsername);
-                    if (runAsUser != null) {
-                        lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
-                        action = () -> userConsumer.accept(new User(user, runAsUser));
-                        break;
-                    }
-                }
+                userLookupListener.run();
             } catch (Exception e) {
-                action = () -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
+                listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
             }
-
-            // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing when
-            // an exception bubbles up even after successful authentication
-            action.run();
-        }
-
-        /**
-         * Handles the interaction with the realm and trying to lookup a user. If a user is found, this method also creates the
-         * {@link RealmRef} that identifies the realm that looked up the user
-         */
-        private User lookupUser(Realm realm, String runAsUsername) {
-            User lookedUp = null;
-            if (realm.userLookupSupported()) {
-                lookedUp = realm.lookupUser(runAsUsername);
-                if (lookedUp != null) {
-                    lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
-                }
-            }
-            return lookedUp;
         }
 
         /**

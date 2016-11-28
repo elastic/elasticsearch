@@ -5,13 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -19,7 +15,6 @@ import org.elasticsearch.xpack.security.user.User;
 
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
@@ -67,116 +62,71 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * doAuthenticate
      *
      * @param authToken The authentication token
-     * @return an authenticated user with roles
      */
     @Override
-    public final User authenticate(AuthenticationToken authToken) {
+    public final void authenticate(AuthenticationToken authToken, ActionListener<User> listener) {
         UsernamePasswordToken token = (UsernamePasswordToken)authToken;
-        if (cache == null) {
-            return doAuthenticate(token);
-        }
-
         try {
-            UserWithHash userWithHash = cache.get(token.principal());
-            if (userWithHash == null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("user not found in cache, proceeding with normal authentication");
-                }
-                User user = doAuthenticate(token);
-                if (user == null) {
-                    return null;
-                }
-                userWithHash = new UserWithHash(user, token.credentials(), hasher);
-                // it doesn't matter if we already computed it elsewhere
-                cache.put(token.principal(), userWithHash);
-                if (logger.isDebugEnabled()) {
-                    logger.debug("authenticated user [{}], with roles [{}]", token.principal(), user.roles());
-                }
-                return user;
+            if (cache == null) {
+                doAuthenticate(token, listener);
+            } else {
+                authenticateWithCache(token, listener);
             }
-
-            final boolean hadHash = userWithHash.hasHash();
-            if (hadHash) {
-                if (userWithHash.verify(token.credentials())) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
-                    }
-                    return userWithHash.user;
-                }
-            }
-            //this handles when a user's password has changed or the user was looked up for run as and not authenticated
-            cache.invalidate(token.principal());
-            User user = doAuthenticate(token);
-            if (user == null) {
-                return null;
-            }
-            userWithHash = new UserWithHash(user, token.credentials(), hasher);
-            // it doesn't matter if we already computed it elsewhere
-            cache.put(token.principal(), userWithHash);
-            if (logger.isDebugEnabled()) {
-                if (hadHash) {
-                    logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(),
-                            userWithHash.user.roles());
-                } else {
-                    logger.debug("cached user came from a lookup and could not be used for authentication. authenticated user [{}]" +
-                            " with roles [{}]", token.principal(), userWithHash.user.roles());
-                }
-            }
-            return userWithHash.user;
-
-        } catch (Exception ee) {
-            if (ee instanceof ElasticsearchSecurityException) {
-                // this should bubble out
-                throw ee;
-            }
-
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                                "realm [{}] could not authenticate [{}]", type(), token.principal()), ee);
-            } else if (logger.isDebugEnabled()) {
-                logger.debug("realm [{}] could not authenticate [{}]", type(), token.principal());
-            }
-            return null;
+        } catch (Exception e) {
+            // each realm should handle exceptions, if we get one here it should be considered fatal
+            listener.onFailure(e);
         }
     }
 
-
-    @Override
-    public final User lookupUser(final String username) {
-        if (!userLookupSupported()) {
-            return null;
-        }
-
-        CacheLoader<String, UserWithHash> callback = key -> {
+    private void authenticateWithCache(UsernamePasswordToken token, ActionListener<User> listener) {
+        UserWithHash userWithHash = cache.get(token.principal());
+        if (userWithHash == null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("user [{}] not found in cache, proceeding with normal lookup", username);
+                logger.debug("user not found in cache, proceeding with normal authentication");
             }
-            User user = doLookupUser(username);
-            if (user == null) {
-                return null;
+            doAuthenticateAndCache(token, ActionListener.wrap((user) -> {
+                if (user != null) {
+                    logger.debug("authenticated user [{}], with roles [{}]", token.principal(), user.roles());
+                }
+                listener.onResponse(user);
+            }, listener::onFailure));
+        } else if (userWithHash.hasHash()) {
+            if (userWithHash.verify(token.credentials())) {
+                logger.debug("authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                listener.onResponse(userWithHash.user);
+            } else {
+                cache.invalidate(token.principal());
+                doAuthenticateAndCache(token, ActionListener.wrap((user) -> {
+                    if (user != null) {
+                        logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(),
+                                user.roles());
+                    }
+                    listener.onResponse(user);
+                }, listener::onFailure));
             }
-            return new UserWithHash(user, null, null);
-        };
-
-        try {
-            UserWithHash userWithHash = cache.computeIfAbsent(username, callback);
-            assert userWithHash != null : "the cache contract requires that a value returned from computeIfAbsent be non-null or an " +
-                    "ExecutionException should be thrown";
-            return userWithHash.user;
-        } catch (ExecutionException ee) {
-            if (ee.getCause() instanceof ElasticsearchSecurityException) {
-                // this should bubble out
-                throw (ElasticsearchSecurityException) ee.getCause();
-            }
-
-            if (logger.isTraceEnabled()) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("realm [{}] could not lookup [{}]", name(), username), ee);
-            } else if (logger.isDebugEnabled()) {
-                logger.debug("realm [{}] could not lookup [{}]", name(), username);
-            }
-            return null;
+        } else {
+            cache.invalidate(token.principal());
+            doAuthenticateAndCache(token, ActionListener.wrap((user) -> {
+                if (user != null) {
+                    logger.debug("cached user came from a lookup and could not be used for authentication. authenticated user [{}]" +
+                            " with roles [{}]", token.principal(), user.roles());
+                }
+                listener.onResponse(user);
+            }, listener::onFailure));
         }
+    }
+
+    private void doAuthenticateAndCache(UsernamePasswordToken token, ActionListener<User> listener) {
+        doAuthenticate(token, ActionListener.wrap((user) -> {
+            if (user == null) {
+                listener.onResponse(null);
+            } else {
+                UserWithHash userWithHash = new UserWithHash(user, token.credentials(), hasher);
+                // it doesn't matter if we already computed it elsewhere
+                cache.put(token.principal(), userWithHash);
+                listener.onResponse(user);
+            }
+        }, listener::onFailure));
     }
 
     @Override
@@ -186,54 +136,60 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         return stats;
     }
 
-    protected abstract User doAuthenticate(UsernamePasswordToken token);
+    protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener);
 
     @Override
-    public void lookupUser(String username, ActionListener<User> listener) {
+    public final void lookupUser(String username, ActionListener<User> listener) {
         if (!userLookupSupported()) {
             listener.onResponse(null);
-        } else {
+        } else if (cache != null) {
             UserWithHash withHash = cache.get(username);
             if (withHash == null) {
-                doLookupUser(username, ActionListener.wrap((user) -> {
-                    try {
+                try {
+                    doLookupUser(username, ActionListener.wrap((user) -> {
+                        Runnable action = () -> listener.onResponse(null);
                         if (user != null) {
                             UserWithHash userWithHash = new UserWithHash(user, null, null);
-                            cache.computeIfAbsent(username, (n) -> userWithHash);
+                            try {
+                                // computeIfAbsent is used here to avoid overwriting a value from a concurrent authenticate call as it
+                                // contains the password hash, which provides a performance boost and we shouldn't just erase that
+                                cache.computeIfAbsent(username, (n) -> userWithHash);
+                                action = () -> listener.onResponse(userWithHash.user);
+                            } catch (ExecutionException e) {
+                                action = () -> listener.onFailure(e);
+                            }
                         }
-                        listener.onResponse(user);
-                    } catch (ExecutionException e) {
-                        listener.onFailure(e);
-                    }
-                }, listener::onFailure));
+                        action.run();
+                    }, listener::onFailure));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
             } else {
                 listener.onResponse(withHash.user);
             }
+        } else {
+            doLookupUser(username, listener);
         }
     }
 
-    protected abstract User doLookupUser(String username);
-
-    protected void doLookupUser(String username, ActionListener<User> listener) {
-        listener.onResponse(doLookupUser(username));
-    }
+    protected abstract void doLookupUser(String username, ActionListener<User> listener);
 
     private static class UserWithHash {
         User user;
         char[] hash;
         Hasher hasher;
 
-        public UserWithHash(User user, SecuredString password, Hasher hasher) {
+        UserWithHash(User user, SecuredString password, Hasher hasher) {
             this.user = user;
             this.hash = password == null ? null : hasher.hash(password);
             this.hasher = hasher;
         }
 
-        public boolean verify(SecuredString password) {
+        boolean verify(SecuredString password) {
             return hash != null && hasher.verify(password, hash);
         }
 
-        public boolean hasHash() {
+        boolean hasHash() {
             return hash != null;
         }
     }

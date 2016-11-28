@@ -31,18 +31,12 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected User doLookupUser(String username) {
-        return userStore.getUser(username);
-    }
-
-    @Override
     protected void doLookupUser(String username, ActionListener<User> listener) {
-        userStore.getUsers(new String[] {username}, ActionListener.wrap(c -> listener.onResponse(c.stream().findAny().orElse(null)),
-                listener::onFailure));
+        userStore.getUser(username, listener);
     }
 
     @Override
-    protected User doAuthenticate(UsernamePasswordToken token) {
-        return userStore.verifyPassword(token.principal(), token.credentials());
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
+        userStore.verifyPassword(token.principal(), token.credentials(), listener);
     }
 }

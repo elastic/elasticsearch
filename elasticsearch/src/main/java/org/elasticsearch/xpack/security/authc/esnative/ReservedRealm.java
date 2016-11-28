@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -54,53 +53,59 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected User doAuthenticate(UsernamePasswordToken token) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
         if (enabled == false) {
-            return null;
-        }
-        if (isReserved(token.principal(), config.globalSettings()) == false) {
-            return null;
-        }
-
-        final ReservedUserInfo userInfo = getUserInfo(token.principal());
-        if (userInfo != null) {
-            try {
-                if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
-                    return getUser(token.principal(), userInfo);
+            listener.onResponse(null);
+        } else if (isReserved(token.principal(), config.globalSettings()) == false) {
+            listener.onResponse(null);
+        } else {
+            getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
+                Runnable action;
+                if (userInfo != null) {
+                    try {
+                        if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
+                            final User user = getUser(token.principal(), userInfo);
+                            action = () -> listener.onResponse(user);
+                        } else {
+                            action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
+                                    token.principal()));
+                        }
+                    } finally {
+                        if (userInfo.passwordHash != DEFAULT_PASSWORD_HASH) {
+                            Arrays.fill(userInfo.passwordHash, (char) 0);
+                        }
+                    }
+                } else {
+                    action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
+                            token.principal()));
                 }
-            } finally {
-                if (userInfo.passwordHash != DEFAULT_PASSWORD_HASH) {
-                    Arrays.fill(userInfo.passwordHash, (char) 0);
-                }
-            }
+                // we want the finally block to clear out the chars before we proceed further so we execute the action here
+                action.run();
+            }, listener::onFailure));
         }
-        // this was a reserved username - don't allow this to go to another realm...
-        throw Exceptions.authenticationError("failed to authenticate user [{}]", token.principal());
     }
 
     @Override
-    protected User doLookupUser(String username) {
+    protected void doLookupUser(String username, ActionListener<User> listener) {
         if (enabled == false) {
             if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
-                return anonymousUser;
+                listener.onResponse(anonymousUser);
             }
-            return null;
+            listener.onResponse(null);
+        } else if (isReserved(username, config.globalSettings()) == false) {
+            listener.onResponse(null);
+        } else if (AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
+            listener.onResponse(anonymousEnabled ? anonymousUser : null);
+        } else {
+            getUserInfo(username, ActionListener.wrap((userInfo) -> {
+                if (userInfo != null) {
+                    listener.onResponse(getUser(username, userInfo));
+                } else {
+                    // this was a reserved username - don't allow this to go to another realm...
+                    listener.onFailure(Exceptions.authenticationError("failed to lookup user [{}]", username));
+                }
+            }, listener::onFailure));
         }
-
-        if (isReserved(username, config.globalSettings()) == false) {
-            return null;
-        }
-
-        if (AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
-            return anonymousEnabled ? anonymousUser : null;
-        }
-
-        final ReservedUserInfo userInfo = getUserInfo(username);
-        if (userInfo != null) {
-            return getUser(username, userInfo);
-        }
-        // this was a reserved username - don't allow this to go to another realm...
-        throw Exceptions.authenticationError("failed to lookup user [{}]", username);
     }
 
     @Override
@@ -156,26 +161,24 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private ReservedUserInfo getUserInfo(final String username) {
+    private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
         if (nativeUsersStore.started() == false) {
             // we need to be able to check for the user store being started...
-            return null;
-        }
-
-        if (nativeUsersStore.securityIndexExists() == false) {
-            return DEFAULT_USER_INFO;
-        }
-
-        try {
-            ReservedUserInfo userInfo = nativeUsersStore.getReservedUserInfo(username);
-            if (userInfo == null) {
-                return DEFAULT_USER_INFO;
-            }
-            return userInfo;
-        } catch (Exception e) {
-            logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
-            return null;
+            listener.onResponse(null);
+        } else if (nativeUsersStore.securityIndexExists() == false) {
+            listener.onResponse(DEFAULT_USER_INFO);
+        } else {
+            nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
+                if (userInfo == null) {
+                    listener.onResponse(DEFAULT_USER_INFO);
+                } else {
+                    listener.onResponse(userInfo);
+                }
+            }, (e) -> {
+                logger.error((Supplier<?>) () ->
+                        new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
+                listener.onResponse(null);
+            }));
         }
     }
 }

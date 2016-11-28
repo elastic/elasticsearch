@@ -92,6 +92,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                 reservedRealm.lookupUser(user, realmGroupListener);
             }
         }
+
         // user store lookups
         if (specificUsersRequested && usersToSearchFor.isEmpty()) {
             groupListener.onResponse(Collections.emptyList()); // no users requested notify

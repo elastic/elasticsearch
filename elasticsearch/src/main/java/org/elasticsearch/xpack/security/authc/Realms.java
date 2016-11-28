@@ -124,6 +124,24 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         }
     }
 
+    public List<Realm> asList() {
+        if (licenseState.isAuthAllowed() == false) {
+            return Collections.emptyList();
+        }
+
+        AllowedRealmType allowedRealmType = licenseState.allowedRealmType();
+        switch (allowedRealmType) {
+            case ALL:
+                return Collections.unmodifiableList(realms);
+            case DEFAULT:
+                return Collections.unmodifiableList(internalRealmsOnly);
+            case NATIVE:
+                return Collections.unmodifiableList(nativeRealmsOnly);
+            default:
+                throw new IllegalStateException("authentication should not be enabled");
+        }
+    }
+
     public Realm realm(String name) {
         for (Realm realm : realms) {
             if (name.equals(realm.config.name)) {

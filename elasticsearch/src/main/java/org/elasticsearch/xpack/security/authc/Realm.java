@@ -71,25 +71,43 @@ public abstract class Realm implements Comparable<Realm> {
     public abstract AuthenticationToken token(ThreadContext context);
 
     /**
-     * Authenticates the given token. A successful authentication will return the User associated
-     * with the given token. An unsuccessful authentication returns {@code null}.
+     * Authenticates the given token in a blocking fashion. A successful authentication will return the User associated
+     * with the given token. An unsuccessful authentication returns {@code null}. This method is deprecated in favor of
+     * {@link #authenticate(AuthenticationToken, ActionListener)}.
      *
      * @param token The authentication token
      * @return      The authenticated user or {@code null} if authentication failed.
+     *
      */
+    @Deprecated
     public abstract User authenticate(AuthenticationToken token);
+
+    public void authenticate(AuthenticationToken token, ActionListener<User> listener) {
+        try {
+            listener.onResponse(authenticate(token));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
     /**
      * Looks up the user identified the String identifier. A successful lookup will return the {@link User} identified
-     * by the username. An unsuccessful lookup returns {@code null}.
+     * by the username. An unsuccessful lookup returns {@code null}. This method is deprecated in favor of
+     * {@link #lookupUser(String, ActionListener)}
      *
      * @param username the String identifier for the user
      * @return         the {@link User} or {@code null} if lookup failed
      */
+    @Deprecated
     public abstract User lookupUser(String username);
 
     public void lookupUser(String username, ActionListener<User> listener) {
-        listener.onResponse(lookupUser(username));
+        try {
+            User user = lookupUser(username);
+            listener.onResponse(user);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     public Map<String, Object> usageStats() {
@@ -100,9 +118,11 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     /**
-     * Indicates whether this realm supports user lookup.
+     * Indicates whether this realm supports user lookup. This method is deprecated. In the future if lookup is not supported, simply
+     * return null when called.
      * @return true if the realm supports user lookup
      */
+    @Deprecated
     public abstract boolean userLookupSupported();
 
     @Override

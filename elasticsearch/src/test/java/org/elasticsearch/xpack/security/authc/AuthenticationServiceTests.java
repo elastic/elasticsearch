@@ -47,6 +47,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -145,9 +147,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testAuthenticateBothSupportSecondSucceeds() throws Exception {
         User user = new User("_username", "r1");
         when(firstRealm.supports(token)).thenReturn(true);
-        when(firstRealm.authenticate(token)).thenReturn(null); // first fails
+        mockAuthenticate(firstRealm, token, null);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(user);
+        mockAuthenticate(secondRealm, token, user);
         if (randomBoolean()) {
             when(firstRealm.token(threadContext)).thenReturn(token);
         } else {
@@ -168,7 +170,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         when(firstRealm.supports(token)).thenReturn(false);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(user);
+        mockAuthenticate(secondRealm, token, user);
         when(secondRealm.token(threadContext)).thenReturn(token);
 
         Authentication result = authenticateBlocking("_action", message, null);
@@ -219,7 +221,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
-        when(firstRealm.authenticate(token)).thenReturn(user);
+        mockAuthenticate(firstRealm, token, user);
 
         Authentication result = authenticateBlocking("_action", message, null);
 
@@ -276,7 +278,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
-        when(firstRealm.authenticate(token)).thenReturn(user);
+        mockAuthenticate(firstRealm, token, user);
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, fallback));
@@ -289,7 +291,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user = new User("username", new String[] { "r1", "r2" }, null, null, null, false);
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
-        when(firstRealm.authenticate(token)).thenReturn(user);
+        mockAuthenticate(firstRealm, token, user);
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking(restRequest));
@@ -303,7 +305,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
-        when(firstRealm.authenticate(token)).thenReturn(user);
+        mockAuthenticate(firstRealm, token, user);
 
         Authentication result = authenticateBlocking("_action", message, fallback);
         assertThat(result, notNullValue());
@@ -317,7 +319,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user1 = new User("username", "r1", "r2");
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
-        when(firstRealm.authenticate(token)).thenReturn(user1);
+        mockAuthenticate(firstRealm, token, user1);
         Authentication result = authenticateBlocking(restRequest);
         assertThat(result, notNullValue());
         assertThat(result.getUser(), sameInstance(user1));
@@ -330,7 +332,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user1 = new User("username", "r1", "r2");
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
-        when(firstRealm.authenticate(token)).thenReturn(user1);
+        mockAuthenticate(firstRealm, token, user1);
         Authentication authentication = authenticateBlocking("_action", message, SystemUser.INSTANCE);
         assertThat(authentication, notNullValue());
         assertThat(authentication.getUser(), sameInstance(user1));
@@ -382,7 +384,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user1 = new User("username", "r1", "r2");
         when(firstRealm.supports(token)).thenReturn(true);
         when(firstRealm.token(threadContext)).thenReturn(token);
-        when(firstRealm.authenticate(token)).thenReturn(user1);
+        mockAuthenticate(firstRealm, token, user1);
         Authentication authentication = authenticateBlocking("_action", message, SystemUser.INSTANCE);
         assertThat(authentication, notNullValue());
         assertThat(authentication.getUser(), sameInstance(user1));
@@ -572,7 +574,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenThrow(authenticationError("realm doesn't like authenticate"));
+        doThrow(authenticationError("realm doesn't like authenticate"))
+            .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
@@ -586,7 +589,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenThrow(authenticationError("realm doesn't like authenticate"));
+        doThrow(authenticationError("realm doesn't like authenticate"))
+                .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
         try {
             authenticateBlocking(restRequest);
             fail("exception should bubble out");
@@ -601,8 +605,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(new User("lookup user", new String[]{"user"}));
-        when(secondRealm.lookupUser("run_as")).thenThrow(authenticationError("realm doesn't want to lookup"));
+        mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
+        doThrow(authenticationError("realm doesn't want to lookup"))
+            .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
         when(secondRealm.userLookupSupported()).thenReturn(true);
 
         try {
@@ -619,8 +624,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(new User("lookup user", new String[]{"user"}));
-        when(secondRealm.lookupUser("run_as")).thenThrow(authenticationError("realm doesn't want to lookup"));
+        mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
+        doThrow(authenticationError("realm doesn't want to " + "lookup"))
+                .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
         when(secondRealm.userLookupSupported()).thenReturn(true);
 
         try {
@@ -639,8 +645,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.supports(token)).thenReturn(true);
         final User user = new User("lookup user", new String[]{"user"}, "lookup user", "lookup@foo.foo",
                 Collections.singletonMap("foo", "bar"), true);
-        when(secondRealm.authenticate(token)).thenReturn(user);
-        when(secondRealm.lookupUser("run_as")).thenReturn(new User("looked up user", new String[]{"some role"}));
+        mockAuthenticate(secondRealm, token, user);
+        doAnswer((i) -> {
+            ActionListener listener = (ActionListener) i.getArguments()[1];
+            listener.onResponse(new User("looked up user", new String[]{"some role"}));
+            return null;
+        }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
         when(secondRealm.userLookupSupported()).thenReturn(true);
 
         Authentication result;
@@ -671,9 +681,13 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(new User("lookup user", new String[]{"user"}));
+        mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         when(firstRealm.userLookupSupported()).thenReturn(true);
-        when(firstRealm.lookupUser("run_as")).thenReturn(new User("looked up user", new String[]{"some role"}));
+        doAnswer((i) -> {
+            ActionListener listener = (ActionListener) i.getArguments()[1];
+            listener.onResponse(new User("looked up user", new String[]{"some role"}));
+            return null;
+        }).when(firstRealm).lookupUser(eq("run_as"), any(ActionListener.class));
         when(firstRealm.userLookupSupported()).thenReturn(true);
 
         Authentication result;
@@ -700,7 +714,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(user);
+        mockAuthenticate(secondRealm, token, user);
         when(secondRealm.userLookupSupported()).thenReturn(true);
 
         try {
@@ -718,7 +732,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(user);
+        mockAuthenticate(secondRealm, token, user);
         when(secondRealm.userLookupSupported()).thenReturn(true);
 
         try {
@@ -735,9 +749,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(new User("lookup user", new String[]{"user"}));
-        when(secondRealm.lookupUser("run_as"))
-                .thenReturn(new User("looked up user", new String[]{"some role"}, null, null, null, false));
+        mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
+        doAnswer((i) -> {
+            ActionListener listener = (ActionListener) i.getArguments()[1];
+            listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, null, false));
+            return null;
+        }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
         when(secondRealm.userLookupSupported()).thenReturn(true);
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         ElasticsearchSecurityException e =
@@ -752,9 +769,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext.putHeader(AuthenticationService.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenReturn(new User("lookup user", new String[]{"user"}));
-        when(secondRealm.lookupUser("run_as"))
-                .thenReturn(new User("looked up user", new String[]{"some role"}, null, null, null, false));
+        mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
+        doAnswer((i) -> {
+            ActionListener listener = (ActionListener) i.getArguments()[1];
+            listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, null, false));
+            return null;
+        }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
         when(secondRealm.userLookupSupported()).thenReturn(true);
 
         ElasticsearchSecurityException e =
@@ -780,6 +800,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         } else {
             assertThat(threadContext.getHeader(Authentication.AUTHENTICATION_KEY), equalTo((Object) authentication.encode()));
         }
+    }
+
+    private void mockAuthenticate(Realm realm, AuthenticationToken token, User user) {
+        doAnswer((i) -> {
+            ActionListener listener = (ActionListener) i.getArguments()[1];
+            listener.onResponse(user);
+            return null;
+        }).when(realm).authenticate(eq(token), any(ActionListener.class));
     }
 
     private Authentication authenticateBlocking(RestRequest restRequest) {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -36,30 +37,43 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
     }
 
     /**
-     * Given a username and password, open to ldap, retrieve groups, map to roles and build the user.
-     *
-     * @return User with elasticsearch roles
+     * Given a username and password, open a connection to ldap, bind to authenticate, retrieve groups, map to roles and build the user.
+     * This user will then be passed to the listener
      */
     @Override
-    protected User doAuthenticate(UsernamePasswordToken token) {
+    protected final void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
+        // we use a runnable so that we call the listener outside of the try catch block. If we call within the try catch block and the
+        // listener throws an exception then we mistakenly could continue realm authentication when we already authenticated the user and
+        // there was some other issue
+        Runnable action;
         try (LdapSession session = sessionFactory.session(token.principal(), token.credentials())) {
-            return createUser(token.principal(), session);
+            final User user = createUser(token.principal(), session);
+            action = () -> listener.onResponse(user);
         } catch (Exception e) {
             logException("authentication", e, token.principal());
-            return null;
+            action = () -> listener.onResponse(null);
         }
+        action.run();
     }
 
     @Override
-    public User doLookupUser(String username) {
+    protected final void doLookupUser(String username, ActionListener<User> listener) {
+        // we use a runnable so that we call the listener outside of the try catch block. If we call within the try catch block and the
+        // listener throws an exception then we mistakenly could continue realm lookup when we already found a matching user and
+        // there was some other issue
+        Runnable action;
         if (sessionFactory.supportsUnauthenticatedSession()) {
             try (LdapSession session = sessionFactory.unauthenticatedSession(username)) {
-                return createUser(username, session);
+                final User user = createUser(username, session);
+                action = () -> listener.onResponse(user);
             } catch (Exception e) {
                 logException("lookup", e, username);
+                action = () -> listener.onResponse(null);
             }
+        } else {
+            action = () -> listener.onResponse(null);
         }
-        return null;
+        action.run();
     }
 
     @Override

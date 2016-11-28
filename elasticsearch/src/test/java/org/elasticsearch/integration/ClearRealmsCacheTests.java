@@ -8,6 +8,7 @@ package org.elasticsearch.integration;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
@@ -236,7 +237,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         Map<String, Map<Realm, User>> users = new HashMap<>();
         for (Realm realm : realms) {
             for (String username : usernames) {
-                User user = realm.authenticate(tokens.get(username));
+                PlainActionFuture<User> future = new PlainActionFuture<>();
+                realm.authenticate(tokens.get(username), future);
+                User user = future.actionGet();
                 assertThat(user, notNullValue());
                 Map<Realm, User> realmToUser = users.get(username);
                 if (realmToUser == null) {
@@ -251,7 +254,10 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
         for (String username : usernames) {
             for (Realm realm : realms) {
-                assertThat(realm.authenticate(tokens.get(username)), sameInstance(users.get(username).get(realm)));
+                PlainActionFuture<User> future = new PlainActionFuture<>();
+                realm.authenticate(tokens.get(username), future);
+                User user = future.actionGet();
+                assertThat(user, sameInstance(users.get(username).get(realm)));
             }
         }
 
@@ -261,7 +267,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         // now, user_a should have been evicted, but user_b should still be cached
         for (String username : usernames) {
             for (Realm realm : realms) {
-                User user = realm.authenticate(tokens.get(username));
+                PlainActionFuture<User> future = new PlainActionFuture<>();
+                realm.authenticate(tokens.get(username), future);
+                User user = future.actionGet();
                 assertThat(user, notNullValue());
                 scenario.assertEviction(users.get(username).get(realm), user);
             }

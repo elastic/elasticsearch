@@ -25,6 +25,7 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -62,29 +64,38 @@ public class ReservedRealmTests extends ESTestCase {
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
         final String principal = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
 
-        ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class,
-                () -> reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD)));
+        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD), listener);
+        ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
         assertThat(expected.getMessage(), containsString("failed to authenticate user [" + principal));
         verify(usersStore).started();
         verifyNoMoreInteractions(usersStore);
     }
 
     public void testDefaultPasswordAuthentication() throws Throwable {
+        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final String principal = expected.principal();
         final boolean securityIndexExists = randomBoolean();
         if (securityIndexExists) {
             when(usersStore.securityIndexExists()).thenReturn(true);
+            doAnswer((i) -> {
+                ActionListener listener = (ActionListener) i.getArguments()[1];
+                listener.onResponse(null);
+                return null;
+            }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
         }
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
-        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true));
-        final String principal = expected.principal();
 
-        final User authenticated = reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD));
+
+        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD), listener);
+        final User authenticated = listener.actionGet();
         assertEquals(expected, authenticated);
         verify(usersStore).started();
         verify(usersStore).securityIndexExists();
         if (securityIndexExists) {
-            verify(usersStore).getReservedUserInfo(principal);
+            verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
         }
         verifyNoMoreInteractions(usersStore);
     }
@@ -99,7 +110,9 @@ public class ReservedRealmTests extends ESTestCase {
         final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true));
         final String principal = expected.principal();
 
-        final User authenticated = reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD));
+        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD), listener);
+        final User authenticated = listener.actionGet();
         assertNull(authenticated);
         verifyZeroInteractions(usersStore);
     }
@@ -111,22 +124,33 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = expectedUser.principal();
         final SecuredString newPassword = new SecuredString("foobar".toCharArray());
         when(usersStore.securityIndexExists()).thenReturn(true);
-        when(usersStore.getReservedUserInfo(principal)).thenReturn(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), true));
+        doAnswer((i) -> {
+            ActionListener callback = (ActionListener) i.getArguments()[1];
+            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), true));
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
         // test default password
-        ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class,
-                () -> reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD)));
+        final PlainActionFuture<User> listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD), listener);
+        ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
         assertThat(expected.getMessage(), containsString("failed to authenticate user [" + principal));
 
         // the realm assumes it owns the hashed password so it fills it with 0's
-        when(usersStore.getReservedUserInfo(principal)).thenReturn(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), true));
+        doAnswer((i) -> {
+            ActionListener callback = (ActionListener) i.getArguments()[1];
+            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), true));
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
         // test new password
-        final User authenticated = reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, newPassword));
+        final PlainActionFuture<User> authListener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, newPassword), authListener);
+        final User authenticated = authListener.actionGet();
         assertEquals(expectedUser, authenticated);
         verify(usersStore, times(2)).started();
         verify(usersStore, times(2)).securityIndexExists();
-        verify(usersStore, times(2)).getReservedUserInfo(principal);
+        verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
         verifyNoMoreInteractions(usersStore);
     }
 
@@ -136,12 +160,16 @@ public class ReservedRealmTests extends ESTestCase {
         final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
         final String principal = expectedUser.principal();
 
-        final User user = reservedRealm.doLookupUser(principal);
+        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        reservedRealm.doLookupUser(principal, listener);
+        final User user = listener.actionGet();
         assertEquals(expectedUser, user);
         verify(usersStore).started();
         verify(usersStore).securityIndexExists();
 
-        final User doesntExist = reservedRealm.doLookupUser("foobar");
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        reservedRealm.doLookupUser("foobar", future);
+        final User doesntExist = future.actionGet();
         assertThat(doesntExist, nullValue());
         verifyNoMoreInteractions(usersStore);
     }
@@ -153,7 +181,9 @@ public class ReservedRealmTests extends ESTestCase {
         final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
         final String principal = expectedUser.principal();
 
-        final User user = reservedRealm.doLookupUser(principal);
+        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        reservedRealm.doLookupUser(principal, listener);
+        final User user = listener.actionGet();
         assertNull(user);
         verifyZeroInteractions(usersStore);
     }
@@ -165,15 +195,20 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = expectedUser.principal();
         when(usersStore.securityIndexExists()).thenReturn(true);
         final RuntimeException e = new RuntimeException("store threw");
-        when(usersStore.getReservedUserInfo(principal)).thenThrow(e);
+        doAnswer((i) -> {
+            ActionListener callback = (ActionListener) i.getArguments()[1];
+            callback.onFailure(e);
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
-        ElasticsearchSecurityException securityException =
-                expectThrows(ElasticsearchSecurityException.class, () -> reservedRealm.lookupUser(principal));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        reservedRealm.lookupUser(principal, future);
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(securityException.getMessage(), containsString("failed to lookup"));
 
         verify(usersStore).started();
         verify(usersStore).securityIndexExists();
-        verify(usersStore).getReservedUserInfo(principal);
+        verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
         verifyNoMoreInteractions(usersStore);
     }
 
@@ -226,17 +261,16 @@ public class ReservedRealmTests extends ESTestCase {
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
         // maybe cache a successful auth
         if (randomBoolean()) {
-            User user = reservedRealm.authenticate(
-                    new UsernamePasswordToken(ElasticUser.NAME, new SecuredString("changeme".toCharArray())));
+            PlainActionFuture<User> future = new PlainActionFuture<>();
+            reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecuredString("changeme".toCharArray())), future);
+            User user = future.actionGet();
             assertEquals(new ElasticUser(true), user);
         }
 
-        try {
-            reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecuredString("foobar".toCharArray())));
-            fail("authentication should throw an exception otherwise we may allow others to impersonate reserved users...");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.getMessage(), containsString("failed to authenticate"));
-        }
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecuredString("foobar".toCharArray())), future);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("failed to authenticate"));
     }
 
     /*
@@ -247,5 +281,12 @@ public class ReservedRealmTests extends ESTestCase {
             ((ActionListener) i.getArguments()[0]).onResponse(collection);
             return null;
         }).when(usersStore).getAllReservedUserInfo(any(ActionListener.class));
+
+        for (Entry<String, ReservedUserInfo> entry : collection.entrySet()) {
+            doAnswer((i) -> {
+                ((ActionListener) i.getArguments()[1]).onResponse(entry.getValue());
+                return null;
+            }).when(usersStore).getReservedUserInfo(eq(entry.getKey()), any(ActionListener.class));
+        }
     }
 }

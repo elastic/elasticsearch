@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -81,13 +82,18 @@ public class PkiRealm extends Realm {
 
     @Override
     public User authenticate(AuthenticationToken authToken) {
+        throw new UnsupportedOperationException("internal realms do not support blocking calls");
+    }
+
+    @Override
+    public void authenticate(AuthenticationToken authToken, ActionListener<User> listener) {
         X509AuthenticationToken token = (X509AuthenticationToken)authToken;
         if (isCertificateChainTrusted(trustManager, token, logger) == false) {
-            return null;
+            listener.onResponse(null);
+        } else {
+            Set<String> roles = roleMapper.resolveRoles(token.dn(), Collections.<String>emptyList());
+            listener.onResponse(new User(token.principal(), roles.toArray(new String[roles.size()])));
         }
-
-        Set<String> roles = roleMapper.resolveRoles(token.dn(), Collections.<String>emptyList());
-        return new User(token.principal(), roles.toArray(new String[roles.size()]));
     }
 
     @Override

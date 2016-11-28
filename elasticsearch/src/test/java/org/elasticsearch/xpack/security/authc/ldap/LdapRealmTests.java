@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
@@ -69,7 +70,9 @@ public class LdapRealmTests extends LdapTestCase {
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
 
-        User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("HMS Victory"));
     }
@@ -85,7 +88,9 @@ public class LdapRealmTests extends LdapTestCase {
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
 
-        User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("HMS Victory"));
     }
@@ -101,8 +106,12 @@ public class LdapRealmTests extends LdapTestCase {
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        future.actionGet();
 
         //verify one and only one session -> caching is working
         verify(ldapFactory, times(1)).session(anyString(), any(SecuredString.class));
@@ -120,15 +129,21 @@ public class LdapRealmTests extends LdapTestCase {
         DnRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper);
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        future.actionGet();
 
         //verify one and only one session -> caching is working
         verify(ldapFactory, times(1)).session(anyString(), any(SecuredString.class));
 
         roleMapper.notifyRefresh();
 
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        future.actionGet();
 
         //we need to session again
         verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class));
@@ -146,8 +161,12 @@ public class LdapRealmTests extends LdapTestCase {
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        future.actionGet();
 
         //verify two and only two binds -> caching is disabled
         verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class));
@@ -219,7 +238,9 @@ public class LdapRealmTests extends LdapTestCase {
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null));
 
-        User user = ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", SecuredStringTests.build(PASSWORD)));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", SecuredStringTests.build(PASSWORD)), future);
+        User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("avenger"));
     }

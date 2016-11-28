@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.Realm;
@@ -19,6 +21,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -47,13 +50,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         RealmConfig config = new RealmConfig("test_realm", settings, globalSettings);
         CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
             @Override
-            protected User doAuthenticate(UsernamePasswordToken token) {
-                return new User("username", new String[] { "r1", "r2", "r3" });
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
+                listener.onResponse(new User("username", new String[] { "r1", "r2", "r3" }));
             }
 
             @Override
-            protected User doLookupUser(String username) {
-                throw new UnsupportedOperationException("this method should not be called");
+            protected void doLookupUser(String username, ActionListener<User> listener) {
+                listener.onFailure(new UnsupportedOperationException("this method should not be called"));
             }
 
             @Override
@@ -68,14 +71,27 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testAuthCache() {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
         SecuredString pass = SecuredStringTests.build("pass");
-        realm.authenticate(new UsernamePasswordToken("a", pass));
-        realm.authenticate(new UsernamePasswordToken("b", pass));
-        realm.authenticate(new UsernamePasswordToken("c", pass));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("a", pass), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("b", pass), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("c", pass), future);
+        future.actionGet();
 
         assertThat(realm.authInvocationCounter.intValue(), is(3));
-        realm.authenticate(new UsernamePasswordToken("a", pass));
-        realm.authenticate(new UsernamePasswordToken("b", pass));
-        realm.authenticate(new UsernamePasswordToken("c", pass));
+
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("a", pass), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("b", pass), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("c", pass), future);
+        future.actionGet();
 
         assertThat(realm.authInvocationCounter.intValue(), is(3));
         assertThat(realm.lookupInvocationCounter.intValue(), is(0));
@@ -83,14 +99,26 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
     public void testLookupCache() {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
-        realm.lookupUser("a");
-        realm.lookupUser("b");
-        realm.lookupUser("c");
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.lookupUser("a", future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.lookupUser("b", future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.lookupUser("c", future);
+        future.actionGet();
 
         assertThat(realm.lookupInvocationCounter.intValue(), is(3));
-        realm.lookupUser("a");
-        realm.lookupUser("b");
-        realm.lookupUser("c");
+        future = new PlainActionFuture<>();
+        realm.lookupUser("a", future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.lookupUser("b", future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.lookupUser("c", future);
+        future.actionGet();
 
         assertThat(realm.authInvocationCounter.intValue(), is(0));
         assertThat(realm.lookupInvocationCounter.intValue(), is(3));
@@ -99,25 +127,33 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testLookupAndAuthCache() {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
         // lookup first
-        User lookedUp = realm.lookupUser("a");
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.lookupUser("a", future);
+        User lookedUp = future.actionGet();
         assertThat(realm.lookupInvocationCounter.intValue(), is(1));
         assertThat(realm.authInvocationCounter.intValue(), is(0));
         assertThat(lookedUp.roles(), arrayContaining("lookupRole1", "lookupRole2"));
 
         // now authenticate
-        User user = realm.authenticate(new UsernamePasswordToken("a", SecuredStringTests.build("pass")));
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("a", SecuredStringTests.build("pass")), future);
+        User user = future.actionGet();
         assertThat(realm.lookupInvocationCounter.intValue(), is(1));
         assertThat(realm.authInvocationCounter.intValue(), is(1));
         assertThat(user.roles(), arrayContaining("testRole1", "testRole2"));
         assertThat(user, not(sameInstance(lookedUp)));
 
         // authenticate a different user first
-        user = realm.authenticate(new UsernamePasswordToken("b", SecuredStringTests.build("pass")));
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("b", SecuredStringTests.build("pass")), future);
+        user = future.actionGet();
         assertThat(realm.lookupInvocationCounter.intValue(), is(1));
         assertThat(realm.authInvocationCounter.intValue(), is(2));
         assertThat(user.roles(), arrayContaining("testRole1", "testRole2"));
         //now lookup b
-        lookedUp = realm.lookupUser("b");
+        future = new PlainActionFuture<>();
+        realm.lookupUser("b", future);
+        lookedUp = future.actionGet();
         assertThat(realm.lookupInvocationCounter.intValue(), is(1));
         assertThat(realm.authInvocationCounter.intValue(), is(2));
         assertThat(user, sameInstance(lookedUp));
@@ -130,47 +166,69 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         SecuredString pass1 = SecuredStringTests.build("pass");
         SecuredString pass2 = SecuredStringTests.build("password");
 
-        realm.authenticate(new UsernamePasswordToken(user, pass1));
-        realm.authenticate(new UsernamePasswordToken(user, pass1));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, pass1), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, pass1), future);
+        future.actionGet();
 
         assertThat(realm.authInvocationCounter.intValue(), is(1));
 
-        realm.authenticate(new UsernamePasswordToken(user, pass2));
-        realm.authenticate(new UsernamePasswordToken(user, pass2));
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, pass2), future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, pass2), future);
+        future.actionGet();
 
         assertThat(realm.authInvocationCounter.intValue(), is(2));
     }
 
     public void testAuthenticateContract() throws Exception {
         Realm realm = new FailingAuthenticationRealm(Settings.EMPTY, globalSettings);
-        User user = realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")));
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")), future);
+        User user = future.actionGet();
         assertThat(user , nullValue());
 
         realm = new ThrowingAuthenticationRealm(Settings.EMPTY, globalSettings);
-        user = realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")));
-        assertThat(user , nullValue());
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")), future);
+        RuntimeException e = expectThrows(RuntimeException.class, future::actionGet);
+        assertThat(e.getMessage() , containsString("whatever exception"));
     }
 
     public void testLookupContract() throws Exception {
         Realm realm = new FailingAuthenticationRealm(Settings.EMPTY, globalSettings);
-        User user = realm.lookupUser("user");
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.lookupUser("user", future);
+        User user = future.actionGet();
         assertThat(user , nullValue());
 
         realm = new ThrowingAuthenticationRealm(Settings.EMPTY, globalSettings);
-        user = realm.lookupUser("user");
-        assertThat(user , nullValue());
+        future = new PlainActionFuture<>();
+        realm.lookupUser("user", future);
+        RuntimeException e = expectThrows(RuntimeException.class, future::actionGet);
+        assertThat(e.getMessage() , containsString("lookup exception"));
     }
 
     public void testThatLookupIsNotCalledIfNotSupported() throws Exception {
         LookupNotSupportedRealm realm = new LookupNotSupportedRealm(globalSettings);
         assertThat(realm.userLookupSupported(), is(false));
-        User user = realm.lookupUser("a");
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.lookupUser("a", future);
+        User user = future.actionGet();
         assertThat(user, is(nullValue()));
         assertThat(realm.lookupInvocationCounter.intValue(), is(0));
 
         // try to lookup more
-        realm.lookupUser("b");
-        realm.lookupUser("c");
+        future = new PlainActionFuture<>();
+        realm.lookupUser("b", future);
+        future.actionGet();
+        future = new PlainActionFuture<>();
+        realm.lookupUser("c", future);
+        future.actionGet();
 
         assertThat(realm.lookupInvocationCounter.intValue(), is(0));
     }
@@ -184,17 +242,18 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings);
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
             @Override
-            protected User doAuthenticate(UsernamePasswordToken token) {
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
                 // do something slow
                 if (BCrypt.checkpw(token.credentials(), passwordHash)) {
-                    return new User(username, new String[]{"r1", "r2", "r3"});
+                    listener.onResponse(new User(username, new String[]{"r1", "r2", "r3"}));
+                } else {
+                    listener.onResponse(null);
                 }
-                return null;
             }
 
             @Override
-            protected User doLookupUser(String username) {
-                throw new UnsupportedOperationException("this method should not be called");
+            protected void doLookupUser(String username, ActionListener<User> listener) {
+                listener.onFailure(new UnsupportedOperationException("this method should not be called"));
             }
 
             @Override
@@ -217,12 +276,17 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                         latch.await();
                         for (int i = 0; i < numberOfIterations; i++) {
                             UsernamePasswordToken token = new UsernamePasswordToken(username, invalidPassword ? randomPassword : password);
-                            User user = realm.authenticate(token);
-                            if (invalidPassword && user != null) {
-                                throw new RuntimeException("invalid password led to an authenticated user: " + user.toString());
-                            } else if (invalidPassword == false && user == null) {
-                                throw new RuntimeException("proper password led to a null user!");
-                            }
+
+                            realm.authenticate(token, ActionListener.wrap((user) -> {
+                                if (invalidPassword && user != null) {
+                                    throw new RuntimeException("invalid password led to an authenticated user: " + user.toString());
+                                } else if (invalidPassword == false && user == null) {
+                                    throw new RuntimeException("proper password led to a null user!");
+                                }
+                            }, (e) -> {
+                                logger.error("caught exception", e);
+                                fail("unexpected exception");
+                            }));
                         }
 
                     } catch (InterruptedException e) {}
@@ -245,13 +309,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings);
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
             @Override
-            protected User doAuthenticate(UsernamePasswordToken token) {
-                throw new UnsupportedOperationException("authenticate should not be called!");
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
+                listener.onFailure(new UnsupportedOperationException("authenticate should not be called!"));
             }
 
             @Override
-            protected User doLookupUser(String username) {
-                return new User(username, new String[]{"r1", "r2", "r3"});
+            protected void doLookupUser(String username, ActionListener<User> listener) {
+                listener.onResponse(new User(username, new String[]{"r1", "r2", "r3"}));
             }
 
             @Override
@@ -272,10 +336,14 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                     try {
                         latch.await();
                         for (int i = 0; i < numberOfIterations; i++) {
-                            User user = realm.lookupUser(username);
-                            if (user == null) {
-                                throw new RuntimeException("failed to lookup user");
-                            }
+                            realm.lookupUser(username, ActionListener.wrap((user) -> {
+                                if (user == null) {
+                                    throw new RuntimeException("failed to lookup user");
+                                }
+                            }, (e) -> {
+                                logger.error("caught exception", e);
+                                fail("unexpected exception");
+                            }));
                         }
 
                     } catch (InterruptedException e) {}
@@ -299,18 +367,18 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
 
         @Override
-        protected User doAuthenticate(UsernamePasswordToken token) {
-            return null;
-        }
-
-        @Override
-        protected User doLookupUser(String username) {
-            return null;
-        }
-
-        @Override
         public boolean userLookupSupported() {
             return true;
+        }
+
+        @Override
+        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        protected void doLookupUser(String username, ActionListener<User> listener) {
+            listener.onResponse(null);
         }
     }
 
@@ -321,13 +389,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
 
         @Override
-        protected User doAuthenticate(UsernamePasswordToken token) {
-            throw new RuntimeException("whatever exception");
+        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
+            listener.onFailure(new RuntimeException("whatever exception"));
         }
 
         @Override
-        protected User doLookupUser(String username) {
-            throw new RuntimeException("lookup exception");
+        protected void doLookupUser(String username, ActionListener<User> listener) {
+            listener.onFailure(new RuntimeException("lookup exception"));
         }
 
         @Override
@@ -346,15 +414,15 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
 
         @Override
-        protected User doAuthenticate(UsernamePasswordToken token) {
+        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
             authInvocationCounter.incrementAndGet();
-            return new User(token.principal(), new String[] { "testRole1", "testRole2" });
+            listener.onResponse(new User(token.principal(), new String[] { "testRole1", "testRole2" }));
         }
 
         @Override
-        protected User doLookupUser(String username) {
+        protected void doLookupUser(String username, ActionListener<User> listener) {
             lookupInvocationCounter.incrementAndGet();
-            return new User(username, new String[] { "lookupRole1", "lookupRole2" });
+            listener.onResponse(new User(username, new String[] { "lookupRole1", "lookupRole2" }));
         }
 
         @Override
@@ -373,15 +441,15 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
 
         @Override
-        protected User doAuthenticate(UsernamePasswordToken token) {
+        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
             authInvocationCounter.incrementAndGet();
-            return new User(token.principal(), new String[] { "testRole1", "testRole2" });
+            listener.onResponse(new User(token.principal(), new String[] { "testRole1", "testRole2" }));
         }
 
         @Override
-        protected User doLookupUser(String username) {
+        protected void doLookupUser(String username, ActionListener<User> listener) {
             lookupInvocationCounter.incrementAndGet();
-            throw new UnsupportedOperationException("don't call lookup if lookup isn't supported!!!");
+            listener.onFailure(new UnsupportedOperationException("don't call lookup if lookup isn't supported!!!"));
         }
 
         @Override

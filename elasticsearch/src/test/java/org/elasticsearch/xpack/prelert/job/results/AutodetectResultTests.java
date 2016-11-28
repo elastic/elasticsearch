@@ -38,8 +38,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         FlushAcknowledgement flushAcknowledgement;
         String jobId = "foo";
         if (randomBoolean()) {
-            bucket = new Bucket(jobId);
-            bucket.setId(randomAsciiOfLengthBetween(1, 20));
+            bucket = new Bucket(jobId, new Date(randomLong()), randomPositiveLong());
         } else {
             bucket = null;
         }

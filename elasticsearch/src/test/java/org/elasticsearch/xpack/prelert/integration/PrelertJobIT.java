@@ -189,9 +189,9 @@ public class PrelertJobIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '1'"));
 
-        addBucketResult("1", "1234");
-        addBucketResult("1", "1235");
-        addBucketResult("1", "1236");
+        addBucketResult("1", "1234", 1);
+        addBucketResult("1", "1235", 1);
+        addBucketResult("1", "1236", 1);
         Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/buckets", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -307,7 +307,7 @@ public class PrelertJobIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("Cannot resume job 'farequote' while its status is CLOSED"));
     }
 
-    private Response addBucketResult(String jobId, String timestamp) throws Exception {
+    private Response addBucketResult(String jobId, String timestamp, long bucketSpan) throws Exception {
         try {
             client().performRequest("put", "prelertresults-" + jobId, Collections.emptyMap(), new StringEntity(RESULT_MAPPING));
         } catch (ResponseException e) {
@@ -316,9 +316,12 @@ public class PrelertJobIT extends ESRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
 
-        String bucketResult =
-                String.format(Locale.ROOT, "{\"jobId\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\"}", jobId, timestamp);
-        return client().performRequest("put", "prelertresults-" + jobId + "/result/" + timestamp,
+        String bucketResult = String.format(Locale.ROOT,
+                "{\"jobId\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucketSpan\": \"%s\"}",
+                jobId, timestamp, bucketSpan);
+        String id = String.format(Locale.ROOT,
+                "%s_%s_%s", jobId, timestamp, bucketSpan);
+        return client().performRequest("put", "prelertresults-" + jobId + "/result/" + id,
                 Collections.singletonMap("refresh", "true"), new StringEntity(bucketResult));
     }
 

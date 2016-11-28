@@ -17,8 +17,8 @@ setup:
       index:
         index:  prelertresults-farequote
         type:   result
-        id:     1
-        body:   { "jobId": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z" }
+        id:     "farequote_1464739200000_1"
+        body:   { "jobId": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z", "bucketSpan":1 }
 
   - do:
       indices.refresh:

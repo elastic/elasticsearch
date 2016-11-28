@@ -32,8 +32,6 @@ class ElasticsearchBatchedBucketsIterator extends ElasticsearchBatchedResultsIte
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse bucket", e);
         }
-        Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
-        bucket.setId(hit.getId());
-        return bucket;
+        return Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
     }
 }

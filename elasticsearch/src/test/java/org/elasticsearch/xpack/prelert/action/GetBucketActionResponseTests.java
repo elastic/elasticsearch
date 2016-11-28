@@ -29,7 +29,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
         List<Bucket> hits = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             String jobId = "foo";
-            Bucket bucket = new Bucket(jobId);
+            Bucket bucket = new Bucket(jobId, new Date(randomLong()), randomPositiveLong());
             if (randomBoolean()) {
                 bucket.setAnomalyScore(randomDouble());
             }
@@ -48,13 +48,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                 bucket.setBucketInfluencers(bucketInfluencers);
             }
             if (randomBoolean()) {
-                bucket.setBucketSpan(randomPositiveLong());
-            }
-            if (randomBoolean()) {
                 bucket.setEventCount(randomPositiveLong());
-            }
-            if (randomBoolean()) {
-                bucket.setId(randomAsciiOfLengthBetween(1, 20));
             }
             if (randomBoolean()) {
                 bucket.setInitialAnomalyScore(randomDouble());
@@ -103,9 +97,6 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                     records.add(anomalyRecord);
                 }
                 bucket.setRecords(records);
-            }
-            if (randomBoolean()) {
-                bucket.setTimestamp(new Date(randomLong()));
             }
             hits.add(bucket);
         }

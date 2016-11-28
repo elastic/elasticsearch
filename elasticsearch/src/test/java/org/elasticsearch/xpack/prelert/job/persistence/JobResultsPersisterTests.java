@@ -42,12 +42,8 @@ public class JobResultsPersisterTests extends ESTestCase {
                 .prepareBulk(response);
 
         Client client = clientBuilder.build();
-        Bucket bucket = new Bucket("foo");
-        bucket.setId("1");
-        bucket.setTimestamp(new Date());
-        bucket.setId(responseId);
+        Bucket bucket = new Bucket("foo", new Date(), 123456);
         bucket.setAnomalyScore(99.9);
-        bucket.setBucketSpan(123456);
         bucket.setEventCount(57);
         bucket.setInitialAnomalyScore(88.8);
         bucket.setMaxNormalizedProbability(42.0);

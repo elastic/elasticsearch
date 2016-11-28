@@ -363,7 +363,6 @@ public class ElasticsearchJobProvider implements JobProvider {
                 throw new ElasticsearchParseException("failed to parser bucket", e);
             }
             Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
-            bucket.setId(hit.getId());
 
             if (includeInterim || bucket.isInterim() == false) {
                 results.add(bucket);
@@ -412,7 +411,6 @@ public class ElasticsearchJobProvider implements JobProvider {
             throw new ElasticsearchParseException("failed to parser bucket", e);
         }
         Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
-        bucket.setId(hit.getId());
 
         // don't return interim buckets if not requested
         if (bucket.isInterim() && query.isIncludeInterim() == false) {

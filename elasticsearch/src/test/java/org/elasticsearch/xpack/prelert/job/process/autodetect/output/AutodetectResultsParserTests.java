@@ -29,11 +29,13 @@ import java.util.stream.Collectors;
 public class AutodetectResultsParserTests extends ESTestCase {
     private static final double EPSILON = 0.000001;
 
-    public static final String METRIC_OUTPUT_SAMPLE = "[{\"bucket\": {\"jobId\":\"foo\",\"timestamp\":1359450000000,\"records\":[],"
+    public static final String METRIC_OUTPUT_SAMPLE = "[{\"bucket\": {\"jobId\":\"foo\",\"timestamp\":1359450000000,"
+            + "\"bucketSpan\":22, \"records\":[],"
             + "\"maxNormalizedProbability\":0, \"anomalyScore\":0,\"recordCount\":0,\"eventCount\":806,\"bucketInfluencers\":["
             + "{\"jobId\":\"foo\",\"anomalyScore\":0, \"probability\":0.0, \"influencerFieldName\":\"bucketTime\","
             + "\"initialAnomalyScore\":0.0}]}},{\"quantiles\": {\"jobId\":\"foo\", \"quantileState\":\"[normaliser 1.1, normaliser 2.1]\"}}"
-            + ",{\"bucket\": {\"jobId\":\"foo\",\"timestamp\":1359453600000,\"records\":[{\"jobId\":\"foo\",\"probability\":0.0637541,"
+            + ",{\"bucket\": {\"jobId\":\"foo\",\"timestamp\":1359453600000,\"bucketSpan\":22,"
+            + "\"records\":[{\"jobId\":\"foo\",\"probability\":0.0637541,"
             + "\"byFieldName\":\"airline\",\"byFieldValue\":\"JZA\", \"typical\":[1020.08],\"actual\":[1042.14],"
             + "\"fieldName\":\"responsetime\",\"function\":\"max\",\"partitionFieldName\":\"\",\"partitionFieldValue\":\"\"},"
             + "{\"jobId\":\"foo\",\"probability\":0.00748292,\"byFieldName\":\"airline\",\"byFieldValue\":\"AMX\", "

@@ -15,7 +15,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -36,7 +39,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     /*
      * Field Names
      */
-    public static final ParseField JOB_ID = new ParseField("jobId");
+    public static final ParseField JOB_ID = Job.ID;
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
     public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initialAnomalyScore");
@@ -60,11 +63,11 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     public static final ConstructingObjectParser<Bucket, ParseFieldMatcherSupplier> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new Bucket((String) a[0]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
-        PARSER.declareField(Bucket::setTimestamp, p -> {
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -72,6 +75,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
             }
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
         }, TIMESTAMP, ValueType.VALUE);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
         PARSER.declareDouble(Bucket::setMaxNormalizedProbability, MAX_NORMALIZED_PROBABILITY);
@@ -80,20 +84,16 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(Bucket::setEventCount, EVENT_COUNT);
         PARSER.declareObjectArray(Bucket::setRecords, AnomalyRecord.PARSER, RECORDS);
         PARSER.declareObjectArray(Bucket::setBucketInfluencers, BucketInfluencer.PARSER, BUCKET_INFLUENCERS);
-        PARSER.declareLong(Bucket::setBucketSpan, BUCKET_SPAN);
         PARSER.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
         PARSER.declareObjectArray(Bucket::setPartitionScores, PartitionScore.PARSER, PARTITION_SCORES);
         PARSER.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
     }
 
     private final String jobId;
-    private String id;
-    private Date timestamp;
+    private final Date timestamp;
+    private final long bucketSpan;
     private double anomalyScore;
-    private long bucketSpan;
-
     private double initialAnomalyScore;
-
     private double maxNormalizedProbability;
     private int recordCount;
     private List<AnomalyRecord> records = Collections.emptyList();
@@ -105,17 +105,16 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     private Map<String, Double> perPartitionMaxProbability = Collections.emptyMap();
     private List<PartitionScore> partitionScores = Collections.emptyList();
 
-    public Bucket(String jobId) {
+    public Bucket(String jobId, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
+        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP.getPreferredName());
+        this.bucketSpan = bucketSpan;
     }
 
     @SuppressWarnings("unchecked")
     public Bucket(StreamInput in) throws IOException {
         jobId = in.readString();
-        id = in.readOptionalString();
-        if (in.readBoolean()) {
-            timestamp = new Date(in.readLong());
-        }
+        timestamp = new Date(in.readLong());
         anomalyScore = in.readDouble();
         bucketSpan = in.readLong();
         initialAnomalyScore = in.readDouble();
@@ -134,12 +133,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeOptionalString(id);
-        boolean hasTimestamp = timestamp != null;
-        out.writeBoolean(hasTimestamp);
-        if (hasTimestamp) {
-            out.writeLong(timestamp.getTime());
-        }
+        out.writeLong(timestamp.getTime());
         out.writeDouble(anomalyScore);
         out.writeLong(bucketSpan);
         out.writeDouble(initialAnomalyScore);
@@ -159,9 +153,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(JOB_ID.getPreferredName(), jobId);
-        if (timestamp != null) {
-            builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
-        }
+        builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);
@@ -186,11 +178,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     }
 
     public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
+        return jobId + "_" + timestamp.getTime() + "_" + bucketSpan;
     }
 
     /**
@@ -205,22 +193,11 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         return timestamp;
     }
 
-    public void setTimestamp(Date timestamp) {
-        this.timestamp = timestamp;
-    }
-
     /**
      * Bucketspan expressed in seconds
      */
     public long getBucketSpan() {
         return bucketSpan;
-    }
-
-    /**
-     * Bucketspan expressed in seconds
-     */
-    public void setBucketSpan(long bucketSpan) {
-        this.bucketSpan = bucketSpan;
     }
 
     public double getAnomalyScore() {

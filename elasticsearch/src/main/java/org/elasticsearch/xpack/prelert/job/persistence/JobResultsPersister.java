@@ -79,7 +79,6 @@ public class JobResultsPersister extends AbstractComponent {
             IndexResponse response = client.prepareIndex(indexName, Result.TYPE.getPreferredName())
                     .setSource(content)
                     .execute().actionGet();
-            bucket.setId(response.getId());
             persistBucketInfluencersStandalone(jobId, bucket.getId(), bucket.getBucketInfluencers(), bucket.getTimestamp(),
                     bucket.isInterim());
 

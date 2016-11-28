@@ -212,6 +212,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("jobId", "foo");
         map.put("timestamp", now.getTime());
+        map.put("bucketSpan", 22);
         source.add(map);
 
         ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
@@ -245,6 +246,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("jobId", "foo");
         map.put("timestamp", now.getTime());
+        map.put("bucketSpan", 22);
         source.add(map);
 
         ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
@@ -279,6 +281,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("jobId", "foo");
         map.put("timestamp", now.getTime());
+        map.put("bucketSpan", 22);
         source.add(map);
 
         ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
@@ -343,6 +346,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("jobId", "foo");
         map.put("timestamp", now.getTime());
+        map.put("bucketSpan", 22);
         source.add(map);
 
         ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
@@ -371,6 +375,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("jobId", "foo");
         map.put("timestamp", now.getTime());
+        map.put("bucketSpan", 22);
         map.put("isInterim", true);
         source.add(map);
 
@@ -545,8 +550,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
     public void testexpandBucket() throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
-        Bucket bucket = new Bucket("foo");
-        bucket.setTimestamp(now);
+        Bucket bucket = new Bucket("foo", now, 22);
 
         List<Map<String, Object>> source = new ArrayList<>();
         for (int i = 0; i < 400; i++) {
@@ -577,8 +581,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
             throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
-        Bucket bucket = new Bucket("foo");
-        bucket.setTimestamp(now);
+        Bucket bucket = new Bucket("foo", now, 22);
 
         List<Map<String, Object>> source = new ArrayList<>();
         for (int i = 0; i < 600; i++) {
@@ -998,8 +1001,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
     }
 
     private Bucket createBucketAtEpochTime(long epoch) {
-        Bucket b = new Bucket("foo");
-        b.setTimestamp(new Date(epoch));
+        Bucket b = new Bucket("foo", new Date(epoch), 123);
         b.setMaxNormalizedProbability(10.0);
         return b;
     }

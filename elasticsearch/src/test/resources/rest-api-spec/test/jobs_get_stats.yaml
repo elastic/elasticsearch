@@ -109,7 +109,7 @@ setup:
   - is_false: jobs.0.data_counts
   - is_false: jobs.0.model_size_stats
   - is_false: jobs.0.scheduler_state
-  - match: { jobs.0.status: CLOSED }
+  - match: { jobs.0.status: RUNNING }
 
   - do:
       xpack.prelert.get_jobs:
@@ -118,7 +118,7 @@ setup:
   - is_true: jobs.0.config
   - is_true: jobs.0.data_counts
   - is_false: jobs.0.scheduler_state
-  - match: { jobs.0.status: CLOSED }
+  - match: { jobs.0.status: RUNNING }
 
   - do:
       xpack.prelert.get_jobs:

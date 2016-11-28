@@ -83,6 +83,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
         builder.value(result);
         pipedProcessOutStream.write(builder.string().getBytes(StandardCharsets.UTF_8));
         pipedProcessOutStream.flush();
+        pipedProcessOutStream.write(',');
         return FLUSH_ID;
     }
 
@@ -92,7 +93,10 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void close() throws IOException {
+        pipedProcessOutStream.write('{');
+        pipedProcessOutStream.write('}');
         pipedProcessOutStream.write(']');
+        pipedProcessOutStream.flush();
         pipedProcessOutStream.close();
         pipedPersistStream.close();
     }

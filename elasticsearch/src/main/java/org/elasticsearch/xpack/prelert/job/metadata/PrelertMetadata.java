@@ -19,12 +19,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
@@ -234,6 +236,11 @@ public class PrelertMetadata implements MetaData.Custom {
             Allocation previous = this.allocations.put(jobId, updated);
             if (previous == null) {
                 throw new IllegalStateException("Expected that job [" + jobId + "] was already allocated");
+            }
+            if (previous.getStatus() != updated.getStatus() && updated.getStatus() == JobStatus.CLOSED) {
+                Job.Builder job = new Job.Builder(this.jobs.get(jobId));
+                job.setFinishedTime(new Date());
+                this.jobs.put(job.getId(), job.build());
             }
             return this;
         }

@@ -244,37 +244,57 @@ public class PrelertJobIT extends ESRestTestCase {
     public void testPauseAndResumeJob() throws Exception {
         createFarequoteJob();
 
-        client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_pause");
+        ResponseException e = expectThrows(ResponseException.class,
+                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_pause"));
+        assertThat(e.getMessage(), containsString("[farequote][CLOSED] can't pause a job that is closed"));
 
+        client().performRequest("post", PrelertPlugin.BASE_PATH + "data/farequote/", Collections.emptyMap(),
+                new StringEntity("time,airline,responsetime,sourcetype\n" +
+                        "2014-06-23 00:00:00Z,AAL,132.2046,farequote"));
+        assertBusy(() -> {
+            try {
+                Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/farequote",
+                        Collections.singletonMap("metric", "status"));
+                assertThat(responseEntityToString(getJobResponse), containsString("\"status\":\"RUNNING\""));
+            } catch (Exception e1) {
+                throw new RuntimeException(e1);
+            }
+        });
+
+        client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_pause");
         assertBusy(() -> {
             try {
                 Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/farequote");
                 String responseEntityToString = responseEntityToString(response);
                 assertThat(responseEntityToString, containsString("\"ignoreDowntime\":\"ONCE\""));
-            } catch (Exception e) {
+            } catch (Exception e1) {
                 fail();
             }
         }, 2, TimeUnit.SECONDS);
 
-        client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_resume");
-
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_resume"));
-
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
-        assertThat(e.getMessage(), containsString("Cannot resume job 'farequote' while its status is CLOSED"));
-    }
-
-    public void testPauseJob_GivenJobIsPaused() throws Exception {
-        createFarequoteJob();
-
-        client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_pause");
-
-        ResponseException e = expectThrows(ResponseException.class,
+        e = expectThrows(ResponseException.class,
                 () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_pause"));
-
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(e.getMessage(), containsString("Cannot pause job 'farequote' while its status is PAUSED"));
+
+        client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_resume");
+        client().performRequest("post", PrelertPlugin.BASE_PATH + "data/farequote/", Collections.emptyMap(),
+                new StringEntity("time,airline,responsetime,sourcetype\n" +
+                        "2014-06-23 00:00:00Z,AAL,132.2046,farequote"));
+        assertBusy(() -> {
+            try {
+                Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/farequote",
+                        Collections.singletonMap("metric", "status"));
+                assertThat(responseEntityToString(getJobResponse), containsString("\"status\":\"RUNNING\""));
+            } catch (Exception e1) {
+                throw new RuntimeException(e1);
+            }
+        });
+
+        e = expectThrows(ResponseException.class,
+                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_resume"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(e.getMessage(), containsString("Cannot resume job 'farequote' while its status is RUNNING"));
     }
 
     public void testResumeJob_GivenJobIsClosed() throws Exception {

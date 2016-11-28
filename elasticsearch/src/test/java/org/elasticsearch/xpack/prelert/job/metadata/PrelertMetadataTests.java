@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.JobTests;
 
 import java.io.ByteArrayInputStream;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PrelertMetadataTests extends ESTestCase {
 
@@ -97,6 +99,24 @@ public class PrelertMetadataTests extends ESTestCase {
         assertThat(result.getJobs().size(), equalTo(2));
         assertThat(result.getJobs().get("1"), notNullValue());
         assertThat(result.getJobs().get("2"), notNullValue());
+    }
+
+    public void testUpdateAllocation_setFinishedTime() {
+        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+        builder.putJob(buildJobBuilder("_job_id").build(), false);
+        builder.putAllocation("_node_id", "_job_id");
+        PrelertMetadata prelertMetadata = builder.build();
+
+        builder = new PrelertMetadata.Builder(prelertMetadata);
+        Allocation.Builder allocation = new Allocation.Builder();
+        allocation.setJobId("_job_id");
+        allocation.setNodeId("_node_id");
+        allocation.setStatus(JobStatus.RUNNING);
+        builder.updateAllocation("_job_id", allocation.build());
+        assertThat(builder.build().getJobs().get("_job_id").getFinishedTime(), nullValue());
+        allocation.setStatus(JobStatus.CLOSED);
+        builder.updateAllocation("_job_id", allocation.build());
+        assertThat(builder.build().getJobs().get("_job_id").getFinishedTime(), notNullValue());
     }
 
 }

@@ -103,7 +103,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // job is created
         assertEquals(1, manager.numberOfRunningJobs());
-        manager.closeJob("foo");
+        manager.closeJob("foo", JobStatus.CLOSED);
         assertEquals(0, manager.numberOfRunningJobs());
     }
 
@@ -208,6 +208,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     private void givenAllocationWithStatus(JobStatus status) {
         Allocation.Builder allocation = new Allocation.Builder();
+        allocation.setStatus(JobStatus.RUNNING); // from running we can go to other statuses
         allocation.setStatus(status);
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation.build());
     }

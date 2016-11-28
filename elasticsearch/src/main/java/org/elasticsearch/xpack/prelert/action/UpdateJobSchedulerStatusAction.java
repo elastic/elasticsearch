@@ -180,7 +180,7 @@ public class UpdateJobSchedulerStatusAction extends Action<UpdateJobSchedulerSta
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.updateSchedulerStatus(request.getJobId(), request.getSchedulerStatus());
+            jobManager.updateSchedulerStatus(request, listener);
         }
 
         @Override

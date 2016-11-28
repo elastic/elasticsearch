@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.manager;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
+import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
@@ -54,6 +56,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
             Setting.intSetting("max_running_jobs", 10, Setting.Property.NodeScope);
 
+    private final Client client;
     private final int maxRunningJobs;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
@@ -73,6 +76,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
                                     JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
                                     AutodetectProcessFactory autodetectProcessFactory) {
         super(settings);
+        this.client = client;
         this.threadPool = threadPool;
         this.maxRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
         this.parser = parser;
@@ -96,7 +100,9 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         }
 
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
-            return create(id, params.isIgnoreDowntime());
+            AutodetectCommunicator c = create(id, params.isIgnoreDowntime());
+            setJobStatus(jobId, JobStatus.RUNNING);
+            return c;
         });
         try {
             return communicator.writeToJob(input, params);
@@ -172,7 +178,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     }
 
     @Override
-    public void closeJob(String jobId) {
+    public void closeJob(String jobId, JobStatus nextStatus) {
         logger.debug("Closing job {}", jobId);
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobId);
         if (communicator == null) {
@@ -182,9 +188,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
 
         try {
             communicator.close();
-            setJobFinishedTimeAndStatus(jobId, JobStatus.CLOSED);
-            // TODO check for errors from autodetect
-            // TODO delete associated files (model config etc)
+            setJobStatus(jobId, nextStatus);
         } catch (Exception e) {
             logger.warn("Exception closing stopped process input stream", e);
             throw ExceptionsHelper.serverError("Exception closing stopped process input stream", e);
@@ -207,10 +211,19 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         return Duration.between(communicator.getProcessStartTime(), ZonedDateTime.now());
     }
 
-    private void setJobFinishedTimeAndStatus(String jobId, JobStatus status) {
-        // NORELEASE Implement this.
-        // Perhaps move the JobStatus and finish time to a separate document stored outside the cluster state
-        logger.error("Cannot set finished job status and time- Not Implemented");
+    private void setJobStatus(String jobId, JobStatus status) {
+        UpdateJobStatusAction.Request request = new UpdateJobStatusAction.Request(jobId, status);
+        client.execute(UpdateJobStatusAction.INSTANCE, request, new ActionListener<UpdateJobStatusAction.Response>() {
+            @Override
+            public void onResponse(UpdateJobStatusAction.Response response) {
+                logger.info("Successfully set job status to [{}] for job [{}]", status, jobId);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Could not set job status to [" + status + "] for job [" + jobId +"]", e);
+            }
+        });
     }
 
     public Optional<ModelSizeStats> getModelSizeStats(String jobId) {

@@ -137,7 +137,7 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
 
         private String nodeId;
         private String jobId;
-        private JobStatus status = JobStatus.CLOSED;
+        private JobStatus status;
         private SchedulerState schedulerState;
 
         public Builder() {
@@ -158,8 +158,32 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
             this.jobId = jobId;
         }
 
-        public void setStatus(JobStatus status) {
-            this.status = status;
+        public void setStatus(JobStatus newStatus) {
+            switch (newStatus) {
+                case CLOSING:
+                    if (this.status == JobStatus.CLOSED) {
+                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] job already closed");
+                    }
+                    if (this.status == JobStatus.CLOSING) {
+                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] job already closing");
+                    }
+                    break;
+                case PAUSING:
+                    if (this.status == JobStatus.CLOSED) {
+                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is closed");
+                    }
+                    if (this.status == JobStatus.CLOSING) {
+                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is closing");
+                    }
+                    if (this.status == JobStatus.PAUSING) {
+                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is pausing");
+                    }
+                    if (this.status == JobStatus.PAUSED) {
+                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is already paused");
+                    }
+            }
+
+            this.status = newStatus;
         }
 
         public void setSchedulerState(SchedulerState schedulerState) {
@@ -200,6 +224,9 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         }
 
         public Allocation build() {
+            if (status == null) {
+                status = JobStatus.CLOSED;
+            }
             return new Allocation(nodeId, jobId, status, schedulerState);
         }
 

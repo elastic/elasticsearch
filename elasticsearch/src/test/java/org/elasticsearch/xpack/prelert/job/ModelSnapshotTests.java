@@ -44,8 +44,8 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         ModelSnapshot modelSnapshot2 = createFullyPopulated();
         modelSnapshot2.setTimestamp(modelSnapshot1.getTimestamp());
 
-        assertTrue(modelSnapshot1.equals(modelSnapshot2));
-        assertTrue(modelSnapshot2.equals(modelSnapshot1));
+        assertEquals(modelSnapshot1, modelSnapshot2);
+        assertEquals(modelSnapshot2, modelSnapshot1);
         assertEquals(modelSnapshot1.hashCode(), modelSnapshot2.hashCode());
     }
 
@@ -151,7 +151,9 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         modelSnapshot.setRestorePriority(DEFAULT_PRIORITY);
         modelSnapshot.setSnapshotId(DEFAULT_ID);
         modelSnapshot.setSnapshotDocCount(DEFAULT_DOC_COUNT);
-        modelSnapshot.setModelSizeStats(new ModelSizeStats.Builder("foo"));
+        ModelSizeStats.Builder modelSizeStatsBuilder = new ModelSizeStats.Builder("foo");
+        modelSizeStatsBuilder.setLogTime(null);
+        modelSnapshot.setModelSizeStats(modelSizeStatsBuilder);
         modelSnapshot.setLatestResultTimeStamp(DEFAULT_LATEST_RESULT_TIMESTAMP);
         modelSnapshot.setLatestRecordTimeStamp(DEFAULT_LATEST_RECORD_TIMESTAMP);
         modelSnapshot.setQuantiles(new Quantiles("foo", DEFAULT_TIMESTAMP, "state"));

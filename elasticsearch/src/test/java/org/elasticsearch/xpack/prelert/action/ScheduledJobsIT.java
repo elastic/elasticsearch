@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -13,6 +15,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,6 +39,7 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -197,6 +201,18 @@ public class ScheduledJobsIT extends ESIntegTestCase {
                 StopJobSchedulerAction.Response response =
                         client.execute(StopJobSchedulerAction.INSTANCE, new StopJobSchedulerAction.Request(jobId)).get();
                 assertTrue(response.isAcknowledged());
+                assertBusy(() -> {
+                    GetJobsAction.Response r = null;
+                    try {
+                        GetJobsAction.Request request = new GetJobsAction.Request();
+                        request.setJobId(jobId);
+                        request.schedulerStatus(true);
+                        r = client.execute(GetJobsAction.INSTANCE, request).get();
+                    } catch (Exception e) {
+                        fail();
+                    }
+                    assertThat(r.getResponse().results().get(0).getSchedulerState().getStatus(), equalTo(JobSchedulerStatus.STOPPED));
+                });
             } catch (Exception e) {
                 // ignore
             }

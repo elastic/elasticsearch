@@ -99,6 +99,8 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
                 break;
             case PAUSED:
                 break;
+            case FAILED:
+                break;
             default:
                 throw new IllegalStateException("Unknown job status [" + status + "]");
         }
@@ -109,12 +111,12 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
         if (schedulerState != null) {
             switch (schedulerState.getStatus()) {
                 case STARTING:
-                    scheduledJobService.start(job, allocation);
+                    executor.execute(() -> scheduledJobService.start(job, allocation));
                     break;
                 case STARTED:
                     break;
                 case STOPPING:
-                    scheduledJobService.stop(allocation);
+                    executor.execute(() -> scheduledJobService.stop(allocation));
                     break;
                 case STOPPED:
                     break;
@@ -147,25 +149,21 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
     private void closeJob(Job job) {
         try {
             // NORELEASE Ensure this also removes the job auto-close timeout task
-            dataProcessor.closeJob(job.getId());
+            dataProcessor.closeJob(job.getId(), JobStatus.CLOSED);
         } catch (ElasticsearchException e) {
             logger.error("Failed to close job [" + job.getId() + "]", e);
             updateJobStatus(job.getId(), JobStatus.FAILED);
-            return;
         }
-        updateJobStatus(job.getId(), JobStatus.CLOSED);
     }
 
     private void pauseJob(Job job) {
         try {
             // NORELEASE Ensure this also removes the job auto-close timeout task
-            dataProcessor.closeJob(job.getId());
+            dataProcessor.closeJob(job.getId(), JobStatus.PAUSED);
         } catch (ElasticsearchException e) {
             logger.error("Failed to close job [" + job.getId() + "] while pausing", e);
             updateJobStatus(job.getId(), JobStatus.FAILED);
-            return;
         }
-        updateJobStatus(job.getId(), JobStatus.PAUSED);
     }
 
     private void updateJobStatus(String jobId, JobStatus status) {

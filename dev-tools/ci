@@ -13,24 +13,24 @@
 
 # Turn on semi-strict mode
 set -e
-set -o pipefail
-
-# Set default test scenario, equivalent to passing the cli arg `tests`
-GRADLE_OPT_STRING="--info check -Dtests.network=true -Dtests.badapples=true"
+if [ -n "$BASH" ]; then
+    set -o pipefail
+fi
 
 # Allow the user choose different test through a single cli arg
-if [ $# -ge 1 ]
-then
-key="$1"
+# default to `check` if no argument has been supplied
+key=${1-check}
 case $key in
-    packagingtests)
+    packagingTest)
         GRADLE_OPT_STRING="--info -Pvagrant.boxes=all :x-plugins:qa:vagrant:packagingTest"
         break;;
-    tests)
+    check)
         GRADLE_OPT_STRING="--info check -Dtests.network=true -Dtests.badapples=true"
         break;;
+    *)
+        echo "Unsupported cli argument $1. Allowed parameters are packagingTest or check. No argument defaults to check."
+        exit 1;;
 esac
-fi
 
 SCRIPT="$0"
 

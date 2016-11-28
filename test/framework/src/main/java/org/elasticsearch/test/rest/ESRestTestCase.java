@@ -112,7 +112,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = buildClient(restClientSettings());
             adminClient = buildClient(restAdminSettings());
         }
-        assert client != null && adminClient != null && clusterHosts != null;
+        assert client != null;
+        assert adminClient != null;
+        assert clusterHosts != null;
     }
 
     /**
@@ -126,10 +128,13 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     @AfterClass
     public static void closeClients() throws IOException {
-        IOUtils.close(client, adminClient);
-        clusterHosts = null;
-        client = null;
-        adminClient = null;
+        try {
+            IOUtils.close(client, adminClient);
+        } finally {
+            clusterHosts = null;
+            client = null;
+            adminClient = null;
+        }
     }
 
     /**

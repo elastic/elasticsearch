@@ -150,7 +150,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
         }
-        assert restTestExecutionContext != null && adminExecutionContext != null && blacklistPathMatchers != null;
+        assert restTestExecutionContext != null;
+        assert adminExecutionContext != null;
+        assert blacklistPathMatchers != null;
 
         // admin context must be available for @After always, regardless of whether the test was blacklisted
         adminExecutionContext.clear();

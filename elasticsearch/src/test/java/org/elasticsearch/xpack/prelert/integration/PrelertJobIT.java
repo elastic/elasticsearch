@@ -264,13 +264,15 @@ public class PrelertJobIT extends ESRestTestCase {
         client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_pause");
         assertBusy(() -> {
             try {
-                Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/farequote");
+                Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/farequote",
+                        Collections.singletonMap("metric", "config,status"));
                 String responseEntityToString = responseEntityToString(response);
                 assertThat(responseEntityToString, containsString("\"ignoreDowntime\":\"ONCE\""));
+                assertThat(responseEntityToString, containsString("\"status\":\"PAUSED\""));
             } catch (Exception e1) {
                 fail();
             }
-        }, 2, TimeUnit.SECONDS);
+        });
 
         e = expectThrows(ResponseException.class,
                 () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "jobs/farequote/_pause"));

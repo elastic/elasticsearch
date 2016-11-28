@@ -175,7 +175,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void transportServiceAdapter(TransportServiceAdapter service) {
-
         }
 
         @Override
@@ -191,11 +190,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         @Override
         public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
             return new TransportAddress[0];
-        }
-
-        @Override
-        public boolean addressSupported(Class<? extends TransportAddress> address) {
-            return false;
         }
 
         @Override

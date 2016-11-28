@@ -512,11 +512,6 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public boolean addressSupported(Class<? extends TransportAddress> address) {
-            return transport.addressSupported(address);
-        }
-
-        @Override
         public boolean nodeConnected(DiscoveryNode node) {
             return transport.nodeConnected(node);
         }

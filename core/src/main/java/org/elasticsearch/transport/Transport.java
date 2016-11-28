@@ -57,11 +57,6 @@ public interface Transport extends LifecycleComponent {
     TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
 
     /**
-     * Is the address type supported.
-     */
-    boolean addressSupported(Class<? extends TransportAddress> address);
-
-    /**
      * Returns <tt>true</tt> if the node is connected.
      */
     boolean nodeConnected(DiscoveryNode node);

@@ -154,11 +154,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public boolean addressSupported(Class<? extends TransportAddress> address) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public boolean nodeConnected(DiscoveryNode node) {
         return false;
     }

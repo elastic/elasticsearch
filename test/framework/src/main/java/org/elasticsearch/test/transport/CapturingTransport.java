@@ -214,11 +214,6 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public boolean addressSupported(Class<? extends TransportAddress> address) {
-        return false;
-    }
-
-    @Override
     public boolean nodeConnected(DiscoveryNode node) {
         return true;
     }

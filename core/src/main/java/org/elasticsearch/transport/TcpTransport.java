@@ -514,11 +514,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     @Override
-    public boolean addressSupported(Class<? extends TransportAddress> address) {
-        return TransportAddress.class.equals(address);
-    }
-
-    @Override
     public BoundTransportAddress boundAddress() {
         return this.boundAddress;
     }

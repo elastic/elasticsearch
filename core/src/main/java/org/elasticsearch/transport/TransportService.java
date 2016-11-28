@@ -255,10 +255,6 @@ public class TransportService extends AbstractLifecycleComponent {
         blockIncomingRequestsLatch.countDown();
     }
 
-    public final boolean addressSupported(Class<? extends TransportAddress> address) {
-        return transport.addressSupported(address);
-    }
-
     public TransportInfo info() {
         BoundTransportAddress boundTransportAddress = boundAddress();
         if (boundTransportAddress == null) {

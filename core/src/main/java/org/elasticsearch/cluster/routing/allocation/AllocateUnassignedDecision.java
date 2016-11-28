@@ -27,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -298,8 +299,9 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
                     explanation = "cannot allocate because a previous copy of the shard existed, but could not be found";
                 }
             } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-                explanation = "cannot allocate because the cluster is waiting " + Long.toString(remainingDelayInMillis / 1000L) +
-                                  " seconds for the departed node holding a replica to rejoin";
+                explanation = "cannot allocate because the cluster is waiting " +
+                                  TimeValue.timeValueSeconds(remainingDelayInMillis / 1000L).toString() +
+                                  " for the departed node holding a replica to rejoin";
             } else {
                 assert allocationStatus == AllocationStatus.DECIDERS_NO;
                 if (reuseStore) {
@@ -327,29 +329,17 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         }
         if (assignedNode != null) {
             builder.startObject("assigned_node");
-            builder.field("id", assignedNode.getId());
-            builder.field("name", assignedNode.getName());
+            assignedNode.toXContentLight(builder, params);
             builder.endObject();
         }
         if (allocationId != null) {
             builder.field("allocation_id", allocationId);
         }
         if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            builder.field("remaining_delay_in_millis", remainingDelayInMillis);
-            builder.field("total_delay_in_millis", totalDelayInMillis);
+            builder.field("remaining_delay", TimeValue.timeValueSeconds(remainingDelayInMillis / 1000L).toString());
+            builder.field("total_delay", TimeValue.timeValueSeconds(totalDelayInMillis / 1000L).toString());
         }
-        if (nodeDecisions != null) {
-            builder.startObject("node_decisions");
-            {
-                List<String> nodeIds = new ArrayList<>(nodeDecisions.keySet());
-                Collections.sort(nodeIds);
-                for (String nodeId : nodeIds) {
-                    NodeAllocationResult nodeAllocationResult = nodeDecisions.get(nodeId);
-                    nodeAllocationResult.toXContent(builder, params);
-                }
-            }
-            builder.endObject();
-        }
+        nodeDecisionsToXContent(builder, params, nodeDecisions);
         return builder;
     }
 
@@ -372,6 +362,40 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         out.writeBoolean(reuseStore);
         out.writeVLong(remainingDelayInMillis);
         out.writeVLong(totalDelayInMillis);
+    }
+
+    public static XContentBuilder nodeDecisionsToXContent(XContentBuilder builder, Params params,
+                                                          Map<String, ? extends NodeAllocationResult> nodeDecisions) throws IOException {
+        if (nodeDecisions != null) {
+            builder.startObject("node_decisions");
+            {
+                List<Map.Entry<String, ? extends NodeAllocationResult>> entries = new ArrayList<>(nodeDecisions.entrySet());
+                Collections.sort(entries, (e1, e2) -> {
+                    NodeAllocationResult explanation1 = e1.getValue();
+                    NodeAllocationResult explanation2 = e2.getValue();
+                    // first, sort by decisions, YES nodes coming first, then THROTTLE, then NO
+                    int sort = explanation1.getNodeDecisionType().compare(explanation2.getNodeDecisionType());
+                    if (sort != 0) {
+                        return sort;
+                    }
+                    // then, sort by weight ranking
+                    sort = explanation1.getWeightRanking() - explanation2.getWeightRanking();
+                    if (sort != 0) {
+                        return sort;
+                    }
+                    // lastly, sort by node id
+                    return explanation1.getNode().getId().compareTo(explanation2.getNode().getId());
+                });
+                List<String> nodeIds = new ArrayList<>(nodeDecisions.keySet());
+                Collections.sort(nodeIds);
+                for (String nodeId : nodeIds) {
+                    NodeAllocationResult explanation = nodeDecisions.get(nodeId);
+                    explanation.toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+        }
+        return builder;
     }
 
 }

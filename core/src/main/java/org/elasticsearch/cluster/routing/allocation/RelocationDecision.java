@@ -83,13 +83,12 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (finalDecision != null) {
-            builder.field("final_decision", finalDecision);
+            builder.field("decision", finalDecision);
         }
-        builder.field("final_explanation", getExplanation());
+        builder.field("explanation", getExplanation());
         if (assignedNode != null) {
             builder.startObject("assigned_node");
-            builder.field("id", assignedNode.getId());
-            builder.field("name", assignedNode.getName());
+            assignedNode.toXContentLight(builder, params);
             builder.endObject();
         }
         return builder;

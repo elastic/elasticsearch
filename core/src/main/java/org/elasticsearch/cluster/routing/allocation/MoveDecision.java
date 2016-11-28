@@ -28,10 +28,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.nodeDecisionsToXContent;
 
 /**
  * Represents a decision to move a started shard because it is no longer allowed to remain on its current node.
@@ -166,18 +166,7 @@ public final class MoveDecision extends RelocationDecision {
             canRemainDecision.toXContent(builder, params);
         }
         builder.endObject();
-        if (nodeDecisions != null) {
-            builder.startObject("node_decisions");
-            {
-                List<String> nodeIds = new ArrayList<>(nodeDecisions.keySet());
-                Collections.sort(nodeIds);
-                for (String nodeId : nodeIds) {
-                    NodeAllocationResult nodeAllocationResult = nodeDecisions.get(nodeId);
-                    nodeAllocationResult.toXContent(builder, params);
-                }
-            }
-            builder.endObject();
-        }
+        nodeDecisionsToXContent(builder, params, nodeDecisions);
         return builder;
     }
 

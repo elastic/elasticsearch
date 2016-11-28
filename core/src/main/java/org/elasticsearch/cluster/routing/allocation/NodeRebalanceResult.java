@@ -34,15 +34,13 @@ import java.util.Objects;
  */
 public final class NodeRebalanceResult extends NodeAllocationResult {
     private final Decision.Type nodeDecisionType;
-    private final boolean betterWeightThanCurrent;
     private final boolean deltaAboveThreshold;
     private final boolean betterWeightWithShardAdded;
 
     public NodeRebalanceResult(DiscoveryNode node, Decision.Type nodeDecisionType, Decision canAllocate, int weightRanking,
-                               boolean betterWeightThanCurrent, boolean deltaAboveThreshold, boolean betterWeightWithShardAdded) {
+                               boolean deltaAboveThreshold, boolean betterWeightWithShardAdded) {
         super(node, canAllocate, weightRanking);
         this.nodeDecisionType = Objects.requireNonNull(nodeDecisionType);
-        this.betterWeightThanCurrent = betterWeightThanCurrent;
         this.deltaAboveThreshold = deltaAboveThreshold;
         this.betterWeightWithShardAdded = betterWeightWithShardAdded;
     }
@@ -50,7 +48,6 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
     public NodeRebalanceResult(StreamInput in) throws IOException {
         super(in);
         nodeDecisionType = Decision.Type.readFrom(in);
-        betterWeightThanCurrent = in.readBoolean();
         deltaAboveThreshold = in.readBoolean();
         betterWeightWithShardAdded = in.readBoolean();
     }
@@ -58,13 +55,6 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
     @Override
     public Decision.Type getNodeDecisionType() {
         return nodeDecisionType;
-    }
-
-    /**
-     * Returns whether the weight of the node is better than the weight of the node where the shard currently resides.
-     */
-    public boolean isBetterWeightThanCurrent() {
-        return betterWeightThanCurrent;
     }
 
     /**
@@ -84,9 +74,8 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
 
     @Override
     protected void innerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field("better_weight_than_current", betterWeightThanCurrent);
-        if (betterWeightThanCurrent) {
-            builder.field("delta_above_threshold", deltaAboveThreshold);
+        builder.field("delta_above_threshold", deltaAboveThreshold);
+        if (deltaAboveThreshold) {
             builder.field("better_weight_with_shard_added", betterWeightWithShardAdded);
         }
     }
@@ -95,7 +84,6 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         nodeDecisionType.writeTo(out);
-        out.writeBoolean(betterWeightThanCurrent);
         out.writeBoolean(deltaAboveThreshold);
         out.writeBoolean(betterWeightWithShardAdded);
     }

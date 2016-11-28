@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStore;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreReadability;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -52,9 +51,8 @@ public class NodeAllocationResultTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Decision decision = randomFrom(Decision.YES, Decision.THROTTLE, Decision.NO);
         StoreStatus storeStatus = randomFrom(StoreStatus.values());
-        StoreReadability storeReadability = randomFrom(StoreReadability.values());
         long matchingBytes = (long) randomIntBetween(1, 1000);
-        ShardStore shardStore = new ShardStore(storeStatus, storeReadability, matchingBytes);
+        ShardStore shardStore = new ShardStore(storeStatus, matchingBytes);
         NodeAllocationResult explanation = new NodeAllocationResult(node, shardStore, decision);
         BytesStreamOutput output = new BytesStreamOutput();
         explanation.writeTo(output);
@@ -66,7 +64,7 @@ public class NodeAllocationResultTests extends ESTestCase {
 
         String allocId = randomAsciiOfLength(5);
         long version = (long) randomIntBetween(1, 1000);
-        shardStore = new ShardStore(storeStatus, storeReadability, allocId, version, randomBoolean() ? new Exception("bad stuff") : null);
+        shardStore = new ShardStore(storeStatus, allocId, version, randomBoolean() ? new Exception("bad stuff") : null);
         explanation = new NodeAllocationResult(node, shardStore, decision);
         output = new BytesStreamOutput();
         explanation.writeTo(output);

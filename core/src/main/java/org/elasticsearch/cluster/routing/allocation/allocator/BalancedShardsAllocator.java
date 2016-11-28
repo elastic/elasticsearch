@@ -363,7 +363,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final String idxName = shard.getIndexName();
             Map<String, NodeRebalanceResult> nodeDecisions = new HashMap<>(modelNodes.length - 1);
             Type rebalanceDecisionType = Type.NO;
-            DiscoveryNode assignedNode = null;
+            ModelNode assignedNode = null;
             int weightRanking = 0;
             for (ModelNode node : modelNodes) {
                 if (node == currentNode) {
@@ -404,7 +404,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         // rebalance to the node, only will get overwritten if the decision here is to
                         // THROTTLE and we get a decision with YES on another node
                         rebalanceDecisionType = canAllocate.type();
-                        assignedNode = node.routingNode.node();
+                        assignedNode = node;
                     }
                 }
                 nodeDecisions.put(node.getNodeId(), new NodeRebalanceResult(
@@ -412,7 +412,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     rebalanceConditionsMet ? canAllocate.type() : Type.NO,
                     canAllocate,
                     ++weightRanking,
-                    betterWeightThanCurrent,
                     deltaAboveThreshold,
                     betterWeightWithShardAdded)
                 );
@@ -421,7 +420,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
                 return RebalanceDecision.no(canRebalance, nodeDecisions, currentWeight, allocation.hasPendingAsyncFetch());
             } else {
-                return RebalanceDecision.decision(canRebalance, rebalanceDecisionType, assignedNode, nodeDecisions, currentWeight);
+                return RebalanceDecision.decision(canRebalance, rebalanceDecisionType,
+                    assignedNode != null ? assignedNode.routingNode.node() : null, nodeDecisions, currentWeight);
             }
         }
 

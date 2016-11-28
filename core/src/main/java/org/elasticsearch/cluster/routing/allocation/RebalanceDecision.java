@@ -28,10 +28,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.nodeDecisionsToXContent;
 
 /**
  * Represents a decision to move a started shard to form a more optimally balanced cluster.
@@ -124,8 +124,10 @@ public final class RebalanceDecision extends RelocationDecision {
         String explanation;
         if (fetchPending) {
             explanation = "cannot rebalance as information about existing copies of this shard in the cluster is still being gathered";
-        } else if (canRebalanceDecision.type() != Type.YES) {
+        } else if (canRebalanceDecision.type() == Type.NO) {
             explanation = "rebalancing is not allowed";
+        } else if (canRebalanceDecision.type() == Type.THROTTLE) {
+            explanation = "rebalancing is throttled";
         } else {
             if (getAssignedNode() != null) {
                 if (getFinalDecisionType() == Type.THROTTLE) {
@@ -151,18 +153,7 @@ public final class RebalanceDecision extends RelocationDecision {
             canRebalanceDecision.toXContent(builder, params);
         }
         builder.endObject();
-        if (nodeDecisions != null) {
-            builder.startObject("node_decisions");
-            {
-                List<String> nodeIds = new ArrayList<>(nodeDecisions.keySet());
-                Collections.sort(nodeIds);
-                for (String nodeId : nodeIds) {
-                    NodeRebalanceResult result = nodeDecisions.get(nodeId);
-                    result.toXContent(builder, params);
-                }
-            }
-            builder.endObject();
-        }
+        nodeDecisionsToXContent(builder, params, nodeDecisions);
         return builder;
     }
 }

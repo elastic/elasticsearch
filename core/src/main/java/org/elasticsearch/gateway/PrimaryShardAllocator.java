@@ -22,9 +22,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,7 +34,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStore;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreReadability;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -44,7 +41,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardStateMetaData;
@@ -268,31 +264,18 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     private static ShardStore shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
         final Exception storeErr = nodeShardState.storeException();
-        final StoreReadability storeReadability;
-        if (storeErr != null) {
-            Throwable unwrapped = ExceptionsHelper.unwrapCause(storeErr);
-            if (unwrapped instanceof CorruptIndexException) {
-                storeReadability = StoreReadability.CORRUPT;
-            } else if (unwrapped instanceof ShardLockObtainFailedException) {
-                storeReadability = StoreReadability.SHARD_LOCK;
-            } else {
-                storeReadability = StoreReadability.IO_ERROR;
-            }
-        } else {
-            storeReadability = StoreReadability.READABLE;
-        }
         final StoreStatus storeStatus;
         if (inSyncAllocationIds.isEmpty()) {
             // The ids are only empty if dealing with a legacy index
             storeStatus = StoreStatus.UNKNOWN;
         } else if (nodeShardState.allocationId() != null && inSyncAllocationIds.contains(nodeShardState.allocationId())) {
-            storeStatus = StoreStatus.CURRENT;
+            storeStatus = StoreStatus.IN_SYNC;
         } else {
             // Otherwise, this is a stale copy of the data (allocation ids don't match)
             storeStatus = StoreStatus.STALE;
         }
 
-        return new ShardStore(storeStatus, storeReadability, nodeShardState.allocationId(), nodeShardState.legacyVersion(), storeErr);
+        return new ShardStore(storeStatus, nodeShardState.allocationId(), nodeShardState.legacyVersion(), storeErr);
     }
 
     /**

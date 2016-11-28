@@ -47,6 +47,8 @@ include::tokenfilters/phonetic-tokenfilter.asciidoc[]
 
 include::tokenfilters/synonym-tokenfilter.asciidoc[]
 
+include::tokenfilters/synonym-graph-tokenfilter.asciidoc[]
+
 include::tokenfilters/compound-word-tokenfilter.asciidoc[]
 
 include::tokenfilters/reverse-tokenfilter.asciidoc[]

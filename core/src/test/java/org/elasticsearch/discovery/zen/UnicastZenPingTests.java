@@ -298,7 +298,8 @@ public class UnicastZenPingTests extends ESTestCase {
         verify(unicastHostsProviderA, times(1)).buildDynamicNodes();
     }
 
-    public void testShouldPingDiscoveredNodes() throws IOException, InterruptedException {
+    //test that nodes discover each other if they ping a common host
+    public void testDiscoveryOfNoneConfiguredNodes() throws IOException, InterruptedException {
         final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
 
         NetworkService networkService = new NetworkService(settings, Collections.emptyList());

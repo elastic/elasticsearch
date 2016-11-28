@@ -114,7 +114,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         if (indexShardLimit > 0 && indexShardCount >= indexShardLimit) {
             return allocation.decision(Decision.NO, NAME,
                 "too many shards [%d] allocated to this node for index [%s], [%s=%d]",
-                indexShardCount, shardRouting.index(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
+                indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
         }
         return allocation.decision(Decision.YES, NAME,
                 "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]",
@@ -156,7 +156,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         if (indexShardLimit > 0 && indexShardCount > indexShardLimit) {
             return allocation.decision(Decision.NO, NAME,
                 "too many shards [%d] allocated to this node for index [%s], [%s=%d]",
-                indexShardCount, shardRouting.index(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
+                indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
         }
         return allocation.decision(Decision.YES, NAME,
             "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]",

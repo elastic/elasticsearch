@@ -120,6 +120,51 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertEquals("789", values[2]);
     }
 
+    public void testDotsWithExistingNestedMapper() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo").field("type", "nested").startObject("properties")
+            .startObject("bar").field("type", "integer")
+            .endObject().endObject().endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("foo.bar", 123)
+            .endObject().bytes();
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals(
+                "Cannot add a value for field [foo.bar] since one of the intermediate objects is mapped as a nested object: [foo]",
+                e.getMessage());
+    }
+
+    public void testDotsWithDynamicNestedMapper() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("objects_as_nested")
+                            .field("match_mapping_type", "object")
+                            .startObject("mapping")
+                                .field("type", "nested")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("foo.bar",42)
+            .endObject().bytes();
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals(
+                "It is forbidden to create dynamic nested objects ([foo]) through `copy_to` or dots in field names",
+                e.getMessage());
+    }
+
     public void testPropagateDynamicWithExistingMapper() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

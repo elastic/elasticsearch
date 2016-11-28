@@ -27,6 +27,10 @@ subprojects {
   group = 'org.elasticsearch'
   version = org.elasticsearch.gradle.VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
+}
+
+// setup pom license info, but only for artifacts that are part of elasticsearch
+configure(subprojects.findAll { it.path.startsWith(':x-plugins') == false }) {
 
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {

@@ -130,9 +130,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options in the context don't allow such a case.
      */
-    public String[] concreteIndexNames(ClusterState state, IndicesOptions options, long startTime, String... indexExpressions) {
+    public Index[] concreteIndices(ClusterState state, IndicesOptions options, long startTime, String... indexExpressions) {
         Context context = new Context(state, options, startTime);
-        return concreteIndexNames(context, indexExpressions);
+        return concreteIndices(context, indexExpressions);
     }
 
     String[] concreteIndexNames(Context context, String... indexExpressions) {

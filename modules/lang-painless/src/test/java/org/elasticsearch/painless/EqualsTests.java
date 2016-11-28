@@ -129,6 +129,7 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(0, exec("def a = 1; Object b = new HashMap(); if (a === (Object)b) return 1; else return 0;"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21801")
     public void testBranchEqualsDefAndPrimitive() {
         assertEquals(true, exec("def x = 1000; int y = 1000; return x == y;"));
         assertEquals(false, exec("def x = 1000; int y = 1000; return x === y;"));
@@ -146,6 +147,7 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(1, exec("def a = 1; Object b = new HashMap(); if (a !== (Object)b) return 1; else return 0;"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/21801")
     public void testBranchNotEqualsDefAndPrimitive() {
         assertEquals(false, exec("def x = 1000; int y = 1000; return x != y;"));
         assertEquals(true, exec("def x = 1000; int y = 1000; return x !== y;"));

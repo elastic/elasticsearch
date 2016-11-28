@@ -88,6 +88,19 @@ public class TooManyJobsIT extends ESIntegTestCase {
                 clearPrelertMetadata();
                 putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
                 assertTrue(putJobResponse.isAcknowledged());
+                assertBusy(() -> {
+                    try {
+                        GetJobsAction.Request getJobRequest = new GetJobsAction.Request();
+                        getJobRequest.setJobId(job.getId());
+                        getJobRequest.status(true);
+                        GetJobsAction.Response response = client().execute(GetJobsAction.INSTANCE, getJobRequest).get();
+                        GetJobsAction.Response.JobInfo jobInfo = response.getResponse().results().get(0);
+                        assertNotNull(jobInfo);
+                        assertEquals(JobStatus.CLOSED, jobInfo.getStatus());
+                    } catch (Exception e1) {
+                        fail("failure " + e1.getMessage());
+                    }
+                });
                 PostDataAction.Response postDataResponse = client().execute(PostDataAction.INSTANCE, postDataRequest).get();
                 assertEquals(1, postDataResponse.getDataCounts().getInputRecordCount());
                 return;

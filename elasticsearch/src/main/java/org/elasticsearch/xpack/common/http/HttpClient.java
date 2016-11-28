@@ -158,6 +158,10 @@ public class HttpClient extends AbstractComponent {
         urlConnection.connect();
 
         final int statusCode = urlConnection.getResponseCode();
+        // no status code, not considered a valid HTTP response then
+        if (statusCode == -1) {
+            throw new IOException("Not a valid HTTP response, no status code in response");
+        }
         Map<String, String[]> responseHeaders = new HashMap<>(urlConnection.getHeaderFields().size());
         for (Map.Entry<String, List<String>> header : urlConnection.getHeaderFields().entrySet()) {
             // HttpURLConnection#getHeaderFields returns the first status line as a header

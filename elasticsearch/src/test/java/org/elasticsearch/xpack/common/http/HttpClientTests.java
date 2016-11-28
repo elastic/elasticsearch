@@ -9,7 +9,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -25,13 +26,18 @@ import org.junit.Before;
 
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.BindException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -48,13 +54,10 @@ public class HttpClientTests extends ESTestCase {
     private HttpAuthRegistry authRegistry;
     private Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
 
-    private int webPort;
-
     @Before
     public void init() throws Exception {
         authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
         webServer = startWebServer();
-        webPort = webServer.getPort();
         httpClient = new HttpClient(Settings.EMPTY, authRegistry, new SSLService(environment.settings(), environment));
     }
 
@@ -69,7 +72,7 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
 
 
-        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
                 .path("/" + randomAsciiOfLength(5));
 
@@ -101,7 +104,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testNoQueryString() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.GET)
                 .path("/test");
 
@@ -116,7 +119,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testUrlEncodingWithQueryStrings() throws Exception{
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.GET)
                 .path("/test")
                 .setParam("key", "value 123:123");
@@ -132,7 +135,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
                 .path("/test")
                 .auth(new BasicAuth("user", "pass".toCharArray()))
@@ -147,7 +150,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testNoPathSpecified() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("doesntmatter"));
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort).method(HttpMethod.GET);
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET);
         httpClient.execute(request.build());
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/"));
@@ -178,7 +181,7 @@ public class HttpClientTests extends ESTestCase {
         webServer.useHttps(new SSLService(settings2, environment).sslSocketFactory(Settings.EMPTY), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
                 .scheme(Scheme.HTTPS)
                 .path("/test")
                 .body("body");
@@ -218,7 +221,7 @@ public class HttpClientTests extends ESTestCase {
         webServer.useHttps(new SSLService(settings2, environment).sslSocketFactory(Settings.EMPTY), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
                 .scheme(Scheme.HTTPS)
                 .path("/test")
                 .body("body");
@@ -251,7 +254,7 @@ public class HttpClientTests extends ESTestCase {
                 new ClientAuthRequiringSSLSocketFactory(sslService.sslSocketFactory(settings.getByPrefix("xpack.http.ssl."))), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
                 .scheme(Scheme.HTTPS)
                 .path("/test")
                 .body("body");
@@ -272,7 +275,7 @@ public class HttpClientTests extends ESTestCase {
             mockResponse.setBody(body);
         }
         webServer.enqueue(mockResponse);
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
                 .path("/test")
                 .auth(new BasicAuth("user", "pass".toCharArray()))
@@ -311,7 +314,7 @@ public class HttpClientTests extends ESTestCase {
                     .build();
             HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
-            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                     .method(HttpMethod.GET)
                     .path("/");
 
@@ -339,7 +342,7 @@ public class HttpClientTests extends ESTestCase {
                     .build();
             HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
-            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                     .method(HttpMethod.GET)
                     .proxy(new HttpProxy("localhost", proxyServer.getPort()))
                     .path("/");
@@ -371,16 +374,35 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getPath(), equalTo(path));
     }
 
-    private MockWebServer startWebServer() throws IOException {
-        try {
-            MockWebServer mockWebServer = new MockWebServer();
-            mockWebServer.setProtocolNegotiationEnabled(false);
-            mockWebServer.start();
-            return mockWebServer;
-        } catch (BindException be) {
-            logger.warn("port [{}] was already in use trying next port", webPort);
+    public void testThatHttpClientFailsOnNonHttpResponse() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        AtomicReference<Exception> hasExceptionHappened = new AtomicReference();
+        try (ServerSocket serverSocket = new ServerSocket(0, 50, InetAddress.getByName("localhost"))) {
+            executor.execute(() -> {
+                try (Socket socket = serverSocket.accept()) {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                    in.readLine();
+                    socket.getOutputStream().write("This is not a HTTP response".getBytes(StandardCharsets.UTF_8));
+                    socket.getOutputStream().flush();
+                } catch (Exception e) {
+                    hasExceptionHappened.set(e);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error in writing non HTTP response"), e);
+                }
+            });
+            HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();
+            IOException e = expectThrows(IOException.class, () -> httpClient.execute(request));
+            assertThat(e.getMessage(), is("Not a valid HTTP response, no status code in response"));
+            assertThat("A server side exception occured, but shouldnt", hasExceptionHappened.get(), is(nullValue()));
+        } finally {
+            terminate(executor);
         }
-        throw new ElasticsearchException("unable to find open port: none specified, free one should have been chosed automatically");
+    }
+
+    private MockWebServer startWebServer() throws IOException {
+        MockWebServer mockWebServer = new MockWebServer();
+        mockWebServer.setProtocolNegotiationEnabled(false);
+        mockWebServer.start();
+        return mockWebServer;
     }
 
     static class ClientAuthRequiringSSLSocketFactory extends SSLSocketFactory {

@@ -106,8 +106,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         decision = decider.canAllocate(test_0, new RoutingNode("node_1", node_1), allocation);
         assertEquals(mostAvailableUsage.toString(), Decision.Type.NO, decision.type());
         assertThat(((Decision.Single) decision).getExplanation(), containsString(
-            "the node is above the high watermark [cluster.routing.allocation.disk.watermark.high=90%] and has more than the " +
-            "allowed [90.0%] used disk"));
+            "the node is above the high watermark [cluster.routing.allocation.disk.watermark.high=90%], using more disk space than " +
+            "the maximum allowed [90.0%]"));
     }
 
     public void testCanRemainUsesLeastAvailableSpace() {

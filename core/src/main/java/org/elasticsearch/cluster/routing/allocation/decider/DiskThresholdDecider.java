@@ -206,7 +206,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                             Strings.format1Decimals(freeDiskPercentage, "%"), node.nodeId());
                 }
                 return allocation.decision(Decision.NO, NAME,
-                    "the node is above the high watermark [%s=%s], using more disk space than the allowed [%s%%], actual free: [%s%%]",
+                    "the node is above the high watermark [%s=%s], using more disk space than the maximum allowed [%s%%], " +
+                    "actual free: [%s%%]",
                     CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                     diskThresholdSettings.getHighWatermarkRaw(), usedDiskThresholdHigh, freeDiskPercentage);
             }

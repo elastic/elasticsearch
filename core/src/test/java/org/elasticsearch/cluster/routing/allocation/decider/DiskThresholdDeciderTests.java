@@ -786,8 +786,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         } catch (IllegalArgumentException e) {
             assertThat("can't be allocated because there isn't enough room: " + e.getMessage(),
                     e.getMessage(),
-                    containsString("the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=0.7] and has " +
-                                       "more than the allowed [70.0%] used disk, actual free: [26.0%]"));
+                    containsString("the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=0.7], using " +
+                                   "more disk space than the maximum allowed [70.0%], actual free: [26.0%]"));
         }
 
     }
@@ -890,12 +890,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         if (fooRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE) {
             assertThat(((Decision.Single) decision).getExplanation(), containsString(
-                "the node is above the high watermark [cluster.routing.allocation.disk.watermark.high=70%] and has more than the " +
-                "allowed [70.0%] used disk, actual free: [20.0%], preventing allocation even though the primary has never been allocated"));
+                "the node is above the high watermark [cluster.routing.allocation.disk.watermark.high=70%], using more disk space than " +
+                "the maximum allowed [70.0%], actual free: [20.0%]"));
         } else {
             assertThat(((Decision.Single) decision).getExplanation(), containsString(
-                "the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=60%] and has more than the " +
-                    "allowed [60.0%] used disk, actual free: [20.0%]"));
+                "the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=60%], using more disk space than " +
+                "the maximum allowed [60.0%], actual free: [20.0%]"));
         }
 
         // Creating AllocationService instance and the services it depends on...

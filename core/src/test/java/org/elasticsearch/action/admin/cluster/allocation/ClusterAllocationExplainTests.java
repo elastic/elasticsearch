@@ -78,13 +78,13 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED, fd);
         assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, storeCopy);
         assertTrue(d.toString(), d.toString().contains(
-            "NO(the shard cannot be allocated on the node on which it already exists [[test][0]"));
+            "NO(the shard cannot be allocated to the node on which it already exists [[test][0]"));
         assertTrue(d instanceof Decision.Multi);
         md = (Decision.Multi) d;
         ssd = md.getDecisions().get(0);
         assertEquals(Decision.Type.NO, ssd.type());
         assertTrue(ssd.toString(), ssd.toString().contains(
-            "NO(the shard cannot be allocated on the node on which it already exists [[test][0]"));
+            "NO(the shard cannot be allocated to the node on which it already exists [[test][0]"));
         weight = explanation.getWeight();
         assertNotNull("should have a weight", weight);
 

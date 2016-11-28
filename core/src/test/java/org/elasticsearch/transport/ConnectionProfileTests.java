@@ -36,7 +36,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals("type [PING] is already registered", illegalArgumentException.getMessage());
         builder.addConnections(4, TransportRequestOptions.Type.REG);
         ConnectionProfile build = builder.build();
-        assertEquals(10, build.getNumConnection());
+        assertEquals(10, build.getNumConnections());
         Integer[] array = new Integer[10];
         for (int i = 0; i < array.length; i++) {
             array[i] = i;

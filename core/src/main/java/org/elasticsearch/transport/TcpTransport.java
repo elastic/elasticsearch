@@ -321,8 +321,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         public NodeChannels(Channel[] channels, ConnectionProfile connectionProfile) {
             this.channels = channels;
-            assert channels.length == connectionProfile.getNumConnection() : "expected channels size to be == "
-                + connectionProfile.getNumConnection() + " but was: [" + channels.length + "]";
+            assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
+                + connectionProfile.getNumConnections() + " but was: [" + channels.length + "]";
             for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
                 for (TransportRequestOptions.Type type : handle.getTypes())
                 typeMapping.put(type, handle);
@@ -877,7 +877,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     protected abstract void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) throws IOException;
 
-    protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile handles) throws IOException;
+    protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 
     /**
      * Called to tear down internal resources

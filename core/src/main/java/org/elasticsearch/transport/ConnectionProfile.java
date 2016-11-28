@@ -45,11 +45,11 @@ public final class ConnectionProfile {
             TransportRequestOptions.Type.STATE)), 1);
 
     private final List<ConnectionTypeHandle> handles;
-    private final int numConnection;
+    private final int numConnections;
 
     private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections) {
         this.handles = handles;
-        this.numConnection = numConnections;
+        this.numConnections = numConnections;
     }
 
     /**
@@ -79,6 +79,10 @@ public final class ConnectionProfile {
             offset += numConnections;
         }
 
+        /**
+         * Creates a new {@link ConnectionProfile} based on the added connections.
+         * @throws IllegalArgumentException if any of the {@link org.elasticsearch.transport.TransportRequestOptions.Type} enum is missing
+         */
         public ConnectionProfile build() {
             EnumSet<TransportRequestOptions.Type> types = EnumSet.allOf(TransportRequestOptions.Type.class);
             types.removeAll(addedTypes);
@@ -92,8 +96,8 @@ public final class ConnectionProfile {
     /**
      * Returns the total number of connections for this profile
      */
-    public int getNumConnection() {
-        return numConnection;
+    public int getNumConnections() {
+        return numConnections;
     }
 
     /**

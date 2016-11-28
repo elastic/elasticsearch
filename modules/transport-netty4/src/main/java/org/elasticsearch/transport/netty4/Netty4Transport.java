@@ -334,7 +334,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
-        final Channel[] channels = new Channel[profile.getNumConnection()];
+        final Channel[] channels = new Channel[profile.getNumConnections()];
         final NodeChannels nodeChannels = new NodeChannels(channels, profile);
         boolean success = false;
         try {

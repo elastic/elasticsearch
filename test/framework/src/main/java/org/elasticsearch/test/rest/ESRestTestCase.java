@@ -109,6 +109,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 hosts.add(new HttpHost(host, port, getProtocol()));
             }
             clusterHosts = unmodifiableList(hosts);
+            logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings());
             adminClient = buildClient(restAdminSettings());
         }
@@ -270,7 +271,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return "http";
     }
 
-    private RestClient buildClient(Settings settings) throws IOException {
+    private static RestClient buildClient(Settings settings) throws IOException {
         RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()]))
                 .setMaxRetryTimeoutMillis(30000)
                 .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));

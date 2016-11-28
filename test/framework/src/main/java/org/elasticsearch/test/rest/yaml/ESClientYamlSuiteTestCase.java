@@ -135,13 +135,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
                 esVersion = versionVersionTuple.v1();
                 Version masterVersion = versionVersionTuple.v2();
-                logger.info("initializing client, minimum es version: [{}] master version: [{}] hosts: {}",
+                logger.info("initializing yaml client, minimum es version: [{}] master version: [{}] hosts: {}",
                         esVersion, masterVersion, hosts);
             } catch (ResponseException ex) {
                 if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
                     logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
                     esVersion = readVersionsFromInfo(restClient, hosts.size());
-                    logger.info("initializing client, minimum es version: [{}] hosts: {}", esVersion, hosts);
+                    logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
                 } else {
                     throw ex;
                 }

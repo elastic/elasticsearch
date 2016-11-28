@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -69,10 +70,16 @@ public abstract class ToXContentToBytes implements ToXContent {
 
     @Override
     public final String toString() {
+        return toString(EMPTY_PARAMS);
+    }
+
+    public final String toString(Params params) {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
+            if (params.paramAsBoolean("pretty", true)) {
+                builder.prettyPrint();
+            }
+            toXContent(builder, params);
             return builder.string();
         } catch (Exception e) {
             // So we have a stack trace logged somewhere

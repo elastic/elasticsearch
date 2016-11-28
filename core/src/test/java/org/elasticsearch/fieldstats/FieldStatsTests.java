@@ -48,7 +48,6 @@ import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LTE
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class FieldStatsTests extends ESSingleNodeTestCase {
     public void testByte() {
@@ -101,27 +100,28 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
         FieldStatsResponse result = client().prepareFieldStats()
             .setFields("field_index", "field_dv", "field_stored", "field_source").get();
-        assertThat(result.getAllFieldStats().size(), equalTo(3));
+        assertEquals(result.getAllFieldStats().size(), 3);
         for (String field : new String[] {"field_index", "field_dv", "field_stored"}) {
-            assertThat(result.getAllFieldStats().get(field).getMaxDoc(), equalTo(11L));
-            assertThat(result.getAllFieldStats().get(field).getDisplayType(),
-                equalTo("string"));
+            FieldStats stats = result.getAllFieldStats().get(field);
+            assertEquals(stats.getMaxDoc(), 11L);
+            assertEquals(stats.getDisplayType(),
+                "string");
             if ("field_index".equals(field)) {
-                assertThat(result.getAllFieldStats().get(field).getMinValue(),
-                    equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 0))));
-                assertThat(result.getAllFieldStats().get(field).getMaxValue(),
-                    equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 10))));
-                assertThat(result.getAllFieldStats().get(field).getMinValueAsString(),
-                    equalTo(String.format(Locale.ENGLISH, "%03d", 0)));
-                assertThat(result.getAllFieldStats().get(field).getMaxValueAsString(),
-                    equalTo(String.format(Locale.ENGLISH, "%03d", 10)));
-                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(11L));
-                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(100));
+                assertEquals(stats.getMinValue(),
+                    new BytesRef(String.format(Locale.ENGLISH, "%03d", 0)));
+                assertEquals(stats.getMaxValue(),
+                    new BytesRef(String.format(Locale.ENGLISH, "%03d", 10)));
+                assertEquals(stats.getMinValueAsString(),
+                    String.format(Locale.ENGLISH, "%03d", 0));
+                assertEquals(stats.getMaxValueAsString(),
+                    String.format(Locale.ENGLISH, "%03d", 10));
+                assertEquals(stats.getDocCount(), 11L);
+                assertEquals(stats.getDensity(), 100);
             } else {
-                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(0L));
-                assertNull(result.getAllFieldStats().get(field).getMinValue());
-                assertNull(result.getAllFieldStats().get(field).getMaxValue());
-                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(0));
+                assertEquals(stats.getDocCount(), 0L);
+                assertNull(stats.getMinValue());
+                assertNull(stats.getMaxValue());
+                assertEquals(stats.getDensity(), 0);
             }
         }
     }
@@ -140,19 +140,20 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         FieldStatsResponse result = client().prepareFieldStats()
             .setFields("field_index", "field_dv", "field_stored", "field_source").get();
         for (String field : new String[] {"field_index", "field_dv", "field_stored"}) {
-            assertThat(result.getAllFieldStats().get(field).getMaxDoc(), equalTo(11L));
-            assertThat(result.getAllFieldStats().get(field).getDisplayType(), equalTo("float"));
+            FieldStats stats = result.getAllFieldStats().get(field);
+            assertEquals(stats.getMaxDoc(), 11L);
+            assertEquals(stats.getDisplayType(), "float");
             if ("field_index".equals(field)) {
-                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(11L));
-                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(100));
-                assertThat(result.getAllFieldStats().get(field).getMinValue(), equalTo(-1d));
-                assertThat(result.getAllFieldStats().get(field).getMaxValue(), equalTo(9d));
-                assertThat(result.getAllFieldStats().get(field).getMinValueAsString(), equalTo(Double.toString(-1)));
+                assertEquals(stats.getDocCount(), 11L);
+                assertEquals(stats.getDensity(), 100);
+                assertEquals(stats.getMinValue(), -1d);
+                assertEquals(stats.getMaxValue(), 9d);
+                assertEquals(stats.getMinValueAsString(), Double.toString(-1));
             } else {
-                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(0L));
-                assertNull(result.getAllFieldStats().get(field).getMinValue());
-                assertNull(result.getAllFieldStats().get(field).getMaxValue());
-                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(0));
+                assertEquals(stats.getDocCount(), 0L);
+                assertNull(stats.getMinValue());
+                assertNull(stats.getMaxValue());
+                assertEquals(stats.getDensity(), 0);
             }
         }
     }
@@ -172,20 +173,21 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         FieldStatsResponse result = client().prepareFieldStats()
             .setFields("field_index", "field_dv", "field_stored", "field_source").get();
         for (String field : new String[] {"field_index", "field_dv", "field_stored"}) {
-            assertThat(result.getAllFieldStats().get(field).getMaxDoc(), equalTo(11L));
-            assertThat(result.getAllFieldStats().get(field).getDisplayType(), equalTo("float"));
+            FieldStats stats = result.getAllFieldStats().get(field);
+            assertEquals(stats.getMaxDoc(), 11L);
+            assertEquals(stats.getDisplayType(), "float");
             if (field.equals("field_index")) {
-                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(11L));
-                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(100));
-                assertThat(result.getAllFieldStats().get(field).getMinValue(), equalTo(-1d));
-                assertThat(result.getAllFieldStats().get(field).getMaxValue(), equalTo(9d));
-                assertThat(result.getAllFieldStats().get(field).getMinValueAsString(), equalTo(Float.toString(-1)));
-                assertThat(result.getAllFieldStats().get(field).getMaxValueAsString(), equalTo(Float.toString(9)));
+                assertEquals(stats.getDocCount(), 11L);
+                assertEquals(stats.getDensity(), 100);
+                assertEquals(stats.getMinValue(), -1d);
+                assertEquals(stats.getMaxValue(), 9d);
+                assertEquals(stats.getMinValueAsString(), Float.toString(-1));
+                assertEquals(stats.getMaxValueAsString(), Float.toString(9));
             } else {
-                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(0L));
-                assertNull(result.getAllFieldStats().get(field).getMinValue());
-                assertNull(result.getAllFieldStats().get(field).getMaxValue());
-                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(0));
+                assertEquals(stats.getDocCount(), 0L);
+                assertNull(stats.getMinValue());
+                assertNull(stats.getMaxValue());
+                assertEquals(stats.getDensity(), 0);
             }
         }
     }
@@ -206,20 +208,21 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         FieldStatsResponse result = client().prepareFieldStats()
             .setFields("field_index", "field_dv", "field_stored", "field_source").get();
         for (String field : new String[]{"field_index", "field_dv", "field_stored"}) {
-            assertThat(result.getAllFieldStats().get(field).getMaxDoc(), equalTo(11L));
-            assertThat(result.getAllFieldStats().get(field).getDisplayType(), equalTo("float"));
+            FieldStats stats = result.getAllFieldStats().get(field);
+            assertEquals(stats.getMaxDoc(), 11L);
+            assertEquals(stats.getDisplayType(), "float");
             if (field.equals("field_index")) {
-                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(11L));
-                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(100));
-                assertThat(result.getAllFieldStats().get(field).getMinValue(), equalTo(-1d));
-                assertThat(result.getAllFieldStats().get(field).getMaxValue(), equalTo(9d));
-                assertThat(result.getAllFieldStats().get(field).getMinValueAsString(), equalTo(Float.toString(-1)));
-                assertThat(result.getAllFieldStats().get(field).getMaxValueAsString(), equalTo(Float.toString(9)));
+                assertEquals(stats.getDocCount(), 11L);
+                assertEquals(stats.getDensity(), 100);
+                assertEquals(stats.getMinValue(), -1d);
+                assertEquals(stats.getMaxValue(), 9d);
+                assertEquals(stats.getMinValueAsString(), Float.toString(-1));
+                assertEquals(stats.getMaxValueAsString(), Float.toString(9));
             } else {
-                assertThat(result.getAllFieldStats().get(field).getDocCount(), equalTo(0L));
-                assertNull(result.getAllFieldStats().get(field).getMinValue());
-                assertNull(result.getAllFieldStats().get(field).getMaxValue());
-                assertThat(result.getAllFieldStats().get(field).getDensity(), equalTo(0));
+                assertEquals(stats.getDocCount(), 0L);
+                assertNull(stats.getMinValue());
+                assertNull(stats.getMaxValue());
+                assertEquals(stats.getDensity(), 0);
             }
         }
     }
@@ -238,21 +241,21 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
         FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
         long numDocs = max - min + 1;
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(numDocs));
-        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(numDocs));
-        assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(min));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(max));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(),
-            equalTo(java.lang.Long.toString(min)));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(),
-            equalTo(java.lang.Long.toString(max)));
-        assertThat(result.getAllFieldStats().get(fieldName).isSearchable(), equalTo(true));
-        assertThat(result.getAllFieldStats().get(fieldName).isAggregatable(), equalTo(true));
+        assertEquals(result.getAllFieldStats().get(fieldName).getMaxDoc(), numDocs);
+        assertEquals(result.getAllFieldStats().get(fieldName).getDocCount(), numDocs);
+        assertEquals(result.getAllFieldStats().get(fieldName).getDensity(), 100);
+        assertEquals(result.getAllFieldStats().get(fieldName).getMinValue(), min);
+        assertEquals(result.getAllFieldStats().get(fieldName).getMaxValue(), max);
+        assertEquals(result.getAllFieldStats().get(fieldName).getMinValueAsString(),
+            java.lang.Long.toString(min));
+        assertEquals(result.getAllFieldStats().get(fieldName).getMaxValueAsString(),
+            java.lang.Long.toString(max));
+        assertEquals(result.getAllFieldStats().get(fieldName).isSearchable(), true);
+        assertEquals(result.getAllFieldStats().get(fieldName).isAggregatable(), true);
         if (fieldType.equals("float") || fieldType.equals("double") || fieldType.equals("half-float")) {
-            assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
+            assertEquals(result.getAllFieldStats().get(fieldName).getDisplayType(), "float");
         } else {
-            assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("integer"));
+            assertEquals(result.getAllFieldStats().get(fieldName).getDisplayType(), "integer");
         }
 
         client().admin().indices().prepareDelete("test").get();
@@ -271,13 +274,13 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         for (FieldStats otherStat : stats) {
             stat.accumulate(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4L));
-        assertThat(stat.getDocCount(), equalTo(4L));
-        assertThat(stat.getSumDocFreq(), equalTo(4L));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(4L));
-        assertThat(stat.isSearchable(), equalTo(true));
-        assertThat(stat.isAggregatable(), equalTo(false));
-        assertThat(stat.getDisplayType(), equalTo("integer"));
+        assertEquals(stat.getMaxDoc(), 4L);
+        assertEquals(stat.getDocCount(), 4L);
+        assertEquals(stat.getSumDocFreq(), 4L);
+        assertEquals(stat.getSumTotalTermFreq(), 4L);
+        assertEquals(stat.isSearchable(), true);
+        assertEquals(stat.isAggregatable(), false);
+        assertEquals(stat.getDisplayType(), "integer");
     }
 
     public void testMerge_notAvailable() {
@@ -290,26 +293,26 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         for (FieldStats otherStat : stats) {
             stat.accumulate(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4L));
-        assertThat(stat.getDocCount(), equalTo(-1L));
-        assertThat(stat.getSumDocFreq(), equalTo(-1L));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
-        assertThat(stat.isSearchable(), equalTo(true));
-        assertThat(stat.isAggregatable(), equalTo(true));
-        assertThat(stat.getDisplayType(), equalTo("integer"));
+        assertEquals(stat.getMaxDoc(), 4L);
+        assertEquals(stat.getDocCount(), -1L);
+        assertEquals(stat.getSumDocFreq(), -1L);
+        assertEquals(stat.getSumTotalTermFreq(), -1L);
+        assertEquals(stat.isSearchable(), true);
+        assertEquals(stat.isAggregatable(), true);
+        assertEquals(stat.getDisplayType(), "integer");
 
         stats.add(new FieldStats.Long(1, -1L, -1L, -1L, false, true));
         stat = stats.remove(0);
         for (FieldStats otherStat : stats) {
             stat.accumulate(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4L));
-        assertThat(stat.getDocCount(), equalTo(-1L));
-        assertThat(stat.getSumDocFreq(), equalTo(-1L));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
-        assertThat(stat.isSearchable(), equalTo(true));
-        assertThat(stat.isAggregatable(), equalTo(true));
-        assertThat(stat.getDisplayType(), equalTo("integer"));
+        assertEquals(stat.getMaxDoc(), 4L);
+        assertEquals(stat.getDocCount(), -1L);
+        assertEquals(stat.getSumDocFreq(), -1L);
+        assertEquals(stat.getSumTotalTermFreq(), -1L);
+        assertEquals(stat.isSearchable(), true);
+        assertEquals(stat.isAggregatable(), true);
+        assertEquals(stat.getDisplayType(), "integer");
     }
 
     public void testNumberFiltering() {
@@ -323,9 +326,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setFields("value")
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 2);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), 1L);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), 3L);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -333,7 +336,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "0"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 0);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -341,7 +344,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LT, "1"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 0);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -349,8 +352,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "1"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), 1L);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -358,8 +361,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE,  "2"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), 1L);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -367,7 +370,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "2"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 0);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -375,8 +378,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "3"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), 3L);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -384,8 +387,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "4"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), 3L);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -393,7 +396,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "4"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 0);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -401,9 +404,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "3"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 2);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), 1L);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), 3L);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -411,7 +414,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LT, "3"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 0);
     }
 
     public void testDateFiltering() {
@@ -431,17 +434,17 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setFields("value")
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(),
-            equalTo(dateTime1.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
-            equalTo(dateTime2.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
-            equalTo(dateTime1Str));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
-            equalTo(dateTime2Str));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
-            equalTo("date"));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 2);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(),
+            dateTime1.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
+            dateTime2.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
+            dateTime1Str);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
+            dateTime2Str);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            "date");
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -449,7 +452,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "2013-12-31T00:00:00.000Z"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 0);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -457,13 +460,13 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "2014-01-01T00:00:00.000Z"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(),
-            equalTo(dateTime1.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
-            equalTo(dateTime1Str));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getDisplayType(),
-            equalTo("date"));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(),
+            dateTime1.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
+            dateTime1Str);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getDisplayType(),
+            "date");
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -471,11 +474,11 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "2014-01-02T00:00:00.000Z"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
-            equalTo(dateTime2.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
-            equalTo(dateTime2Str));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
+            dateTime2.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
+            dateTime2Str);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -483,7 +486,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "2014-01-03T00:00:00.000Z"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 0);
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -491,54 +494,53 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, "2014-01-02T01:00:00.000Z"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
-            equalTo(dateTime2.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
-            equalTo(dateTime2Str));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
-            equalTo("date"));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
+            dateTime2.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
+            dateTime2Str);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            "date");
 
         response = client().prepareFieldStats()
                 .setFields("value")
                 .setIndexContraints(new IndexConstraint("value", MIN, GTE, "2014-01-01T00:00:00.000Z"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(),
-            equalTo(dateTime1.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
-            equalTo(dateTime2.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
-            equalTo(dateTime1Str));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
-            equalTo(dateTime2Str));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
-            equalTo("date"));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 2);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(),
+            dateTime1.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
+            dateTime2.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
+            dateTime1Str);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
+            dateTime2Str);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            "date");
 
         response = client().prepareFieldStats()
                 .setFields("value")
                 .setIndexContraints(new IndexConstraint("value", MAX, LTE, "2014-01-02T00:00:00.000Z"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(),
-            equalTo(dateTime1.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
-            equalTo(dateTime2.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
-            equalTo(dateTime1Str));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
-            equalTo(dateTime2Str));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
-            equalTo("date"));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 2);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(),
+            dateTime1.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(),
+            dateTime2.getMillis());
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
+            dateTime1Str);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
+            dateTime2Str);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(), "date");
 
         response = client().prepareFieldStats()
             .setFields("value2")
             .setIndexContraints(new IndexConstraint("value2", MAX, LTE, "2014-01-02T00:00:00.000Z"))
             .setLevel("indices")
             .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 0);
     }
 
     public void testDateFiltering_optionalFormat() {
@@ -557,11 +559,11 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                     new IndexConstraint("value", MAX, LTE, String.valueOf(dateTime2.getMillis()), "epoch_millis"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
-            equalTo("2014-01-02T00:00:00.000Z"));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
-            equalTo("date"));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
+            "2014-01-02T00:00:00.000Z");
+        assertEquals(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            "date");
 
         try {
             client().prepareFieldStats()
@@ -582,8 +584,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             .setFields("*")
             .setLevel("indices")
             .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(0));
+        assertEquals(response.getIndicesMergedFieldStats().size(), 1);
+        assertEquals(response.getIndicesMergedFieldStats().get("test1").size(), 0);
     }
 
     public void testMetaFieldsNotIndexed() {
@@ -594,16 +596,16 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         FieldStatsResponse response = client().prepareFieldStats()
             .setFields("_id", "_type")
             .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(1));
-        assertThat(response.getAllFieldStats().get("_type").isSearchable(), equalTo(true));
-        assertThat(response.getAllFieldStats().get("_type").isAggregatable(), equalTo(true));
+        assertEquals(response.getAllFieldStats().size(), 1);
+        assertEquals(response.getAllFieldStats().get("_type").isSearchable(), true);
+        assertEquals(response.getAllFieldStats().get("_type").isAggregatable(), true);
     }
 
     public void testSerialization() throws IOException {
-        Version version = randomBoolean() ? Version.CURRENT : Version.V_5_1_0_UNRELEASED;
-        for (int i = 0; i < 20; i++) {
-            assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0_UNRELEASED)),
-                version);
+        for (Version version : new Version[] {Version.CURRENT, Version.V_5_1_0_UNRELEASED}){
+            for (int i = 0; i < 20; i++) {
+                assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0_UNRELEASED)), version);
+            }
         }
     }
 
@@ -678,7 +680,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         StreamInput input = output.bytes().streamInput();
         input.setVersion(version);
         FieldStats deserializedStats = FieldStats.readFrom(input);
-        assertThat(stats, equalTo(deserializedStats));
-        assertThat(stats.hashCode(), equalTo(deserializedStats.hashCode()));
+        assertEquals(stats, deserializedStats);
+        assertEquals(stats.hashCode(), deserializedStats.hashCode());
     }
 }

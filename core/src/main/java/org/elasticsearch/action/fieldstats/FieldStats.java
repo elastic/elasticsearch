@@ -20,6 +20,7 @@
 package org.elasticsearch.action.fieldstats;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Version;
@@ -50,6 +51,16 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
     protected T minValue;
     protected T maxValue;
 
+    /**
+     * Builds a FieldStats where min and max value are not available for the field.
+     * @param type The native type of this FieldStats
+     * @param maxDoc Max number of docs
+     * @param docCount  the number of documents that have at least one term for this field, or -1 if this information isn't available for this field.
+     * @param sumDocFreq  the sum of {@link TermsEnum#docFreq()} for all terms in this field, or -1 if this information isn't available for this field.
+     * @param sumTotalTermFreq the sum of {@link TermsEnum#totalTermFreq} for all terms in this field, or -1 if this measure isn't available for this field.
+     * @param isSearchable true if this field is searchable
+     * @param isAggregatable true if this field is aggregatable
+     */
     FieldStats(byte type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
                boolean isSearchable, boolean isAggregatable) {
         this.type = type;
@@ -62,6 +73,18 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         this.hasMinMax = false;
     }
 
+    /**
+     * Builds a FieldStats with min and max value for the field.
+     * @param type The native type of this FieldStats
+     * @param maxDoc Max number of docs
+     * @param docCount  the number of documents that have at least one term for this field, or -1 if this information isn't available for this field.
+     * @param sumDocFreq  the sum of {@link TermsEnum#docFreq()} for all terms in this field, or -1 if this information isn't available for this field.
+     * @param sumTotalTermFreq the sum of {@link TermsEnum#totalTermFreq} for all terms in this field, or -1 if this measure isn't available for this field.
+     * @param isSearchable true if this field is searchable
+     * @param isAggregatable true if this field is aggregatable
+     * @param minValue the minimum value indexed in this field
+     * @param maxValue the maximum value indexed in this field
+     */
     FieldStats(byte type,
                long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
                boolean isSearchable, boolean isAggregatable, T minValue, T maxValue) {

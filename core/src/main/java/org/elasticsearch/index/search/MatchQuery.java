@@ -19,7 +19,16 @@
 
 package org.elasticsearch.index.search;
 
+import static org.apache.lucene.analysis.synonym.SynonymGraphFilter.GRAPH_FLAG;
+
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CachingTokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.synonym.GraphTokenStreamFiniteStrings;
+import org.apache.lucene.analysis.tokenattributes.FlagsAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -27,13 +36,14 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.QueryBuilder;
+import org.apache.lucene.util.XQueryBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +58,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MatchQuery {
 
@@ -113,13 +125,19 @@ public class MatchQuery {
         }
     }
 
-    /** the default phrase slop */
+    /**
+     * the default phrase slop
+     */
     public static final int DEFAULT_PHRASE_SLOP = 0;
 
-    /** the default leniency setting */
+    /**
+     * the default leniency setting
+     */
     public static final boolean DEFAULT_LENIENCY = false;
 
-    /** the default zero terms query */
+    /**
+     * the default zero terms query
+     */
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
     protected final QueryShardContext context;
@@ -286,7 +304,7 @@ public class MatchQuery {
         return Queries.newMatchAllQuery();
     }
 
-    private class MatchQueryBuilder extends QueryBuilder {
+    private class MatchQueryBuilder extends XQueryBuilder {
 
         private final MappedFieldType mapper;
 
@@ -296,6 +314,116 @@ public class MatchQuery {
         public MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
+        }
+
+        /**
+         * Creates a query from the analysis chain.  Overrides original so all it does is create the token stream and pass that into the
+         * new {@link #createFieldQuery(TokenStream, Occur, String, boolean, int)} method which has all the original query generation logic.
+         *
+         * @param analyzer   analyzer used for this query
+         * @param operator   default boolean operator used for this query
+         * @param field      field to create queries against
+         * @param queryText  text to be passed to the analysis chain
+         * @param quoted     true if phrases should be generated when terms occur at more than one position
+         * @param phraseSlop slop factor for phrase/multiphrase queries
+         */
+        @Override
+        protected final Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field, String queryText,
+                                               boolean quoted, int phraseSlop) {
+            assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+            // Use the analyzer to get all the tokens, and then build an appropriate
+            // query based on the analysis chain.
+            try (TokenStream source = analyzer.tokenStream(field, queryText)) {
+                return createFieldQuery(source, operator, field, quoted, phraseSlop);
+            } catch (IOException e) {
+                throw new RuntimeException("Error analyzing query text", e);
+            }
+        }
+
+        /**
+         * Creates a query from a token stream.  Same logic as {@link #createFieldQuery(Analyzer, Occur, String, String, boolean, int)}
+         * with additional graph token stream detection.
+         *
+         * @param source     the token stream to create the query from
+         * @param operator   default boolean operator used for this query
+         * @param field      field to create queries against
+         * @param quoted     true if phrases should be generated when terms occur at more than one position
+         * @param phraseSlop slop factor for phrase/multiphrase queries
+         */
+        protected final Query createFieldQuery(TokenStream source, BooleanClause.Occur operator, String field, boolean quoted,
+                                               int phraseSlop) {
+            assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+            // Build an appropriate query based on the analysis chain.
+            try (CachingTokenFilter stream = new CachingTokenFilter(source)) {
+
+                TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+                PositionIncrementAttribute posIncAtt = stream.addAttribute(PositionIncrementAttribute.class);
+                PositionLengthAttribute posLenAtt = stream.addAttribute(PositionLengthAttribute.class);
+                FlagsAttribute flagsAtt = stream.addAttribute(FlagsAttribute.class);
+
+                if (termAtt == null) {
+                    return null;
+                }
+
+                // phase 1: read through the stream and assess the situation:
+                // counting the number of tokens/positions and marking if we have any synonyms.
+
+                int numTokens = 0;
+                int positionCount = 0;
+                boolean hasSynonyms = false;
+                boolean isGraph = false;
+
+                stream.reset();
+                while (stream.incrementToken()) {
+                    numTokens++;
+                    int positionIncrement = posIncAtt.getPositionIncrement();
+                    if (positionIncrement != 0) {
+                        positionCount += positionIncrement;
+                    } else {
+                        hasSynonyms = true;
+                    }
+
+                    int positionLength = posLenAtt.getPositionLength();
+                    if (!isGraph && positionLength > 1 && ((flagsAtt.getFlags() & GRAPH_FLAG) == GRAPH_FLAG)) {
+                        isGraph = true;
+                    }
+                }
+
+                // phase 2: based on token count, presence of synonyms, and options
+                // formulate a single term, boolean, or phrase.
+
+                if (numTokens == 0) {
+                    return null;
+                } else if (numTokens == 1) {
+                    // single term
+                    return analyzeTerm(field, stream);
+                } else if (isGraph) {
+                    // graph
+                    return analyzeGraph(stream, operator, field, quoted, phraseSlop);
+                } else if (quoted && positionCount > 1) {
+                    // phrase
+                    if (hasSynonyms) {
+                        // complex phrase with synonyms
+                        return analyzeMultiPhrase(field, stream, phraseSlop);
+                    } else {
+                        // simple phrase
+                        return analyzePhrase(field, stream, phraseSlop);
+                    }
+                } else {
+                    // boolean
+                    if (positionCount == 1) {
+                        // only one position, with synonyms
+                        return analyzeBoolean(field, stream);
+                    } else {
+                        // complex case: multiple positions
+                        return analyzeMultiBoolean(field, stream, operator);
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Error analyzing query text", e);
+            }
         }
 
         @Override
@@ -325,7 +453,7 @@ public class MatchQuery {
                 Term[] terms = pq.getTerms();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
-                    prefixQuery.add(new Term[] {terms[i]}, positions[i]);
+                    prefixQuery.add(new Term[]{terms[i]}, positions[i]);
                 }
                 return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
             } else if (innerQuery instanceof MultiPhraseQuery) {
@@ -346,11 +474,13 @@ public class MatchQuery {
             return query;
         }
 
-        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, MappedFieldType fieldType) {
+        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float
+            maxTermFrequency, MappedFieldType fieldType) {
             Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
-                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled(), fieldType);
+                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, (
+                    (BooleanQuery) booleanQuery).isCoordDisabled(), fieldType);
                 for (BooleanClause clause : bq.clauses()) {
                     if (!(clause.getQuery() instanceof TermQuery)) {
                         return booleanQuery;
@@ -361,6 +491,30 @@ public class MatchQuery {
             }
             return booleanQuery;
 
+        }
+
+        /**
+         * Creates a query from a graph token stream by extracting all the finite strings from the graph and using them to create the query.
+         */
+        protected Query analyzeGraph(TokenStream source, BooleanClause.Occur operator, String field, boolean quoted, int phraseSlop)
+            throws IOException {
+            source.reset();
+            GraphTokenStreamFiniteStrings graphTokenStreams = new GraphTokenStreamFiniteStrings();
+            List<TokenStream> tokenStreams = graphTokenStreams.getTokenStreams(source);
+
+            if (tokenStreams.isEmpty()) {
+                return null;
+            }
+
+            List<Query> queries = new ArrayList<>(tokenStreams.size());
+            for (TokenStream ts : tokenStreams) {
+                Query query = createFieldQuery(ts, operator, field, quoted, phraseSlop);
+                if (query != null) {
+                    queries.add(query);
+                }
+            }
+
+            return new GraphQuery(queries.toArray(new Query[0]));
         }
     }
 

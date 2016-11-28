@@ -189,11 +189,12 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         if (ReservedFieldNames.RESERVED_FIELD_NAMES.size() != expected.size()) {
             Set<String> diff = new HashSet<>(ReservedFieldNames.RESERVED_FIELD_NAMES);
             diff.removeAll(expected);
-            System.out.println("Fields in ReservedFieldNames but not in expected: " + diff);
+            StringBuilder errorMessage = new StringBuilder("Fields in ReservedFieldNames but not in expected: ").append(diff);
 
             diff = new HashSet<>(expected);
             diff.removeAll(ReservedFieldNames.RESERVED_FIELD_NAMES);
-            System.out.println("Fields in expected but not in ReservedFieldNames: " + diff);
+            errorMessage.append("\nFields in expected but not in ReservedFieldNames: ").append(diff);
+            fail(errorMessage.toString());
         }
         assertEquals(ReservedFieldNames.RESERVED_FIELD_NAMES.size(), expected.size());
 

@@ -47,6 +47,60 @@ public class RatedDocumentTests extends ESTestCase {
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
 
+    private static RatedDocument mutateTestItem(RatedDocument original) {
+        int rating = original.getRating();
+        String index = original.getIndex();
+        String type = original.getType();
+        String docId = original.getDocID();
+        switch (randomIntBetween(0, 3)) {
+        case 0:
+        {
+            int mutation = randomInt();
+            while (mutation == rating) {
+                mutation = randomInt();
+            }
+            rating = mutation;
+            break;
+        }
+        case 1:
+        {
+            String mutation = randomAsciiOfLength(10);
+            while (mutation.equals(index)) {
+                mutation = randomAsciiOfLength(10);
+            }
+            index = mutation;
+            break;
+        }
+        case 2:
+        {
+            String mutation = randomAsciiOfLength(10);
+            while (mutation.equals(type)) {
+                mutation = randomAsciiOfLength(10);
+            }
+            type = mutation;
+            break;
+        }
+        case 3:
+        {
+            String mutation = randomAsciiOfLength(10);
+            while (mutation.equals(docId)) {
+                mutation = randomAsciiOfLength(10);
+            }
+            docId = mutation;
+            break;
+        }
+        default:
+            throw new IllegalStateException("The test should only allow two parameters mutated");
+        }
+        return new RatedDocument(index, type, docId, rating);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        RatedDocument testItem = createRatedDocument();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, RatedDocument::new));
+    }
+
     @Rule
     public final ExpectedException exception = ExpectedException.none();
 

@@ -79,7 +79,7 @@ public final class TransportAddress implements Writeable {
         final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
         in.readFully(a);
         final InetAddress inetAddress;
-        if (in.getVersion().onOrAfter(Version.V_5_0_2_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_0_3_UNRELEASED)) {
             String host = in.readString();
             inetAddress = InetAddress.getByAddress(host, a);
         } else {
@@ -97,7 +97,7 @@ public final class TransportAddress implements Writeable {
         byte[] bytes = address.getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
         out.writeByte((byte) bytes.length); // 1 byte
         out.write(bytes, 0, bytes.length);
-        if (out.getVersion().onOrAfter(Version.V_5_0_2_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_0_3_UNRELEASED)) {
             out.writeString(address.getHostString());
         }
         // don't serialize scope ids over the network!!!!

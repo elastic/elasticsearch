@@ -154,7 +154,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final int connectionsPerNodeReg;
     protected final int connectionsPerNodeState;
     protected final int connectionsPerNodePing;
-    protected final TimeValue connectTimeout;
     protected final boolean blockingClient;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
@@ -200,9 +199,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         this.connectionsPerNodeReg = CONNECTIONS_PER_NODE_REG.get(settings);
         this.connectionsPerNodeState = CONNECTIONS_PER_NODE_STATE.get(settings);
         this.connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
-        this.connectTimeout = TCP_CONNECT_TIMEOUT.get(settings);
         this.blockingClient = TCP_BLOCKING_CLIENT.get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.setConnectTimeout(TCP_CONNECT_TIMEOUT.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         builder.addConnections(connectionsPerNodeRecovery, TransportRequestOptions.Type.RECOVERY);
@@ -1372,5 +1371,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
             }
         }
+    }
+
+    protected final TimeValue getDefaultConnectTimeout() {
+        return defaultConnectionProfile.getConnectTimeout();
     }
 }

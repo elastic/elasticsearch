@@ -227,7 +227,6 @@ public class ElasticsearchJobProvider implements JobProvider
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
             XContentBuilder modelSizeStatsMapping = ElasticsearchMappings.modelSizeStatsMapping();
             XContentBuilder modelDebugMapping = ElasticsearchMappings.modelDebugOutputMapping(termFields);
-            XContentBuilder processingTimeMapping = ElasticsearchMappings.processingTimeMapping();
             XContentBuilder partitionScoreMapping = ElasticsearchMappings.bucketPartitionMaxNormalizedScores();
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
 
@@ -243,7 +242,6 @@ public class ElasticsearchJobProvider implements JobProvider
             createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
             createIndexRequest.mapping(ModelSizeStats.TYPE.getPreferredName(), modelSizeStatsMapping);
             createIndexRequest.mapping(ModelDebugOutput.TYPE.getPreferredName(), modelDebugMapping);
-            createIndexRequest.mapping(ReservedFieldNames.BUCKET_PROCESSING_TIME_TYPE, processingTimeMapping);
             createIndexRequest.mapping(ReservedFieldNames.PARTITION_NORMALIZED_PROB_TYPE, partitionScoreMapping);
             createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
 

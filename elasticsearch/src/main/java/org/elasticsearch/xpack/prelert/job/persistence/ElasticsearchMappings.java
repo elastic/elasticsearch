@@ -784,24 +784,4 @@ public class ElasticsearchMappings {
                 .endObject()
                 .endObject();
     }
-
-    public static XContentBuilder processingTimeMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                .startObject(ReservedFieldNames.BUCKET_PROCESSING_TIME_TYPE)
-                .startObject(ALL)
-                .field(ENABLED, false)
-                // analyzer must be specified even though _all is disabled
-                // because all types in the same index must have the same
-                // analyzer for a given field
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(ReservedFieldNames.AVERAGE_PROCESSING_TIME_MS)
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-    }
 }

@@ -34,9 +34,6 @@ public final class ReservedFieldNames {
      */
     private static final String ES_TIMESTAMP = "timestamp";
 
-    public static final String BUCKET_PROCESSING_TIME_TYPE = "bucketProcessingTime";
-    public static final String AVERAGE_PROCESSING_TIME_MS = "averageProcessingTimeMs";
-
     public static final String PARTITION_NORMALIZED_PROB_TYPE = "partitionNormalizedProb";
     public static final String PARTITION_NORMALIZED_PROBS = "partitionNormalizedProbs";
 
@@ -97,8 +94,6 @@ public final class ReservedFieldNames {
 
             BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.ANOMALY_SCORE.getPreferredName(),
             BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.PROBABILITY.getPreferredName(),
-
-            AVERAGE_PROCESSING_TIME_MS,
 
             PARTITION_NORMALIZED_PROBS,
             PARTITION_NORMALIZED_PROB_TYPE,

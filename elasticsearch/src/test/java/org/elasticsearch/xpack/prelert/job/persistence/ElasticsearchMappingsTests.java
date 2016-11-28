@@ -87,7 +87,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(AuditActivity.TYPE.getPreferredName());
         overridden.add(AuditMessage.TYPE.getPreferredName());
         overridden.add(DataCounts.TYPE.getPreferredName());
-        overridden.add(ReservedFieldNames.BUCKET_PROCESSING_TIME_TYPE);
         overridden.add(CategorizerState.TYPE);
         overridden.add(CategoryDefinition.TYPE.getPreferredName());
         overridden.add(Job.TYPE);
@@ -165,11 +164,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         parseJson(parser, expected);
 
         builder = ElasticsearchMappings.modelStateMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.processingTimeMapping();
         inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);

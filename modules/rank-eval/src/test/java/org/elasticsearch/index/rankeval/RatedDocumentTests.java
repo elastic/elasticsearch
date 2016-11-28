@@ -22,6 +22,8 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 
@@ -43,5 +45,28 @@ public class RatedDocumentTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+
+    @Rule
+    public final ExpectedException exception = ExpectedException.none();
+
+    public void testInvalidParsing() throws IOException {
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(null, randomAsciiOfLength(10), randomAsciiOfLength(10), randomInt());
+        
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument("", randomAsciiOfLength(10), randomAsciiOfLength(10), randomInt());
+
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(randomAsciiOfLength(10), null, randomAsciiOfLength(10), randomInt());
+        
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(randomAsciiOfLength(10), "", randomAsciiOfLength(10), randomInt());
+        
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(randomAsciiOfLength(10), randomAsciiOfLength(10), null, randomInt());
+
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(randomAsciiOfLength(10), randomAsciiOfLength(10), "", randomInt());
     }
 }

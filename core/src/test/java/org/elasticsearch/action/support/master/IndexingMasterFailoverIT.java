@@ -73,9 +73,10 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
                 .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
+                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0")  // <-- we wait for cluster formation at the end
                 .build();
 
-        internalCluster().startMasterOnlyNodesAsync(3, sharedSettings).get();
+        internalCluster().startMasterOnlyNodes(3, sharedSettings);
 
         String dataNode = internalCluster().startDataOnlyNode(sharedSettings);
 

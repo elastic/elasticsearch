@@ -72,7 +72,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
     }
 
     public void testCorruptTranslogFiles() throws Exception {
-        internalCluster().startNodesAsync(1, Settings.EMPTY).get();
+        internalCluster().startNodes(1, Settings.EMPTY);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put("index.number_of_shards", 1)

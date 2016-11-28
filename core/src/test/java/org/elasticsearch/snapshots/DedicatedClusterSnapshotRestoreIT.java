@@ -69,7 +69,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -627,7 +626,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
         Settings nodeSettings = Settings.builder().put().build();
         logger.info("--> start two nodes");
-        internalCluster().startNodesAsync(2, nodeSettings).get();
+        internalCluster().startNodes(2, nodeSettings);
         // Register mock repositories
         client().admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(Settings.builder()

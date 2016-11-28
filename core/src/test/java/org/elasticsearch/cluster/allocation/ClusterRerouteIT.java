@@ -85,7 +85,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
     }
 
     private void rerouteWithCommands(Settings commonSettings) throws Exception {
-        List<String> nodesIds = internalCluster().startNodesAsync(2, commonSettings).get();
+        List<String> nodesIds = internalCluster().startNodes(2, commonSettings);
         final String node_1 = nodesIds.get(0);
         final String node_2 = nodesIds.get(1);
 
@@ -304,7 +304,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
     }
 
     public void testClusterRerouteWithBlocks() throws Exception {
-        List<String> nodesIds = internalCluster().startNodesAsync(2).get();
+        List<String> nodesIds = internalCluster().startNodes(2);
 
         logger.info("--> create an index with 1 shard and 0 replicas");
         assertAcked(prepareCreate("test-blocks").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)));

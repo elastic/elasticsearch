@@ -45,7 +45,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     @TestLogging("_root:DEBUG")
     public void testDelayShards() throws Exception {
         logger.info("--> starting 3 nodes");
-        internalCluster().startNodesAsync(3).get();
+        internalCluster().startNodes(3);
 
         // Wait for all 3 nodes to be up
         logger.info("--> waiting for 3 nodes to be up");

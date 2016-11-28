@@ -24,7 +24,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -202,22 +201,19 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .build();
 
         logger.info("--> start first 2 nodes");
-        internalCluster().startNodesAsync(2, settings).get();
+        internalCluster().startNodes(2, settings);
 
         ClusterState state;
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                for (Client client : clients()) {
-                    ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                    assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-                }
+        assertBusy(() -> {
+            for (Client client : clients()) {
+                ClusterState state1 = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                assertThat(state1.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
             }
         });
 
         logger.info("--> start two more nodes");
-        internalCluster().startNodesAsync(2, settings).get();
+        internalCluster().startNodes(2, settings);
 
         ensureGreen();
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
@@ -252,7 +248,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertNoMasterBlockOnAllNodes();
 
         logger.info("--> start back the 2 nodes ");
-        String[] newNodes = internalCluster().startNodesAsync(2, settings).get().toArray(Strings.EMPTY_ARRAY);
+        String[] newNodes = internalCluster().startNodes(2, settings).stream().toArray(String[]::new);
 
         ensureGreen();
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
@@ -338,7 +334,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
 
         logger.info("--> starting [{}] nodes. min_master_nodes set to [{}]", nodeCount, initialMinMasterNodes);
-        internalCluster().startNodesAsync(nodeCount, settings.build()).get();
+        internalCluster().startNodes(nodeCount, settings.build());
 
         logger.info("--> waiting for nodes to join");
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
@@ -371,7 +367,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up
                 .build();
-        internalCluster().startNodesAsync(3, settings).get();
+        internalCluster().startNodes(3, settings);
         ensureGreen(); // ensure cluster state is recovered before we disrupt things
 
         final String master = internalCluster().getMasterName();

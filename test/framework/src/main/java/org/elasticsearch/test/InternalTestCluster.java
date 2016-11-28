@@ -119,7 +119,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -788,6 +787,10 @@ public final class InternalTestCluster extends TestCluster {
 
         public int nodeAndClientId() {
             return nodeAndClientId;
+        }
+
+        public String getName() {
+            return name;
         }
 
         public boolean isMasterEligible() {
@@ -1635,6 +1638,66 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Starts multiple nodes with default settings and returns their names
+     */
+    public synchronized List<String> startNodes(int numOfNodes) {
+        return startNodes(numOfNodes, Settings.EMPTY);
+    }
+
+    /**
+     * Starts multiple nodes with the given settings and returns their names
+     */
+    public synchronized List<String> startNodes(int numOfNodes, Settings settings) {
+        return startNodes(Collections.nCopies(numOfNodes, settings).stream().toArray(Settings[]::new));
+    }
+
+    /**
+     * Starts multiple nodes with the given settings and returns their names
+     */
+    public synchronized List<String> startNodes(Settings... settings) {
+        final int defaultMinMasterNodes;
+        if (autoManageMinMasterNodes) {
+            int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
+            defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + mastersDelta);
+            settings = Stream.of(settings).map(originalSettings -> Settings.builder()
+                .put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // we wait at the end
+                .put(originalSettings)
+                .build()).toArray(Settings[]::new);
+        } else {
+            defaultMinMasterNodes = -1;
+        }
+        List<NodeAndClient> nodes = new ArrayList<>();
+        for (Settings nodeSettings: settings) {
+            nodes.add(buildNode(nodeSettings, defaultMinMasterNodes));
+        }
+        startAndPublishNodesAndClients(nodes);
+
+        if (autoManageMinMasterNodes) {
+            validateClusterFormed();
+        }
+
+        return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
+    }
+
+    public synchronized List<String> startMasterOnlyNodes(int numNodes) {
+        return startMasterOnlyNodes(numNodes, Settings.EMPTY);
+    }
+
+    public synchronized List<String> startMasterOnlyNodes(int numNodes, Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
+        return startNodes(numNodes, settings1);
+    }
+
+    public synchronized List<String> startDataOnlyNodes(int numNodes) {
+        return startDataOnlyNodes(numNodes, Settings.EMPTY);
+    }
+
+    public synchronized List<String> startDataOnlyNodes(int numNodes, Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
+        return startNodes(numNodes, settings1);
+    }
+
+    /**
      * updates the min master nodes setting in the current running cluster.
      *
      * @param eligibleMasterNodeCount the number of master eligible nodes to use as basis for the min master node setting
@@ -1666,31 +1729,8 @@ public final class InternalTestCluster extends TestCluster {
         return (int)nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
     }
 
-    public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes) {
-        return startMasterOnlyNodesAsync(numNodes, Settings.EMPTY);
-    }
-
-    public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
-        return startNodesAsync(numNodes, settings1);
-    }
-
-    public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes) {
-        return startDataOnlyNodesAsync(numNodes, Settings.EMPTY);
-    }
-
-    public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
-        return startNodesAsync(numNodes, settings1);
-    }
-
-    public synchronized Async<String> startMasterOnlyNodeAsync() {
-        return startMasterOnlyNodeAsync(Settings.EMPTY);
-    }
-
-    public synchronized Async<String> startMasterOnlyNodeAsync(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
-        return startNodeAsync(settings1);
+    public synchronized String startMasterOnlyNode() {
+        return startMasterOnlyNode(Settings.EMPTY);
     }
 
     public synchronized String startMasterOnlyNode(Settings settings) {
@@ -1698,107 +1738,12 @@ public final class InternalTestCluster extends TestCluster {
         return startNode(settings1);
     }
 
-    public synchronized Async<String> startDataOnlyNodeAsync() {
-        return startDataOnlyNodeAsync(Settings.EMPTY);
+    public synchronized String startDataOnlyNode() {
+        return startDataOnlyNode(Settings.EMPTY);
     }
-
-    public synchronized Async<String> startDataOnlyNodeAsync(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
-        return startNodeAsync(settings1);
-    }
-
     public synchronized String startDataOnlyNode(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
         return startNode(settings1);
-    }
-
-    /**
-     * Starts a node in an async manner with the given settings and returns future with its name.
-     */
-    public synchronized Async<String> startNodeAsync() {
-        return startNodeAsync(Settings.EMPTY);
-    }
-
-    /**
-     * Starts a node in an async manner with the given settings and returns future with its name.
-     */
-    public synchronized Async<String> startNodeAsync(final Settings settings) {
-        final int defaultMinMasterNodes;
-        if (autoManageMinMasterNodes) {
-            int mastersDelta = Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0;
-            defaultMinMasterNodes = updateMinMasterNodes(getMasterNodesCount() + mastersDelta);
-        } else {
-            defaultMinMasterNodes = -1;
-        }
-        return startNodeAsync(settings, defaultMinMasterNodes);
-    }
-
-    private synchronized Async<String> startNodeAsync(final Settings settings, int defaultMinMasterNodes) {
-        final NodeAndClient buildNode = buildNode(settings, defaultMinMasterNodes);
-        final Future<String> submit = executor.submit(() -> {
-            buildNode.startNode();
-            publishNode(buildNode);
-            return buildNode.name;
-        });
-        return () -> submit.get();
-    }
-
-
-    /**
-     * Starts multiple nodes in an async manner and returns future with its name.
-     */
-    public synchronized Async<List<String>> startNodesAsync(final int numNodes) {
-        return startNodesAsync(numNodes, Settings.EMPTY);
-    }
-
-    /**
-     * Starts multiple nodes in an async manner with the given settings and returns future with its name.
-     */
-    public synchronized Async<List<String>> startNodesAsync(final int numNodes, final Settings settings)  {
-        final int defaultMinMasterNodes;
-        if (autoManageMinMasterNodes) {
-           int mastersDelta = Node.NODE_MASTER_SETTING.get(settings) ? numNodes : 0;
-            defaultMinMasterNodes = updateMinMasterNodes(getMasterNodesCount() + mastersDelta);
-        } else {
-            defaultMinMasterNodes = -1;
-        }
-        final List<Async<String>> asyncs = new ArrayList<>();
-        for (int i = 0; i < numNodes; i++) {
-            asyncs.add(startNodeAsync(settings, defaultMinMasterNodes));
-        }
-
-        return () -> {
-            List<String> ids = new ArrayList<>();
-            for (Async<String> async : asyncs) {
-                ids.add(async.get());
-            }
-            return ids;
-        };
-    }
-
-    /**
-     * Starts multiple nodes (based on the number of settings provided) in an async manner, with explicit settings for each node.
-     * The order of the node names returned matches the order of the settings provided.
-     */
-    public synchronized Async<List<String>> startNodesAsync(final Settings... settings) {
-        final int defaultMinMasterNodes;
-        if (autoManageMinMasterNodes) {
-            int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
-            defaultMinMasterNodes = updateMinMasterNodes(getMasterNodesCount() + mastersDelta);
-        } else {
-            defaultMinMasterNodes = -1;
-        }
-        List<Async<String>> asyncs = new ArrayList<>();
-        for (Settings setting : settings) {
-            asyncs.add(startNodeAsync(setting, defaultMinMasterNodes));
-        }
-        return () -> {
-            List<String> ids = new ArrayList<>();
-            for (Async<String> async : asyncs) {
-                ids.add(async.get());
-            }
-            return ids;
-        };
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {

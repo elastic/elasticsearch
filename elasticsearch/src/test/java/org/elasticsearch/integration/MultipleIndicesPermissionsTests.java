@@ -20,7 +20,6 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -94,10 +93,6 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 2);
 
-        searchResponse = client.prepareSearch().setQuery(indicesQuery(matchAllQuery(), "test1")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2);
-
         // _all should expand to all the permitted indices
         searchResponse = client.prepareSearch("_all").setQuery(matchAllQuery()).get();
         assertNoFailures(searchResponse);
@@ -107,20 +102,6 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         searchResponse = client.prepareSearch("test*").setQuery(matchAllQuery()).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 2);
-
-        // specifying a permitted index, should only return results from that index
-        searchResponse = client.prepareSearch("test1").setQuery(indicesQuery(matchAllQuery(), "test1")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-
-        // specifying a forbidden index, should throw an authorization exception
-        try {
-            client.prepareSearch("test2").setQuery(indicesQuery(matchAllQuery(), "test1")).get();
-            fail("expected an authorization exception when searching a forbidden index");
-        } catch (ElasticsearchSecurityException e) {
-            // expected
-            assertThat(e.status(), is(RestStatus.FORBIDDEN));
-        }
 
         try {
             client.prepareSearch("test", "test2").setQuery(matchAllQuery()).get();

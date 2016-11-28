@@ -137,7 +137,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 return allocation.decision(Decision.NO, NAME,
                     "node does not contain the awareness attribute [%s]; required attributes [%s=%s]",
                     awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
-                    Strings.arrayToCommaDelimitedString(awarenessAttributes));
+                    allocation.debugDecision() ? Strings.arrayToCommaDelimitedString(awarenessAttributes) : null);
             }
 
             // build attr_value -> nodes map

@@ -81,7 +81,7 @@ public final class ConnectionProfile {
 
         /**
          * Creates a new {@link ConnectionProfile} based on the added connections.
-         * @throws IllegalArgumentException if any of the {@link org.elasticsearch.transport.TransportRequestOptions.Type} enum is missing
+         * @throws IllegalStateException if any of the {@link org.elasticsearch.transport.TransportRequestOptions.Type} enum is missing
          */
         public ConnectionProfile build() {
             EnumSet<TransportRequestOptions.Type> types = EnumSet.allOf(TransportRequestOptions.Type.class);

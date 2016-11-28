@@ -111,7 +111,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     @Before
     public void initAndResetContext() throws IOException {
         if (restTestExecutionContext == null) {
-            assert adminExecutionContext == null && blacklistPathMatchers == null;
+            assert adminExecutionContext == null;
+            assert blacklistPathMatchers == null;
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (String entry : blacklist) {
@@ -281,6 +282,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     @AfterClass
     public static void clearStatic() {
+        blacklistPathMatchers = null;
         restTestExecutionContext = null;
         adminExecutionContext = null;
     }

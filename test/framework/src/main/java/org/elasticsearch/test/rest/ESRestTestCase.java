@@ -91,7 +91,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     @Before
     public void initClient() throws IOException {
         if (client == null) {
-            assert adminClient == null && clusterHosts == null;
+            assert adminClient == null;
+            assert clusterHosts == null;
             String cluster = System.getProperty("tests.rest.cluster");
             if (cluster == null) {
                 throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "

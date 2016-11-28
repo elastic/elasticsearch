@@ -360,6 +360,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * and the source of the document isn't changed then the ttl update won't take
      * effect.
      */
+    @Deprecated
     public UpdateRequestBuilder setTtl(Long ttl) {
         request.doc().ttl(ttl);
         return this;
@@ -370,6 +371,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * and the source of the document isn't changed then the ttl update won't take
      * effect.
      */
+    @Deprecated
     public UpdateRequestBuilder setTtl(String ttl) {
         request.doc().ttl(ttl);
         return this;
@@ -380,6 +382,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * and the source of the document isn't changed then the ttl update won't take
      * effect.
      */
+    @Deprecated
     public UpdateRequestBuilder setTtl(TimeValue ttl) {
         request.doc().ttl(ttl);
         return this;

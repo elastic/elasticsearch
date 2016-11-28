@@ -331,11 +331,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the timestamp either as millis since the epoch, or, in the configured date format.
      */
+    @Deprecated
     public IndexRequest timestamp(String timestamp) {
         this.timestamp = timestamp;
         return this;
     }
 
+    @Deprecated
     public String timestamp() {
         return this.timestamp;
     }
@@ -343,6 +345,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the ttl value as a time value expression.
      */
+    @Deprecated
     public IndexRequest ttl(String ttl) {
         this.ttl = TimeValue.parseTimeValue(ttl, null, "ttl");
         return this;
@@ -351,6 +354,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the ttl as a {@link TimeValue} instance.
      */
+    @Deprecated
     public IndexRequest ttl(TimeValue ttl) {
         this.ttl = ttl;
         return this;
@@ -359,6 +363,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
      */
+    @Deprecated
     public IndexRequest ttl(long ttl) {
         this.ttl = new TimeValue(ttl);
         return this;
@@ -367,6 +372,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Returns the ttl as a {@link TimeValue}
      */
+    @Deprecated
     public TimeValue ttl() {
         return this.ttl;
     }

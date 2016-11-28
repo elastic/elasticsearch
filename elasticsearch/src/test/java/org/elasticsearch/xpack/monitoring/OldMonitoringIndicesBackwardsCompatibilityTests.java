@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -40,6 +42,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -48,6 +51,8 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for monitoring indexes created before {@link Version#CURRENT}.
  */
+//Give ourselves 30 seconds instead of 5 to shut down. Sometimes it takes a while, especially on weak hardware. But we do get there.
+@ThreadLeakLingering(linger = 30000)
 public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
 
     private final boolean httpExporter = randomBoolean();
@@ -85,6 +90,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
     @Override
     protected void checkVersion(Version version) throws Exception {
         try {
+            logger.info("--> Start testing version [{}]", version);
             if (httpExporter) {
                 // If we're using the http exporter we need to update the port and enable it
                 NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
@@ -107,9 +113,16 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
             monitoringDoc.setTimestamp(System.currentTimeMillis());
             final String expectedIndex = resolver.index(monitoringDoc);
 
-            logger.info("--> {} Waiting for [{}] to be created", Thread.currentThread().getName(), expectedIndex);
-            assertBusy(() -> assertTrue(client().admin().indices().prepareExists(expectedIndex).get().isExists()));
-            assertBusy(() -> assertThat(client().prepareSearch(expectedIndex).setSize(0).get().getHits().getTotalHits(), greaterThan(1L)));
+            logger.info("--> {} Waiting for [{}] to be ready", Thread.currentThread().getName(), expectedIndex);
+            assertBusy(() -> {
+                assertTrue(client().admin().indices().prepareExists(expectedIndex).get().isExists());
+
+                NumShards numShards = getNumShards(expectedIndex);
+                ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth(expectedIndex)
+                        .setWaitForActiveShards(numShards.numPrimaries)
+                        .get();
+                assertThat(clusterHealth.getIndices().get(expectedIndex).getActivePrimaryShards(), equalTo(numShards.numPrimaries));
+            });
 
             if (version.before(Version.V_2_3_0)) {
                 /* We can't do anything with indexes created before 2.3 so we just assert that we didn't delete them or do
@@ -165,6 +178,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
         } finally {
             /* Now we stop monitoring and disable the HTTP exporter. We also delete all data and checks multiple times
                 if they have not been re created by some in flight monitoring bulk request */
+            internalCluster().getInstances(AgentService.class).forEach(AgentService::stopCollection);
             internalCluster().getInstances(AgentService.class).forEach(AgentService::stop);
 
             Settings.Builder settings = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1");
@@ -174,6 +188,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
             }
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
 
+            logger.info("--> Waiting for indices deletion");
             CountDown retries = new CountDown(10);
             assertBusy(() -> {
                 String[] indices = new String[]{".marvel-*", ".monitoring-*"};
@@ -185,6 +200,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
                 }
                 assertThat(retries.isCountedDown(), is(true));
             });
+            logger.info("--> End testing version [{}]", version);
         }
     }
 

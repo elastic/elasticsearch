@@ -603,7 +603,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     } else {
                         logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                     }
-                } catch (Exception e) {
+                } catch (ScriptException e) {
                     try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                         builder.prettyPrint();
                         builder.startObject();
@@ -617,7 +617,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     }
                     /* Log at the whole exception at the debug level as well just in case the stack trace is important. That way you can
                      * turn on the stack trace if you need it. */
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile script [{}]", scriptNameExt.v1()), e);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile script [{}]. full exception:",
+                            scriptNameExt.v1()), e);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile script [{}]", scriptNameExt.v1()), e);
                 }
             }
         }

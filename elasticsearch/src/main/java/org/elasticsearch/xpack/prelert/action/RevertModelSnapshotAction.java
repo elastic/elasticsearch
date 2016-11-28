@@ -364,8 +364,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
             ModelSnapshot modelSnapshot = revertCandidates.get(0);
 
             // The quantiles can be large, and totally dominate the output -
-            // it's
-            // clearer to remove them
+            // it's clearer to remove them
             modelSnapshot.setQuantiles(null);
             return modelSnapshot;
         }

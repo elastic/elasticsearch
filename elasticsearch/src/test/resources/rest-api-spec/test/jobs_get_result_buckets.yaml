@@ -4,16 +4,21 @@ setup:
         index:  prelertresults-farequote
         body:
           mappings:
-            bucket:
+            results:
               properties:
+                "jobId":
+                  type: keyword
+                "result_type":
+                  type: keyword
                 "timestamp":
                   type: date
+
   - do:
       index:
         index:  prelertresults-farequote
-        type:   bucket
+        type:   result
         id:     1
-        body:   { "jobId": "farequote", "timestamp": "2016-06-01T00:00:00Z" }
+        body:   { "jobId": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z" }
 
   - do:
       indices.refresh:
@@ -30,9 +35,10 @@ setup:
   - match: { count: 1 }
   - match: { buckets.0.timestamp: 1464739200000 }
   - match: { buckets.0.jobId: farequote}
+  - match: { buckets.0.result_type: bucket}
 
 ---
-"Test result bucket api":
+"Test result single bucket api":
   - do:
       xpack.prelert.get_buckets:
         jobId: "farequote"
@@ -40,3 +46,4 @@ setup:
 
   - match: { buckets.0.timestamp: 1464739200000}
   - match: { buckets.0.jobId: farequote }
+  - match: { buckets.0.result_type: bucket}

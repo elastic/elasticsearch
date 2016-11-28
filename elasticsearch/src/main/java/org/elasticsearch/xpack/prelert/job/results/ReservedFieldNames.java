@@ -91,13 +91,10 @@ public final class ReservedFieldNames {
             Bucket.IS_INTERIM.getPreferredName(),
             Bucket.RECORD_COUNT.getPreferredName(),
             Bucket.EVENT_COUNT.getPreferredName(),
-            Bucket.RECORDS.getPreferredName(),
-            Bucket.BUCKET_INFLUENCERS.getPreferredName(),
             Bucket.INITIAL_ANOMALY_SCORE.getPreferredName(),
             Bucket.PROCESSING_TIME_MS.getPreferredName(),
             Bucket.PARTITION_SCORES.getPreferredName(),
 
-            BucketInfluencer.BUCKET_TIME.getPreferredName(), BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName(),
             BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.ANOMALY_SCORE.getPreferredName(),
             BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.PROBABILITY.getPreferredName(),
 
@@ -151,18 +148,17 @@ public final class ReservedFieldNames {
             ModelSnapshot.RESTORE_PRIORITY.getPreferredName(),
             ModelSnapshot.SNAPSHOT_ID.getPreferredName(),
             ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName(),
-            ModelSizeStats.TYPE.getPreferredName(),
             ModelSnapshot.LATEST_RECORD_TIME.getPreferredName(),
             ModelSnapshot.LATEST_RESULT_TIME.getPreferredName(),
 
             Quantiles.QUANTILE_STATE.getPreferredName(),
 
+            Result.RESULT_TYPE.getPreferredName(),
+
             Usage.INPUT_BYTES,
             Usage.INPUT_FIELD_COUNT,
             Usage.INPUT_RECORD_COUNT,
             Usage.TIMESTAMP,
-            Usage.TYPE,
-
 
             JOB_ID_NAME,
             ES_TIMESTAMP

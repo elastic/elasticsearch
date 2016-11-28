@@ -17,16 +17,10 @@ import java.io.IOException;
 
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 
-class ElasticsearchBatchedBucketsIterator extends ElasticsearchBatchedDocumentsIterator<Bucket> {
+class ElasticsearchBatchedBucketsIterator extends ElasticsearchBatchedResultsIterator<Bucket> {
 
-    public ElasticsearchBatchedBucketsIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher) {
-        super(client, JobResultsPersister.getJobIndexName(jobId), parserFieldMatcher);
-    }
-
-    @Override
-    protected String getType()
-    {
-        return Bucket.TYPE.getPreferredName();
+    public ElasticsearchBatchedBucketsIterator(Client client, String jobId, ParseFieldMatcher parseFieldMatcher) {
+        super(client, jobId, Bucket.RESULT_TYPE_VALUE, parseFieldMatcher);
     }
 
     @Override

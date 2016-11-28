@@ -26,8 +26,6 @@ import java.util.Objects;
 public class AutodetectResult extends ToXContentToBytes implements Writeable {
 
     public static final ParseField TYPE = new ParseField("autodetect_result");
-    public static final ParseField RECORDS = new ParseField("records");
-    public static final ParseField INFLUENCERS = new ParseField("influencers");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<AutodetectResult, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
@@ -36,9 +34,9 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
                     (ModelDebugOutput) a[6], (CategoryDefinition) a[7], (FlushAcknowledgement) a[8]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Bucket.PARSER, Bucket.TYPE);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), AnomalyRecord.PARSER, RECORDS);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Influencer.PARSER, INFLUENCERS);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Bucket.PARSER, Bucket.RESULT_TYPE_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), AnomalyRecord.PARSER, AnomalyRecord.RESULTS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Influencer.PARSER, Influencer.RESULTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Quantiles.PARSER, Quantiles.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSnapshot.PARSER, ModelSnapshot.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSizeStats.PARSER, ModelSizeStats.TYPE);
@@ -151,9 +149,9 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        addNullableField(Bucket.TYPE, bucket, builder);
-        addNullableField(RECORDS, records, builder);
-        addNullableField(INFLUENCERS, influencers, builder);
+        addNullableField(Bucket.RESULT_TYPE_FIELD, bucket, builder);
+        addNullableField(AnomalyRecord.RESULTS_FIELD, records, builder);
+        addNullableField(Influencer.RESULTS_FIELD, influencers, builder);
         addNullableField(Quantiles.TYPE, quantiles, builder);
         addNullableField(ModelSnapshot.TYPE, modelSnapshot, builder);
         addNullableField(ModelSizeStats.TYPE, modelSizeStats, builder);

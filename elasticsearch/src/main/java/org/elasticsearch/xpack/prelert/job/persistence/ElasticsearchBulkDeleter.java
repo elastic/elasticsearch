@@ -16,10 +16,11 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
+import org.elasticsearch.xpack.prelert.job.results.Result;
 
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -72,7 +74,7 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
         deleteRecords(bucket);
         deleteBucketInfluencers(bucket);
         bulkRequestBuilder.add(
-                client.prepareDelete(JobResultsPersister.getJobIndexName(jobId), Bucket.TYPE.getPreferredName(), bucket.getId()));
+                client.prepareDelete(JobResultsPersister.getJobIndexName(jobId), Result.TYPE.getPreferredName(), bucket.getId()));
         ++deletedBucketCount;
     }
 
@@ -83,20 +85,22 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
         // the scenes, and Elasticsearch documentation claims it's significantly
         // slower.  Here we rely on the record timestamps being identical to the
         // bucket timestamp.
-        deleteTypeByBucket(bucket, AnomalyRecord.TYPE.getPreferredName(), () -> ++deletedRecordCount);
+        deleteResultTypeByBucket(bucket, AnomalyRecord.RESULT_TYPE_VALUE, () -> ++deletedRecordCount);
     }
 
-    private void deleteTypeByBucket(Bucket bucket, String type, LongSupplier deleteCounter) {
-        QueryBuilder query = QueryBuilders.termQuery(ElasticsearchMappings.ES_TIMESTAMP,
-                bucket.getTimestamp().getTime());
+    private void deleteResultTypeByBucket(Bucket bucket, String resultType, LongSupplier deleteCounter) {
+        QueryBuilder timeQuery = QueryBuilders.termQuery(ElasticsearchMappings.ES_TIMESTAMP, bucket.getTimestamp().getTime());
+        QueryBuilder boolQuery = new BoolQueryBuilder()
+                .filter(timeQuery)
+                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), resultType));
 
         int done = 0;
         boolean finished = false;
         while (finished == false) {
             SearchResponse searchResponse = SearchAction.INSTANCE.newRequestBuilder(client)
                     .setIndices(JobResultsPersister.getJobIndexName(jobId))
-                    .setTypes(type)
-                    .setQuery(query)
+                    .setTypes(Result.TYPE.getPreferredName())
+                    .setQuery(boolQuery)
                     .addSort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC))
                     .setSize(SCROLL_SIZE)
                     .setFrom(done)
@@ -124,17 +128,17 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
     public void deleteBucketInfluencers(Bucket bucket) {
         // Find the bucket influencers using the time stamp, relying on the
         // bucket influencer timestamps being identical to the bucket timestamp.
-        deleteTypeByBucket(bucket, BucketInfluencer.TYPE.getPreferredName(), () -> ++deletedBucketInfluencerCount);
+        deleteResultTypeByBucket(bucket, BucketInfluencer.RESULT_TYPE_VALUE, () -> ++deletedBucketInfluencerCount);
     }
 
     public void deleteInfluencers(Bucket bucket) {
         // Find the influencers using the time stamp, relying on the influencer
         // timestamps being identical to the bucket timestamp.
-        deleteTypeByBucket(bucket, Influencer.TYPE.getPreferredName(), () -> ++deletedInfluencerCount);
+        deleteResultTypeByBucket(bucket, Influencer.RESULT_TYPE_VALUE, () -> ++deletedInfluencerCount);
     }
 
     public void deleteBucketByTime(Bucket bucket) {
-        deleteTypeByBucket(bucket, Bucket.TYPE.getPreferredName(), () -> ++deletedBucketCount);
+        deleteResultTypeByBucket(bucket, Bucket.RESULT_TYPE_VALUE, () -> ++deletedBucketCount);
     }
 
     @Override
@@ -147,7 +151,7 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
             return;
         }
         bulkRequestBuilder.add(
-                client.prepareDelete(JobResultsPersister.getJobIndexName(jobId), Influencer.TYPE.getPreferredName(), id));
+                client.prepareDelete(JobResultsPersister.getJobIndexName(jobId), Result.TYPE.getPreferredName(), id));
         ++deletedInfluencerCount;
     }
 
@@ -188,8 +192,7 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
         QueryBuilder qb = QueryBuilders.termQuery(Bucket.IS_INTERIM.getPreferredName(), true);
 
         SearchResponse searchResponse = client.prepareSearch(JobResultsPersister.getJobIndexName(jobId))
-                .setTypes(Bucket.TYPE.getPreferredName(), AnomalyRecord.TYPE.getPreferredName(), Influencer.TYPE.getPreferredName(),
-                        BucketInfluencer.TYPE.getPreferredName())
+                .setTypes(Result.RESULT_TYPE.getPreferredName())
                 .setQuery(qb)
                 .addSort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC))
                 .setScroll(SCROLL_CONTEXT_DURATION)
@@ -201,15 +204,15 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
         long totalDeletedCount = 0;
         while (totalDeletedCount < totalHits) {
             for (SearchHit hit : searchResponse.getHits()) {
-                LOGGER.trace("Search hit for bucket: " + hit.toString() + ", " + hit.getId());
-                String type = hit.getType();
-                if (type.equals(Bucket.TYPE)) {
+                LOGGER.trace("Search hit for bucket: {}, {}", hit.toString(), hit.getId());
+                String type = (String) hit.getSource().get(Result.RESULT_TYPE.getPreferredName());
+                if (Bucket.RESULT_TYPE_VALUE.equals(type)) {
                     ++deletedBucketCount;
-                } else if (type.equals(AnomalyRecord.TYPE)) {
+                } else if (AnomalyRecord.RESULT_TYPE_VALUE.equals(type)) {
                     ++deletedRecordCount;
-                } else if (type.equals(BucketInfluencer.TYPE)) {
+                } else if (BucketInfluencer.RESULT_TYPE_VALUE.equals(type)) {
                     ++deletedBucketInfluencerCount;
-                } else if (type.equals(Influencer.TYPE)) {
+                } else if (Influencer.RESULT_TYPE_VALUE.equals(type)) {
                     ++deletedInfluencerCount;
                 }
                 ++totalDeletedCount;

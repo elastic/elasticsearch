@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
+import org.elasticsearch.xpack.prelert.job.results.Result;
 
 import java.io.IOException;
 import java.util.Date;
@@ -73,13 +74,15 @@ public class JobResultsPersister extends AbstractComponent {
         try {
             XContentBuilder content = toXContentBuilder(bucket);
             String indexName = getJobIndexName(jobId);
-            logger.trace("[{}] ES API CALL: index type {} to index {} at epoch {}", jobId, Bucket.TYPE, indexName, bucket.getEpoch());
-            IndexResponse response = client.prepareIndex(indexName, Bucket.TYPE.getPreferredName())
+            logger.trace("[{}] ES API CALL: index result type {} to index {} at epoch {}", jobId, Bucket.RESULT_TYPE_VALUE, indexName,
+                    bucket.getEpoch());
+            IndexResponse response = client.prepareIndex(indexName, Result.TYPE.getPreferredName())
                     .setSource(content)
                     .execute().actionGet();
             bucket.setId(response.getId());
             persistBucketInfluencersStandalone(jobId, bucket.getId(), bucket.getBucketInfluencers(), bucket.getTimestamp(),
                     bucket.isInterim());
+
             persistPerPartitionMaxProbabilities(bucket);
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Error persisting bucket", new Object[] {jobId}, e));
@@ -102,11 +105,12 @@ public class JobResultsPersister extends AbstractComponent {
             for (AnomalyRecord record : records) {
                 content = toXContentBuilder(record);
 
-                logger.trace("[{}] ES BULK ACTION: index type {} to index {} with auto-generated ID", jobId, AnomalyRecord.TYPE, indexName);
-                addRecordsRequest.add(client.prepareIndex(indexName, AnomalyRecord.TYPE.getPreferredName()).setSource(content));
+                logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with auto-generated ID",
+                        jobId, AnomalyRecord.RESULT_TYPE_VALUE, indexName);
+                addRecordsRequest.add(client.prepareIndex(indexName, Result.TYPE.getPreferredName()).setSource(content));
             }
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] Error persisting records", new Object[] {jobId}, e));
+            logger.error(new ParameterizedMessage("[{}] Error persisting records", new Object [] {jobId}, e));
             return;
         }
 
@@ -132,9 +136,9 @@ public class JobResultsPersister extends AbstractComponent {
         try {
             for (Influencer influencer : influencers) {
                 content = toXContentBuilder(influencer);
-                logger.trace("[{}] ES BULK ACTION: index type {} to index {} with auto-generated ID",
-                        jobId, Influencer.TYPE, indexName);
-                addInfluencersRequest.add(client.prepareIndex(indexName, Influencer.TYPE.getPreferredName()).setSource(content));
+                logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with auto-generated ID",
+                        jobId, Influencer.RESULT_TYPE_VALUE, indexName);
+                addInfluencersRequest.add(client.prepareIndex(indexName, Result.TYPE.getPreferredName()).setSource(content));
             }
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Error persisting influencers", new Object[] {jobId}, e));
@@ -216,7 +220,7 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist the influencer
      */
     public void persistInfluencer(Influencer influencer) {
-        Persistable persistable = new Persistable(influencer.getJobId(), influencer, Influencer.TYPE::getPreferredName,
+        Persistable persistable = new Persistable(influencer.getJobId(), influencer, Result.TYPE::getPreferredName,
                 influencer::getId, () -> toXContentBuilder(influencer));
         persistable.persist();
         // Don't commit as we expect masses of these updates and they're not
@@ -296,10 +300,10 @@ public class JobResultsPersister extends AbstractComponent {
                 // Need consistent IDs to ensure overwriting on renormalisation
                 String id = bucketId + bucketInfluencer.getInfluencerFieldName();
                 String indexName = getJobIndexName(jobId);
-                logger.trace("[{}] ES BULK ACTION: index type {} to index {} with ID {}", jobId, BucketInfluencer.TYPE, indexName, id);
+                logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}", jobId, BucketInfluencer.RESULT_TYPE_VALUE,
+                        indexName, id);
                 addBucketInfluencersRequest.add(
-                        client.prepareIndex(indexName, BucketInfluencer.TYPE.getPreferredName(), id)
-                                .setSource(content));
+                        client.prepareIndex(indexName, Result.TYPE.getPreferredName(), id).setSource(content));
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, addBucketInfluencersRequest.numberOfActions());
             BulkResponse addBucketInfluencersResponse = addBucketInfluencersRequest.execute().actionGet();

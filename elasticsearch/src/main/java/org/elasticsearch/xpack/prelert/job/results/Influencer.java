@@ -23,9 +23,10 @@ import java.util.Objects;
 
 public class Influencer extends ToXContentToBytes implements Writeable {
     /**
-     * Elasticsearch type
+     * Result type
      */
-    public static final ParseField TYPE = new ParseField("influencer");
+    public static final String RESULT_TYPE_VALUE = "influencer";
+    public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     /*
      * Field names
@@ -42,12 +43,13 @@ public class Influencer extends ToXContentToBytes implements Writeable {
     public static final ParseField RESULTS_FIELD = new ParseField("influencers");
 
     public static final ConstructingObjectParser<Influencer, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            TYPE.getPreferredName(), a -> new Influencer((String) a[0], (String) a[1], (String) a[2]));
+            RESULT_TYPE_FIELD.getPreferredName(), a -> new Influencer((String) a[0], (String) a[1], (String) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUE);
+        PARSER.declareString((influencer, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareDouble(Influencer::setProbability, PROBABILITY);
         PARSER.declareDouble(Influencer::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(Influencer::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
@@ -116,6 +118,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(JOB_ID.getPreferredName(), jobId);
+        builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(INFLUENCER_FIELD_NAME.getPreferredName(), influenceField);
         builder.field(INFLUENCER_FIELD_VALUE.getPreferredName(), influenceValue);
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);

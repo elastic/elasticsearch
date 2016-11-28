@@ -4,7 +4,7 @@ setup:
         index:  prelertresults-farequote
         body:
           mappings:
-            influencer:
+            result:
               properties:
                 "jobId":
                   type: keyword
@@ -12,17 +12,20 @@ setup:
                   type: date
                 "anomalyScore":
                   type: float
+                "result_type":
+                  type: keyword
   - do:
       index:
         index:  prelertresults-farequote
-        type:   influencer
+        type:   result
         id:     1
         body:
           {
             "jobId": "farequote",
             "timestamp": "2016-06-01T00:00:00Z",
             "influencerFieldName": "foo",
-            "influencerFieldValue": "bar"
+            "influencerFieldValue": "bar",
+            "result_type" : "influencer"
           }
 
   - do:

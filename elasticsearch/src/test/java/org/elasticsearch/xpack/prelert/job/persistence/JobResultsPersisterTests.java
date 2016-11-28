@@ -10,11 +10,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.job.results.Result;
+import org.mockito.ArgumentCaptor;
+
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,8 +37,8 @@ public class JobResultsPersisterTests extends ESTestCase {
         BulkResponse response = mock(BulkResponse.class);
         String responseId = "abcXZY54321";
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
-                .prepareIndex("prelertresults-" + JOB_ID, Bucket.TYPE.getPreferredName(), responseId, captor)
-                .prepareIndex("prelertresults-" + JOB_ID, BucketInfluencer.TYPE.getPreferredName(), "", captor)
+                .prepareIndex("prelertresults-" + JOB_ID, Result.TYPE.getPreferredName(), responseId, captor)
+                .prepareIndex("prelertresults-" + JOB_ID, Result.TYPE.getPreferredName(), "", captor)
                 .prepareBulk(response);
 
         Client client = clientBuilder.build();
@@ -91,7 +93,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         ArgumentCaptor<XContentBuilder> captor = ArgumentCaptor.forClass(XContentBuilder.class);
         BulkResponse response = mock(BulkResponse.class);
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
-                .prepareIndex("prelertresults-" + JOB_ID, AnomalyRecord.TYPE.getPreferredName(), "", captor)
+                .prepareIndex("prelertresults-" + JOB_ID, Result.TYPE.getPreferredName(), "", captor)
                 .prepareBulk(response);
         Client client = clientBuilder.build();
 
@@ -153,7 +155,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         ArgumentCaptor<XContentBuilder> captor = ArgumentCaptor.forClass(XContentBuilder.class);
         BulkResponse response = mock(BulkResponse.class);
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
-                .prepareIndex("prelertresults-" + JOB_ID, Influencer.TYPE.getPreferredName(), "", captor)
+                .prepareIndex("prelertresults-" + JOB_ID, Result.TYPE.getPreferredName(), "", captor)
                 .prepareBulk(response);
         Client client = clientBuilder.build();
 

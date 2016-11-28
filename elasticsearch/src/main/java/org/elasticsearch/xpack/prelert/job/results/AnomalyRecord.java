@@ -29,16 +29,15 @@ import java.util.Objects;
  * can be returned if the members have not been set.
  */
 public class AnomalyRecord extends ToXContentToBytes implements Writeable {
-    /**
-     * Serialisation fields
-     */
-    public static final ParseField TYPE = new ParseField("record");
 
+    /**
+     * Result type
+     */
+    public static final String RESULT_TYPE_VALUE = "record";
     /**
      * Result fields (all detector types)
      */
     public static final ParseField JOB_ID = new ParseField("jobId");
-    public static final ParseField RESULT_TYPE = new ParseField("result_type");
     public static final ParseField DETECTOR_INDEX = new ParseField("detectorIndex");
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField BY_FIELD_NAME = new ParseField("byFieldName");
@@ -78,11 +77,11 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public static final ParseField INITIAL_NORMALIZED_PROBABILITY = new ParseField("initialNormalizedProbability");
 
     public static final ConstructingObjectParser<AnomalyRecord, ParseFieldMatcherSupplier> PARSER =
-            new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new AnomalyRecord((String) a[0]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new AnomalyRecord((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
-        PARSER.declareString((anomalyRecord, s) -> {}, RESULT_TYPE);
+        PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
         PARSER.declareDouble(AnomalyRecord::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(AnomalyRecord::setNormalizedProbability, NORMALIZED_PROBABILITY);
@@ -113,8 +112,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         PARSER.declareObjectArray(AnomalyRecord::setCauses, AnomalyCause.PARSER, CAUSES);
         PARSER.declareObjectArray(AnomalyRecord::setInfluencers, Influence.PARSER, INFLUENCERS);
     }
-
-    public static final String RESULT_TYPE_VALUE = "record";
 
     private final String jobId;
     private String id;
@@ -246,7 +243,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(JOB_ID.getPreferredName(), jobId);
-        builder.field(RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
+        builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(NORMALIZED_PROBABILITY.getPreferredName(), normalizedProbability);

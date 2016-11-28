@@ -30,9 +30,9 @@ setup:
   - do:
       index:
         index:  prelertresults-farequote
-        type:   record
+        type:   result
         id:     2
-        body:   { "jobId": "farequote", "timestamp": "2016-06-01T00:00:00Z", "result_type": "record" }
+        body:   { "jobId": "farequote", "result_type": "record", "timestamp": "2016-06-01T00:00:00Z", "result_type": "record" }
 
   - do:
       indices.refresh:

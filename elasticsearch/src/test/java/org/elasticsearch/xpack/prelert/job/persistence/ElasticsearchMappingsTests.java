@@ -18,13 +18,10 @@ import org.elasticsearch.xpack.prelert.job.audit.AuditActivity;
 import org.elasticsearch.xpack.prelert.job.audit.AuditMessage;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
-import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.prelert.job.results.Bucket;
-import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
-import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
+import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 import org.elasticsearch.xpack.prelert.lists.ListDocument;
 
@@ -38,6 +35,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -48,15 +46,15 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             JsonToken token = parser.nextToken();
             while (token != null && token != JsonToken.END_OBJECT) {
                 switch (token) {
-                case START_OBJECT:
-                    parseJson(parser, expected);
-                    break;
-                case FIELD_NAME:
-                    String fieldName = parser.getCurrentName();
-                    expected.add(fieldName);
-                    break;
-                default:
-                    break;
+                    case START_OBJECT:
+                        parseJson(parser, expected);
+                        break;
+                    case FIELD_NAME:
+                        String fieldName = parser.getCurrentName();
+                        expected.add(fieldName);
+                        break;
+                    default:
+                        break;
                 }
                 token = parser.nextToken();
             }
@@ -85,16 +83,13 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(ElasticsearchMappings.WHITESPACE);
 
         // These are not reserved because they're data types, not field names
-        overridden.add(AnomalyRecord.TYPE.getPreferredName());
+        overridden.add(Result.TYPE.getPreferredName());
         overridden.add(AuditActivity.TYPE.getPreferredName());
         overridden.add(AuditMessage.TYPE.getPreferredName());
-        overridden.add(Bucket.TYPE.getPreferredName());
         overridden.add(DataCounts.TYPE.getPreferredName());
         overridden.add(ReservedFieldNames.BUCKET_PROCESSING_TIME_TYPE);
-        overridden.add(BucketInfluencer.TYPE.getPreferredName());
         overridden.add(CategorizerState.TYPE);
         overridden.add(CategoryDefinition.TYPE.getPreferredName());
-        overridden.add(Influencer.TYPE.getPreferredName());
         overridden.add(Job.TYPE);
         overridden.add(ListDocument.TYPE.getPreferredName());
         overridden.add(ModelDebugOutput.TYPE.getPreferredName());
@@ -129,12 +124,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);
 
-        builder = ElasticsearchMappings.bucketInfluencerMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.bucketMapping();
+        builder = ElasticsearchMappings.resultsMapping(Collections.emptyList());
         inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);
@@ -155,11 +145,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         parseJson(parser, expected);
 
         builder = ElasticsearchMappings.dataCountsMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.influencerMapping(null);
         inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);
@@ -194,17 +179,24 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);
 
-        builder = ElasticsearchMappings.recordMapping(null);
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
         builder = ElasticsearchMappings.usageMapping();
         inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);
 
         expected.removeAll(overridden);
+
+        if (ReservedFieldNames.RESERVED_FIELD_NAMES.size() != expected.size()) {
+            Set<String> diff = new HashSet<>(ReservedFieldNames.RESERVED_FIELD_NAMES);
+            diff.removeAll(expected);
+            System.out.println("Fields in ReservedFieldNames but not in expected: " + diff);
+
+            diff = new HashSet<>(expected);
+            diff.removeAll(ReservedFieldNames.RESERVED_FIELD_NAMES);
+            System.out.println("Fields in expected but not in ReservedFieldNames: " + diff);
+        }
+        assertEquals(ReservedFieldNames.RESERVED_FIELD_NAMES.size(), expected.size());
+
         for (String s : expected) {
             // By comparing like this the failure messages say which string is
             // missing

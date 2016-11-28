@@ -31,6 +31,18 @@ import static org.hamcrest.Matchers.not;
 
 public class PrelertJobIT extends ESRestTestCase {
 
+    private static final String RESULT_MAPPING = "{ \"mappings\": {\"result\": { \"properties\": { " +
+            "\"result_type\": { \"type\" : \"keyword\" }," +
+            "\"timestamp\": { \"type\" : \"date\" }, " +
+            "\"anomalyScore\": { \"type\" : \"double\" }, " +
+            "\"normalizedProbability\": { \"type\" : \"double\" }, " +
+            "\"overFieldValue\": { \"type\" : \"keyword\" }, " +
+            "\"partitionFieldValue\": { \"type\" : \"keyword\" }, " +
+            "\"byFieldValue\": { \"type\" : \"keyword\" }, " +
+            "\"fieldName\": { \"type\" : \"keyword\" }, " +
+            "\"function\": { \"type\" : \"keyword\" } " +
+            "} } } }";
+
     public void testPutJob_GivenFarequoteConfig() throws Exception {
         Response response = createFarequoteJob();
 
@@ -204,6 +216,31 @@ public class PrelertJobIT extends ESRestTestCase {
         assertThat(responseAsString, not(isEmptyString()));
     }
 
+    public void testGetRecordResults() throws Exception {
+        Map<String, String> params = new HashMap<>();
+        params.put("start", "1200"); // inclusive
+        params.put("end", "1400"); // exclusive
+
+        ResponseException e = expectThrows(ResponseException.class,
+                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/records", params));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(e.getMessage(), containsString("No known job with id '1'"));
+
+        addRecordResult("1", "1234");
+        addRecordResult("1", "1235");
+        addRecordResult("1", "1236");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/records", params);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":3"));
+
+        params.put("end", "1235");
+        response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/records", params);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":1"));
+    }
+
     public void testPauseAndResumeJob() throws Exception {
         createFarequoteJob();
 
@@ -251,17 +288,32 @@ public class PrelertJobIT extends ESRestTestCase {
     }
 
     private Response addBucketResult(String jobId, String timestamp) throws Exception {
-        String createIndexBody = "{ \"mappings\": {\"bucket\": { \"properties\": { \"timestamp\": { \"type\" : \"date\" } } } } }";
         try {
-            client().performRequest("put", "prelertresults-" + jobId, Collections.emptyMap(), new StringEntity(createIndexBody));
+            client().performRequest("put", "prelertresults-" + jobId, Collections.emptyMap(), new StringEntity(RESULT_MAPPING));
         } catch (ResponseException e) {
             // it is ok: the index already exists
             assertThat(e.getMessage(), containsString("index_already_exists_exception"));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
 
-        String bucketResult = String.format(Locale.ROOT, "{\"jobId\":\"%s\", \"timestamp\": \"%s\"}", jobId, timestamp);
-        return client().performRequest("put", "prelertresults-" + jobId + "/bucket/" + timestamp,
+        String bucketResult =
+                String.format(Locale.ROOT, "{\"jobId\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\"}", jobId, timestamp);
+        return client().performRequest("put", "prelertresults-" + jobId + "/result/" + timestamp,
+                Collections.singletonMap("refresh", "true"), new StringEntity(bucketResult));
+    }
+
+    private Response addRecordResult(String jobId, String timestamp) throws Exception {
+        try {
+            client().performRequest("put", "prelertresults-" + jobId, Collections.emptyMap(), new StringEntity(RESULT_MAPPING));
+        } catch (ResponseException e) {
+            // it is ok: the index already exists
+            assertThat(e.getMessage(), containsString("index_already_exists_exception"));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        }
+
+        String bucketResult =
+                String.format(Locale.ROOT, "{\"jobId\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"record\"}", jobId, timestamp);
+        return client().performRequest("put", "prelertresults-" + jobId + "/result/" + timestamp,
                 Collections.singletonMap("refresh", "true"), new StringEntity(bucketResult));
     }
 

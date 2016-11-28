@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
+import org.elasticsearch.xpack.prelert.job.results.Result;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,8 +47,9 @@ public class JobRenormaliser extends AbstractComponent {
         String jobId = bucket.getJobId();
         try {
             String indexName = JobResultsPersister.getJobIndexName(jobId);
-            logger.trace("[{}] ES API CALL: index type {} to index {} with ID {}", jobId, Bucket.TYPE, indexName, bucket.getId());
-            client.prepareIndex(indexName, Bucket.TYPE.getPreferredName(), bucket.getId())
+            logger.trace("[{}] ES API CALL: update result type {} to index {} with ID {}", jobId, Bucket.RESULT_TYPE_VALUE, indexName,
+                    bucket.getId());
+            client.prepareIndex(indexName, Result.TYPE.getPreferredName(), bucket.getId())
                     .setSource(jobResultsPersister.toXContentBuilder(bucket)).execute().actionGet();
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Error updating bucket state", new Object[]{jobId}, e));
@@ -83,11 +85,11 @@ public class JobRenormaliser extends AbstractComponent {
             for (AnomalyRecord record : records) {
                 String recordId = record.getId();
                 String indexName = JobResultsPersister.getJobIndexName(jobId);
-                logger.trace("[{}] ES BULK ACTION: update ID {} type {} in index {} using map of new values, for bucket {}",
-                        jobId, recordId, AnomalyRecord.TYPE, indexName, bucketId);
+                logger.trace("[{}] ES BULK ACTION: update ID {} result type {} in index {} using map of new values, for bucket {}",
+                        jobId, recordId, AnomalyRecord.RESULT_TYPE_VALUE, indexName, bucketId);
 
                 bulkRequest.add(
-                        client.prepareIndex(indexName, AnomalyRecord.TYPE.getPreferredName(), recordId)
+                        client.prepareIndex(indexName, Result.TYPE.getPreferredName(), recordId)
                                 .setSource(jobResultsPersister.toXContentBuilder(record)));
 
                 addedAny = true;

@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 
@@ -45,6 +46,18 @@ abstract class ElasticsearchBatchedDocumentsIterator<T> implements BatchedDocume
         isScrollInitialised = false;
     }
 
+    protected ElasticsearchBatchedDocumentsIterator(Client client, String index, ParseFieldMatcher parseFieldMatcher,
+                                                    QueryBuilder queryBuilder) {
+        this.parseFieldMatcher = parseFieldMatcher;
+        this.client = Objects.requireNonNull(client);
+        this.index = Objects.requireNonNull(index);
+        this.parseFieldMatcher = Objects.requireNonNull(parseFieldMatcher);
+        totalHits = 0;
+        count = 0;
+        filterBuilder = new ResultsFilterBuilder(queryBuilder);
+        isScrollInitialised = false;
+    }
+
     @Override
     public BatchedDocumentsIterator<T> timeRange(long startEpochMs, long endEpochMs) {
         filterBuilder.timeRange(ElasticsearchMappings.ES_TIMESTAMP, startEpochMs, endEpochMs);
@@ -74,7 +87,7 @@ abstract class ElasticsearchBatchedDocumentsIterator<T> implements BatchedDocume
     }
 
     private SearchResponse initScroll() {
-        LOGGER.trace("ES API CALL: search all of type " + getType() + " from index " + index);
+        LOGGER.trace("ES API CALL: search all of type {} from index {}", getType(), index);
 
         isScrollInitialised = true;
 

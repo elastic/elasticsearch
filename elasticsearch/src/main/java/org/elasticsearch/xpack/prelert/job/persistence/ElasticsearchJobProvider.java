@@ -57,11 +57,11 @@ import org.elasticsearch.xpack.prelert.job.persistence.InfluencersQueryBuilder.I
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
-import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
+import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 import org.elasticsearch.xpack.prelert.lists.ListDocument;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -160,7 +160,7 @@ public class ElasticsearchJobProvider implements JobProvider
      */
     private void createUsageMeteringIndex() {
         try {
-            LOGGER.trace("ES API CALL: index exists? " + PRELERT_USAGE_INDEX);
+            LOGGER.trace("ES API CALL: index exists? {}", PRELERT_USAGE_INDEX);
             boolean indexExists = client.admin().indices()
                     .exists(new IndicesExistsRequest(PRELERT_USAGE_INDEX))
                     .get().isExists();
@@ -170,12 +170,12 @@ public class ElasticsearchJobProvider implements JobProvider
 
                 XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
 
-                LOGGER.trace("ES API CALL: create index " + PRELERT_USAGE_INDEX);
+                LOGGER.trace("ES API CALL: create index {}", PRELERT_USAGE_INDEX);
                 client.admin().indices().prepareCreate(PRELERT_USAGE_INDEX)
                 .setSettings(prelertIndexSettings())
                 .addMapping(Usage.TYPE, usageMapping)
                 .get();
-                LOGGER.trace("ES API CALL: wait for yellow status " + PRELERT_USAGE_INDEX);
+                LOGGER.trace("ES API CALL: wait for yellow status {}", PRELERT_USAGE_INDEX);
                 client.admin().cluster().prepareHealth(PRELERT_USAGE_INDEX).setWaitForYellowStatus().execute().actionGet();
             }
         } catch (InterruptedException | ExecutionException | IOException e) {
@@ -217,38 +217,31 @@ public class ElasticsearchJobProvider implements JobProvider
      */
     @Override
     public void createJobRelatedIndices(Job job, ActionListener<Boolean> listener) {
-        Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : null;
-        Collection<String> influencers = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().getInfluencers() : null;
+        Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
         try {
-            XContentBuilder bucketMapping = ElasticsearchMappings.bucketMapping();
-            XContentBuilder bucketInfluencerMapping = ElasticsearchMappings.bucketInfluencerMapping();
+            XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping(termFields);
             XContentBuilder categorizerStateMapping = ElasticsearchMappings.categorizerStateMapping();
             XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
-            XContentBuilder recordMapping = ElasticsearchMappings.recordMapping(termFields);
             XContentBuilder quantilesMapping = ElasticsearchMappings.quantilesMapping();
             XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping();
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
             XContentBuilder modelSizeStatsMapping = ElasticsearchMappings.modelSizeStatsMapping();
-            XContentBuilder influencerMapping = ElasticsearchMappings.influencerMapping(influencers);
             XContentBuilder modelDebugMapping = ElasticsearchMappings.modelDebugOutputMapping(termFields);
             XContentBuilder processingTimeMapping = ElasticsearchMappings.processingTimeMapping();
             XContentBuilder partitionScoreMapping = ElasticsearchMappings.bucketPartitionMaxNormalizedScores();
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
 
             String jobId = job.getId();
-            LOGGER.trace("ES API CALL: create index " + job.getId());
+            LOGGER.trace("ES API CALL: create index {}", job.getId());
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(JobResultsPersister.getJobIndexName(jobId));
             createIndexRequest.settings(prelertIndexSettings());
-            createIndexRequest.mapping(Bucket.TYPE.getPreferredName(), bucketMapping);
-            createIndexRequest.mapping(BucketInfluencer.TYPE.getPreferredName(), bucketInfluencerMapping);
+            createIndexRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
             createIndexRequest.mapping(CategorizerState.TYPE, categorizerStateMapping);
             createIndexRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
-            createIndexRequest.mapping(AnomalyRecord.TYPE.getPreferredName(), recordMapping);
             createIndexRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
             createIndexRequest.mapping(ModelState.TYPE, modelStateMapping);
             createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
             createIndexRequest.mapping(ModelSizeStats.TYPE.getPreferredName(), modelSizeStatsMapping);
-            createIndexRequest.mapping(Influencer.TYPE.getPreferredName(), influencerMapping);
             createIndexRequest.mapping(ModelDebugOutput.TYPE.getPreferredName(), modelDebugMapping);
             createIndexRequest.mapping(ReservedFieldNames.BUCKET_PROCESSING_TIME_TYPE, processingTimeMapping);
             createIndexRequest.mapping(ReservedFieldNames.PARTITION_NORMALIZED_PROB_TYPE, partitionScoreMapping);
@@ -273,7 +266,7 @@ public class ElasticsearchJobProvider implements JobProvider
     @Override
     public void deleteJobRelatedIndices(String jobId, ActionListener<DeleteJobAction.Response> listener) {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
-        LOGGER.trace("ES API CALL: delete index " + indexName);
+        LOGGER.trace("ES API CALL: delete index {}", indexName);
 
         try {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
@@ -330,6 +323,7 @@ public class ElasticsearchJobProvider implements JobProvider
 
         SortBuilder<?> sortBuilder = new FieldSortBuilder(esSortField(query.getSortField()))
                 .order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
+
         QueryPage<Bucket> buckets = buckets(jobId, query.isIncludeInterim(), query.getFrom(), query.getSize(), fb, sortBuilder);
 
         if (Strings.isNullOrEmpty(query.getPartitionValue())) {
@@ -351,7 +345,6 @@ public class ElasticsearchJobProvider implements JobProvider
 
                 b.setAnomalyScore(b.partitionAnomalyScore(query.getPartitionValue()));
             }
-
         }
 
         return buckets;
@@ -376,16 +369,21 @@ public class ElasticsearchJobProvider implements JobProvider
 
     private QueryPage<Bucket> buckets(String jobId, boolean includeInterim, int from, int size,
                                       QueryBuilder fb, SortBuilder<?> sb) throws ResourceNotFoundException {
+
+        QueryBuilder boolQuery = new BoolQueryBuilder()
+                .filter(fb)
+                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
+
         SearchResponse searchResponse;
         try {
             String indexName = JobResultsPersister.getJobIndexName(jobId);
-            LOGGER.trace("ES API CALL: search all of type " + Bucket.TYPE +
-                    " from index " + indexName + " sort ascending " + ElasticsearchMappings.ES_TIMESTAMP +
-                    " with filter after sort from " + from + " size " + size);
+            LOGGER.trace("ES API CALL: search all of result type {}  from index {} with filter from {} size {}",
+                    Bucket.RESULT_TYPE_VALUE, indexName, from, size);
+
             searchResponse = client.prepareSearch(indexName)
-                    .setTypes(Bucket.TYPE.getPreferredName())
+                    .setTypes(Result.TYPE.getPreferredName())
                     .addSort(sb)
-                    .setQuery(new ConstantScoreQueryBuilder(fb))
+                    .setQuery(new ConstantScoreQueryBuilder(boolQuery))
                     .setFrom(from).setSize(size)
                     .get();
         } catch (IndexNotFoundException e) {
@@ -419,14 +417,16 @@ public class ElasticsearchJobProvider implements JobProvider
         String indexName = JobResultsPersister.getJobIndexName(jobId);
         SearchHits hits;
         try {
-            LOGGER.trace("ES API CALL: get Bucket with timestamp " + query.getTimestamp() +
-                    " from index " + indexName);
-            QueryBuilder qb = QueryBuilders.matchQuery(ElasticsearchMappings.ES_TIMESTAMP,
-                    query.getTimestamp());
+            LOGGER.trace("ES API CALL: get Bucket with timestamp {} from index {}", query.getTimestamp(), indexName);
+            QueryBuilder matchQuery = QueryBuilders.matchQuery(ElasticsearchMappings.ES_TIMESTAMP, query.getTimestamp());
+
+            QueryBuilder boolQuery = new BoolQueryBuilder()
+                    .filter(matchQuery)
+                    .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
 
             SearchResponse searchResponse = client.prepareSearch(indexName)
-                    .setTypes(Bucket.TYPE.getPreferredName())
-                    .setQuery(qb)
+                    .setTypes(Result.TYPE.getPreferredName())
+                    .setQuery(boolQuery)
                     .addSort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC))
                     .get();
             hits = searchResponse.getHits();
@@ -505,7 +505,7 @@ public class ElasticsearchJobProvider implements JobProvider
         String indexName = JobResultsPersister.getJobIndexName(jobId);
         SearchRequestBuilder searchBuilder = client
                 .prepareSearch(indexName)
-                .setPostFilter(qb)
+                .setQuery(qb)
                 .addSort(sb)
                 .setTypes(ReservedFieldNames.PARTITION_NORMALIZED_PROB_TYPE);
 
@@ -601,8 +601,7 @@ public class ElasticsearchJobProvider implements JobProvider
         // the scenes, and Elasticsearch documentation claims it's significantly
         // slower.  Here we rely on the record timestamps being identical to the
         // bucket timestamp.
-        QueryBuilder recordFilter = QueryBuilders.termQuery(ElasticsearchMappings.ES_TIMESTAMP,
-                bucket.getTimestamp().getTime());
+        QueryBuilder recordFilter = QueryBuilders.termQuery(ElasticsearchMappings.ES_TIMESTAMP, bucket.getTimestamp().getTime());
 
         recordFilter = new ResultsFilterBuilder(recordFilter)
                 .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), includeInterim)
@@ -624,9 +623,9 @@ public class ElasticsearchJobProvider implements JobProvider
     @Override
     public QueryPage<CategoryDefinition> categoryDefinitions(String jobId, int from, int size) {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
-        LOGGER.trace("ES API CALL: search all of type " + CategoryDefinition.TYPE +
-                " from index " + indexName + " sort ascending " + CategoryDefinition.CATEGORY_ID +
-                " from " + from + " size " + size);
+        LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} from {} size {}",
+                CategoryDefinition.TYPE.getPreferredName(), indexName, CategoryDefinition.CATEGORY_ID.getPreferredName(), from, size);
+
         SearchRequestBuilder searchBuilder = client.prepareSearch(indexName)
                 .setTypes(CategoryDefinition.TYPE.getPreferredName())
                 .setFrom(from).setSize(size)
@@ -662,12 +661,14 @@ public class ElasticsearchJobProvider implements JobProvider
         GetResponse response;
 
         try {
-            LOGGER.trace("ES API CALL: get ID " + categoryId + " type " + CategoryDefinition.TYPE +
-                    " from index " + indexName);
+            LOGGER.trace("ES API CALL: get ID {} type {} from index {}",
+                    categoryId, CategoryDefinition.TYPE, indexName);
+
             response = client.prepareGet(indexName, CategoryDefinition.TYPE.getPreferredName(), categoryId).get();
         } catch (IndexNotFoundException e) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
+
 
         if (response.isExists()) {
             BytesReference source = response.getSourceAsBytesRef();
@@ -680,6 +681,7 @@ public class ElasticsearchJobProvider implements JobProvider
             CategoryDefinition definition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
             return new QueryPage<>(Collections.singletonList(definition), 1, CategoryDefinition.RESULTS_FIELD);
         }
+
         throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
     }
 
@@ -724,10 +726,10 @@ public class ElasticsearchJobProvider implements JobProvider
 
         recordFilter = new BoolQueryBuilder()
                 .filter(recordFilter)
-                .filter(new TermsQueryBuilder(AnomalyRecord.RESULT_TYPE.getPreferredName(), AnomalyRecord.RESULT_TYPE_VALUE));
+                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), AnomalyRecord.RESULT_TYPE_VALUE));
 
         SearchRequestBuilder searchBuilder = client.prepareSearch(indexName)
-                .setTypes(AnomalyRecord.TYPE.getPreferredName())
+                .setTypes(Result.TYPE.getPreferredName())
                 .setQuery(recordFilter)
                 .setFrom(from).setSize(size)
                 .addSort(sb == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC) : sb)
@@ -740,10 +742,10 @@ public class ElasticsearchJobProvider implements JobProvider
 
         SearchResponse searchResponse;
         try {
-            LOGGER.trace("ES API CALL: search all of type " + AnomalyRecord.TYPE +
-                    " from index " + indexName + ((sb != null) ? " with sort" : "") +
-                    (secondarySort.isEmpty() ? "" : " with secondary sort") +
-                    " with filter after sort from " + from + " size " + size);
+            LOGGER.trace("ES API CALL: search all of result type {} from index {}{}{}  with filter after sort from {} size {}",
+                    AnomalyRecord.RESULT_TYPE_VALUE, indexName, (sb != null) ? " with sort"  : "",
+                    secondarySort.isEmpty() ? "" : " with secondary sort", from, size);
+
             searchResponse = searchBuilder.get();
         } catch (IndexNotFoundException e) {
             throw ExceptionsHelper.missingJobException(jobId);
@@ -786,14 +788,15 @@ public class ElasticsearchJobProvider implements JobProvider
     private QueryPage<Influencer> influencers(String jobId, int from, int size, QueryBuilder filterBuilder, String sortField,
             boolean sortDescending) throws ResourceNotFoundException {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
-        LOGGER.trace("ES API CALL: search all of type " + Influencer.TYPE + " from index " + indexName
-                + ((sortField != null)
-                        ? " with sort " + (sortDescending ? "descending" : "ascending") + " on field " + esSortField(sortField) : "")
-                + " with filter after sort from " + from + " size " + size);
+        LOGGER.trace("ES API CALL: search all of result type {} from index {}{}  with filter from {} size {}",
+                () -> Influencer.RESULT_TYPE_VALUE, () -> indexName,
+                () -> (sortField != null) ?
+                        " with sort " + (sortDescending ? "descending" : "ascending") + " on field " + esSortField(sortField) : "",
+                () -> from, () -> size);
 
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch(indexName)
-                .setTypes(Influencer.TYPE.getPreferredName())
-                .setPostFilter(filterBuilder)
+                .setTypes(Result.TYPE.getPreferredName())
+                .setQuery(filterBuilder)
                 .setFrom(from).setSize(size);
 
         FieldSortBuilder sb = sortField == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)

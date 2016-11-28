@@ -17,18 +17,12 @@ import java.io.IOException;
 
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 
-class ElasticsearchBatchedInfluencersIterator extends ElasticsearchBatchedDocumentsIterator<Influencer>
+class ElasticsearchBatchedInfluencersIterator extends ElasticsearchBatchedResultsIterator<Influencer>
 {
     public ElasticsearchBatchedInfluencersIterator(Client client, String jobId,
             ParseFieldMatcher parserFieldMatcher)
     {
-        super(client, JobResultsPersister.getJobIndexName(jobId), parserFieldMatcher);
-    }
-
-    @Override
-    protected String getType()
-    {
-        return Influencer.TYPE.getPreferredName();
+        super(client, jobId, Influencer.RESULT_TYPE_VALUE, parserFieldMatcher);
     }
 
     @Override

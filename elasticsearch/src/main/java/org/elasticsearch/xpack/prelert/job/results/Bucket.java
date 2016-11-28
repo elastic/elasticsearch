@@ -54,12 +54,13 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     public static final ParseField RESULTS_FIELD = new ParseField("buckets");
 
     /**
-     * Elasticsearch type
+     * Result type
      */
-    public static final ParseField TYPE = new ParseField("bucket");
+    public static final String RESULT_TYPE_VALUE = "bucket";
+    public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     public static final ConstructingObjectParser<Bucket, ParseFieldMatcherSupplier> PARSER =
-            new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new Bucket((String) a[0]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new Bucket((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
@@ -82,6 +83,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(Bucket::setBucketSpan, BUCKET_SPAN);
         PARSER.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
         PARSER.declareObjectArray(Bucket::setPartitionScores, PartitionScore.PARSER, PARTITION_SCORES);
+        PARSER.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
     }
 
     private final String jobId;
@@ -173,6 +175,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         builder.field(BUCKET_INFLUENCERS.getPreferredName(), bucketInfluencers);
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTimeMs);
         builder.field(PARTITION_SCORES.getPreferredName(), partitionScores);
+        builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.endObject();
         return builder;
     }

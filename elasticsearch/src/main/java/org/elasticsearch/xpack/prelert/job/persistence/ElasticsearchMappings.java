@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.prelert.job.results.Influence;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
+import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 
 import java.io.IOException;
@@ -93,6 +94,243 @@ public class ElasticsearchMappings {
     private ElasticsearchMappings() {
     }
 
+    /**
+     * Create the Elasticsearch mapping for results objects
+     *  {@link Bucket}s, {@link AnomalyRecord}s, {@link Influencer},
+     * {@link BucketInfluencer} and {@link CategoryDefinition}
+     *
+     * The '_all' field is disabled as the document isn't meant to be searched.
+     *
+     * @param termFieldNames All the term fields (by, over, partition) and influencers
+     *                       included in the mapping
+     *
+     * @return The mapping
+     * @throws IOException On write error
+     */
+    public static XContentBuilder resultsMapping(Collection<String> termFieldNames) throws IOException {
+        XContentBuilder builder = jsonBuilder()
+                .startObject()
+                .startObject(Result.TYPE.getPreferredName())
+                .startObject(ALL)
+                .field(ENABLED, false)
+                // analyzer must be specified even though _all is disabled
+                // because all types in the same index must have the same
+                // analyzer for a given field
+                .field(ANALYZER, WHITESPACE)
+                .endObject()
+                .startObject(PROPERTIES)
+                .startObject(Result.RESULT_TYPE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(Job.ID.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(ES_TIMESTAMP)
+                .field(TYPE, DATE)
+                .endObject()
+                .startObject(Bucket.ANOMALY_SCORE.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+                .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+                .startObject(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+                .startObject(Bucket.IS_INTERIM.getPreferredName())
+                .field(TYPE, BOOLEAN)
+                .endObject()
+                .startObject(Bucket.RECORD_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+                .endObject()
+                .startObject(Bucket.EVENT_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+                .endObject()
+                .startObject(Bucket.BUCKET_SPAN.getPreferredName())
+                .field(TYPE, LONG)
+                .endObject()
+                .startObject(Bucket.PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, LONG)
+                .endObject()
+                .startObject(Bucket.PARTITION_SCORES.getPreferredName())
+                .field(TYPE, NESTED)
+                .startObject(PROPERTIES)
+                .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyRecord.ANOMALY_SCORE.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+                .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+                .startObject(Bucket.PARTITION_SCORES.getPreferredName())
+                .field(TYPE, NESTED)
+                .startObject(PROPERTIES)
+                .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyRecord.ANOMALY_SCORE.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+                .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+                .endObject()
+                .endObject()
+
+                // bucket influencer mapping
+                .startObject(BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+
+                // influencer mapping
+                .startObject(Influencer.INFLUENCER_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject();
+
+        addAnomalyRecordFieldsToMapping(builder);
+
+        if (termFieldNames != null) {
+            ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
+            for (String fieldName : termFieldNames) {
+                reverser.add(fieldName, "");
+            }
+            for (Map.Entry<String, Object> entry : reverser.getMappingsMap().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+        }
+
+        builder.endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+
+        return builder;
+    }
+
+    /**
+     * AnomalyRecord fields to be added under the 'properties' section of the mapping
+     * @param builder Add properties to this builder
+     * @return builder
+     * @throws IOException On write error
+     */
+    private static XContentBuilder addAnomalyRecordFieldsToMapping(XContentBuilder builder)
+            throws IOException {
+        builder.startObject(AnomalyRecord.DETECTOR_INDEX.getPreferredName())
+                .field(TYPE, INTEGER).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.ACTUAL.getPreferredName())
+                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.TYPICAL.getPreferredName())
+                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
+                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.FUNCTION.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.BY_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.BY_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyRecord.FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyRecord.OVER_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.OVER_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName())
+                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.INITIAL_NORMALIZED_PROBABILITY.getPreferredName())
+                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyRecord.CAUSES.getPreferredName())
+                .field(TYPE, NESTED)
+                .startObject(PROPERTIES)
+                .startObject(AnomalyCause.ACTUAL.getPreferredName())
+                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.TYPICAL.getPreferredName())
+                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.PROBABILITY.getPreferredName())
+                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.FUNCTION.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.FUNCTION_DESCRIPTION.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.BY_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.BY_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyCause.CORRELATED_BY_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyCause.FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.PARTITION_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.PARTITION_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyCause.OVER_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(AnomalyCause.OVER_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject(AnomalyRecord.INFLUENCERS.getPreferredName())
+                /* Array of influences */
+                .field(TYPE, NESTED)
+                .startObject(PROPERTIES)
+                .startObject(Influence.INFLUENCER_FIELD_NAME.getPreferredName())
+                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                .endObject()
+                .startObject(Influence.INFLUENCER_FIELD_VALUES.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .endObject()
+                .endObject();
+
+        return builder;
+    }
 
     public static XContentBuilder dataCountsMapping() throws IOException {
         return jsonBuilder()
@@ -138,138 +376,6 @@ public class ElasticsearchMappings {
                 .endObject()
                 .startObject(DataCounts.LATEST_RECORD_TIME.getPreferredName())
                 .field(TYPE, DATE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-    }
-
-    /**
-     * Create the Elasticsearch mapping for {@linkplain org.elasticsearch.xpack.prelert.job.results.Bucket}.
-     * The '_all' field is disabled as the document isn't meant to be searched.
-     */
-    public static XContentBuilder bucketMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                .startObject(Bucket.TYPE.getPreferredName())
-                .startObject(ALL)
-                .field(ENABLED, false)
-                // analyzer must be specified even though _all is disabled
-                // because all types in the same index must have the same
-                // analyzer for a given field
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(Job.ID.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ES_TIMESTAMP)
-                .field(TYPE, DATE)
-                .endObject()
-                .startObject(Bucket.ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(Bucket.IS_INTERIM.getPreferredName())
-                .field(TYPE, BOOLEAN)
-                .endObject()
-                .startObject(Bucket.RECORD_COUNT.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(Bucket.EVENT_COUNT.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(Bucket.BUCKET_SPAN.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(Bucket.PROCESSING_TIME_MS.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(Bucket.BUCKET_INFLUENCERS.getPreferredName())
-                .field(TYPE, NESTED)
-                .startObject(PROPERTIES)
-                .startObject(BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(BucketInfluencer.ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(BucketInfluencer.PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject(Bucket.PARTITION_SCORES.getPreferredName())
-                .field(TYPE, NESTED)
-                .startObject(PROPERTIES)
-                .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyRecord.ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-    }
-
-    /**
-     * Create the Elasticsearch mapping for {@linkplain org.elasticsearch.xpack.prelert.job.results.BucketInfluencer}.
-     */
-    public static XContentBuilder bucketInfluencerMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                .startObject(BucketInfluencer.TYPE.getPreferredName())
-                .startObject(ALL)
-                .field(ENABLED, false)
-                // analyzer must be specified even though _all is disabled
-                // because all types in the same index must have the same
-                // analyzer for a given field
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(Job.ID.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ES_TIMESTAMP)
-                .field(TYPE, DATE)
-                .endObject()
-                .startObject(Bucket.IS_INTERIM.getPreferredName())
-                .field(TYPE, BOOLEAN)
-                .endObject()
-                .startObject(BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(BucketInfluencer.ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(BucketInfluencer.PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -333,6 +439,36 @@ public class ElasticsearchMappings {
                 .endObject();
     }
 
+    /**
+     * Create the Elasticsearch mapping for {@linkplain Quantiles}.
+     * The '_all' field is disabled as the document isn't meant to be searched.
+     * <p>
+     * The quantile state string is not searchable (index = 'no') as it could be
+     * very large.
+     */
+    public static XContentBuilder quantilesMapping() throws IOException {
+        return jsonBuilder()
+                .startObject()
+                .startObject(Quantiles.TYPE.getPreferredName())
+                .startObject(ALL)
+                .field(ENABLED, false)
+                // analyzer must be specified even though _all is disabled
+                // because all types in the same index must have the same
+                // analyzer for a given field
+                .field(ANALYZER, WHITESPACE)
+                .endObject()
+                .startObject(PROPERTIES)
+                .startObject(ES_TIMESTAMP)
+                .field(TYPE, DATE)
+                .endObject()
+                .startObject(Quantiles.QUANTILE_STATE.getPreferredName())
+                .field(TYPE, TEXT).field(INDEX, NO)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+    }
+
     public static XContentBuilder categoryDefinitionMapping() throws IOException {
         return jsonBuilder()
                 .startObject()
@@ -361,178 +497,6 @@ public class ElasticsearchMappings {
                 .field(TYPE, LONG)
                 .endObject()
                 .startObject(CategoryDefinition.EXAMPLES.getPreferredName())
-                .field(TYPE, TEXT).field(INDEX, NO)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-    }
-
-    /**
-     * @param termFieldNames Optionally, other field names to include in the
-     *                       mappings.  Pass <code>null</code> if not required.
-     */
-    public static XContentBuilder recordMapping(Collection<String> termFieldNames) throws IOException {
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .startObject(AnomalyRecord.TYPE.getPreferredName())
-                .startObject(ALL)
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(Job.ID.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(ES_TIMESTAMP)
-                .field(TYPE, DATE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.DETECTOR_INDEX.getPreferredName())
-                .field(TYPE, INTEGER).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.ACTUAL.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.TYPICAL.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.FUNCTION.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.BY_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.BY_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyRecord.FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyRecord.OVER_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.OVER_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyRecord.CAUSES.getPreferredName())
-                .field(TYPE, NESTED)
-                .startObject(PROPERTIES)
-                .startObject(AnomalyCause.ACTUAL.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.TYPICAL.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.FUNCTION.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.FUNCTION_DESCRIPTION.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.BY_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.BY_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.CORRELATED_BY_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.PARTITION_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.PARTITION_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.OVER_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyCause.OVER_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject(AnomalyRecord.ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.INITIAL_NORMALIZED_PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.IS_INTERIM.getPreferredName())
-                .field(TYPE, BOOLEAN).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(AnomalyRecord.INFLUENCERS.getPreferredName())
-                /* Array of influences */
-                .field(TYPE, NESTED)
-                .startObject(PROPERTIES)
-                .startObject(Influence.INFLUENCER_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(Influence.INFLUENCER_FIELD_VALUES.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .endObject()
-                .endObject();
-
-        if (termFieldNames != null) {
-            ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
-            for (String fieldName : termFieldNames) {
-                reverser.add(fieldName, "");
-            }
-            for (Map.Entry<String, Object> entry : reverser.getMappingsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-        }
-
-        return builder
-                .endObject()
-                .endObject()
-                .endObject();
-    }
-
-    /**
-     * Create the Elasticsearch mapping for {@linkplain Quantiles}.
-     * The '_all' field is disabled as the document isn't meant to be searched.
-     * <p>
-     * The quantile state string is not searchable (index = 'no') as it could be
-     * very large.
-     */
-    public static XContentBuilder quantilesMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                .startObject(Quantiles.TYPE.getPreferredName())
-                .startObject(ALL)
-                .field(ENABLED, false)
-                // analyzer must be specified even though _all is disabled
-                // because all types in the same index must have the same
-                // analyzer for a given field
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(ES_TIMESTAMP)
-                .field(TYPE, DATE)
-                .endObject()
-                .startObject(Quantiles.QUANTILE_STATE.getPreferredName())
                 .field(TYPE, TEXT).field(INDEX, NO)
                 .endObject()
                 .endObject()
@@ -750,61 +714,6 @@ public class ElasticsearchMappings {
         if (termFieldNames != null) {
             ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
             for (String fieldName : termFieldNames) {
-                reverser.add(fieldName, "");
-            }
-            for (Map.Entry<String, Object> entry : reverser.getMappingsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-        }
-
-        return builder
-                .endObject()
-                .endObject()
-                .endObject();
-    }
-
-    /**
-     * Influence results mapping
-     *
-     * @param influencerFieldNames Optionally, other field names to include in the
-     *                             mappings.  Pass <code>null</code> if not required.
-     */
-    public static XContentBuilder influencerMapping(Collection<String> influencerFieldNames) throws IOException {
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .startObject(Influencer.TYPE.getPreferredName())
-                .startObject(ALL)
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(Job.ID.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(ES_TIMESTAMP)
-                .field(TYPE, DATE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(Influencer.PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(Influencer.INITIAL_ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(Influencer.ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(Influencer.INFLUENCER_FIELD_NAME.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(Influencer.INFLUENCER_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(Bucket.IS_INTERIM.getPreferredName())
-                .field(TYPE, BOOLEAN).field(INCLUDE_IN_ALL, false)
-                .endObject();
-
-        if (influencerFieldNames != null) {
-            ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
-            for (String fieldName : influencerFieldNames) {
                 reverser.add(fieldName, "");
             }
             for (Map.Entry<String, Object> entry : reverser.getMappingsMap().entrySet()) {

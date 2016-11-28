@@ -50,23 +50,23 @@ setup:
   - do:
       index:
         index:  prelertresults-foo
-        type:   bucket
+        type:   result
         id:     1
-        body:   { "jobId": "foo", "timestamp": "2016-06-02T00:00:00Z" }
+        body:   { "jobId": "foo", "result_type": "bucket", "timestamp": "2016-06-02T00:00:00Z" }
 
   - do:
       index:
         index:  prelertresults-foo
-        type:   bucket
+        type:   result
         id:     2
-        body:   { "jobId": "foo", "timestamp": "2016-06-01T12:00:00Z" }
+        body:   { "jobId": "foo", "result_type": "bucket", "timestamp": "2016-06-01T12:00:00Z" }
 
   - do:
       index:
         index:  prelertresults-foo
-        type:   bucket
+        type:   result
         id:     3
-        body:   { "jobId": "foo", "timestamp": "2016-05-01T00:00:00Z" }
+        body:   { "jobId": "foo", "result_type": "bucket", "timestamp": "2016-05-01T00:00:00Z" }
 
   - do:
       indices.refresh:

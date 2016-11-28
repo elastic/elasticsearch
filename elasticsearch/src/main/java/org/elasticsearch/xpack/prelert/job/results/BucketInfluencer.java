@@ -24,14 +24,10 @@ import java.util.Objects;
 
 public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     /**
-     * Elasticsearch type
+     * Result type
      */
-    public static final ParseField TYPE = new ParseField("bucketInfluencer");
-
-    /**
-     * This is the field name of the time bucket influencer.
-     */
-    public static final ParseField BUCKET_TIME = new ParseField("bucketTime");
+    public static final String RESULT_TYPE_VALUE = "bucketInfluencer";
+    public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     /*
      * Field names
@@ -46,10 +42,11 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
     public static final ConstructingObjectParser<BucketInfluencer, ParseFieldMatcherSupplier> PARSER =
-            new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new BucketInfluencer((String) a[0]));
+            new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(), a -> new BucketInfluencer((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        PARSER.declareString((bucketInfluencer, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareString(BucketInfluencer::setInfluencerFieldName, INFLUENCER_FIELD_NAME);
         PARSER.declareDouble(BucketInfluencer::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
         PARSER.declareDouble(BucketInfluencer::setAnomalyScore, ANOMALY_SCORE);
@@ -123,6 +120,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
+        builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         if (influenceField != null) {
             builder.field(INFLUENCER_FIELD_NAME.getPreferredName(), influenceField);
         }

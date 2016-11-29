@@ -184,17 +184,24 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
-            // we ensure that all indices in the cluster we join are compatible with us no matter if they are
-            // closed or not we can't read mappings of these indices so we need to reject the join...
-            final Version supportedIndexVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-            for (IndexMetaData idxMetaData : request.state.getMetaData()) {
-                if(idxMetaData.getCreationVersion().before(supportedIndexVersion)) {
-                    throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
-                        + idxMetaData.getCreationVersion() + " minimum compatible index version is: " + supportedIndexVersion);
-                }
-            }
+            ensureIndexCompatibility(Version.CURRENT.minimumIndexCompatibilityVersion(), request.state.getMetaData());
             // for now, the mere fact that we can serialize the cluster state acts as validation....
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    /**
+     * Ensures that all indices are compatible with the supported index version.
+     * @throws IllegalStateException if any index is incompatible with the given version
+     */
+    static void ensureIndexCompatibility(final Version supportedIndexVersion, MetaData metaData) {
+        // we ensure that all indices in the cluster we join are compatible with us no matter if they are
+        // closed or not we can't read mappings of these indices so we need to reject the join...
+        for (IndexMetaData idxMetaData : metaData) {
+            if (idxMetaData.getCreationVersion().before(supportedIndexVersion)) {
+                throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
+                    + idxMetaData.getCreationVersion() + " minimum compatible index version is: " + supportedIndexVersion);
+            }
         }
     }
 

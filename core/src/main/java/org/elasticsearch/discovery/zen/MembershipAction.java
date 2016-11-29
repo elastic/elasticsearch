@@ -61,7 +61,6 @@ public class MembershipAction extends AbstractComponent {
 
     private final TransportService transportService;
 
-
     private final MembershipListener listener;
 
     public MembershipAction(Settings settings, TransportService transportService,
@@ -193,8 +192,7 @@ public class MembershipAction extends AbstractComponent {
 
         void ensureAllIndicesAreCompatible(MetaData metaData) {
             for (IndexMetaData idxMetaData : metaData) {
-                if(idxMetaData.getState() == IndexMetaData.State.OPEN &&
-                    idxMetaData.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+                if(idxMetaData.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
                     throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
                         + idxMetaData.getCreationVersion());
                 }

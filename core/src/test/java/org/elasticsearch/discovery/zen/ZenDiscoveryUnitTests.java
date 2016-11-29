@@ -306,75 +306,79 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
     }
 
     public void testValidateOnUnsupportedIndexVersionCreated() throws Exception {
-        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
-            EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
-        MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler();
-        final boolean closed = randomBoolean();
-        IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
-            .put(SETTING_VERSION_CREATED, VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()))
-            .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
-            .state(closed ? IndexMetaData.State.CLOSE : IndexMetaData.State.OPEN)
-            .build();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
-        RoutingTable.Builder routing = new RoutingTable.Builder();
-        routing.addAsNew(indexMetaData);
-        final ShardId shardId = new ShardId("test", "_na_", 0);
-        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+        final int iters = randomIntBetween(3, 10);
+        for (int i = 0; i < iters; i++) {
+            ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+            final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
+                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+            MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler();
+            final boolean incompatible = randomBoolean();
+            IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
+                .put(SETTING_VERSION_CREATED, incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
+                    : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
+                .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+                .state(IndexMetaData.State.OPEN)
+                .build();
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
+            RoutingTable.Builder routing = new RoutingTable.Builder();
+            routing.addAsNew(indexMetaData);
+            final ShardId shardId = new ShardId("test", "_na_", 0);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
 
-        final DiscoveryNode primaryNode = otherNode;
-        indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, true,
-            ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
-        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
-        IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
-        IndexMetaData updatedIndexMetaData = updateActiveAllocations(indexRoutingTable, indexMetaData);
-        stateBuilder.metaData(MetaData.builder().put(updatedIndexMetaData, false).generateClusterUuidIfNeeded())
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
-        if (closed == false) {
-            IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-                request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null));
-            assertEquals("index [test] version not supported: "
-                + VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()), ex.getMessage());
-        } else {
-            AtomicBoolean sendResponse = new AtomicBoolean(false);
-            request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), new TransportChannel() {
-                @Override
-                public String action() {
-                    return null;
-                }
+            final DiscoveryNode primaryNode = otherNode;
+            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, true,
+                ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
+            indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+            IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
+            IndexMetaData updatedIndexMetaData = updateActiveAllocations(indexRoutingTable, indexMetaData);
+            stateBuilder.metaData(MetaData.builder().put(updatedIndexMetaData, false).generateClusterUuidIfNeeded())
+                .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
+            if (incompatible) {
+                IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
+                    request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null));
+                assertEquals("index [test] version not supported: "
+                    + VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()), ex.getMessage());
+            } else {
+                AtomicBoolean sendResponse = new AtomicBoolean(false);
+                request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), new TransportChannel() {
+                    @Override
+                    public String action() {
+                        return null;
+                    }
 
-                @Override
-                public String getProfileName() {
-                    return null;
-                }
+                    @Override
+                    public String getProfileName() {
+                        return null;
+                    }
 
-                @Override
-                public long getRequestId() {
-                    return 0;
-                }
+                    @Override
+                    public long getRequestId() {
+                        return 0;
+                    }
 
-                @Override
-                public String getChannelType() {
-                    return null;
-                }
+                    @Override
+                    public String getChannelType() {
+                        return null;
+                    }
 
-                @Override
-                public void sendResponse(TransportResponse response) throws IOException {
-                    sendResponse.set(true);
-                }
+                    @Override
+                    public void sendResponse(TransportResponse response) throws IOException {
+                        sendResponse.set(true);
+                    }
 
-                @Override
-                public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+                    @Override
+                    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
 
-                }
+                    }
 
-                @Override
-                public void sendResponse(Exception exception) throws IOException {
+                    @Override
+                    public void sendResponse(Exception exception) throws IOException {
 
-                }
-            });
-            assertTrue(sendResponse.get());
+                    }
+                });
+                assertTrue(sendResponse.get());
+            }
         }
     }
 }

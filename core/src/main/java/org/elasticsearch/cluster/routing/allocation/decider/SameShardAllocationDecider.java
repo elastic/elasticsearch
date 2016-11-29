@@ -61,8 +61,15 @@ public class SameShardAllocationDecider extends AllocationDecider {
         Iterable<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting.shardId());
         for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
-                return allocation.decision(Decision.NO, NAME,
-                        "the shard cannot be allocated on the same node id [%s] on which it already exists", node.nodeId());
+                if (assignedShard.isSameAllocation(shardRouting)) {
+                    return allocation.decision(Decision.NO, NAME,
+                        "the shard cannot be allocated to the node on which it already exists [%s]",
+                        shardRouting.toString());
+                } else {
+                    return allocation.decision(Decision.NO, NAME,
+                        "the shard cannot be allocated to the same node on which a copy of the shard [%s] already exists",
+                        assignedShard.toString());
+                }
             }
         }
         if (sameHost) {
@@ -72,27 +79,32 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         continue;
                     }
                     // check if its on the same host as the one we want to allocate to
-                    boolean checkNodeOnSameHost = false;
+                    boolean checkNodeOnSameHostName = false;
+                    boolean checkNodeOnSameHostAddress = false;
                     if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
                         if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
-                            checkNodeOnSameHost = true;
+                            checkNodeOnSameHostAddress = true;
                         }
                     } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
                         if (checkNode.node().getHostName().equals(node.node().getHostName())) {
-                            checkNodeOnSameHost = true;
+                            checkNodeOnSameHostName = true;
                         }
                     }
-                    if (checkNodeOnSameHost) {
+                    if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {
                         for (ShardRouting assignedShard : assignedShards) {
                             if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
+                                String hostType = checkNodeOnSameHostAddress ? "address" : "name";
+                                String host = checkNodeOnSameHostAddress ? node.node().getHostAddress() : node.node().getHostName();
                                 return allocation.decision(Decision.NO, NAME,
-                                        "shard cannot be allocated on the same host [%s] on which it already exists", node.nodeId());
+                                    "the shard cannot be allocated on host %s [%s], where it already exists on node [%s]; " +
+                                        "set [%s] to false to allow multiple nodes on the same host to hold the same shard copies",
+                                    hostType, host, node.nodeId(), CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey());
                             }
                         }
                     }
                 }
             }
         }
-        return allocation.decision(Decision.YES, NAME, "shard is not allocated to same node or host");
+        return allocation.decision(Decision.YES, NAME, "the shard does not exist on the same " + (sameHost ? "host" : "node"));
     }
 }

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.support;
+package org.elasticsearch.transport;
 
-public class TransportStatus {
+final class TransportStatus {
 
     private static final byte STATUS_REQRES = 1 << 0;
     private static final byte STATUS_ERROR = 1 << 1;

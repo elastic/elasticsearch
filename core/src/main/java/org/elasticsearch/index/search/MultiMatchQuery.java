@@ -158,6 +158,10 @@ public class MultiMatchQuery extends MatchQuery {
             return MultiMatchQuery.super.blendTermQuery(term, fieldType);
         }
 
+        public Query blendTerms(Term[] terms, MappedFieldType fieldType) {
+            return MultiMatchQuery.super.blendTermsQuery(terms, fieldType);
+        }
+
         public Query termQuery(MappedFieldType fieldType, Object value) {
             return MultiMatchQuery.this.termQuery(fieldType, value, lenient);
         }
@@ -224,6 +228,18 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
+        public Query blendTerms(Term[] terms, MappedFieldType fieldType) {
+            if (blendedFields == null || blendedFields.length == 1) {
+                return super.blendTerms(terms, fieldType);
+            }
+            BytesRef[] values = new BytesRef[terms.length];
+            for (int i = 0; i < terms.length; i++) {
+                values[i] = terms[i].bytes();
+            }
+            return MultiMatchQuery.blendTerms(context, values, commonTermsCutoff, tieBreaker, blendedFields);
+        }
+
+        @Override
         public Query blendTerm(Term term, MappedFieldType fieldType) {
             if (blendedFields == null) {
                 return super.blendTerm(term, fieldType);
@@ -243,44 +259,51 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     static Query blendTerm(QueryShardContext context, BytesRef value, Float commonTermsCutoff, float tieBreaker,
+                           FieldAndFieldType... blendedFields) {
+        return blendTerms(context, new BytesRef[] {value}, commonTermsCutoff, tieBreaker, blendedFields);
+    }
+
+    static Query blendTerms(QueryShardContext context, BytesRef[] values, Float commonTermsCutoff, float tieBreaker,
             FieldAndFieldType... blendedFields) {
         List<Query> queries = new ArrayList<>();
-        Term[] terms = new Term[blendedFields.length];
-        float[] blendedBoost = new float[blendedFields.length];
+        Term[] terms = new Term[blendedFields.length * values.length];
+        float[] blendedBoost = new float[blendedFields.length * values.length];
         int i = 0;
         for (FieldAndFieldType ft : blendedFields) {
-            Query query;
-            try {
-                query = ft.fieldType.termQuery(value, context);
-            } catch (IllegalArgumentException e) {
-                // the query expects a certain class of values such as numbers
-                // of ip addresses and the value can't be parsed, so ignore this
-                // field
-                continue;
-            } catch (ElasticsearchParseException parseException) {
-                // date fields throw an ElasticsearchParseException with the
-                // underlying IAE as the cause, ignore this field if that is
-                // the case
-                if (parseException.getCause() instanceof IllegalArgumentException) {
+            for (BytesRef term : values) {
+                Query query;
+                try {
+                    query = ft.fieldType.termQuery(term, context);
+                } catch (IllegalArgumentException e) {
+                    // the query expects a certain class of values such as numbers
+                    // of ip addresses and the value can't be parsed, so ignore this
+                    // field
                     continue;
+                } catch (ElasticsearchParseException parseException) {
+                    // date fields throw an ElasticsearchParseException with the
+                    // underlying IAE as the cause, ignore this field if that is
+                    // the case
+                    if (parseException.getCause() instanceof IllegalArgumentException) {
+                        continue;
+                    }
+                    throw parseException;
                 }
-                throw parseException;
-            }
-            float boost = ft.boost;
-            while (query instanceof BoostQuery) {
-                BoostQuery bq = (BoostQuery) query;
-                query = bq.getQuery();
-                boost *= bq.getBoost();
-            }
-            if (query.getClass() == TermQuery.class) {
-                terms[i] = ((TermQuery) query).getTerm();
-                blendedBoost[i] = boost;
-                i++;
-            } else {
-                if (boost != 1f) {
-                    query = new BoostQuery(query, boost);
+                float boost = ft.boost;
+                while (query instanceof BoostQuery) {
+                    BoostQuery bq = (BoostQuery) query;
+                    query = bq.getQuery();
+                    boost *= bq.getBoost();
                 }
-                queries.add(query);
+                if (query.getClass() == TermQuery.class) {
+                    terms[i] = ((TermQuery) query).getTerm();
+                    blendedBoost[i] = boost;
+                    i++;
+                } else {
+                    if (boost != 1f) {
+                        query = new BoostQuery(query, boost);
+                    }
+                    queries.add(query);
+                }
             }
         }
         if (i > 0) {
@@ -315,6 +338,14 @@ public class MultiMatchQuery extends MatchQuery {
             return super.blendTermQuery(term, fieldType);
         }
         return queryBuilder.blendTerm(term, fieldType);
+    }
+
+    @Override
+    protected Query blendTermsQuery(Term[] terms, MappedFieldType fieldType) {
+        if (queryBuilder == null) {
+            return super.blendTermsQuery(terms, fieldType);
+        }
+        return queryBuilder.blendTerms(terms, fieldType);
     }
 
     static final class FieldAndFieldType {

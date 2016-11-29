@@ -57,25 +57,15 @@ public interface Transport extends LifecycleComponent {
     TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
 
     /**
-     * Is the address type supported.
-     */
-    boolean addressSupported(Class<? extends TransportAddress> address);
-
-    /**
      * Returns <tt>true</tt> if the node is connected.
      */
     boolean nodeConnected(DiscoveryNode node);
 
     /**
-     * Connects to the given node, if already connected, does nothing.
+     * Connects to a node with the given connection profile. Use {@link ConnectionProfile#LIGHT_PROFILE} when just connecting for ping
+     * and then disconnecting. If the node is already connected this method has no effect
      */
-    void connectToNode(DiscoveryNode node) throws ConnectTransportException;
-
-    /**
-     * Connects to a node in a light manner. Used when just connecting for ping and then
-     * disconnecting.
-     */
-    void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException;
+    void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException;
 
     /**
      * Disconnected from the given node, if not connected, will do nothing.
@@ -99,5 +89,4 @@ public interface Transport extends LifecycleComponent {
     default CircuitBreaker getInFlightRequestBreaker() {
         return new NoopCircuitBreaker("in-flight-noop");
     }
-
 }

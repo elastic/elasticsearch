@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.metadata;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -60,7 +61,11 @@ public class PrelertInitializationService extends AbstractComponent implements C
                         if (result) {
                             logger.info("successfully created prelert-usage index");
                         } else {
-                            logger.error("not able to create prelert-usage index", error);
+                            if (error instanceof ResourceAlreadyExistsException) {
+                                logger.debug("not able to create prelert-usage index", error);
+                            } else {
+                                logger.error("not able to create prelert-usage index", error);
+                            }
                         }
                     });
                 });

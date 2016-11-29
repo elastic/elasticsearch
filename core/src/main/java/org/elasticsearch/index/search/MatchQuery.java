@@ -43,7 +43,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.XQueryBuilder;
+import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -304,7 +304,7 @@ public class MatchQuery {
         return Queries.newMatchAllQuery();
     }
 
-    private class MatchQueryBuilder extends XQueryBuilder {
+    private class MatchQueryBuilder extends QueryBuilder {
 
         private final MappedFieldType mapper;
 

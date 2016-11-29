@@ -285,8 +285,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 default:
                     throw new RuntimeException("Bad scenario");
                 }
-                responses[i] = new BulkItemResponse(i, opType,
-                    new IndexResponse(shardId, "type", "id" + i, randomInt(), createdResponse));
+                responses[i] = new BulkItemResponse(
+                    i,
+                    opType,
+                    new IndexResponse(shardId, "type", "id" + i, randomInt(20), randomInt(), createdResponse));
             }
             new DummyAbstractAsyncBulkByScrollAction().onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(responses, 0));
             assertEquals(versionConflicts, testTask.getStatus().getVersionConflicts());
@@ -777,7 +779,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     ShardId shardId = new ShardId(new Index(item.index(), "uuid"), 0);
                     if (item instanceof IndexRequest) {
                         IndexRequest index = (IndexRequest) item;
-                        response = new IndexResponse(shardId, index.type(), index.id(), randomIntBetween(0, Integer.MAX_VALUE),
+                        response =
+                            new IndexResponse(
+                                shardId,
+                                index.type(),
+                                index.id(),
+                                randomInt(20),
+                                randomIntBetween(0, Integer.MAX_VALUE),
                                 true);
                     } else if (item instanceof UpdateRequest) {
                         UpdateRequest update = (UpdateRequest) item;
@@ -785,7 +793,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                                 randomIntBetween(0, Integer.MAX_VALUE), Result.CREATED);
                     } else if (item instanceof DeleteRequest) {
                         DeleteRequest delete = (DeleteRequest) item;
-                        response = new DeleteResponse(shardId, delete.type(), delete.id(), randomIntBetween(0, Integer.MAX_VALUE),
+                        response =
+                            new DeleteResponse(
+                                shardId,
+                                delete.type(),
+                                delete.id(),
+                                randomInt(20),
+                                randomIntBetween(0, Integer.MAX_VALUE),
                                 true);
                     } else {
                         throw new RuntimeException("Unknown request:  " + item);

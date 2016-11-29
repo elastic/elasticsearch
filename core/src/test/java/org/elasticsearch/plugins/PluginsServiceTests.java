@@ -45,20 +45,7 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
-    public static class FailOnModule extends Plugin {
-        public void onModule(BrokenModule brokenModule) {
-            throw new IllegalStateException("boom");
-        }
-    }
-
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
-
-    public static class BrokenModule extends AbstractModule {
-
-        @Override
-        protected void configure() {
-        }
-    }
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
         return new PluginsService(settings, null, new Environment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
@@ -88,19 +75,6 @@ public class PluginsServiceTests extends ESTestCase {
             assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
             assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
             assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
-        }
-    }
-
-    public void testOnModuleExceptionsArePropagated() {
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        PluginsService service = newPluginsService(settings, FailOnModule.class);
-        try {
-            service.processModule(new BrokenModule());
-            fail("boom");
-        } catch (ElasticsearchException ex) {
-            assertEquals("failed to invoke onModule", ex.getMessage());
-            assertEquals("boom", ex.getCause().getCause().getMessage());
         }
     }
 

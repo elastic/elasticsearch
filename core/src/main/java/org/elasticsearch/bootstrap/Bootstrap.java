@@ -67,6 +67,7 @@ final class Bootstrap {
     private volatile Node node;
     private final CountDownLatch keepAliveLatch = new CountDownLatch(1);
     private final Thread keepAliveThread;
+    private final Spawner spawner = new Spawner();
 
     /** creates a new instance */
     Bootstrap() {
@@ -155,6 +156,23 @@ final class Bootstrap {
 
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
         Settings settings = environment.settings();
+
+        try {
+            spawner.spawnNativePluginControllers(environment);
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        spawner.close();
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("Failed to destroy spawned controllers", e);
+                    }
+                }
+            });
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),

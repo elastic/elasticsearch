@@ -45,7 +45,7 @@
         },
         "lang": {
           "type": "string",
-          "description": "The script language (default: groovy)"
+          "description": "The script language (default: painless)"
         },
         "parent": {
           "type": "string",

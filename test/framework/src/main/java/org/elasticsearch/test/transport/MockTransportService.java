@@ -42,6 +42,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
@@ -53,6 +54,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -174,13 +176,9 @@ public final class MockTransportService extends TransportService {
      */
     public void addFailToSendNoConnectRule(TransportAddress transportAddress) {
         addDelegate(transportAddress, new DelegateTransport(original) {
-            @Override
-            public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-                throw new ConnectTransportException(node, "DISCONNECT: simulated");
-            }
 
             @Override
-            public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
             }
 
@@ -221,14 +219,10 @@ public final class MockTransportService extends TransportService {
     public void addFailToSendNoConnectRule(TransportAddress transportAddress, final Set<String> blockedActions) {
 
         addDelegate(transportAddress, new DelegateTransport(original) {
-            @Override
-            public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-                original.connectToNode(node);
-            }
 
             @Override
-            public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-                original.connectToNodeLight(node);
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+                original.connectToNode(node, connectionProfile);
             }
 
             @Override
@@ -259,13 +253,9 @@ public final class MockTransportService extends TransportService {
      */
     public void addUnresponsiveRule(TransportAddress transportAddress) {
         addDelegate(transportAddress, new DelegateTransport(original) {
-            @Override
-            public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-                throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
-            }
 
             @Override
-            public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
             }
 
@@ -307,10 +297,10 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
-                    original.connectToNode(node);
+                    original.connectToNode(node, connectionProfile);
                     return;
                 }
 
@@ -319,30 +309,7 @@ public final class MockTransportService extends TransportService {
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());
-                        original.connectToNode(node);
-                    } else {
-                        Thread.sleep(connectingTimeout.millis());
-                        throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
-                    }
-                } catch (InterruptedException e) {
-                    throw new ConnectTransportException(node, "UNRESPONSIVE: interrupted while sleeping", e);
-                }
-            }
-
-            @Override
-            public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-                TimeValue delay = getDelay();
-                if (delay.millis() <= 0) {
-                    original.connectToNodeLight(node);
-                    return;
-                }
-
-                // TODO: Replace with proper setting
-                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
-                try {
-                    if (delay.millis() < connectingTimeout.millis()) {
-                        Thread.sleep(delay.millis());
-                        original.connectToNodeLight(node);
+                        original.connectToNode(node, connectionProfile);
                     } else {
                         Thread.sleep(connectingTimeout.millis());
                         throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
@@ -460,14 +427,10 @@ public final class MockTransportService extends TransportService {
             return getTransport(node).nodeConnected(node);
         }
 
-        @Override
-        public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            getTransport(node).connectToNode(node);
-        }
 
         @Override
-        public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-            getTransport(node).connectToNodeLight(node);
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            getTransport(node).connectToNode(node, connectionProfile);
         }
 
         @Override
@@ -506,13 +469,8 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
             return transport.addressesFromString(address, perAddressLimit);
-        }
-
-        @Override
-        public boolean addressSupported(Class<? extends TransportAddress> address) {
-            return transport.addressSupported(address);
         }
 
         @Override
@@ -521,13 +479,8 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            transport.connectToNode(node);
-        }
-
-        @Override
-        public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-            transport.connectToNodeLight(node);
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            transport.connectToNode(node, connectionProfile);
         }
 
         @Override

@@ -47,9 +47,12 @@ import java.net.URLConnection;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
@@ -493,15 +496,24 @@ class InstallPluginCommand extends SettingCommand {
             }
 
             Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(destination)) {
-                for (Path pluginFile : stream) {
+            Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path pluginFile, BasicFileAttributes attrs) throws IOException {
                     if (Files.isDirectory(pluginFile)) {
                         setFileAttributes(pluginFile, PLUGIN_DIR_PERMS);
                     } else {
-                        setFileAttributes(pluginFile, PLUGIN_FILES_PERMS);
+                        // There can also be "bin" directories under the plugin directory, storing native code executables
+                        Path parentDir = pluginFile.getParent().getFileName();
+                        if ("bin".equals(parentDir.toString())) {
+                            setFileAttributes(pluginFile, BIN_FILES_PERMS);
+                        } else {
+                            setFileAttributes(pluginFile, PLUGIN_FILES_PERMS);
+                        }
                     }
+                    return FileVisitResult.CONTINUE;
                 }
-            }
+            });
+
             terminal.println("-> Installed " + info.getName());
 
         } catch (Exception installProblem) {

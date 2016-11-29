@@ -35,6 +35,7 @@ public class ParsedDocument {
 
     private final String id, type;
     private final BytesRef uid;
+    private final Field seqNo;
 
     private final String routing;
 
@@ -50,9 +51,19 @@ public class ParsedDocument {
 
     private String parent;
 
-    public ParsedDocument(Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents,
-                          BytesReference source, Mapping dynamicMappingsUpdate) {
+    public ParsedDocument(
+        Field version,
+        Field seqNo,
+        String id,
+        String type,
+        String routing,
+        long timestamp,
+        long ttl,
+        List<Document> documents,
+        BytesReference source,
+        Mapping dynamicMappingsUpdate) {
         this.version = version;
+        this.seqNo = seqNo;
         this.id = id;
         this.type = type;
         this.uid = Uid.createUidAsBytes(type, id);
@@ -62,9 +73,6 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
-    }
-    public Field version() {
-        return version;
     }
 
     public BytesRef uid() {
@@ -77,6 +85,14 @@ public class ParsedDocument {
 
     public String type() {
         return this.type;
+    }
+
+    public Field version() {
+        return version;
+    }
+
+    public Field seqNo() {
+        return seqNo;
     }
 
     public String routing() {
@@ -138,4 +154,5 @@ public class ParsedDocument {
         sb.append("Document ").append("uid[").append(uid).append("] doc [").append(documents).append("]");
         return sb.toString();
     }
+
 }

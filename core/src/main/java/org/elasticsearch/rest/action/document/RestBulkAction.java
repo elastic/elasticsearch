@@ -126,5 +126,4 @@ public class RestBulkAction extends BaseRestHandler {
         static final String TOOK = "took";
         static final String INGEST_TOOK = "ingest_took";
     }
-
 }

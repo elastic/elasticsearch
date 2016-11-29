@@ -135,20 +135,20 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
             assertEquals(d.type(), Decision.Type.NO);
             if (noAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("node does not match index include filters [foo:\"bar\"]"));
+                assertThat(d.toString(), containsString("node does not match [index.routing.allocation.include] filters [foo:\"bar\"]"));
                 assertNull(storeStatus);
                 assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
                         explanation.getFinalExplanation());
                 assertEquals(ClusterAllocationExplanation.FinalDecision.NO, finalDecision);
             } else if (barAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("node does not match index include filters [foo:\"bar\"]"));
+                assertThat(d.toString(), containsString("node does not match [index.routing.allocation.include] filters [foo:\"bar\"]"));
                 barAttrWeight = weight;
                 assertNull(storeStatus);
                 assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
                         explanation.getFinalExplanation());
                 assertEquals(ClusterAllocationExplanation.FinalDecision.NO, finalDecision);
             } else if (fooBarAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("the shard cannot be allocated on the same node id"));
+                assertThat(d.toString(), containsString("the shard cannot be allocated to the same node"));
                 fooBarAttrWeight = weight;
                 assertEquals(storeStatus.getAllocationStatus(),
                         IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY);

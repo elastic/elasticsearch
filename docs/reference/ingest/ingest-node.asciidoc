@@ -875,7 +875,8 @@ PUT /myindex/type/1?pipeline=monthlyindex
     "successful" : 1,
     "failed" : 0
   },
-  "created" : true
+  "created" : true,
+  "_seq_no" : 0
 }
 --------------------------------------------------
 // TESTRESPONSE
@@ -931,14 +932,14 @@ and the result:
           "date1" : "2016-04-25T12:02:01.789Z"
         },
         "_ingest" : {
-          "timestamp" : "2016-08-11T12:00:01.222Z"
+          "timestamp" : "2016-11-08T19:43:03.850+0000"
         }
       }
     }
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/2016-08-11T12:00:01.222Z/$body.docs.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
 The above example shows that `_index` was set to `<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
 understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
@@ -1278,6 +1279,139 @@ Here is an example of a pipeline specifying custom pattern definitions:
 }
 --------------------------------------------------
 
+[[trace-match]]
+==== Providing Multiple Match Patterns
+
+Sometimes one pattern is not enough to capture the potential structure of a field. Let's assume we
+want to match all messages that contain your favorite pet breeds of either cats or dogs. One way to accomplish
+this is to provide two distinct patterns that can be matched, instead of one really complicated expression capturing
+the same `or` behavior.
+
+Here is an example of such a configuration executed against the simulate API:
+
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+  "description" : "parse multiple patterns",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": ["%{FAVORITE_DOG:pet}", "%{FAVORITE_CAT:pet}"],
+        "pattern_definitions" : {
+          "FAVORITE_DOG" : "beagle",
+          "FAVORITE_CAT" : "burmese"
+        }
+      }
+    }
+  ]
+},
+"docs":[
+  {
+    "_source": {
+      "message": "I love burmese cats!"
+    }
+  }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+response:
+
+[source,js]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_type": "_type",
+        "_index": "_index",
+        "_id": "_id",
+        "_source": {
+          "message": "I love burmese cats!",
+          "pet": "burmese"
+        },
+        "_ingest": {
+          "timestamp": "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
+
+Both patterns will set the field `pet` with the appropriate match, but what if we want to trace which of our
+patterns matched and populated our fields? We can do this with the `trace_match` parameter. Here is the output of
+that same pipeline, but with `"trace_match": true` configured:
+
+////
+Hidden setup for example:
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+  "description" : "parse multiple patterns",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": ["%{FAVORITE_DOG:pet}", "%{FAVORITE_CAT:pet}"],
+        "trace_match": true,
+        "pattern_definitions" : {
+          "FAVORITE_DOG" : "beagle",
+          "FAVORITE_CAT" : "burmese"
+        }
+      }
+    }
+  ]
+},
+"docs":[
+  {
+    "_source": {
+      "message": "I love burmese cats!"
+    }
+  }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+////
+
+[source,js]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_type": "_type",
+        "_index": "_index",
+        "_id": "_id",
+        "_source": {
+          "message": "I love burmese cats!",
+          "pet": "burmese"
+        },
+        "_ingest": {
+          "_grok_match_index": "1",
+          "timestamp": "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
+
+In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the
+second (index starts at zero) pattern in `patterns` to match.
+
+This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest
+metadata and will not be indexed.
+
 [[gsub-processor]]
 === Gsub Processor
 Converts a string field by applying a regular expression and a replacement.
@@ -1494,9 +1628,10 @@ Splits a field into an array using a separator character. Only works on string f
 .Split Options
 [options="header"]
 |======
-| Name        | Required  | Default  | Description
-| `field`     | yes       | -        | The field to split
-| `separator` | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to split
+| `separator`       | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 [source,js]

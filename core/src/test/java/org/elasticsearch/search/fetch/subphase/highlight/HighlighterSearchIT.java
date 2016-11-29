@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -40,8 +39,8 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -104,6 +103,29 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(InternalSettingsPlugin.class);
+    }
+
+    public void testHighlightingWithStoredKeyword() throws IOException {
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+            .startObject("text")
+            .field("type", "keyword")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings));
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("text", "foo").endObject())
+            .get();
+        refresh();
+        SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "foo"))
+            .highlighter(new HighlightBuilder().field(new Field("text"))).get();
+        assertHighlight(search, 0, "text", 0, equalTo("<em>foo</em>"));
     }
 
     public void testHighlightingWithWildcardName() throws IOException {
@@ -2905,6 +2927,26 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(new FunctionScoreQueryBuilder(QueryBuilders.prefixQuery("text", "bro")))
+            .highlighter(new HighlightBuilder()
+                .field(new Field("text")))
+            .get();
+        assertHitCount(searchResponse, 1);
+        HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+    }
+
+    public void testFiltersFunctionScoreQueryHighlight() throws Exception {
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("text", "brown").field("enable", "yes").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        FunctionScoreQueryBuilder.FilterFunctionBuilder filterBuilder =
+            new FunctionScoreQueryBuilder.FilterFunctionBuilder(QueryBuilders.termQuery("enable", "yes"),
+                new RandomScoreFunctionBuilder());
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(new FunctionScoreQueryBuilder(QueryBuilders.prefixQuery("text", "bro"),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {filterBuilder}))
             .highlighter(new HighlightBuilder()
                 .field(new Field("text")))
             .get();

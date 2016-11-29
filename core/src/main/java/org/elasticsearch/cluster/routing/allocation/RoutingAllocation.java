@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 
 import java.util.HashMap;
@@ -60,8 +59,6 @@ public class RoutingAllocation {
     private final DiscoveryNodes nodes;
 
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
-
-    private final AllocationExplanation explanation = new AllocationExplanation();
 
     private final ClusterInfo clusterInfo;
 
@@ -160,14 +157,6 @@ public class RoutingAllocation {
 
     public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {
         return customs;
-    }
-
-    /**
-     * Get explanations of current routing
-     * @return explanation of routing
-     */
-    public AllocationExplanation explanation() {
-        return explanation;
     }
 
     public void ignoreDisable(boolean ignoreDisable) {

@@ -185,7 +185,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (Version v : VersionUtils.allVersions()) {
+        for (Version v : VersionUtils.allReleasedVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
             if (v.isRelease() == false) continue; // no guarantees for prereleases
             if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version

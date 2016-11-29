@@ -64,12 +64,15 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "filter";
 
+    private static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
+    private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
+    private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
     public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.require.", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.include.", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.exclude.", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
@@ -96,8 +99,10 @@ public class FilterAllocationDecider extends AllocationDecider {
             if (initialRecoveryFilters != null  &&
                 RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) &&
                 initialRecoveryFilters.match(node.node()) == false) {
-                return allocation.decision(Decision.NO, NAME, "node does not match index initial recovery filters [%s]",
-                    indexMd.includeFilters());
+                String explanation = (shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) ?
+                    "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index" :
+                    "initial allocation of the index is only allowed on nodes [%s]";
+                return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);
             }
         }
         return shouldFilter(shardRouting, node, allocation);
@@ -136,17 +141,20 @@ public class FilterAllocationDecider extends AllocationDecider {
     private Decision shouldIndexFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
         if (indexMd.requireFilters() != null) {
             if (!indexMd.requireFilters().match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match index required filters [%s]", indexMd.requireFilters());
+                return allocation.decision(Decision.NO, NAME, "node does not match [%s] filters [%s]",
+                    IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX, indexMd.requireFilters());
             }
         }
         if (indexMd.includeFilters() != null) {
             if (!indexMd.includeFilters().match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match index include filters [%s]", indexMd.includeFilters());
+                return allocation.decision(Decision.NO, NAME, "node does not match [%s] filters [%s]",
+                    IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_PREFIX, indexMd.includeFilters());
             }
         }
         if (indexMd.excludeFilters() != null) {
             if (indexMd.excludeFilters().match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node matches index exclude filters [%s]", indexMd.excludeFilters());
+                return allocation.decision(Decision.NO, NAME, "node matches [%s] filters [%s]",
+                    IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), indexMd.excludeFilters());
             }
         }
         return null;
@@ -155,17 +163,20 @@ public class FilterAllocationDecider extends AllocationDecider {
     private Decision shouldClusterFilter(RoutingNode node, RoutingAllocation allocation) {
         if (clusterRequireFilters != null) {
             if (!clusterRequireFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match global required filters [%s]", clusterRequireFilters);
+                return allocation.decision(Decision.NO, NAME, "node does not match [%s] filters [%s]",
+                    CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX, clusterRequireFilters);
             }
         }
         if (clusterIncludeFilters != null) {
             if (!clusterIncludeFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node does not match global include filters [%s]", clusterIncludeFilters);
+                return allocation.decision(Decision.NO, NAME, "node does not [%s] filters [%s]",
+                    CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX, clusterIncludeFilters);
             }
         }
         if (clusterExcludeFilters != null) {
             if (clusterExcludeFilters.match(node.node())) {
-                return allocation.decision(Decision.NO, NAME, "node matches global exclude filters [%s]", clusterExcludeFilters);
+                return allocation.decision(Decision.NO, NAME, "node matches [%s] filters [%s]",
+                    CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX, clusterExcludeFilters);
             }
         }
         return null;

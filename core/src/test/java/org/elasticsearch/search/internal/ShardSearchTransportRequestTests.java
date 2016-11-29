@@ -20,14 +20,9 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ShardValidateQueryRequestTests;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -93,8 +88,6 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
     private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         ShardId shardId = new ShardId(randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10), randomInt());
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, null, null, randomBoolean(), ShardRoutingState.UNASSIGNED,
-            new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "reason"));
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
             String[] strings = generateRandomStringArray(10, 10, false, false);
@@ -102,7 +95,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         } else {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
-        return new ShardSearchTransportRequest(searchRequest, shardRouting,
+        return new ShardSearchTransportRequest(searchRequest, shardId,
                 randomIntBetween(1, 100), filteringAliases, Math.abs(randomLong()));
     }
 

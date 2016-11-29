@@ -37,6 +37,7 @@ import java.net.InetAddress;
 import java.util.Objects;
 
 public abstract class FieldStats<T> implements Writeable, ToXContent {
+
     private final byte type;
     private long maxDoc;
     private long docCount;
@@ -586,16 +587,17 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         }
     }
 
-    static final String TYPE_FIELD = new String("type");
-    static final String MAX_DOC_FIELD = new String("max_doc");
-    static final String DOC_COUNT_FIELD = new String("doc_count");
-    static final String DENSITY_FIELD = new String("density");
-    static final String SUM_DOC_FREQ_FIELD = new String("sum_doc_freq");
-    static final String SUM_TOTAL_TERM_FREQ_FIELD = new String("sum_total_term_freq");
-    static final String SEARCHABLE_FIELD = new String("searchable");
-    static final String AGGREGATABLE_FIELD = new String("aggregatable");
-    static final String MIN_VALUE_FIELD = new String("min_value");
-    static final String MIN_VALUE_AS_STRING_FIELD = new String("min_value_as_string");
-    static final String MAX_VALUE_FIELD = new String("max_value");
-    static final String MAX_VALUE_AS_STRING_FIELD = new String("max_value_as_string");
+    private static final String TYPE_FIELD = "type";
+    private static final String MAX_DOC_FIELD = "max_doc";
+    private static final String DOC_COUNT_FIELD = "doc_count";
+    private static final String DENSITY_FIELD = "density";
+    private static final String SUM_DOC_FREQ_FIELD = "sum_doc_freq";
+    private static final String SUM_TOTAL_TERM_FREQ_FIELD = "sum_total_term_freq";
+    private static final String SEARCHABLE_FIELD = "searchable";
+    private static final String AGGREGATABLE_FIELD = "aggregatable";
+    private static final String MIN_VALUE_FIELD = "min_value";
+    private static final String MIN_VALUE_AS_STRING_FIELD = "min_value_as_string";
+    private static final String MAX_VALUE_FIELD = "max_value";
+    private static final String MAX_VALUE_AS_STRING_FIELD = "max_value_as_string";
+
 }

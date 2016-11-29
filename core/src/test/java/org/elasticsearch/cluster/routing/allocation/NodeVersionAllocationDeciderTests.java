@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
+
     private final Logger logger = Loggers.getLogger(NodeVersionAllocationDeciderTests.class);
 
     public void testDoNotAllocateFromPrimary() {
@@ -82,8 +83,12 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
-                .build();
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsNew(metaData.index("test"))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
@@ -211,7 +216,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 }
             }
             for (DiscoveryNode node : nodes) {
-               nodesBuilder.add(node);
+                nodesBuilder.add(node);
             }
             clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
             clusterState = stabilize(clusterState, service);
@@ -228,12 +233,12 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
-                .build();
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
+            .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
-                .build();
+            .addAsNew(metaData.index("test"))
+            .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
@@ -421,7 +426,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             }
         }
-
-
     }
+
 }

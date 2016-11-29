@@ -48,7 +48,7 @@ public class CodecTests extends ESSingleNodeTestCase {
 
     public void testAcceptPostingsFormat() throws IOException {
         int i = 0;
-        for (Version v : VersionUtils.allVersions()) {
+        for (Version v : VersionUtils.allReleasedVersions()) {
             if (v.onOrAfter(Version.V_2_0_0) == false) {
                 // no need to test, we don't support upgrading from these versions
                 continue;
@@ -82,7 +82,7 @@ public class CodecTests extends ESSingleNodeTestCase {
 
     public void testAcceptDocValuesFormat() throws IOException {
         int i = 0;
-        for (Version v : VersionUtils.allVersions()) {
+        for (Version v : VersionUtils.allReleasedVersions()) {
             if (v.onOrAfter(Version.V_2_0_0) == false) {
                 // no need to test, we don't support upgrading from these versions
                 continue;

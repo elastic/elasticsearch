@@ -52,6 +52,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -254,10 +255,6 @@ public class TransportService extends AbstractLifecycleComponent {
         blockIncomingRequestsLatch.countDown();
     }
 
-    public final boolean addressSupported(Class<? extends TransportAddress> address) {
-        return transport.addressSupported(address);
-    }
-
     public TransportInfo info() {
         BoundTransportAddress boundTransportAddress = boundAddress();
         if (boundTransportAddress == null) {
@@ -284,22 +281,20 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-        if (node.equals(localNode)) {
-            return;
-        }
-        transport.connectToNode(node);
+        connectToNode(node, null);
     }
 
     /**
-     * Lightly connect to the specified node
+     * Connect to the specified node with the given connection profile
      *
      * @param node the node to connect to
+     * @param connectionProfile the connection profile to use when connecting to this node
      */
-    public void connectToNodeLight(final DiscoveryNode node) {
+    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
         if (node.equals(localNode)) {
             return;
         }
-        transport.connectToNodeLight(node);
+        transport.connectToNode(node, connectionProfile);
     }
 
     /**
@@ -312,10 +307,10 @@ public class TransportService extends AbstractLifecycleComponent {
      * @throws ConnectTransportException if the connection or the
      *                                   handshake failed
      */
-    public DiscoveryNode connectToNodeLightAndHandshake(
+    public DiscoveryNode connectToNodeAndHandshake(
             final DiscoveryNode node,
             final long handshakeTimeout) throws ConnectTransportException {
-        return connectToNodeLightAndHandshake(node, handshakeTimeout, true);
+        return connectToNodeAndHandshake(node, handshakeTimeout, true);
     }
 
     /**
@@ -332,14 +327,14 @@ public class TransportService extends AbstractLifecycleComponent {
      * @throws ConnectTransportException if the connection failed
      * @throws IllegalStateException if the handshake failed
      */
-    public DiscoveryNode connectToNodeLightAndHandshake(
+    public DiscoveryNode connectToNodeAndHandshake(
             final DiscoveryNode node,
             final long handshakeTimeout,
             final boolean checkClusterName) {
         if (node.equals(localNode)) {
             return localNode;
         }
-        transport.connectToNodeLight(node);
+        transport.connectToNode(node, ConnectionProfile.LIGHT_PROFILE);
         try {
             return handshake(node, handshakeTimeout, checkClusterName);
         } catch (ConnectTransportException | IllegalStateException e) {
@@ -546,6 +541,8 @@ public class TransportService extends AbstractLifecycleComponent {
                         holderToNotify.handler().handleException(sendRequestException);
                     }
                 });
+            } else {
+                logger.debug("Exception while sending request, handler likely already notified due to timeout", e);
             }
         }
     }
@@ -617,7 +614,7 @@ public class TransportService extends AbstractLifecycleComponent {
         return requestIds.getAndIncrement();
     }
 
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
         return transport.addressesFromString(address, perAddressLimit);
     }
 

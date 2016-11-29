@@ -19,8 +19,8 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -95,13 +96,15 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     private String id;
     private String type;
     private long version;
+    private long seqNo;
     private boolean forcedRefresh;
     protected Result result;
 
-    public DocWriteResponse(ShardId shardId, String type, String id, long version, Result result) {
+    public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long version, Result result) {
         this.shardId = shardId;
         this.type = type;
         this.id = id;
+        this.seqNo = seqNo;
         this.version = version;
         this.result = result;
     }
@@ -123,7 +126,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public String getIndex() {
         return this.shardId.getIndexName();
     }
-
 
     /**
      * The exact shard the document was changed in.
@@ -151,6 +153,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      */
     public long getVersion() {
         return this.version;
+    }
+
+    /**
+     * Returns the sequence number assigned for this change. Returns {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if the operation
+     * wasn't performed (i.e., an update operation that resulted in a NOOP).
+     */
+    public long getSeqNo() {
+        return seqNo;
     }
 
     /**
@@ -204,6 +214,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         type = in.readString();
         id = in.readString();
         version = in.readZLong();
+        seqNo = in.readZLong();
         forcedRefresh = in.readBoolean();
         result = Result.readFrom(in);
     }
@@ -215,6 +226,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         out.writeString(type);
         out.writeString(id);
         out.writeZLong(version);
+        out.writeZLong(seqNo);
         out.writeBoolean(forcedRefresh);
         result.writeTo(out);
     }
@@ -231,6 +243,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             builder.field("forced_refresh", forcedRefresh);
         }
         shardInfo.toXContent(builder, params);
+        if (getSeqNo() >= 0) {
+            builder.field("_seq_no", getSeqNo());
+        }
         return builder;
     }
 }

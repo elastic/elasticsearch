@@ -32,10 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
@@ -64,26 +61,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchService searchService;
 
     @Inject
-    public TransportSearchAction(Settings settings, ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService,
-                                 TransportService transportService, SearchService searchService,
-                                 ClusterService clusterService, ActionFilters actionFilters, IndexNameExpressionResolver
-                                             indexNameExpressionResolver) {
+    public TransportSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, SearchService searchService,
+                                 SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
+                                 ClusterService clusterService, ActionFilters actionFilters,
+                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
-        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService);
-        this.searchTransportService = new SearchTransportService(settings, transportService);
+        this.searchPhaseController = searchPhaseController;
+        this.searchTransportService = searchTransportService;
         SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
         this.searchService = searchService;
     }
 
-    private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState, String...concreteIndices) {
+    private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState, Index[] concreteIndices) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
-        for (String index : concreteIndices) {
-            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
-            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index, request.indices());
-            if (aliasFilter != null) {
-                aliasFilterMap.put(index, aliasFilter);
-            }
+        for (Index index : concreteIndices) {
+            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
+            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), request.indices());
+            assert aliasFilter != null;
+            aliasFilterMap.put(index.getUUID(), aliasFilter);
         }
         return aliasFilterMap;
     }
@@ -98,36 +94,34 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
         // of just for the _search api
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, searchRequest.indicesOptions(),
+        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest.indicesOptions(),
             startTimeInMillis, searchRequest.indices());
-        Map<String, AliasFilter> aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, concreteIndices);
+        Map<String, AliasFilter> aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
             searchRequest.indices());
+        String[] concreteIndices = new String[indices.length];
+        for (int i = 0; i < indices.length; i++) {
+            concreteIndices[i] = indices[i].getName();
+        }
         GroupShardsIterator shardIterators = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap,
             searchRequest.preference());
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
         // optimize search type for cases where there is only one shard group to search on
-        try {
-            if (shardIterators.size() == 1) {
-                // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
-                searchRequest.searchType(QUERY_AND_FETCH);
+        if (shardIterators.size() == 1) {
+            // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
+            searchRequest.searchType(QUERY_AND_FETCH);
+        }
+        if (searchRequest.isSuggestOnly()) {
+            // disable request cache if we have only suggest
+            searchRequest.requestCache(false);
+            switch (searchRequest.searchType()) {
+                case DFS_QUERY_AND_FETCH:
+                case DFS_QUERY_THEN_FETCH:
+                    // convert to Q_T_F if we have only suggest
+                    searchRequest.searchType(QUERY_THEN_FETCH);
+                    break;
             }
-            if (searchRequest.isSuggestOnly()) {
-                // disable request cache if we have only suggest
-                searchRequest.requestCache(false);
-                switch (searchRequest.searchType()) {
-                    case DFS_QUERY_AND_FETCH:
-                    case DFS_QUERY_THEN_FETCH:
-                        // convert to Q_T_F if we have only suggest
-                        searchRequest.searchType(QUERY_THEN_FETCH);
-                        break;
-                }
-            }
-        } catch (IndexNotFoundException | IndexClosedException e) {
-            // ignore these failures, we will notify the search response if its really the case from the actual action
-        } catch (Exception e) {
-            logger.debug("failed to optimize search type, continue as normal", e);
         }
 
         searchAsyncAction((SearchTask)task, searchRequest, shardIterators, startTimeInMillis, clusterState,

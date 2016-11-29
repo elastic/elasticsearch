@@ -34,7 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
@@ -77,9 +76,8 @@ public class MockFSIndexStore extends IndexStore {
         }
     }
 
-    MockFSIndexStore(IndexSettings indexSettings,
-                     IndexStoreConfig config) {
-        super(indexSettings, config);
+    MockFSIndexStore(IndexSettings indexSettings) {
+        super(indexSettings);
     }
 
     public DirectoryService newDirectoryService(ShardPath path) {

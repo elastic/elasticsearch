@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -36,6 +38,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -549,7 +552,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state);
 
         // check that at unknown node fails
-        PlainActionFuture<TransportResponse.Empty> listener = new PlainActionFuture<>();
+        PlainActionFuture<ReplicaResponse> listener = new PlainActionFuture<>();
         proxy.performOn(
             TestShardRouting.newShardRouting(shardId, "NOT THERE", false, randomFrom(ShardRoutingState.values())),
             new Request(), listener);
@@ -566,9 +569,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] captures = transport.getCapturedRequestsAndClear();
         assertThat(captures, arrayWithSize(1));
         if (randomBoolean()) {
-            transport.handleResponse(captures[0].requestId, TransportResponse.Empty.INSTANCE);
+            final TransportReplicationAction.ReplicaResponse response =
+                new TransportReplicationAction.ReplicaResponse(randomAsciiOfLength(10), randomLong());
+            transport.handleResponse(captures[0].requestId, response);
             assertTrue(listener.isDone());
-            listener.get();
+            assertThat(listener.get(), equalTo(response));
         } else if (randomBoolean()) {
             transport.handleRemoteError(captures[0].requestId, new ElasticsearchException("simulated"));
             assertTrue(listener.isDone());
@@ -643,6 +648,44 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
         }.run();
         assertThat(executed.get(), equalTo(true));
+    }
+
+    public void testSeqNoIsSetOnPrimary() throws Exception {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        // we use one replica to check the primary term was set on the operation and sent to the replica
+        setState(clusterService,
+            state(index, true, ShardRoutingState.STARTED, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED)));
+        logger.debug("--> using initial state:\n{}", clusterService.state());
+        final ShardRouting routingEntry = clusterService.state().getRoutingTable().index("test").shard(0).primaryShard();
+        Request request = new Request(shardId);
+        TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
+            new TransportReplicationAction.ConcreteShardRequest<>(request, routingEntry.allocationId().getId());
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+
+        final IndexShard shard = mock(IndexShard.class);
+        long primaryTerm = clusterService.state().getMetaData().index(index).primaryTerm(0);
+        when(shard.getPrimaryTerm()).thenReturn(primaryTerm);
+        when(shard.routingEntry()).thenReturn(routingEntry);
+
+        AtomicBoolean closed = new AtomicBoolean();
+        Releasable releasable = () -> {
+            if (closed.compareAndSet(false, true) == false) {
+                fail("releasable is closed twice");
+            }
+        };
+
+        Action action =
+            new Action(Settings.EMPTY, "testSeqNoIsSetOnPrimary", transportService, clusterService, shardStateAction, threadPool);
+
+        TransportReplicationAction<Request, Request, Response>.PrimaryOperationTransportHandler primaryPhase =
+            action.new PrimaryOperationTransportHandler();
+        primaryPhase.messageReceived(concreteShardRequest, createTransportChannel(listener), null);
+        CapturingTransport.CapturedRequest[] requestsToReplicas = transport.capturedRequests();
+        assertThat(requestsToReplicas, arrayWithSize(1));
+        assertThat(((TransportReplicationAction.ConcreteShardRequest<Request>) requestsToReplicas[0].request).getRequest().primaryTerm(),
+            equalTo(primaryTerm));
     }
 
     public void testCounterOnPrimary() throws Exception {
@@ -867,12 +910,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         final CapturingTransport.CapturedRequest capturedRequest = capturedRequests.get(0);
         assertThat(capturedRequest.action, equalTo("testActionWithExceptions[r]"));
         assertThat(capturedRequest.request, instanceOf(TransportReplicationAction.ConcreteShardRequest.class));
-        final TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
-            (TransportReplicationAction.ConcreteShardRequest<Request>) capturedRequest.request;
-        assertThat(concreteShardRequest.getRequest(), equalTo(request));
-        assertThat(concreteShardRequest.getRequest().isRetrySet.get(), equalTo(true));
-        assertThat(concreteShardRequest.getTargetAllocationID(),
-            equalTo(replica.allocationId().getId()));
+        assertConcreteShardRequest(capturedRequest.request, request, replica.allocationId());
+    }
+
+    private void assertConcreteShardRequest(TransportRequest capturedRequest, Request expectedRequest, AllocationId expectedAllocationId) {
+        final TransportReplicationAction.ConcreteShardRequest<?> concreteShardRequest =
+            (TransportReplicationAction.ConcreteShardRequest<?>) capturedRequest;
+        assertThat(concreteShardRequest.getRequest(), equalTo(expectedRequest));
+        assertThat(((Request)concreteShardRequest.getRequest()).isRetrySet.get(), equalTo(true));
+        assertThat(concreteShardRequest.getTargetAllocationID(), equalTo(expectedAllocationId.getId()));
     }
 
 

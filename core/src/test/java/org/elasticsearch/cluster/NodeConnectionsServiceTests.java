@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -42,6 +43,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -174,7 +176,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void transportServiceAdapter(TransportServiceAdapter service) {
-
         }
 
         @Override
@@ -188,13 +189,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
             return new TransportAddress[0];
-        }
-
-        @Override
-        public boolean addressSupported(Class<? extends TransportAddress> address) {
-            return false;
         }
 
         @Override
@@ -203,16 +199,13 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
-                throw new ConnectTransportException(node, "simulated");
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            if (connectionProfile == null) {
+                if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
+                    throw new ConnectTransportException(node, "simulated");
+                }
+                connectedNodes.add(node);
             }
-            connectedNodes.add(node);
-        }
-
-        @Override
-        public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-
         }
 
         @Override

@@ -1137,7 +1137,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          */
         protected Tuple<BlobStoreIndexShardSnapshots, Integer> buildBlobStoreIndexShardSnapshots(Map<String, BlobMetaData> blobs) {
             int latest = -1;
-            for (String name : blobs.keySet()) {
+            Set<String> blobKeys = blobs.keySet();
+            for (String name : blobKeys) {
                 if (name.startsWith(SNAPSHOT_INDEX_PREFIX)) {
                     try {
                         int gen = Integer.parseInt(name.substring(SNAPSHOT_INDEX_PREFIX.length()));
@@ -1158,15 +1159,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     final String file = SNAPSHOT_INDEX_PREFIX + latest;
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to read index file [{}]", file), e);
                 }
+            } else if (blobKeys.isEmpty() == false) {
+                logger.debug("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", blobContainer.path());
             }
 
             // We couldn't load the index file - falling back to loading individual snapshots
             List<SnapshotFiles> snapshots = new ArrayList<>();
-            for (String name : blobs.keySet()) {
+            for (String name : blobKeys) {
                 try {
                     BlobStoreIndexShardSnapshot snapshot = null;
                     if (name.startsWith(SNAPSHOT_PREFIX)) {
-                        snapshot = indexShardSnapshotFormat.readBlob(blobContainer, snapshotId.getUUID());
+                        snapshot = indexShardSnapshotFormat.readBlob(blobContainer, name);
                     } else if (name.startsWith(LEGACY_SNAPSHOT_PREFIX)) {
                         snapshot = indexShardSnapshotLegacyFormat.readBlob(blobContainer, name);
                     }

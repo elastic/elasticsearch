@@ -57,4 +57,9 @@ public final class EString extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         throw new IllegalStateException("Illegal tree structure.");
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString("'" + constant.toString() + "'");
+    }
 }

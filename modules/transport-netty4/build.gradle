@@ -42,13 +42,6 @@ dependencies {
     compile "io.netty:netty-transport:4.1.6.Final"
 }
 
-integTest {
-    includePackaged = true
-    cluster {
-        numNodes = 2
-    }
-}
-
 thirdPartyAudit.excludes = [
         // classes are missing
 

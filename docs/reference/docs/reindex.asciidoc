@@ -227,6 +227,28 @@ POST _reindex
 // CONSOLE
 // TEST[setup:twitter]
 
+The `source` section supports all the elements that are supported in a
+<<search-request-body,search request>>. For instance only a subset of the
+fields from the original documents can be reindexed using source filtering
+as follows:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "_source": ["user", "tweet"]
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+
 Like `_update_by_query`, `_reindex` supports a script that modifies the
 document. Unlike `_update_by_query`, the script is allowed to modify the
 document's metadata. This example bumps the version of the source document:

@@ -20,8 +20,8 @@
 package org.elasticsearch.mapper.attachments;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
@@ -604,7 +604,7 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext parseContext, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext parseContext, List<IndexableField> fields) throws IOException {
 
     }
 

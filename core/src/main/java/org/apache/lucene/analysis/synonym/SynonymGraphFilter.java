@@ -29,7 +29,7 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.XRollingBuffer;
+import org.apache.lucene.util.RollingBuffer;
 import org.apache.lucene.util.fst.FST;
 
 import java.io.IOException;
@@ -112,14 +112,14 @@ public final class SynonymGraphFilter extends TokenFilter {
     private int lookaheadNextRead;
     private int lookaheadNextWrite;
 
-    private XRollingBuffer<BufferedInputToken> lookahead = new XRollingBuffer<BufferedInputToken>() {
+    private RollingBuffer<BufferedInputToken> lookahead = new RollingBuffer<BufferedInputToken>() {
         @Override
         protected BufferedInputToken newInstance() {
             return new BufferedInputToken();
         }
     };
 
-    static class BufferedInputToken implements XRollingBuffer.Resettable {
+    static class BufferedInputToken implements RollingBuffer.Resettable {
         final CharsRefBuilder term = new CharsRefBuilder();
         AttributeSource.State state;
         int startOffset = -1;

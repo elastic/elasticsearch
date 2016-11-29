@@ -771,14 +771,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testInvalidCombo() throws IOException {
         QueryStringQueryBuilder builder = new QueryStringQueryBuilder("foo bar");
         builder.autoGeneratePhraseQueries(true);
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> builder.splitOnWhitespace(false));
-        assertEquals(exc.getMessage(),
-            "it is disallowed to disable split_on_whitespace if auto_generate_phrase_queries is activated");
-
-        builder.autoGeneratePhraseQueries(false);
         builder.splitOnWhitespace(false);
-        exc = expectThrows(IllegalArgumentException.class, () -> builder.autoGeneratePhraseQueries(true));
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class, () -> builder.toQuery(createShardContext()));
         assertEquals(exc.getMessage(),
             "it is disallowed to disable split_on_whitespace if auto_generate_phrase_queries is activated");
     }

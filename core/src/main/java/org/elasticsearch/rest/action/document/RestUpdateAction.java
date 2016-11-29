@@ -81,6 +81,12 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.version(RestActions.parseVersion(request));
         updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
 
+        if (request.hasParam("timestamp")) {
+            deprecationLogger.deprecated("The [timestamp] parameter of index requests is deprecated");
+        }
+        if (request.hasParam("ttl")) {
+            deprecationLogger.deprecated("The [ttl] parameter of index requests is deprecated");
+        }
 
         // see if we have it in the body
         if (request.hasContent()) {

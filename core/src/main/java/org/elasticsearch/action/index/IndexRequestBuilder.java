@@ -233,6 +233,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the timestamp either as millis since the epoch, or, in the configured date format.
      */
+    @Deprecated
     public IndexRequestBuilder setTimestamp(String timestamp) {
         request.timestamp(timestamp);
         return this;
@@ -241,6 +242,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the ttl value as a time value expression.
      */
+    @Deprecated
     public IndexRequestBuilder setTTL(String ttl) {
         request.ttl(ttl);
         return this;
@@ -249,6 +251,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
      */
+    @Deprecated
     public IndexRequestBuilder setTTL(long ttl) {
         request.ttl(ttl);
         return this;
@@ -257,6 +260,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the ttl as a {@link TimeValue} instance.
      */
+    @Deprecated
     public IndexRequestBuilder setTTL(TimeValue ttl) {
         request.ttl(ttl);
         return this;

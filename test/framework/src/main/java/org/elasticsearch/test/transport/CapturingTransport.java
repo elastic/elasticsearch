@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
@@ -219,12 +220,7 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-
-    }
-
-    @Override
-    public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
 
     }
 

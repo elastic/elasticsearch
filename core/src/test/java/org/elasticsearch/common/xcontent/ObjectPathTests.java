@@ -16,21 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml;
+package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -172,65 +167,6 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(map.size(), equalTo(2));
         Set<String> strings = map.keySet();
         assertThat(strings, contains("template_1", "template_2"));
-    }
-
-    public void testEvaluateStashInPropertyName() throws Exception {
-        XContentBuilder xContentBuilder = randomXContentBuilder();
-        xContentBuilder.startObject();
-        xContentBuilder.startObject("field1");
-        xContentBuilder.startObject("elements");
-        xContentBuilder.field("element1", "value1");
-        xContentBuilder.endObject();
-        xContentBuilder.endObject();
-        xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
-        try {
-            objectPath.evaluate("field1.$placeholder.element1");
-            fail("evaluate should have failed due to unresolved placeholder");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("stashed value not found for key [placeholder]"));
-        }
-
-        // Stashed value is whole property name
-        Stash stash = new Stash();
-        stash.stashValue("placeholder", "elements");
-        Object object = objectPath.evaluate("field1.$placeholder.element1", stash);
-        assertThat(object, notNullValue());
-        assertThat(object.toString(), equalTo("value1"));
-
-        // Stash key has dots
-        Map<String, Object> stashedObject = new HashMap<>();
-        stashedObject.put("subobject", "elements");
-        stash.stashValue("object", stashedObject);
-        object = objectPath.evaluate("field1.$object\\.subobject.element1", stash);
-        assertThat(object, notNullValue());
-        assertThat(object.toString(), equalTo("value1"));
-
-        // Stashed value is part of property name
-        stash.stashValue("placeholder", "ele");
-        object = objectPath.evaluate("field1.${placeholder}ments.element1", stash);
-        assertThat(object, notNullValue());
-        assertThat(object.toString(), equalTo("value1"));
-
-        // Stashed value is inside of property name
-        stash.stashValue("placeholder", "le");
-        object = objectPath.evaluate("field1.e${placeholder}ments.element1", stash);
-        assertThat(object, notNullValue());
-        assertThat(object.toString(), equalTo("value1"));
-
-        // Multiple stashed values in property name
-        stash.stashValue("placeholder", "le");
-        stash.stashValue("placeholder2", "nts");
-        object = objectPath.evaluate("field1.e${placeholder}me${placeholder2}.element1", stash);
-        assertThat(object, notNullValue());
-        assertThat(object.toString(), equalTo("value1"));
-
-        // Stashed value is part of property name and has dots
-        stashedObject.put("subobject", "ele");
-        stash.stashValue("object", stashedObject);
-        object = objectPath.evaluate("field1.${object\\.subobject}ments.element1", stash);
-        assertThat(object, notNullValue());
-        assertThat(object.toString(), equalTo("value1"));
     }
 
     @SuppressWarnings("unchecked")

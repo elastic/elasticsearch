@@ -22,6 +22,7 @@ import org.apache.http.Header;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ public class ClientYamlTestResponse {
 
     private final Response response;
     private final String body;
-    private ObjectPath parsedResponse;
+    private StashableObjectPath parsedResponse;
 
     ClientYamlTestResponse(Response response) throws IOException {
         this.response = response;
@@ -60,7 +61,7 @@ public class ClientYamlTestResponse {
             XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
             //skip parsing if we got text back (e.g. if we called _cat apis)
             if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
-                this.parsedResponse = ObjectPath.createFromXContent(xContentType.xContent(), body);
+                this.parsedResponse = new StashableObjectPath(ObjectPath.createFromXContent(xContentType.xContent(), body));
             }
         }
     }

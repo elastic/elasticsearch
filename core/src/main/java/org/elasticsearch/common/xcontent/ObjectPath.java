@@ -16,10 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml;
-
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+package org.elasticsearch.common.xcontent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,21 +43,18 @@ public class ObjectPath {
         this.object = object;
     }
 
-    /**
-     * Returns the object corresponding to the provided path if present, null otherwise
-     */
-    public Object evaluate(String path) throws IOException {
-        return evaluate(path, Stash.EMPTY);
+    public Object getObject() {
+        return this.object;
     }
 
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
      */
-    public Object evaluate(String path, Stash stash) throws IOException {
+    public Object evaluate(String path) {
         String[] parts = parsePath(path);
         Object object = this.object;
         for (String part : parts) {
-            object = evaluate(part, object, stash);
+            object = evaluate(part, object);
             if (object == null) {
                 return null;
             }
@@ -69,11 +63,7 @@ public class ObjectPath {
     }
 
     @SuppressWarnings("unchecked")
-    private Object evaluate(String key, Object object, Stash stash) throws IOException {
-        if (stash.containsStashedValue(key)) {
-            key = stash.getValue(key).toString();
-        }
-
+    public static Object evaluate(String key, Object object) {
         if (object instanceof Map) {
             return ((Map<String, Object>) object).get(key);
         }
@@ -92,7 +82,7 @@ public class ObjectPath {
         throw new IllegalArgumentException("no object found for [" + key + "] within object of class [" + object.getClass() + "]");
     }
 
-    private String[] parsePath(String path) {
+    public static String[] parsePath(String path) {
         List<String> list = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean escape = false;

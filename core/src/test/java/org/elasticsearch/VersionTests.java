@@ -262,13 +262,12 @@ public class VersionTests extends ESTestCase {
             }
         }
     }
-    private  static final Version V_20_0_0_UNRELEASED = new Version(20000099, Version.CURRENT.luceneVersion);
+
+    private static final Version V_20_0_0_UNRELEASED = new Version(20000099, Version.CURRENT.luceneVersion);
 
     // see comment in Version.java about this test
     public void testUnknownVersions() {
         assertUnknownVersion(V_20_0_0_UNRELEASED);
-        // once we release 5.0.2 and it's added to Version.java we need to remove this constant
-        assertUnknownVersion(ElasticsearchException.V_5_0_2_UNRELEASED);
         expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
     }
 

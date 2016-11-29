@@ -24,6 +24,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
@@ -31,6 +32,8 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class AutodetectCommunicatorTests extends ESTestCase {
@@ -139,10 +142,10 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
 
-        communicator.inUse.set(true);
+        communicator.inUse.set(new CountDownLatch(1));
         expectThrows(ElasticsearchStatusException.class, () -> communicator.writeToJob(in, mock(DataLoadParams.class)));
 
-        communicator.inUse.set(false);
+        communicator.inUse.set(null);
         communicator.writeToJob(in, mock(DataLoadParams.class));
     }
 
@@ -152,24 +155,26 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
-        communicator.inUse.set(true);
+        communicator.inUse.set(new CountDownLatch(1));
         InterimResultsParams params = mock(InterimResultsParams.class);
         expectThrows(ElasticsearchStatusException.class, () -> communicator.flushJob(params));
 
-        communicator.inUse.set(false);
+        communicator.inUse.set(null);
         communicator.flushJob(params);
     }
 
-    public void testCloseInUse() throws IOException {
+    public void testCloseInUse() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
         when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
-        communicator.inUse.set(true);
-        expectThrows(ElasticsearchStatusException.class, communicator::close);
+        CountDownLatch latch = mock(CountDownLatch.class);
+        communicator.inUse.set(latch);
+        communicator.close();
+        verify(latch, times(1)).await();
 
-        communicator.inUse.set(false);
+        communicator.inUse.set(null);
         communicator.close();
     }
 
@@ -179,10 +184,10 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
-        communicator.inUse.set(true);
+        communicator.inUse.set(new CountDownLatch(1));
         expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateConfigMessage(""));
 
-        communicator.inUse.set(false);
+        communicator.inUse.set(null);
         communicator.writeUpdateConfigMessage("");
     }
 

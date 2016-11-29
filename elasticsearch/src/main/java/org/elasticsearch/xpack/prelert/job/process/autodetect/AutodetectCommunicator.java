@@ -32,8 +32,9 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 public class AutodetectCommunicator implements Closeable {
@@ -47,7 +48,7 @@ public class AutodetectCommunicator implements Closeable {
     private final DataToProcessWriter autoDetectWriter;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
 
-    final AtomicBoolean inUse = new AtomicBoolean(false);
+    final AtomicReference<CountDownLatch> inUse = new AtomicReference<>();
 
     public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process, StatusReporter statusReporter,
                                   AutoDetectResultProcessor autoDetectResultProcessor, StateProcessor stateProcessor) {
@@ -81,7 +82,7 @@ public class AutodetectCommunicator implements Closeable {
             DataCounts results = autoDetectWriter.write(countingStream);
             autoDetectWriter.flush();
             return results;
-        });
+        }, false);
     }
 
     @Override
@@ -91,14 +92,14 @@ public class AutodetectCommunicator implements Closeable {
             autodetectProcess.close();
             autoDetectResultProcessor.awaitCompletion();
             return null;
-        });
+        }, true);
     }
 
     public void writeUpdateConfigMessage(String config) throws IOException {
         checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPDATE, jobId), () -> {
             autodetectProcess.writeUpdateConfigMessage(config);
             return null;
-        });
+        }, false);
     }
 
     public void flushJob(InterimResultsParams params) throws IOException {
@@ -110,6 +111,7 @@ public class AutodetectCommunicator implements Closeable {
             String flushId = autodetectProcess.flushJob(params);
 
             Duration timeout = Duration.ofSeconds(tryTimeoutSecs);
+            LOGGER.info("[{}] waiting for flush", jobId);
             boolean isFlushComplete = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, timeout);
             LOGGER.info("[{}] isFlushComplete={}", jobId, isFlushComplete);
             if (!isFlushComplete) {
@@ -122,7 +124,7 @@ public class AutodetectCommunicator implements Closeable {
             // clients from querying results in the middle of normalisation.
             autoDetectResultProcessor.waitUntilRenormaliserIsIdle();
             return null;
-        });
+        }, false);
     }
 
     /**
@@ -149,16 +151,32 @@ public class AutodetectCommunicator implements Closeable {
         return Optional.ofNullable(statusReporter.runningTotalStats());
     }
 
-    private <T> T checkAndRun(Supplier<String> errorMessage, Callback<T> callback) throws IOException {
-        if (inUse.compareAndSet(false, true)) {
+    private <T> T checkAndRun(Supplier<String> errorMessage, Callback<T> callback, boolean wait) throws IOException {
+        CountDownLatch latch = new CountDownLatch(1);
+        if (inUse.compareAndSet(null, latch)) {
             try {
                 checkProcessIsAlive();
                 return callback.run();
             } finally {
-                inUse.set(false);
+                latch.countDown();
+                inUse.set(null);
             }
         } else {
-            throw new ElasticsearchStatusException(errorMessage.get(), RestStatus.TOO_MANY_REQUESTS);
+            if (wait) {
+                latch = inUse.get();
+                if (latch != null) {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new ElasticsearchStatusException(errorMessage.get(), RestStatus.TOO_MANY_REQUESTS);
+                    }
+                }
+                checkProcessIsAlive();
+                return callback.run();
+            } else {
+                throw new ElasticsearchStatusException(errorMessage.get(), RestStatus.TOO_MANY_REQUESTS);
+            }
         }
     }
 

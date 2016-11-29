@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tribe;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
@@ -160,9 +161,6 @@ public class TribeService extends AbstractLifecycleComponent {
     // internal settings only
     public static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", Property.NodeScope);
     private final ClusterService clusterService;
-    private final String[] blockIndicesWrite;
-    private final String[] blockIndicesRead;
-    private final String[] blockIndicesMetadata;
     private static final String ON_CONFLICT_ANY = "any", ON_CONFLICT_DROP = "drop", ON_CONFLICT_PREFER = "prefer_";
 
     public static final Setting<String> ON_CONFLICT_SETTING = new Setting<>("tribe.on_conflict", ON_CONFLICT_ANY, (s) -> {
@@ -202,7 +200,6 @@ public class TribeService extends AbstractLifecycleComponent {
         TransportSettings.BIND_HOST,
         TransportSettings.PUBLISH_HOST
     );
-    private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
@@ -219,10 +216,6 @@ public class TribeService extends AbstractLifecycleComponent {
             nodes.add(clientNodeBuilder.apply(clientSettings));
         }
 
-        this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
-        this.blockIndicesRead = BLOCKS_READ_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
-        this.blockIndicesWrite = BLOCKS_WRITE_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
-
         if (!nodes.isEmpty()) {
             if (BLOCKS_WRITE_SETTING.get(settings)) {
                 clusterService.addInitialStateBlock(TRIBE_WRITE_BLOCK);
@@ -231,8 +224,6 @@ public class TribeService extends AbstractLifecycleComponent {
                 clusterService.addInitialStateBlock(TRIBE_METADATA_BLOCK);
             }
         }
-
-        this.onConflict = ON_CONFLICT_SETTING.get(settings);
     }
 
     // pkg private for testing
@@ -335,9 +326,8 @@ public class TribeService extends AbstractLifecycleComponent {
         private final TribeNodeClusterStateTaskExecutor executor;
 
         TribeClusterStateListener(Node tribeNode) {
-            String tribeName = TRIBE_NAME_SETTING.get(tribeNode.settings());
-            this.tribeName = tribeName;
-            executor = new TribeNodeClusterStateTaskExecutor(tribeName);
+            this.tribeName = TRIBE_NAME_SETTING.get(tribeNode.settings());
+            executor = new TribeNodeClusterStateTaskExecutor(settings, nodes, tribeName, droppedIndices, logger);
         }
 
         @Override
@@ -352,11 +342,27 @@ public class TribeService extends AbstractLifecycleComponent {
         }
     }
 
-    class TribeNodeClusterStateTaskExecutor implements ClusterStateTaskExecutor<ClusterChangedEvent> {
+    // pkg-private for testing
+    static class TribeNodeClusterStateTaskExecutor implements ClusterStateTaskExecutor<ClusterChangedEvent> {
         private final String tribeName;
+        private final List<Node> nodes;
+        private final String[] blockIndicesMetadata;
+        private final String[] blockIndicesRead;
+        private final String[] blockIndicesWrite;
+        private final String onConflict;
+        private final Set<String> droppedIndices; // shared by all tribe cluster state listeners
+        private final Logger logger;
 
-        TribeNodeClusterStateTaskExecutor(String tribeName) {
+        public TribeNodeClusterStateTaskExecutor(Settings settings, List<Node> nodes, String tribeName,
+                                                 Set<String> droppedIndices, Logger logger) {
             this.tribeName = tribeName;
+            this.nodes = nodes;
+            this.logger = logger;
+            this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+            this.blockIndicesRead = BLOCKS_READ_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+            this.blockIndicesWrite = BLOCKS_WRITE_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+            this.onConflict = ON_CONFLICT_SETTING.get(settings);
+            this.droppedIndices = droppedIndices;
         }
 
         @Override
@@ -505,9 +511,8 @@ public class TribeService extends AbstractLifecycleComponent {
                     .map(ClusterChangedEvent::changedCustomMetaDataSet)
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
-            final List<Node> tribeClientNodes = TribeService.this.nodes;
             Map<String, MetaData.Custom> mergedCustomMetaDataMap = mergeChangedCustomMetaData(changedCustomMetaDataTypeSet,
-                    customMetaDataType -> tribeClientNodes.stream()
+                    customMetaDataType -> nodes.stream()
                             .map(TribeService::getClusterService).map(ClusterService::state)
                             .map(ClusterState::metaData)
                             .map(clusterMetaData -> ((MetaData.Custom) clusterMetaData.custom(customMetaDataType)))

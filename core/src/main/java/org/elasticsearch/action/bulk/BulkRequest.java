@@ -340,8 +340,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                             } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
                                 parent = parser.text();
                             } else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
+                                DEPRECATION_LOGGER.deprecated("The [timestamp] parameter of index requests is deprecated");
                                 timestamp = parser.text();
                             } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
+                                DEPRECATION_LOGGER.deprecated("The [ttl] parameter of index requests is deprecated");
                                 if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                                     ttl = TimeValue.parseTimeValue(parser.text(), null, currentFieldName);
                                 } else {

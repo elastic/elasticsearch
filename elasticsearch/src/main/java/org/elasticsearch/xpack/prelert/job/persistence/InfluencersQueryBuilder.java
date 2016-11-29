@@ -10,23 +10,20 @@ import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import java.util.Objects;
 
 /**
- * One time query builder for buckets.
+ * One time query builder for influencers.
  * <ul>
- * <li>From- Skip the first N Buckets. This parameter is for paging if not
+ * <li>From- Skip the first N Influencers. This parameter is for paging if not
  * required set to 0. Default = 0</li>
- * <li>Size- Take only this number of Buckets. Default =
+ * <li>Size- Take only this number of Influencers. Default =
  * {@value DEFAULT_SIZE}</li>
- * <li>Expand- Include anomaly records. Default= false</li>
  * <li>IncludeInterim- Include interim results. Default = false</li>
- * <li>anomalyScoreThreshold- Return only buckets with an anomalyScore &gt;=
+ * <li>anomalyScoreThreshold- Return only influencers with an anomalyScore &gt;=
  * this value. Default = 0.0</li>
- * <li>normalizedProbabilityThreshold- Return only buckets with a
- * maxNormalizedProbability &gt;= this value. Default = 0.0</li>
- * <li>epochStart- The start bucket time. A bucket with this timestamp will be
- * included in the results. If 0 all buckets up to <code>endEpochMs</code> are
+ * <li>start- The start influencer time. An influencer with this timestamp will be
+ * included in the results. If 0 all influencers up to <code>end</code> are
  * returned. Default = -1</li>
- * <li>epochEnd- The end bucket timestamp buckets up to but NOT including this
- * timestamp are returned. If 0 all buckets from <code>startEpochMs</code> are
+ * <li>end- The end influencer timestamp. Influencers up to but NOT including this
+ * timestamp are returned. If 0 all influencers from <code>start</code> are
  * returned. Default = -1</li>
  * <li>partitionValue Set the bucket's max normalised probability to this
  * partition field value's max normalised probability. Default = null</li>
@@ -70,16 +67,16 @@ public final class InfluencersQueryBuilder {
     /**
      * If startTime &gt;= 0 the parameter is not set
      */
-    public InfluencersQueryBuilder epochStart(String startTime) {
-        influencersQuery.epochStart = startTime;
+    public InfluencersQueryBuilder start(String startTime) {
+        influencersQuery.start = startTime;
         return this;
     }
 
     /**
      * If endTime &gt;= 0 the parameter is not set
      */
-    public InfluencersQueryBuilder epochEnd(String endTime) {
-        influencersQuery.epochEnd = endTime;
+    public InfluencersQueryBuilder end(String endTime) {
+        influencersQuery.end = endTime;
         return this;
     }
 
@@ -97,8 +94,8 @@ public final class InfluencersQueryBuilder {
         private int size = DEFAULT_SIZE;
         private boolean includeInterim = false;
         private double anomalyScoreFilter = 0.0d;
-        private String epochStart;
-        private String epochEnd;
+        private String start;
+        private String end;
         private String sortField = Influencer.ANOMALY_SCORE.getPreferredName();
         private boolean sortDescending = false;
 
@@ -118,12 +115,12 @@ public final class InfluencersQueryBuilder {
             return anomalyScoreFilter;
         }
 
-        public String getEpochStart() {
-            return epochStart;
+        public String getStart() {
+            return start;
         }
 
-        public String getEpochEnd() {
-            return epochEnd;
+        public String getEnd() {
+            return end;
         }
 
         public String getSortField() {
@@ -136,8 +133,7 @@ public final class InfluencersQueryBuilder {
 
         @Override
         public int hashCode() {
-            return Objects.hash(from, size, includeInterim, anomalyScoreFilter, epochStart, epochEnd,
-                    sortField, sortDescending);
+            return Objects.hash(from, size, includeInterim, anomalyScoreFilter, start, end, sortField, sortDescending);
         }
 
 
@@ -157,8 +153,8 @@ public final class InfluencersQueryBuilder {
             return Objects.equals(from, other.from) &&
                     Objects.equals(size, other.size) &&
                     Objects.equals(includeInterim, other.includeInterim) &&
-                    Objects.equals(epochStart, other.epochStart) &&
-                    Objects.equals(epochEnd, other.epochEnd) &&
+                    Objects.equals(start, other.start) &&
+                    Objects.equals(end, other.end) &&
                     Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter) &&
                     Objects.equals(sortField, other.sortField) &&
                     this.sortDescending == other.sortDescending;

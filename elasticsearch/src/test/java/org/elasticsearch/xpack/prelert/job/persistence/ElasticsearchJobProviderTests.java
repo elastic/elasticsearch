@@ -762,7 +762,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
         Client client = clientBuilder.build();
         ElasticsearchJobProvider provider = createProvider(client);
 
-        InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).epochStart("0").epochEnd("0").sortField("sort")
+        InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).start("0").end("0").sortField("sort")
                 .sortDescending(true).anomalyScoreThreshold(0.0).includeInterim(true).build();
         QueryPage<Influencer> page = provider.influencers(jobId, query);
         assertEquals(2L, page.count());

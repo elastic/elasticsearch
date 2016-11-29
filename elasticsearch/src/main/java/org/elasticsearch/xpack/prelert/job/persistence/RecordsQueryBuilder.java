@@ -21,92 +21,80 @@ package org.elasticsearch.xpack.prelert.job.persistence;
  * this value. Default = 0.0</li>
  * <li>normalizedProbabilityThreshold. Return only buckets with a
  * maxNormalizedProbability &gt;= this value. Default = 0.0</li>
- * <li>epochStart- The start bucket time. A bucket with this timestamp will be
+ * <li>start- The start bucket time. A bucket with this timestamp will be
  * included in the results. If 0 all buckets up to <code>endEpochMs</code> are
  * returned. Default = -1</li>
- * <li>epochEnd- The end bucket timestamp buckets up to but NOT including this
+ * <li>end- The end bucket timestamp buckets up to but NOT including this
  * timestamp are returned. If 0 all buckets from <code>startEpochMs</code> are
  * returned. Default = -1</li>
  * </ul>
  */
-public final class RecordsQueryBuilder
-{
+public final class RecordsQueryBuilder {
+
     public static final int DEFAULT_SIZE = 100;
 
     private RecordsQuery recordsQuery = new RecordsQuery();
 
-    public RecordsQueryBuilder from(int from)
-    {
+    public RecordsQueryBuilder from(int from) {
         recordsQuery.from = from;
         return this;
     }
 
-    public RecordsQueryBuilder size(int size)
-    {
+    public RecordsQueryBuilder size(int size) {
         recordsQuery.size = size;
         return this;
     }
 
-    public RecordsQueryBuilder epochStart(String startTime)
-    {
-        recordsQuery.epochStart = startTime;
+    public RecordsQueryBuilder epochStart(String startTime) {
+        recordsQuery.start = startTime;
         return this;
     }
 
-    public RecordsQueryBuilder epochEnd(String endTime)
-    {
-        recordsQuery.epochEnd = endTime;
+    public RecordsQueryBuilder epochEnd(String endTime) {
+        recordsQuery.end = endTime;
         return this;
     }
 
-    public RecordsQueryBuilder includeInterim(boolean include)
-    {
+    public RecordsQueryBuilder includeInterim(boolean include) {
         recordsQuery.includeInterim = include;
         return this;
     }
 
-    public RecordsQueryBuilder sortField(String fieldname)
-    {
+    public RecordsQueryBuilder sortField(String fieldname) {
         recordsQuery.sortField = fieldname;
         return this;
     }
 
-    public RecordsQueryBuilder sortDescending(boolean sortDescending)
-    {
+    public RecordsQueryBuilder sortDescending(boolean sortDescending) {
         recordsQuery.sortDescending = sortDescending;
         return this;
     }
 
-    public RecordsQueryBuilder anomalyScoreThreshold(double anomalyScoreFilter)
-    {
+    public RecordsQueryBuilder anomalyScoreThreshold(double anomalyScoreFilter) {
         recordsQuery.anomalyScoreFilter = anomalyScoreFilter;
         return this;
     }
 
-    public RecordsQueryBuilder normalizedProbability(double normalizedProbability)
-    {
+    public RecordsQueryBuilder normalizedProbability(double normalizedProbability) {
         recordsQuery.normalizedProbability = normalizedProbability;
         return this;
     }
 
-    public RecordsQueryBuilder partitionFieldValue(String partitionFieldValue)
-    {
+    public RecordsQueryBuilder partitionFieldValue(String partitionFieldValue) {
         recordsQuery.partitionFieldValue = partitionFieldValue;
         return this;
     }
 
-    public RecordsQuery build()
-    {
+    public RecordsQuery build() {
         return recordsQuery;
     }
 
-    public void clear()
-    {
+    public void clear() {
         recordsQuery = new RecordsQuery();
     }
 
-    public class RecordsQuery
-    {
+    public class RecordsQuery {
+
         private int from = 0;
         private int size = DEFAULT_SIZE;
         private boolean includeInterim = false;
@@ -115,58 +103,48 @@ public final class RecordsQueryBuilder
         private double anomalyScoreFilter = 0.0d;
         private double normalizedProbability = 0.0d;
         private String partitionFieldValue;
-        private String epochStart;
-        private String epochEnd;
+        private String start;
+        private String end;
 
 
-        public int getSize()
-        {
+        public int getSize() {
             return size;
         }
 
-        public boolean isIncludeInterim()
-        {
+        public boolean isIncludeInterim() {
             return includeInterim;
         }
 
-        public String getSortField()
-        {
+        public String getSortField() {
             return sortField;
         }
 
-        public boolean isSortDescending()
-        {
+        public boolean isSortDescending() {
             return sortDescending;
         }
 
-        public double getAnomalyScoreThreshold()
-        {
+        public double getAnomalyScoreThreshold() {
             return anomalyScoreFilter;
         }
 
-        public double getNormalizedProbabilityThreshold()
-        {
+        public double getNormalizedProbabilityThreshold() {
             return normalizedProbability;
         }
 
-        public String getPartitionFieldValue()
-        {
+        public String getPartitionFieldValue() {
             return partitionFieldValue;
         }
 
-        public int getFrom()
-        {
+        public int getFrom() {
             return from;
         }
 
-        public String getEpochStart()
-        {
-            return epochStart;
+        public String getStart() {
+            return start;
         }
 
-        public String getEpochEnd()
-        {
-            return epochEnd;
+        public String getEnd() {
+            return end;
         }
     }
 }

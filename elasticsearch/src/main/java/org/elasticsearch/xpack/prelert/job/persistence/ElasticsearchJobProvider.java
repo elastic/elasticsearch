@@ -273,7 +273,7 @@ public class ElasticsearchJobProvider implements JobProvider {
     public QueryPage<Bucket> buckets(String jobId, BucketsQuery query)
             throws ResourceNotFoundException {
         QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getEpochStart(), query.getEpochEnd())
+                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getStart(), query.getEnd())
                 .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
                 .score(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbability())
                 .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
@@ -292,7 +292,7 @@ public class ElasticsearchJobProvider implements JobProvider {
             }
         } else {
             List<PerPartitionMaxProbabilities> scores =
-                    partitionMaxNormalisedProbabilities(jobId, query.getEpochStart(), query.getEpochEnd(), query.getPartitionValue());
+                    partitionMaxNormalisedProbabilities(jobId, query.getStart(), query.getEnd(), query.getPartitionValue());
 
             mergePartitionScoresIntoBucket(scores, buckets.results(), query.getPartitionValue());
 
@@ -630,7 +630,7 @@ public class ElasticsearchJobProvider implements JobProvider {
     public QueryPage<AnomalyRecord> records(String jobId, RecordsQueryBuilder.RecordsQuery query)
             throws ResourceNotFoundException {
         QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getEpochStart(), query.getEpochEnd())
+                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getStart(), query.getEnd())
                 .score(AnomalyRecord.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreThreshold())
                 .score(AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbabilityThreshold())
                 .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
@@ -711,7 +711,7 @@ public class ElasticsearchJobProvider implements JobProvider {
     @Override
     public QueryPage<Influencer> influencers(String jobId, InfluencersQuery query) throws ResourceNotFoundException {
         QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getEpochStart(), query.getEpochEnd())
+                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getStart(), query.getEnd())
                 .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
                 .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
                 .build();

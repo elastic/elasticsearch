@@ -775,6 +775,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         IllegalArgumentException exc =
             expectThrows(IllegalArgumentException.class, () -> builder.toQuery(createShardContext()));
         assertEquals(exc.getMessage(),
-            "it is disallowed to disable split_on_whitespace if auto_generate_phrase_queries is activated");
+            "it is disallowed to disable [split_on_whitespace] if [auto_generate_phrase_queries] is activated");
     }
 }

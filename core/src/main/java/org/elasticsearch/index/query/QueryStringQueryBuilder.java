@@ -938,8 +938,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         //TODO would be nice to have all the settings in one place: some change though at query execution time
         //e.g. field names get expanded to concrete names, defaults get resolved sometimes to settings values etc.
         if (splitOnWhitespace == false && autoGeneratePhraseQueries) {
-            throw new IllegalArgumentException("it is disallowed to disable split_on_whitespace " +
-                "if auto_generate_phrase_queries is activated");
+            throw new IllegalArgumentException("it is disallowed to disable [split_on_whitespace] " +
+                "if [auto_generate_phrase_queries] is activated");
         }
         QueryParserSettings qpSettings;
         if (this.escape) {

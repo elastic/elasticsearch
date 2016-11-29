@@ -62,7 +62,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -118,7 +117,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -220,8 +218,6 @@ public final class InternalTestCluster extends TestCluster {
     private final int numSharedCoordOnlyNodes;
 
     private final NodeConfigurationSource nodeConfigurationSource;
-
-    private final ExecutorService executor;
 
     private final boolean autoManageMinMasterNodes;
 
@@ -338,7 +334,6 @@ public final class InternalTestCluster extends TestCluster {
         // always reduce this - it can make tests really slow
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), TimeValue.timeValueMillis(RandomNumbers.randomIntBetween(random, 20, 50)));
         defaultSettings = builder.build();
-        executor = EsExecutors.newScaling("test runner", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
     }
 
     @Override
@@ -759,7 +754,6 @@ public final class InternalTestCluster extends TestCluster {
             }
             IOUtils.closeWhileHandlingException(nodes.values());
             nodes.clear();
-            executor.shutdownNow();
         }
     }
 

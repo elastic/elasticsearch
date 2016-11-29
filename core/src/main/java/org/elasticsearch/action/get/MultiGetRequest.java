@@ -284,11 +284,6 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
         return validationException;
     }
 
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return items;
-    }
-
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or

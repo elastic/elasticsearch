@@ -211,11 +211,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this.requests;
     }
 
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return requests.stream().collect(Collectors.toList());
-    }
-
     /**
      * The list of optional payloads associated with requests in the same order as the requests. Note, elements within
      * it might be null if no payload has been provided.

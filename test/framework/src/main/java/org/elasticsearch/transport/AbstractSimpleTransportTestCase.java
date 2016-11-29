@@ -1731,7 +1731,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (ServerSocket socket = new ServerSocket()) {
             // nocommit - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
             // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which
-            // means that oncewe received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
+            // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
             // into a connection timeout quickly. Yet other implementations can for instance can terminate the connection within the 3 way
             // handshake which I haven't tested yet.
             socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
@@ -1750,7 +1750,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE);
 
-            // connection with one connection and a large timeout -- should consume the one spot in the queu
+            // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
             serviceA.connectToNode(first, builder.build());
             builder.setConnectTimeout(TimeValue.timeValueMillis(1));
             final ConnectionProfile profile = builder.build();
@@ -1763,7 +1763,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             final long timeTaken = TimeValue.nsecToMSec(now - startTime);
             assertTrue("test didn't timeout quick enough, time taken: [" + timeTaken + "]",
                 timeTaken < TimeValue.timeValueSeconds(5).millis());
-            logger.warn("", ex);
             assertEquals(ex.getMessage(), "[][" + second.getAddress() + "] connect_timeout[1ms]");
         }
     }

@@ -58,7 +58,6 @@ import java.util.Optional;
  * */
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
     public static final String NAME = "geo_bounding_box";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "geo_bbox");
 
     /** Default type for executing this query (memory as of this writing). */
     public static final GeoExecType DEFAULT_TYPE = GeoExecType.MEMORY;
@@ -472,12 +471,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                                 left = sparse.getLon();
                             } else {
                                 throw new ElasticsearchParseException("failed to parse [{}] query. unexpected field [{}]",
-                                        QUERY_NAME_FIELD.getPreferredName(), currentFieldName);
+                                        NAME, currentFieldName);
                             }
                         }
                     } else {
                         throw new ElasticsearchParseException("failed to parse [{}] query. field name expected but [{}] found",
-                                QUERY_NAME_FIELD.getPreferredName(), token);
+                                NAME, token);
                     }
                 }
             } else if (token.isValue()) {
@@ -500,7 +499,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     ignoreMalformed = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
-                            QUERY_NAME_FIELD.getPreferredName(), currentFieldName);
+                            NAME, currentFieldName);
                 }
             }
         }

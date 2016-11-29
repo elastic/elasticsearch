@@ -1,0 +1,14 @@
+{
+    "person": {
+        "properties": {
+            "file": {
+                "type": "attachment",
+                "fields": {
+                    "content": {
+                        "type": "nonexistingtype"
+                    }
+                }
+            }
+        }
+    }
+}

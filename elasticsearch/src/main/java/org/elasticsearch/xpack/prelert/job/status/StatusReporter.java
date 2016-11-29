@@ -9,22 +9,39 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 
+import java.io.Closeable;
 import java.util.Date;
 import java.util.Locale;
+import java.util.function.Function;
 
 
 /**
- * Status reporter for tracking all the good/bad
- * records written to the API. Call one of the reportXXX() methods
- * to update the records counts if {@linkplain #isReportingBoundary(long)}
- * returns true then the count will be logged and the counts persisted
- * via the {@linkplain JobDataCountsPersister}.
+ * Status reporter for tracking counts of the good/bad records written to the API.
+ * Call one of the reportXXX() methods to update the records counts.
+ *
+ * Stats are logged at specific stages
+ * <ol>
+ * <li>Every 100 records for the first 1000 records</li>
+ * <li>Every 1000 records for the first 20000 records</li>
+ * <li>Every 10000 records after 20000 records</li>
+ * </ol>
+ * The {@link #reportingBoundaryFunction} member points to a different
+ * function depending on which reporting stage is the current, the function
+ * changes when each of the reporting stages are passed. If the
+ * function returns {@code true} the usage is logged.
+ *
+ * DataCounts are persisted periodically in a scheduled task via
+ * {@linkplain JobDataCountsPersister},  {@link #close()} must be called to
+ * cancel the scheduled task.
  */
-public class StatusReporter extends AbstractComponent {
+public class StatusReporter extends AbstractComponent implements Closeable {
     /**
      * The max percentage of date parse errors allowed before
      * an exception is thrown.
@@ -39,6 +56,8 @@ public class StatusReporter extends AbstractComponent {
     public static final Setting<Integer> ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING = Setting
             .intSetting("max.percent.outoforder.errors", 25, Property.NodeScope);
 
+    private static final TimeValue PERSIST_INTERVAL = TimeValue.timeValueMillis(10_000L);
+
     private final String jobId;
     private final UsageReporter usageReporter;
     private final JobDataCountsPersister dataCountsPersister;
@@ -48,7 +67,6 @@ public class StatusReporter extends AbstractComponent {
 
     private long analyzedFieldsPerRecord = 1;
 
-    private long recordCountDivisor = 100;
     private long lastRecordCountQuotient = 0;
     private long logEvery = 1;
     private long logCount = 0;
@@ -56,28 +74,32 @@ public class StatusReporter extends AbstractComponent {
     private final int acceptablePercentDateParseErrors;
     private final int acceptablePercentOutOfOrderErrors;
 
-    public StatusReporter(Settings settings, String jobId, UsageReporter usageReporter,
-                          JobDataCountsPersister dataCountsPersister) {
-        this(settings, jobId, usageReporter, dataCountsPersister, new DataCounts(jobId));
-    }
+    private Function<Long, Boolean> reportingBoundaryFunction;
 
-    public StatusReporter(Settings settings, String jobId, DataCounts counts, UsageReporter usageReporter,
-                          JobDataCountsPersister dataCountsPersister) {
-        this(settings, jobId, usageReporter, dataCountsPersister, new DataCounts(counts));
-    }
+    private volatile boolean persistDataCountsOnNextRecord;
+    private final ThreadPool.Cancellable persistDataCountsScheduledAction;
+    private final ThreadPool threadPool;
 
-    private StatusReporter(Settings settings, String jobId, UsageReporter usageReporter, JobDataCountsPersister dataCountsPersister,
-                           DataCounts totalCounts) {
+    public StatusReporter(ThreadPool threadPool, Settings settings, String jobId, DataCounts counts, UsageReporter usageReporter,
+                          JobDataCountsPersister dataCountsPersister) {
+
         super(settings);
+
         this.jobId = jobId;
         this.usageReporter = usageReporter;
         this.dataCountsPersister = dataCountsPersister;
 
-        totalRecordStats = totalCounts;
+        totalRecordStats = counts;
         incrementalRecordStats = new DataCounts(jobId);
 
         acceptablePercentDateParseErrors = ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.get(settings);
         acceptablePercentOutOfOrderErrors = ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.get(settings);
+
+        reportingBoundaryFunction = this::reportEvery100Records;
+
+        this.threadPool = threadPool;
+        persistDataCountsScheduledAction = threadPool.scheduleWithFixedDelay(() -> persistDataCountsOnNextRecord = true,
+                PERSIST_INTERVAL, ThreadPool.Names.GENERIC);
     }
 
     /**
@@ -103,17 +125,22 @@ public class StatusReporter extends AbstractComponent {
         incrementalRecordStats.incrementProcessedRecordCount(1);
         incrementalRecordStats.setLatestRecordTimeStamp(recordDate);
 
-        if (totalRecordStats.getEarliestRecordTimeStamp() == null) {
+        boolean isFirstReport = totalRecordStats.getEarliestRecordTimeStamp() == null;
+        if (isFirstReport) {
             totalRecordStats.setEarliestRecordTimeStamp(recordDate);
             incrementalRecordStats.setEarliestRecordTimeStamp(recordDate);
         }
 
         // report at various boundaries
         long totalRecords = getInputRecordCount();
-        if (isReportingBoundary(totalRecords)) {
+        if (reportingBoundaryFunction.apply(totalRecords)) {
             logStatus(totalRecords);
+        }
 
-            dataCountsPersister.persistDataCounts(jobId, runningTotalStats());
+        if (persistDataCountsOnNextRecord) {
+            DataCounts copy = new DataCounts(runningTotalStats());
+            threadPool.generic().submit(() ->  dataCountsPersister.persistDataCounts(jobId, copy));
+            persistDataCountsOnNextRecord = false;
         }
     }
 
@@ -249,7 +276,7 @@ public class StatusReporter extends AbstractComponent {
      * processes more data.  Logging every 10000 records when the data rate is
      * 40000 per second quickly rolls the logs.
      */
-    private void logStatus(long totalRecords) {
+    protected void logStatus(long totalRecords) {
         if (++logCount % logEvery != 0) {
             return;
         }
@@ -268,36 +295,41 @@ public class StatusReporter extends AbstractComponent {
         }
     }
 
-    /**
-     * Don't update status for every update instead update on these
-     * boundaries
-     * <ol>
-     * <li>For the first 1000 records update every 100</li>
-     * <li>After 1000 records update every 1000</li>
-     * <li>After 20000 records update every 10000</li>
-     * </ol>
-     */
-    private boolean isReportingBoundary(long totalRecords) {
-        // after 20,000 records update every 10,000
-        int divisor = 10000;
-
-        if (totalRecords <= 1000) {
-            // for the first 1000 records update every 100
-            divisor = 100;
-        } else if (totalRecords <= 20000) {
-            // before 20,000 records update every 1000
-            divisor = 1000;
-        }
-
-        if (divisor != recordCountDivisor) {
-            // have crossed one of the reporting bands
-            recordCountDivisor = divisor;
-            lastRecordCountQuotient = totalRecords / divisor;
-
+    private boolean reportEvery100Records(long totalRecords) {
+        if (totalRecords > 1000) {
+            lastRecordCountQuotient = totalRecords / 1000;
+            reportingBoundaryFunction = this::reportEvery1000Records;
             return false;
         }
 
-        long quotient = totalRecords / divisor;
+        long quotient = totalRecords / 100;
+        if (quotient > lastRecordCountQuotient) {
+            lastRecordCountQuotient = quotient;
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean reportEvery1000Records(long totalRecords) {
+
+        if (totalRecords > 20000) {
+            lastRecordCountQuotient = totalRecords / 10000;
+            reportingBoundaryFunction = this::reportEvery10000Records;
+            return false;
+        }
+
+        long quotient = totalRecords / 1000;
+        if (quotient > lastRecordCountQuotient) {
+            lastRecordCountQuotient = quotient;
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean reportEvery10000Records(long totalRecords) {
+        long quotient = totalRecords / 10000;
         if (quotient > lastRecordCountQuotient) {
             lastRecordCountQuotient = quotient;
             return true;
@@ -318,5 +350,10 @@ public class StatusReporter extends AbstractComponent {
     public synchronized DataCounts runningTotalStats() {
         totalRecordStats.calcProcessedFieldCount(getAnalysedFieldsPerRecord());
         return totalRecordStats;
+    }
+
+    @Override
+    public void close() {
+        persistDataCountsScheduledAction.cancel();
     }
 }

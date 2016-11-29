@@ -87,6 +87,7 @@ public class AutodetectCommunicator implements Closeable {
     @Override
     public void close() throws IOException {
         checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_CLOSE, jobId), () -> {
+            statusReporter.close();
             autodetectProcess.close();
             autoDetectResultProcessor.awaitCompletion();
             return null;

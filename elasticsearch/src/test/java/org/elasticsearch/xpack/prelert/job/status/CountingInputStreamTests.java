@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 public class CountingInputStreamTests extends ESTestCase {
 
     public void testRead_OneByteAtATime() throws IOException {
+
         UsageReporter usageReporter = new UsageReporter(Settings.EMPTY, "foo", Mockito.mock(UsagePersister.class));
         DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
 
@@ -32,14 +33,12 @@ public class CountingInputStreamTests extends ESTestCase {
             // value of the read() method
             Assert.assertEquals(TEXT.length() + 1, usageReporter.getBytesReadSinceLastReport());
 
-            Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(),
-                    statusReporter.getBytesRead());
+            Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(), statusReporter.getBytesRead());
         }
     }
 
     public void testRead_WithBuffer() throws IOException {
-        final String TEXT = "To the man who only has a hammer,"
-                + " everything he encounters begins to look like a nail.";
+        final String TEXT = "To the man who only has a hammer, everything he encounters begins to look like a nail.";
 
         UsageReporter usageReporter = new UsageReporter(Settings.EMPTY, "foo", Mockito.mock(UsagePersister.class));
         DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
@@ -53,14 +52,12 @@ public class CountingInputStreamTests extends ESTestCase {
             // the return value of the read() method
             Assert.assertEquals(TEXT.length() - 1, usageReporter.getBytesReadSinceLastReport());
 
-            Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(),
-                    statusReporter.getBytesRead());
+            Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(), statusReporter.getBytesRead());
         }
     }
 
     public void testRead_WithTinyBuffer() throws IOException {
-        final String TEXT = "To the man who only has a hammer,"
-                + " everything he encounters begins to look like a nail.";
+        final String TEXT = "To the man who only has a hammer, everything he encounters begins to look like a nail.";
 
         UsageReporter usageReporter = new UsageReporter(Settings.EMPTY, "foo", Mockito.mock(UsagePersister.class));
         DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
@@ -74,10 +71,8 @@ public class CountingInputStreamTests extends ESTestCase {
             // value of the read() method
             Assert.assertEquals(TEXT.length() - 1, usageReporter.getBytesReadSinceLastReport());
 
-            Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(),
-                    statusReporter.getBytesRead());
+            Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(), statusReporter.getBytesRead());
         }
-
     }
 
 }

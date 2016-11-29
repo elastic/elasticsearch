@@ -132,8 +132,8 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         ExecutorService executorService = threadPool.executor(PrelertPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME);
 
         UsageReporter usageReporter = new UsageReporter(settings, job.getJobId(), usagePersister);
-        StatusReporter statusReporter =
-                new StatusReporter(settings, job.getJobId(), jobProvider.dataCounts(jobId), usageReporter, jobDataCountsPersister);
+        StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getJobId(),
+                jobProvider.dataCounts(jobId), usageReporter, jobDataCountsPersister);
         AutoDetectResultProcessor processor =  new AutoDetectResultProcessor(new NoOpRenormaliser(), jobResultsPersister, parser);
 
         AutodetectProcess process = null;

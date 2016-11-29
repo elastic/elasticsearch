@@ -21,6 +21,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +38,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -48,7 +51,6 @@ import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
 import org.elasticsearch.index.mapper.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -357,6 +359,24 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
+            final GeoPointValues singleton = FieldData.unwrapSingleton(geoPointValues);
+            final double missing = 0d; // TODO: should it be POS INF?
+            if (singleton != null) {
+                final Bits docsWithField = FieldData.unwrapSingletonBits(geoPointValues);
+                return new NumericDoubleValues() {
+                    @Override
+                    public double get(int docID) {
+                        final GeoPoint point = singleton.get(docID);
+                        if (point.lat() == 0 && point.lon() == 0 && docsWithField.get(docID) == false) {
+                            return missing;
+                        }
+                        final double distance = distFunction.calculate(origin.lat(), origin.lon(), point.lat(), point.lon(),
+                                DistanceUnit.METERS);
+                        return Math.max(0.0d, distance - offset);
+                    }
+                };
+            }
+
             return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
                 @Override
                 public int count() {
@@ -374,7 +394,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     return Math.max(0.0d,
                             distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS) - offset);
                 }
-            }, 0.0);
+            }, missing);
         }
 
         @Override
@@ -439,6 +459,25 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
+            final double missing = 0; // TODO: should it be POS INF?
+            final NumericDoubleValues singleton = FieldData.unwrapSingleton(doubleValues);
+            if (singleton != null) {
+                // Optimize the single-valued case
+                final Bits docsWithField = FieldData.unwrapSingletonBits(doubleValues);
+                return new NumericDoubleValues() {
+
+                    @Override
+                    public double get(int docID) {
+                        final double value = singleton.get(docID);
+                        if (value == 0 && docsWithField.get(docID) == false) {
+                            return missing;
+                        }
+                        return Math.max(0.0d, Math.abs(value - origin) - offset);
+                    }
+
+                };
+            }
+
             return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
                 @Override
                 public int count() {
@@ -454,7 +493,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 public double valueAt(int index) {
                     return Math.max(0.0d, Math.abs(doubleValues.valueAt(index) - origin) - offset);
                 }
-            }, 0.0);
+            }, missing);
         }
 
         @Override

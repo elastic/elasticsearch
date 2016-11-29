@@ -39,6 +39,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -54,8 +55,10 @@ import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -176,21 +179,32 @@ public class FunctionScoreTests extends ESTestCase {
 
                 @Override
                 public SortedNumericDoubleValues getDoubleValues() {
-                    return new SortedNumericDoubleValues() {
-                        @Override
-                        public void setDocument(int doc) {
-                        }
+                    if (randomBoolean()) {
+                        return new SortedNumericDoubleValues() {
+                            @Override
+                            public void setDocument(int doc) {
+                            }
 
-                        @Override
-                        public double valueAt(int index) {
-                            return 1;
-                        }
+                            @Override
+                            public double valueAt(int index) {
+                                return 1;
+                            }
 
-                        @Override
-                        public int count() {
-                            return 1;
-                        }
-                    };
+                            @Override
+                            public int count() {
+                                return 1;
+                            }
+                        };
+                    } else {
+                        return FieldData.singleton(new NumericDoubleValues() {
+
+                            @Override
+                            public double get(int docID) {
+                                return 1;
+                            }
+
+                        }, new Bits.MatchAllBits(1));
+                    }
                 }
 
                 @Override

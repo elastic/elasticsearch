@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.Bits.MatchAllBits;
 import org.elasticsearch.common.geo.GeoPoint;
 
 final class SingletonMultiGeoPointValues extends MultiGeoPointValues {
@@ -31,13 +32,13 @@ final class SingletonMultiGeoPointValues extends MultiGeoPointValues {
 
     SingletonMultiGeoPointValues(GeoPointValues in, Bits docsWithField) {
         this.in = in;
-        this.docsWithField = docsWithField;
+        this.docsWithField = docsWithField instanceof MatchAllBits ? null : docsWithField;
     }
 
     @Override
     public void setDocument(int docID) {
         value = in.get(docID);
-        if (value.lat() == Double.NaN && value.lon() == Double.NaN || (docsWithField != null && !docsWithField.get(docID))) {
+        if (docsWithField != null && value.lat() == 0 && value.lon() == 0 && docsWithField.get(docID) == false) {
             count = 0;
         } else {
             count = 1;

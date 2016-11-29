@@ -82,7 +82,7 @@ public abstract class GeoPointArrayLegacyAtomicFieldData extends AbstractAtomicG
                         if (ord >= 0) {
                             return point.reset(lat.get(ord), lon.get(ord));
                         }
-                        return point.reset(Double.NaN, Double.NaN);
+                        return point.reset(0, 0);
                     }
                 };
                 return FieldData.singleton(values, DocValues.docsWithValue(singleOrds, maxDoc));
@@ -96,7 +96,7 @@ public abstract class GeoPointArrayLegacyAtomicFieldData extends AbstractAtomicG
                         if (ord >= 0) {
                             return point.reset(lat.get(ord), lon.get(ord));
                         }
-                        return point.reset(Double.NaN, Double.NaN);
+                        return point.reset(0, 0);
                     }
 
                     @Override
@@ -152,7 +152,7 @@ public abstract class GeoPointArrayLegacyAtomicFieldData extends AbstractAtomicG
                     if (set == null || set.get(docID)) {
                         return point.reset(lat.get(docID), lon.get(docID));
                     }
-                    return point.reset(Double.NaN, Double.NaN);
+                    return point.reset(0, 0);
                 }
             };
             return FieldData.singleton(values, set);

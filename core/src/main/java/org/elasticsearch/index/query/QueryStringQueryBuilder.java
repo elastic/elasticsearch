@@ -423,6 +423,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * surrounded by double quotes.
      */
     public QueryStringQueryBuilder autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
+        if (splitOnWhitespace == false && autoGeneratePhraseQueries) {
+            throw new IllegalArgumentException("it is disallowed to disable split_on_whitespace " +
+                "if auto_generate_phrase_queries is activated");
+        }
         this.autoGeneratePhraseQueries = autoGeneratePhraseQueries;
         return this;
     }
@@ -619,6 +623,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Default is <code>{@value #DEFAULT_SPLIT_ON_WHITESPACE}</code>.
      */
     public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
+        if (autoGeneratePhraseQueries() && value == false) {
+            throw new IllegalArgumentException("it is disallowed to disable split_on_whitespace " +
+                "if auto_generate_phrase_queries is activated");
+        }
         this.splitOnWhitespace = value;
         return this;
     }

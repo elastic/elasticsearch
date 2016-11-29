@@ -21,15 +21,16 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -37,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends ActionRequest implements IndicesRequest {
+public class SearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private SearchRequest request;
     private boolean simulate = false;
@@ -167,12 +168,13 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
     }
 
     @Override
-    public String[] indices() {
-        return request != null ? request.indices() : Strings.EMPTY_ARRAY;
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return request != null ? request.indicesOptions() : SearchRequest.DEFAULT_INDICES_OPTIONS;
+    public List<? extends IndicesRequest> subRequests() {
+        //if we are simulating no index is involved in the request
+        if (simulate) {
+            assert request == null;
+            return Collections.emptyList();
+        }
+        //composite request as it delegates to search, but it holds one single action (search itself)
+        return Collections.singletonList(request);
     }
 }

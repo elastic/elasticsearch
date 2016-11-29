@@ -48,7 +48,7 @@ public class WrongAttachmentMapperTests extends AttachmentUnitTestCase {
 
         try {
             mapperParser.parse("person", new CompressedXContent(mapping));
-            fail("We should have raised an IllegalArgumentException");
+            fail("We should have raised a MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), is("Type [nonexistingtype] is not supported. Check your [content] field."));
         }

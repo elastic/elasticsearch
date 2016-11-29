@@ -35,7 +35,7 @@ public class DiscoveryNodeTests extends ESTestCase {
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {
         InetAddress inetAddress = randomBoolean() ? InetAddress.getByName("192.0.2.1") :
             InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
-        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(49152, 65535));
+        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
         assertEquals(transportAddress.address().getHostString(), node.getHostName());
         assertEquals(transportAddress.getAddress(), node.getHostAddress());
@@ -43,7 +43,7 @@ public class DiscoveryNodeTests extends ESTestCase {
 
     public void testDiscoveryNodeSerializationKeepsHost() throws Exception {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
-        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(49152, 65535));
+        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
 
         BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -56,11 +56,12 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertEquals(transportAddress.address().getHostString(), serialized.getAddress().address().getHostString());
         assertEquals(transportAddress.getAddress(), serialized.getHostAddress());
         assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
+        assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
     }
 
     public void testDiscoveryNodeSerializationToOldVersion() throws Exception {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
-        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(49152, 65535));
+        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
 
         BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -74,5 +75,6 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertNotEquals(transportAddress.address().getHostString(), serialized.getAddress().address().getHostString());
         assertEquals(transportAddress.getAddress(), serialized.getHostAddress());
         assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
+        assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
     }
 }

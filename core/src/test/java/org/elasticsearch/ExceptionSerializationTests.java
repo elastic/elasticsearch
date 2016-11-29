@@ -840,11 +840,9 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testShardLockObtainFailedException() throws IOException {
         ShardId shardId = new ShardId("foo", "_na_", 1);
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
-        Version version = VersionUtils.randomVersionBetween(random(),
-            Version.V_5_0_0, Version.CURRENT);
-        if (version.before(Version.V_5_0_2_UNRELEASED)) {
-            // remove this once 5_0_2 is released randomVersionBetween asserts that this version is in the constant table..
-            version = Version.V_5_0_2_UNRELEASED;
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+        if (version.before(Version.V_5_0_2)) {
+            version = Version.V_5_0_2;
         }
         ShardLockObtainFailedException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());

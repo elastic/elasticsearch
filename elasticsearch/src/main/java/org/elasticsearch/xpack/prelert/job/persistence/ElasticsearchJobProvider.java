@@ -56,12 +56,11 @@ import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
-import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
+import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 import org.elasticsearch.xpack.prelert.lists.ListDocument;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -69,7 +68,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -191,7 +189,6 @@ public class ElasticsearchJobProvider implements JobProvider {
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
             XContentBuilder modelSizeStatsMapping = ElasticsearchMappings.modelSizeStatsMapping();
             XContentBuilder modelDebugMapping = ElasticsearchMappings.modelDebugOutputMapping(termFields);
-            XContentBuilder partitionScoreMapping = ElasticsearchMappings.bucketPartitionMaxNormalizedScores();
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
 
             String jobId = job.getId();
@@ -206,7 +203,6 @@ public class ElasticsearchJobProvider implements JobProvider {
             createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
             createIndexRequest.mapping(ModelSizeStats.TYPE.getPreferredName(), modelSizeStatsMapping);
             createIndexRequest.mapping(ModelDebugOutput.TYPE.getPreferredName(), modelDebugMapping);
-            createIndexRequest.mapping(ReservedFieldNames.PARTITION_NORMALIZED_PROB_TYPE, partitionScoreMapping);
             createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
 
             client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
@@ -295,10 +291,10 @@ public class ElasticsearchJobProvider implements JobProvider {
                 }
             }
         } else {
-            List<ScoreTimestamp> scores =
-                    partitionScores(jobId, query.getEpochStart(), query.getEpochEnd(), query.getPartitionValue());
+            List<PerPartitionMaxProbabilities> scores =
+                    partitionMaxNormalisedProbabilities(jobId, query.getEpochStart(), query.getEpochEnd(), query.getPartitionValue());
 
-            mergePartitionScoresIntoBucket(scores, buckets.results());
+            mergePartitionScoresIntoBucket(scores, buckets.results(), query.getPartitionValue());
 
             for (Bucket b : buckets.results()) {
                 if (query.isExpand() && b.getRecordCount() > 0) {
@@ -312,16 +308,16 @@ public class ElasticsearchJobProvider implements JobProvider {
         return buckets;
     }
 
-    void mergePartitionScoresIntoBucket(List<ScoreTimestamp> scores, List<Bucket> buckets) {
-        Iterator<ScoreTimestamp> itr = scores.iterator();
-        ScoreTimestamp score = itr.hasNext() ? itr.next() : null;
+    void mergePartitionScoresIntoBucket(List<PerPartitionMaxProbabilities> partitionProbs, List<Bucket> buckets, String partitionValue) {
+        Iterator<PerPartitionMaxProbabilities> itr = partitionProbs.iterator();
+        PerPartitionMaxProbabilities partitionProb = itr.hasNext() ? itr.next() : null;
         for (Bucket b : buckets) {
-            if (score == null) {
+            if (partitionProb == null) {
                 b.setMaxNormalizedProbability(0.0);
             } else {
-                if (score.timestamp.equals(b.getTimestamp())) {
-                    b.setMaxNormalizedProbability(score.score);
-                    score = itr.hasNext() ? itr.next() : null;
+                if (partitionProb.getTimestamp().equals(b.getTimestamp())) {
+                    b.setMaxNormalizedProbability(partitionProb.getMaxProbabilityForPartition(partitionValue));
+                    partitionProb = itr.hasNext() ? itr.next() : null;
                 } else {
                     b.setMaxNormalizedProbability(0.0);
                 }
@@ -360,7 +356,7 @@ public class ElasticsearchJobProvider implements JobProvider {
             try {
                 parser = XContentFactory.xContent(source).createParser(source);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parser bucket", e);
+                throw new ElasticsearchParseException("failed to parse bucket", e);
             }
             Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
 
@@ -408,7 +404,7 @@ public class ElasticsearchJobProvider implements JobProvider {
         try {
             parser = XContentFactory.xContent(source).createParser(source);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parser bucket", e);
+            throw new ElasticsearchParseException("failed to parse bucket", e);
         }
         Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
 
@@ -422,13 +418,17 @@ public class ElasticsearchJobProvider implements JobProvider {
                 expandBucket(jobId, query.isIncludeInterim(), bucket);
             }
         } else {
-            List<ScoreTimestamp> scores =
-                    partitionScores(jobId,
-                            query.getTimestamp(), query.getTimestamp() + 1,
-                            query.getPartitionValue());
+            List<PerPartitionMaxProbabilities> partitionProbs =
+                    partitionMaxNormalisedProbabilities(jobId, query.getTimestamp(), query.getTimestamp() + 1, query.getPartitionValue());
 
-            bucket.setMaxNormalizedProbability(scores.isEmpty() == false ?
-                    scores.get(0).score : 0.0d);
+            if (partitionProbs.size() > 1) {
+                LOGGER.error("Found more than one PerPartitionMaxProbabilities with timestamp [" + query.getTimestamp() + "]" +
+                        " from index " + indexName);
+            }
+            if (partitionProbs.size() > 0) {
+                bucket.setMaxNormalizedProbability(partitionProbs.get(0).getMaxProbabilityForPartition(query.getPartitionValue()));
+            }
+
             if (query.isExpand() && bucket.getRecordCount() > 0) {
                 this.expandBucketForPartitionValue(jobId, query.isIncludeInterim(),
                         bucket, query.getPartitionValue());
@@ -440,31 +440,27 @@ public class ElasticsearchJobProvider implements JobProvider {
         return new QueryPage<>(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
     }
 
-    final class ScoreTimestamp {
-        double score;
-        Date timestamp;
 
-        public ScoreTimestamp(Date timestamp, double score) {
-            this.score = score;
-            this.timestamp = timestamp;
-        }
-    }
-
-    private List<ScoreTimestamp> partitionScores(String jobId, Object epochStart,
-                                                 Object epochEnd, String partitionFieldValue)
-            throws ResourceNotFoundException {
-        QueryBuilder qb = new ResultsFilterBuilder()
+    private List<PerPartitionMaxProbabilities> partitionMaxNormalisedProbabilities(String jobId, Object epochStart, Object epochEnd,
+                                                                                   String partitionFieldValue)
+                    throws ResourceNotFoundException
+    {
+        QueryBuilder timeRangeQuery = new ResultsFilterBuilder()
                 .timeRange(ElasticsearchMappings.ES_TIMESTAMP, epochStart, epochEnd)
                 .build();
 
-        FieldSortBuilder sb = new FieldSortBuilder(ElasticsearchMappings.ES_TIMESTAMP)
-                .order(SortOrder.ASC);
+        QueryBuilder boolQuery = new BoolQueryBuilder()
+                .filter(timeRangeQuery)
+                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), PerPartitionMaxProbabilities.RESULT_TYPE_VALUE))
+                .filter(new TermsQueryBuilder(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue));
+
+        FieldSortBuilder sb = new FieldSortBuilder(ElasticsearchMappings.ES_TIMESTAMP).order(SortOrder.ASC);
         String indexName = JobResultsPersister.getJobIndexName(jobId);
         SearchRequestBuilder searchBuilder = client
                 .prepareSearch(indexName)
-                .setQuery(qb)
+                .setQuery(boolQuery)
                 .addSort(sb)
-                .setTypes(ReservedFieldNames.PARTITION_NORMALIZED_PROB_TYPE);
+                .setTypes(Result.TYPE.getPreferredName());
 
         SearchResponse searchResponse;
         try {
@@ -473,23 +469,20 @@ public class ElasticsearchJobProvider implements JobProvider {
             throw ExceptionsHelper.missingJobException(jobId);
         }
 
-        List<ScoreTimestamp> results = new ArrayList<>();
+        List<PerPartitionMaxProbabilities> results = new ArrayList<>();
 
-        // expect 1 document per bucket
-        if (searchResponse.getHits().totalHits() > 0) {
-
-            Map<String, Object> m = searchResponse.getHits().getAt(0).getSource();
-
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> probs = (List<Map<String, Object>>)
-                    m.get(ReservedFieldNames.PARTITION_NORMALIZED_PROBS);
-            for (Map<String, Object> prob : probs) {
-                if (partitionFieldValue.equals(prob.get(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName()))) {
-                    Date ts = new Date(TimeUtils.dateStringToEpoch((String) m.get(ElasticsearchMappings.ES_TIMESTAMP)));
-                    results.add(new ScoreTimestamp(ts,
-                            (Double) prob.get(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName())));
-                }
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            BytesReference source = hit.getSourceRef();
+            XContentParser parser;
+            try {
+                parser = XContentFactory.xContent(source).createParser(source);
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to parse PerPartitionMaxProbabilities", e);
             }
+            PerPartitionMaxProbabilities perPartitionMaxProbabilities =
+                    PerPartitionMaxProbabilities.PARSER.apply(parser, () -> parseFieldMatcher);
+            perPartitionMaxProbabilities.setId(hit.getId());
+            results.add(perPartitionMaxProbabilities);
         }
 
         return results;

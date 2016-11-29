@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
+import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 
 import java.io.IOException;
@@ -65,7 +66,6 @@ public class JobRenormaliser extends AbstractComponent {
             logger.error(new ParameterizedMessage("[{}] Error updating standalone bucket influencer state", new Object[]{jobId}, e));
             return;
         }
-        jobResultsPersister.persistPerPartitionMaxProbabilities(bucket);
     }
 
 
@@ -105,6 +105,15 @@ public class JobRenormaliser extends AbstractComponent {
         } catch (IOException | ElasticsearchException e) {
             logger.error(new ParameterizedMessage("[{}] Error updating anomaly records", new Object[]{jobId}, e));
         }
+    }
+
+    public void updatePerPartitionMaxProbabilities(String jobId, List<AnomalyRecord> records) {
+        PerPartitionMaxProbabilities ppMaxProbs =
+                new PerPartitionMaxProbabilities(records);
+
+        logger.trace("[{}] ES API CALL: update result type {} with ID {}",
+                jobId, PerPartitionMaxProbabilities.RESULT_TYPE_VALUE, ppMaxProbs.getId());
+        jobResultsPersister.persistPerPartitionMaxProbabilities(ppMaxProbs);
     }
 
     /**

@@ -34,9 +34,6 @@ public final class ReservedFieldNames {
      */
     private static final String ES_TIMESTAMP = "timestamp";
 
-    public static final String PARTITION_NORMALIZED_PROB_TYPE = "partitionNormalizedProb";
-    public static final String PARTITION_NORMALIZED_PROBS = "partitionNormalizedProbs";
-
     /**
      * This array should be updated to contain all the field names that appear
      * in any documents we store in our results index.  (The reason it's any
@@ -95,9 +92,6 @@ public final class ReservedFieldNames {
             BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.ANOMALY_SCORE.getPreferredName(),
             BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.PROBABILITY.getPreferredName(),
 
-            PARTITION_NORMALIZED_PROBS,
-            PARTITION_NORMALIZED_PROB_TYPE,
-
             CategoryDefinition.CATEGORY_ID.getPreferredName(),
             CategoryDefinition.TERMS.getPreferredName(),
             CategoryDefinition.REGEX.getPreferredName(),
@@ -145,6 +139,8 @@ public final class ReservedFieldNames {
             ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName(),
             ModelSnapshot.LATEST_RECORD_TIME.getPreferredName(),
             ModelSnapshot.LATEST_RESULT_TIME.getPreferredName(),
+
+            PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName(),
 
             Quantiles.QUANTILE_STATE.getPreferredName(),
 

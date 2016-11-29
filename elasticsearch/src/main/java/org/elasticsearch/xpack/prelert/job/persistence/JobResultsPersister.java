@@ -17,7 +17,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
@@ -27,20 +26,19 @@ import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
-import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
+import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 
 import java.io.IOException;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Saves result Buckets and Quantiles to Elasticsearch<br>
- *
+ * <p>
  * <b>Buckets</b> are written with the following structure:
  * <h2>Bucket</h2> The results of each job are stored in buckets, this is the
  * top level structure for the results. A bucket contains multiple anomaly
@@ -81,8 +79,6 @@ public class JobResultsPersister extends AbstractComponent {
                     .execute().actionGet();
             persistBucketInfluencersStandalone(jobId, bucket.getId(), bucket.getBucketInfluencers(), bucket.getTimestamp(),
                     bucket.isInterim());
-
-            persistPerPartitionMaxProbabilities(bucket);
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Error persisting bucket", new Object[] {jobId}, e));
         }
@@ -90,6 +86,7 @@ public class JobResultsPersister extends AbstractComponent {
 
     /**
      * Persist a list of anomaly records
+     *
      * @param records the records to persist
      */
     public void persistRecords(List<AnomalyRecord> records) {
@@ -122,6 +119,7 @@ public class JobResultsPersister extends AbstractComponent {
 
     /**
      * Persist a list of influencers
+     *
      * @param influencers the influencers to persist
      */
     public void persistInfluencers(List<Influencer> influencers) {
@@ -151,8 +149,26 @@ public class JobResultsPersister extends AbstractComponent {
         }
     }
 
+    public void persistPerPartitionMaxProbabilities(PerPartitionMaxProbabilities partitionProbabilities) {
+        String jobId = partitionProbabilities.getJobId();
+        try {
+            XContentBuilder builder = toXContentBuilder(partitionProbabilities);
+
+            String indexName = getJobIndexName(jobId);
+            logger.trace("[{}] ES API CALL: index result type {} to index {} at timestamp {}",
+                    jobId, PerPartitionMaxProbabilities.RESULT_TYPE_VALUE, indexName, partitionProbabilities.getTimestamp());
+            client.prepareIndex(indexName, Result.TYPE.getPreferredName())
+                    .setSource(builder)
+                    .execute().actionGet();
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}] error updating bucket per partition max normalized scores",
+                    new Object[]{jobId}, e));
+        }
+    }
+
     /**
      * Persist the category definition
+     *
      * @param category The category to be persisted
      */
     public void persistCategoryDefinition(CategoryDefinition category) {
@@ -291,7 +307,7 @@ public class JobResultsPersister extends AbstractComponent {
     }
 
     void persistBucketInfluencersStandalone(String jobId, String bucketId, List<BucketInfluencer> bucketInfluencers,
-                                                    Date bucketTime, boolean isInterim) throws IOException {
+                                            Date bucketTime, boolean isInterim) throws IOException {
         if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
             BulkRequestBuilder addBucketInfluencersRequest = client.prepareBulk();
             for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
@@ -321,38 +337,6 @@ public class JobResultsPersister extends AbstractComponent {
         XContentBuilder builder = jsonBuilder();
         influencer.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder;
-    }
-
-    void persistPerPartitionMaxProbabilities(Bucket bucket) {
-        String jobId = bucket.getJobId();
-        if (bucket.getPerPartitionMaxProbability().isEmpty()) {
-            return;
-        }
-
-        try {
-            XContentBuilder builder = jsonBuilder();
-            builder.startObject()
-                    .field(ElasticsearchMappings.ES_TIMESTAMP, bucket.getTimestamp())
-                    .field(Job.ID.getPreferredName(), bucket.getJobId());
-            builder.startArray(ReservedFieldNames.PARTITION_NORMALIZED_PROBS);
-            for (Map.Entry<String, Double> entry : bucket.getPerPartitionMaxProbability().entrySet()) {
-                builder.startObject()
-                        .field(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), entry.getKey())
-                        .field(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), entry.getValue())
-                        .endObject();
-            }
-            builder.endArray().endObject();
-            String indexName = getJobIndexName(jobId);
-            logger.trace("[{}] ES API CALL: index type {} to index {} at epoch {}",
-                    jobId, ReservedFieldNames.PARTITION_NORMALIZED_PROB_TYPE, indexName, bucket.getEpoch());
-            client.prepareIndex(indexName, ReservedFieldNames.PARTITION_NORMALIZED_PROB_TYPE)
-                    .setSource(builder)
-                    .setId(bucket.getId())
-                    .execute().actionGet();
-        } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] error updating bucket per partition max normalized scores",
-                    new Object[]{jobId}, e));
-        }
     }
 
     private static final String INDEX_PREFIX = "prelertresults-";

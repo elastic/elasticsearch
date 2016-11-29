@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
+import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.utils.CloseableIterator;
 import org.mockito.InOrder;
 
@@ -66,25 +67,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         verify(persister, times(1)).persistBucket(bucket);
         verify(persister, never()).deleteInterimResults("_id");
-        verify(bucket, never()).calcMaxNormalizedProbabilityPerPartition();
-        verifyNoMoreInteractions(persister);
-    }
-
-    public void testProcessResult_bucket_isPerPartitionNormalization() {
-        Renormaliser renormaliser = mock(Renormaliser.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormaliser, persister, null);
-
-        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("_id", true);
-        context.deleteInterimRequired = false;
-        AutodetectResult result = mock(AutodetectResult.class);
-        Bucket bucket = mock(Bucket.class);
-        when(result.getBucket()).thenReturn(bucket);
-        processor.processResult(context, result);
-
-        verify(persister, times(1)).persistBucket(bucket);
-        verify(persister, never()).deleteInterimResults("_id");
-        verify(bucket, times(1)).calcMaxNormalizedProbabilityPerPartition();
         verifyNoMoreInteractions(persister);
     }
 
@@ -101,7 +83,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         verify(persister, times(1)).persistBucket(bucket);
         verify(persister, times(1)).deleteInterimResults("_id");
-        verify(bucket, never()).calcMaxNormalizedProbabilityPerPartition();
         verifyNoMoreInteractions(persister);
         assertFalse(context.deleteInterimRequired);
     }
@@ -120,6 +101,27 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(result.getRecords()).thenReturn(records);
         processor.processResult(context, result);
 
+        verify(persister, times(1)).persistRecords(records);
+        verifyNoMoreInteractions(persister);
+    }
+
+    public void testProcessResult_records_isPerPartitionNormalization() {
+        Renormaliser renormaliser = mock(Renormaliser.class);
+        JobResultsPersister persister = mock(JobResultsPersister.class);
+        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormaliser, persister, null);
+
+        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", true);
+        context.deleteInterimRequired = false;
+        AutodetectResult result = mock(AutodetectResult.class);
+        AnomalyRecord record1 = new AnomalyRecord("foo");
+        record1.setPartitionFieldValue("pValue");
+        AnomalyRecord record2 = new AnomalyRecord("foo");
+        record2.setPartitionFieldValue("pValue");
+        List<AnomalyRecord> records = Arrays.asList(record1, record2);
+        when(result.getRecords()).thenReturn(records);
+        processor.processResult(context, result);
+
+        verify(persister, times(1)).persistPerPartitionMaxProbabilities(any(PerPartitionMaxProbabilities.class));
         verify(persister, times(1)).persistRecords(records);
         verifyNoMoreInteractions(persister);
     }

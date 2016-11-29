@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
+import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.utils.CloseableIterator;
 
 import java.io.InputStream;
@@ -102,14 +103,14 @@ public class AutoDetectResultProcessor {
                 persister.deleteInterimResults(context.jobId);
                 context.deleteInterimRequired = false;
             }
-            if (context.isPerPartitionNormalization) {
-                bucket.calcMaxNormalizedProbabilityPerPartition();
-            }
             persister.persistBucket(bucket);
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
             persister.persistRecords(records);
+            if (context.isPerPartitionNormalization) {
+                persister.persistPerPartitionMaxProbabilities(new PerPartitionMaxProbabilities(records));
+            }
         }
         List<Influencer> influencers = result.getInfluencers();
         if (influencers != null && !influencers.isEmpty()) {

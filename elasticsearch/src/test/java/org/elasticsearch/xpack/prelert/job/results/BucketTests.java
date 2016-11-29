@@ -308,29 +308,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertTrue(bucket.isNormalisable());
     }
 
-    public void testSetMaxNormalizedProbabilityPerPartition() {
-        List<AnomalyRecord> records = new ArrayList<>();
-        records.add(createAnomalyRecord("A", 20.0));
-        records.add(createAnomalyRecord("A", 40.0));
-        records.add(createAnomalyRecord("B", 90.0));
-        records.add(createAnomalyRecord("B", 15.0));
-        records.add(createAnomalyRecord("B", 45.0));
-
-        Bucket bucket = new Bucket("foo", new Date(123), 123);
-        bucket.setRecords(records);
-
-        Map<String, Double> ppProb = bucket.calcMaxNormalizedProbabilityPerPartition();
-        assertEquals(40.0, ppProb.get("A"), 0.0001);
-        assertEquals(90.0, ppProb.get("B"), 0.0001);
-    }
-
-    private AnomalyRecord createAnomalyRecord(String partitionFieldValue, double normalizedProbability) {
-        AnomalyRecord record = new AnomalyRecord("foo");
-        record.setPartitionFieldValue(partitionFieldValue);
-        record.setNormalizedProbability(normalizedProbability);
-        return record;
-    }
-
     public void testPartitionAnomalyScore() {
         List<PartitionScore> pScore = new ArrayList<>();
         pScore.add(new PartitionScore("pf", "pv1", 10, 0.1));
@@ -350,5 +327,4 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         anomalyScore = bucket.partitionAnomalyScore("pv4");
         assertEquals(60.0, anomalyScore, 0.001);
     }
-
 }

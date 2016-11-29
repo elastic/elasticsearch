@@ -128,11 +128,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);
 
-        builder = ElasticsearchMappings.bucketPartitionMaxNormalizedScores();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
         builder = ElasticsearchMappings.categorizerStateMapping();
         inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         parser = new JsonFactory().createParser(inputStream);

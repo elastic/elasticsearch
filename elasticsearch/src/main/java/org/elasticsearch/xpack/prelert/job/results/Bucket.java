@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -29,8 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 /**
  * Bucket Result POJO
@@ -40,6 +37,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
      * Field Names
      */
     public static final ParseField JOB_ID = Job.ID;
+
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
     public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initialAnomalyScore");
@@ -324,12 +322,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         }
     }
 
-    public Map<String, Double> calcMaxNormalizedProbabilityPerPartition() {
-        perPartitionMaxProbability = records.stream().collect(Collectors.groupingBy(AnomalyRecord::getPartitionFieldValue, Collector
-                .of(DoubleMaxBox::new, (m, ar) -> m.accept(ar.getNormalizedProbability()), DoubleMaxBox::combine, DoubleMaxBox::value)));
 
-        return perPartitionMaxProbability;
-    }
 
     public Map<String, Double> getPerPartitionMaxProbability() {
         return perPartitionMaxProbability;

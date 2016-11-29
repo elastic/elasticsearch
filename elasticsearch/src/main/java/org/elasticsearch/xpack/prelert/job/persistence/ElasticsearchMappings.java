@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influence;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
-import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
+import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 
@@ -196,6 +196,19 @@ public class ElasticsearchMappings {
                 // influencer mapping
                 .startObject(Influencer.INFLUENCER_FIELD_VALUE.getPreferredName())
                 .field(TYPE, KEYWORD)
+                .endObject()
+
+                // per-partition max probabilities mapping
+                .startObject(PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName())
+                .field(TYPE, NESTED)
+                .startObject(PROPERTIES)
+                .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
+                .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName())
+                .field(TYPE, DOUBLE)
+                .endObject()
+                .endObject()
                 .endObject();
 
         addAnomalyRecordFieldsToMapping(builder);
@@ -376,47 +389,6 @@ public class ElasticsearchMappings {
                 .endObject()
                 .startObject(DataCounts.LATEST_RECORD_TIME.getPreferredName())
                 .field(TYPE, DATE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-    }
-
-    /**
-     * Partition normalized scores. There is one per bucket
-     * so the timestamp is sufficient to uniquely identify
-     * the document per bucket per job
-     * <p>
-     * Partition field values and scores are nested objects.
-     */
-    public static XContentBuilder bucketPartitionMaxNormalizedScores() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                .startObject(ReservedFieldNames.PARTITION_NORMALIZED_PROB_TYPE)
-                .startObject(ALL)
-                .field(ENABLED, false)
-                // analyzer must be specified even though _all is disabled
-                // because all types in the same index must have the same
-                // analyzer for a given field
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(Job.ID.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ES_TIMESTAMP)
-                .field(TYPE, DATE)
-                .endObject()
-                .startObject(ReservedFieldNames.PARTITION_NORMALIZED_PROBS)
-                .field(TYPE, NESTED)
-                .startObject(PROPERTIES)
-                .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName())
-                .field(TYPE, DOUBLE)
-                .endObject()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

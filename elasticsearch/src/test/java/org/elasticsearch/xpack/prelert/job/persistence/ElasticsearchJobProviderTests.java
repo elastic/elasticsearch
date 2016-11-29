@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
+import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -922,10 +923,22 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
 
         ElasticsearchJobProvider provider = createProvider(clientBuilder.build());
 
-        List<ElasticsearchJobProvider.ScoreTimestamp> scores = new ArrayList<>();
-        scores.add(provider.new ScoreTimestamp(new Date(2), 1.0));
-        scores.add(provider.new ScoreTimestamp(new Date(3), 2.0));
-        scores.add(provider.new ScoreTimestamp(new Date(5), 3.0));
+        List<PerPartitionMaxProbabilities> partitionMaxProbs = new ArrayList<>();
+
+        List<AnomalyRecord> records = new ArrayList<>();
+        records.add(createAnomalyRecord("partitionValue1", new Date(2), 1.0));
+        records.add(createAnomalyRecord("partitionValue2", new Date(2), 4.0));
+        partitionMaxProbs.add(new PerPartitionMaxProbabilities(records));
+
+        records.clear();
+        records.add(createAnomalyRecord("partitionValue1", new Date(3), 2.0));
+        records.add(createAnomalyRecord("partitionValue2", new Date(3), 1.0));
+        partitionMaxProbs.add(new PerPartitionMaxProbabilities(records));
+
+        records.clear();
+        records.add(createAnomalyRecord("partitionValue1", new Date(5), 3.0));
+        records.add(createAnomalyRecord("partitionValue2", new Date(5), 2.0));
+        partitionMaxProbs.add(new PerPartitionMaxProbabilities(records));
 
         List<Bucket> buckets = new ArrayList<>();
         buckets.add(createBucketAtEpochTime(1));
@@ -935,13 +948,29 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
         buckets.add(createBucketAtEpochTime(5));
         buckets.add(createBucketAtEpochTime(6));
 
-        provider.mergePartitionScoresIntoBucket(scores, buckets);
+        provider.mergePartitionScoresIntoBucket(partitionMaxProbs, buckets, "partitionValue1");
         assertEquals(0.0, buckets.get(0).getMaxNormalizedProbability(), 0.001);
         assertEquals(1.0, buckets.get(1).getMaxNormalizedProbability(), 0.001);
         assertEquals(2.0, buckets.get(2).getMaxNormalizedProbability(), 0.001);
         assertEquals(0.0, buckets.get(3).getMaxNormalizedProbability(), 0.001);
         assertEquals(3.0, buckets.get(4).getMaxNormalizedProbability(), 0.001);
         assertEquals(0.0, buckets.get(5).getMaxNormalizedProbability(), 0.001);
+
+        provider.mergePartitionScoresIntoBucket(partitionMaxProbs, buckets, "partitionValue2");
+        assertEquals(0.0, buckets.get(0).getMaxNormalizedProbability(), 0.001);
+        assertEquals(4.0, buckets.get(1).getMaxNormalizedProbability(), 0.001);
+        assertEquals(1.0, buckets.get(2).getMaxNormalizedProbability(), 0.001);
+        assertEquals(0.0, buckets.get(3).getMaxNormalizedProbability(), 0.001);
+        assertEquals(2.0, buckets.get(4).getMaxNormalizedProbability(), 0.001);
+        assertEquals(0.0, buckets.get(5).getMaxNormalizedProbability(), 0.001);
+    }
+
+    private AnomalyRecord createAnomalyRecord(String partitionFieldValue, Date timestamp, double normalizedProbability) {
+        AnomalyRecord record = new AnomalyRecord("foo");
+        record.setPartitionFieldValue(partitionFieldValue);
+        record.setNormalizedProbability(normalizedProbability);
+        record.setTimestamp(timestamp);
+        return record;
     }
 
     public void testMergePartitionScoresIntoBucket_WithEmptyScoresList() throws InterruptedException, ExecutionException {
@@ -950,7 +979,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
 
         ElasticsearchJobProvider provider = createProvider(clientBuilder.build());
 
-        List<ElasticsearchJobProvider.ScoreTimestamp> scores = new ArrayList<>();
+        List<PerPartitionMaxProbabilities> scores = new ArrayList<>();
 
         List<Bucket> buckets = new ArrayList<>();
         buckets.add(createBucketAtEpochTime(1));
@@ -958,7 +987,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
         buckets.add(createBucketAtEpochTime(3));
         buckets.add(createBucketAtEpochTime(4));
 
-        provider.mergePartitionScoresIntoBucket(scores, buckets);
+        provider.mergePartitionScoresIntoBucket(scores, buckets, "partitionValue");
         assertEquals(0.0, buckets.get(0).getMaxNormalizedProbability(), 0.001);
         assertEquals(0.0, buckets.get(1).getMaxNormalizedProbability(), 0.001);
         assertEquals(0.0, buckets.get(2).getMaxNormalizedProbability(), 0.001);

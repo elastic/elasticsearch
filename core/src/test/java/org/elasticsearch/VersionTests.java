@@ -22,6 +22,7 @@ package org.elasticsearch;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
@@ -268,6 +269,8 @@ public class VersionTests extends ESTestCase {
     // see comment in Version.java about this test
     public void testUnknownVersions() {
         assertUnknownVersion(V_20_0_0_UNRELEASED);
+        // once we release 5.0.3 and it's added to Version.java we need to remove this constant
+        assertUnknownVersion(InetSocketTransportAddress.V_5_0_3_UNRELEASED);
         expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
     }
 

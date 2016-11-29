@@ -24,6 +24,7 @@ public class FlushListenerTests extends ESTestCase {
         assertFalse(bool.get());
         listener.acknowledgeFlush("_id");
         assertBusy(() -> assertTrue(bool.get()));
+        assertEquals(0, listener.awaitingFlushed.size());
     }
 
     public void testClear() throws Exception {

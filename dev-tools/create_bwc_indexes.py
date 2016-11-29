@@ -338,7 +338,7 @@ def wait_for_monitoring_index_to_fill(client, version):
   else:
     monitoring_name = '.monitoring-*'
   def wait_for_monitoring_to_index(doc_type, count):
-    logging.info('Waiting for %s to have cout(%s) = %s...' % (monitoring_name, doc_type, count))
+    logging.info('Waiting for %s to have count(%s) = %s...' % (monitoring_name, doc_type, count))
     wait_for_search(count, lambda:
         client.search(index=monitoring_name, doc_type=doc_type, body={"query": {"match_all": {}}}))
 

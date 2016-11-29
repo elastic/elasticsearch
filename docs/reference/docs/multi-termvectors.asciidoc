@@ -3,7 +3,8 @@
 
 Multi termvectors API allows to get multiple termvectors at once. The
 documents from which to retrieve the term vectors are specified by an index,
-type and id. But the documents could also be artificially provided
+type and id. But the documents could also be artificially provided in the request itself.
+
 The response includes a `docs`
 array with all the fetched termvectors, each element having the structure
 provided by the <<docs-termvectors,termvectors>>

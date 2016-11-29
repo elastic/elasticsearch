@@ -46,6 +46,43 @@ public class RatedDocumentTests extends ESTestCase {
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
+    
+    public void testSerialization() throws IOException {
+        RatedDocument original = createRatedDocument();
+        RatedDocument deserialized = RankEvalTestHelper.copy(original, RatedDocument::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        RatedDocument testItem = createRatedDocument();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, RatedDocument::new));
+    }
+
+    @Rule
+    public final ExpectedException exception = ExpectedException.none();
+
+    public void testInvalidParsing() throws IOException {
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(null, randomAsciiOfLength(10), randomAsciiOfLength(10), randomInt());
+        
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument("", randomAsciiOfLength(10), randomAsciiOfLength(10), randomInt());
+
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(randomAsciiOfLength(10), null, randomAsciiOfLength(10), randomInt());
+        
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(randomAsciiOfLength(10), "", randomAsciiOfLength(10), randomInt());
+        
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(randomAsciiOfLength(10), randomAsciiOfLength(10), null, randomInt());
+
+        exception.expect(IllegalArgumentException.class);
+        new RatedDocument(randomAsciiOfLength(10), randomAsciiOfLength(10), "", randomInt());
+    }
 
     private static RatedDocument mutateTestItem(RatedDocument original) {
         int rating = original.getRating();
@@ -93,34 +130,5 @@ public class RatedDocumentTests extends ESTestCase {
             throw new IllegalStateException("The test should only allow two parameters mutated");
         }
         return new RatedDocument(index, type, docId, rating);
-    }
-
-    public void testEqualsAndHash() throws IOException {
-        RatedDocument testItem = createRatedDocument();
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                RankEvalTestHelper.copy(testItem, RatedDocument::new));
-    }
-
-    @Rule
-    public final ExpectedException exception = ExpectedException.none();
-
-    public void testInvalidParsing() throws IOException {
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(null, randomAsciiOfLength(10), randomAsciiOfLength(10), randomInt());
-        
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument("", randomAsciiOfLength(10), randomAsciiOfLength(10), randomInt());
-
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(randomAsciiOfLength(10), null, randomAsciiOfLength(10), randomInt());
-        
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(randomAsciiOfLength(10), "", randomAsciiOfLength(10), randomInt());
-        
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(randomAsciiOfLength(10), randomAsciiOfLength(10), null, randomInt());
-
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(randomAsciiOfLength(10), randomAsciiOfLength(10), "", randomInt());
     }
 }

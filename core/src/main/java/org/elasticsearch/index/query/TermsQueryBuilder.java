@@ -26,12 +26,15 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -43,11 +46,15 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -80,7 +87,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("Both values and termsLookup specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values = values;
+        this.values =  values == null ? null : convert(values);
         this.termsLookup = termsLookup;
     }
 
@@ -159,7 +166,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("No value specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values = convertToBytesRefListIfStringList(values);
+        this.values = convert(values);
         this.termsLookup = null;
     }
 
@@ -185,43 +192,108 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     public List<Object> values() {
-        return convertToStringListIfBytesRefList(this.values);
+        return convertBack(this.values);
     }
 
     public TermsLookup termsLookup() {
         return this.termsLookup;
     }
 
-    /**
-     * Same as {@link #convertToBytesRefIfString} but on Iterable.
-     * @param objs the Iterable of input object
-     * @return the same input or a list of {@link BytesRef} representation if input was a list of type string
-     */
-    private static List<Object> convertToBytesRefListIfStringList(Iterable<?> objs) {
-        if (objs == null) {
-            return null;
+    private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
+            Arrays.asList(Byte.class, Short.class, Integer.class, Long.class));
+    private static final Set<Class<?>> STRING_TYPES = new HashSet<>(
+            Arrays.asList(BytesRef.class, String.class));
+
+    private static List<?> convert(Iterable<?> values) {
+        List<?> list;
+        if (values instanceof List<?>) {
+            list = (List<?>) values;
+        } else {
+            ArrayList<Object> arrayList = new ArrayList<Object>();
+            for (Object o : values) {
+                arrayList.add(o);
+            }
+            list = arrayList;
         }
-        List<Object> newObjs = new ArrayList<>();
-        for (Object obj : objs) {
-            newObjs.add(convertToBytesRefIfString(obj));
-        }
-        return newObjs;
+        return convert(list);
     }
 
-    /**
-     * Same as {@link #convertToStringIfBytesRef} but on Iterable.
-     * @param objs the Iterable of input object
-     * @return the same input or a list of utf8 string if input was a list of type {@link BytesRef}
-     */
-    private static List<Object> convertToStringListIfBytesRefList(Iterable<?> objs) {
-        if (objs == null) {
-            return null;
+    private static List<?> convert(List<?> list) {
+        if (list.isEmpty()) {
+            return Collections.emptyList();
         }
-        List<Object> newObjs = new ArrayList<>();
-        for (Object obj : objs) {
-            newObjs.add(convertToStringIfBytesRef(obj));
+
+        final boolean allNumbers = list.stream().allMatch(o -> o != null && INTEGER_TYPES.contains(o.getClass()));
+        if (allNumbers) {
+            final long[] elements = list.stream().mapToLong(o -> ((Number) o).longValue()).toArray();
+            return new AbstractList<Object>() {
+                @Override
+                public Object get(int index) {
+                    return elements[index];
+                }
+                @Override
+                public int size() {
+                    return elements.length;
+                }
+            };
         }
-        return newObjs;
+
+        final boolean allStrings = list.stream().allMatch(o -> o != null && STRING_TYPES.contains(o.getClass()));
+        if (allStrings) {
+            final BytesRefBuilder builder = new BytesRefBuilder();
+            try (final BytesStreamOutput bytesOut = new BytesStreamOutput()) {
+                final int[] endOffsets = new int[list.size()];
+                int i = 0;
+                for (Object o : list) {
+                    BytesRef b;
+                    if (o instanceof BytesRef) {
+                        b = (BytesRef) o;
+                    } else {
+                        builder.copyChars((String) o); 
+                        b = builder.get();
+                    }
+                    bytesOut.writeBytes(b.bytes, b.offset, b.length);
+                    if (i == 0) {
+                        endOffsets[0] = b.length;
+                    } else {
+                        endOffsets[i] = Math.addExact(endOffsets[i-1], b.length);
+                    }
+                    ++i;
+                }
+                final BytesReference bytes = bytesOut.bytes();
+                return new AbstractList<Object>() {
+                    public Object get(int i) {
+                        final int startOffset = i == 0 ? 0 : endOffsets[i-1];
+                        final int endOffset = endOffsets[i];
+                        return bytes.slice(startOffset, endOffset - startOffset).toBytesRef();
+                    }
+                    public int size() {
+                        return endOffsets.length;
+                    }
+                };
+            }
+        }
+
+        return list;
+    }
+
+    private static List<Object> convertBack(List<?> list) {
+        return new AbstractList<Object>() {
+            @Override
+            public int size() {
+                return list.size();
+            }
+            @Override
+            public Object get(int index) {
+                Object o = list.get(index);
+                if (o instanceof BytesRef) {
+                    o = ((BytesRef) o).utf8ToString();
+                }
+                // we do not convert longs, all integer types are equivalent
+                // as far as this query is concerned
+                return o;
+            }
+        };
     }
 
     @Override
@@ -232,7 +304,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             termsLookup.toXContent(builder, params);
             builder.endObject();
         } else {
-            builder.field(fieldName, convertToStringListIfBytesRefList(values));
+            builder.field(fieldName, convertBack(values));
         }
         printBoostAndQueryName(builder);
         builder.endObject();

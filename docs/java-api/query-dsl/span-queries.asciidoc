@@ -18,7 +18,7 @@ other span queries.
 
 Wraps a <<java-query-dsl-term-query,`term`>>, <<java-query-dsl-range-query,`range`>>,
 <<java-query-dsl-prefix-query,`prefix`>>, <<java-query-dsl-wildcard-query,`wildcard`>>,
-<<java-query-dsl-regexp-query,`regexp`>>, or <<java-query-dsl-fuzzy-query,`fuzzy`>> query.
+or <<java-query-dsl-regexp-query,`regexp`>> query.
 
 <<java-query-dsl-span-first-query,`span_first` query>>::
 

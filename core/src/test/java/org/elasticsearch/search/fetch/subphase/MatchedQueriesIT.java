@@ -251,27 +251,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    public void testFuzzyQuerySupportsName() {
-        createIndex("test1");
-        ensureGreen();
-
-        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy")).get();
-        assertHitCount(searchResponse, 1L);
-
-        for (SearchHit hit : searchResponse.getHits()) {
-            if (hit.id().equals("1")) {
-                assertThat(hit.matchedQueries().length, equalTo(1));
-                assertThat(hit.matchedQueries(), hasItemInArray("fuzzy"));
-            } else {
-                fail("Unexpected document returned with id " + hit.id());
-            }
-        }
-    }
-
     public void testWildcardQuerySupportsName() {
         createIndex("test1");
         ensureGreen();

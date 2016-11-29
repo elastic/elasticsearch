@@ -67,7 +67,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -2456,21 +2455,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
 
-    }
-
-    public void testPostingsHighlighterFuzzyQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
-        ensureGreen();
-
-        client().prepareIndex("test", "type1")
-            .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
-        refresh();
-        logger.info("--> highlighting and searching on field2");
-        SearchSourceBuilder source = searchSource().query(fuzzyQuery("field2", "quck"))
-                .highlighter(highlight().field("field2"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
-
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
     }
 
     public void testPostingsHighlighterRegexpQuery() throws Exception {

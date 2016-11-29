@@ -46,7 +46,6 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceRangeQuery;
@@ -135,10 +134,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                         exponentialDecayFunction("age", 0L, 1L))
         };
         functionScoreQuery(functions);
-    }
-
-    public void testFuzzy() {
-        fuzzyQuery("name", "kimchy");
     }
 
     public void testGeoBoundingBox() {

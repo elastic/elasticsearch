@@ -18,7 +18,7 @@ other span queries.
 
 Wraps a <<query-dsl-term-query,`term`>>, <<query-dsl-range-query,`range`>>,
 <<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>,
-<<query-dsl-regexp-query,`regexp`>>, or <<query-dsl-fuzzy-query,`fuzzy`>> query.
+or <<query-dsl-regexp-query,`regexp`>> query.
 
 <<query-dsl-span-first-query,`span_first` query>>::
 

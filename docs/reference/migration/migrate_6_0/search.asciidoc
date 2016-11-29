@@ -10,6 +10,7 @@
   only the strings `"true"` and `"false"` will be parsed into their boolean
   counterparts. Other strings will cause an error to be thrown.
 
+* The deprecated fuzzy query has been removed. Use match queries with fuzziness instead.
 
 ==== Search shards API
 

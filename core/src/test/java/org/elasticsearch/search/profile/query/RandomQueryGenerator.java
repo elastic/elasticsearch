@@ -20,11 +20,9 @@
 package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -73,7 +71,7 @@ public class RandomQueryGenerator {
     }
 
     private static QueryBuilder randomTerminalQuery(List<String> stringFields, List<String> numericFields, int numDocs) {
-        switch (randomIntBetween(0,6)) {
+        switch (randomIntBetween(0,5)) {
             case 0:
                 return randomTermQuery(stringFields, numDocs);
             case 1:
@@ -85,8 +83,6 @@ public class RandomQueryGenerator {
             case 4:
                 return randomCommonTermsQuery(stringFields, numDocs);
             case 5:
-                return randomFuzzyQuery(stringFields);
-            case 6:
                 return randomIDsQuery();
             default:
                 return randomTermQuery(stringFields, numDocs);
@@ -190,53 +186,6 @@ public class RandomQueryGenerator {
         if (randomBoolean()) {
             ((CommonTermsQueryBuilder)q).lowFreqMinimumShouldMatch(Integer.toString(randomInt(numTerms)))
                     .lowFreqOperator(randomBoolean() ? Operator.AND : Operator.OR);
-        }
-
-        return q;
-    }
-
-    @Deprecated
-    private static QueryBuilder randomFuzzyQuery(List<String> fields) {
-
-        QueryBuilder q = QueryBuilders.fuzzyQuery(randomField(fields), randomQueryString(1));
-
-        if (randomBoolean()) {
-            ((FuzzyQueryBuilder)q).boost(randomFloat());
-        }
-
-        if (randomBoolean()) {
-            switch (randomIntBetween(0, 4)) {
-                case 0:
-                    ((FuzzyQueryBuilder)q).fuzziness(Fuzziness.AUTO);
-                    break;
-                case 1:
-                    ((FuzzyQueryBuilder)q).fuzziness(Fuzziness.ONE);
-                    break;
-                case 2:
-                    ((FuzzyQueryBuilder)q).fuzziness(Fuzziness.TWO);
-                    break;
-                case 3:
-                    ((FuzzyQueryBuilder)q).fuzziness(Fuzziness.ZERO);
-                    break;
-                case 4:
-                    ((FuzzyQueryBuilder)q).fuzziness(Fuzziness.fromEdits(randomIntBetween(0,2)));
-                    break;
-                default:
-                    ((FuzzyQueryBuilder)q).fuzziness(Fuzziness.AUTO);
-                    break;
-            }
-        }
-
-        if (randomBoolean()) {
-            ((FuzzyQueryBuilder)q).maxExpansions(Math.abs(randomInt()));
-        }
-
-        if (randomBoolean()) {
-            ((FuzzyQueryBuilder)q).prefixLength(Math.abs(randomInt()));
-        }
-
-        if (randomBoolean()) {
-            ((FuzzyQueryBuilder)q).transpositions(randomBoolean());
         }
 
         return q;

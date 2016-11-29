@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -236,12 +235,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("+field:pidgin (field:huge field:brown)"), true);
         assertExplanation(QueryBuilders.matchQuery("field", "the brown").analyzer("stop"),
                 containsString("field:brown"), true);
-
-        // fuzzy queries
-        assertExplanation(QueryBuilders.fuzzyQuery("field", "the").fuzziness(Fuzziness.fromEdits(2)),
-                containsString("field:the (field:tree)^0.3333333"), true);
-        assertExplanation(QueryBuilders.fuzzyQuery("field", "jump"),
-                containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
         assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, MoreLikeThisQueryBuilder.ids("1"))

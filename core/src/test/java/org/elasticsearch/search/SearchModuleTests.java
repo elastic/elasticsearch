@@ -256,7 +256,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "exists",
             "field_masking_span",
             "function_score",
-            "fuzzy",
             "geo_bounding_box",
             "geo_distance",
             "geo_distance_range",

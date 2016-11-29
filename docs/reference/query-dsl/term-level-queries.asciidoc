@@ -46,13 +46,6 @@ The queries in this group are:
     Find documents where the field specified contains terms which match the
     <<regexp-syntax,regular expression>> specified.
 
-<<query-dsl-fuzzy-query,`fuzzy` query>>::
-
-    Find documents where the field specified contains terms which are fuzzily
-    similar to the specified term.  Fuzziness is measured as a
-    http://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance[Levenshtein edit distance]
-    of 1 or 2.
-
 <<query-dsl-type-query,`type` query>>::
 
     Find documents of the specified type.

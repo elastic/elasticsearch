@@ -102,8 +102,8 @@ property now only accepts `true`/`false` instead of `not_analyzed`/`no`. The
 ==== Doc values on unindexed fields
 
 Previously, setting a field to `index:no` would also disable doc-values.  Now,
-doc-values are always enabled on numeric and boolean fields unless
-`doc_values` is set to `false`.
+doc-values are enabled by default on all types but `text` and `binary`,
+regardless of the value of the `index` property.
 
 ==== Floating points use `float` instead of `double`
 

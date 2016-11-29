@@ -159,6 +159,9 @@ public class CppLogMessageHandler implements Closeable {
             }
             from = nextMarker + 1;
         }
+        if (from >= bytesRef.length()) {
+            return null;
+        }
         return bytesRef.slice(from, bytesRef.length() - from);
     }
 

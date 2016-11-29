@@ -64,6 +64,9 @@ public class StateProcessor extends AbstractComponent {
             persister.persistBulkState(jobId, bytesRef.slice(from, nextZeroByte - from));
             from = nextZeroByte + 1;
         }
+        if (from >= bytesRef.length()) {
+            return null;
+        }
         return bytesRef.slice(from, bytesRef.length() - from);
     }
 

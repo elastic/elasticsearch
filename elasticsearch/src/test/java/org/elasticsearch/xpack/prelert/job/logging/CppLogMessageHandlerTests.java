@@ -35,14 +35,17 @@ public class CppLogMessageHandlerTests extends ESTestCase {
                 + "{\"logger\":\"controller\",\"timestamp\":1478261169065,\"level\":\"DEBUG\",\"pid\":10211,\"thread\":\"0x7fff7d2a8000\","
                 + "\"message\":\"Prelert controller exiting\",\"method\":\"main\",\"file\":\"Main.cc\",\"line\":147}\n";
 
-        InputStream is = new ByteArrayInputStream(testData.getBytes(StandardCharsets.UTF_8));
-        try (CppLogMessageHandler handler = new CppLogMessageHandler(is, "_id", 100, 3)) {
-            handler.tailStream();
+        // Try different buffer sizes to smoke out edge case problems in the buffer management
+        for (int readBufSize : new int[] { 11, 42, 101, 1024, 9999 }) {
+            InputStream is = new ByteArrayInputStream(testData.getBytes(StandardCharsets.UTF_8));
+            try (CppLogMessageHandler handler = new CppLogMessageHandler(is, "_id", readBufSize, 3)) {
+                handler.tailStream();
 
-            assertTrue(handler.hasLogStreamEnded());
-            assertEquals(10211L, handler.getPid(Duration.ofMillis(1)));
-            assertEquals("Did not understand verb 'a'\n", handler.getErrors());
-            assertFalse(handler.seenFatalError());
+                assertTrue(handler.hasLogStreamEnded());
+                assertEquals(10211L, handler.getPid(Duration.ofMillis(1)));
+                assertEquals("Did not understand verb 'a'\n", handler.getErrors());
+                assertFalse(handler.seenFatalError());
+            }
         }
     }
 }

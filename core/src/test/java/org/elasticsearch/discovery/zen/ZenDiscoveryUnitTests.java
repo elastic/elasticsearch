@@ -338,7 +338,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
                     request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null));
                 assertEquals("index [test] version not supported: "
-                    + VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()), ex.getMessage());
+                    + VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion())
+                    + " minimum compatible index version is: " + Version.CURRENT.minimumCompatibilityVersion(), ex.getMessage());
             } else {
                 AtomicBoolean sendResponse = new AtomicBoolean(false);
                 request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), new TransportChannel() {

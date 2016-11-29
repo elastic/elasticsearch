@@ -184,19 +184,17 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
-            MetaData metaData = request.state.getMetaData();
-            ensureAllIndicesAreCompatible(metaData);
-            // for now, the mere fact that we can serialize the cluster state acts as validation....
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        void ensureAllIndicesAreCompatible(MetaData metaData) {
-            for (IndexMetaData idxMetaData : metaData) {
-                if(idxMetaData.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+            // we ensure that all indices in the cluster we join are compatible with us no matter if they are
+            // closed or not we can't read mappings of these indices so we need to reject the join...
+            final Version supportedIndexVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+            for (IndexMetaData idxMetaData : request.state.getMetaData()) {
+                if(idxMetaData.getCreationVersion().before(supportedIndexVersion)) {
                     throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
-                        + idxMetaData.getCreationVersion());
+                        + idxMetaData.getCreationVersion() + " minimum compatible index version is: " + supportedIndexVersion);
                 }
             }
+            // for now, the mere fact that we can serialize the cluster state acts as validation....
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

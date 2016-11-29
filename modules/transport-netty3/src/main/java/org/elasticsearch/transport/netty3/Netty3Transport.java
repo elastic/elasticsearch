@@ -37,10 +37,12 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
@@ -331,22 +333,9 @@ public class Netty3Transport extends TcpTransport<Channel> {
         return channels == null ? 0 : channels.numberOfOpenChannels();
     }
 
-    protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
-        ChannelFuture connect = clientBootstrap.connect(address);
-        connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-        if (!connect.isSuccess()) {
-            throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connect.getCause());
-        }
-        Channel[] channels = new Channel[1];
-        channels[0] = connect.getChannel();
-        channels[0].getCloseFuture().addListener(new ChannelCloseListener(node));
-        return new NodeChannels(channels, channels, channels, channels, channels);
-    }
-    protected NodeChannels connectToChannels(DiscoveryNode node) throws IOException {
-        final NodeChannels nodeChannels = new NodeChannels(new Channel[connectionsPerNodeRecovery], new Channel[connectionsPerNodeBulk],
-            new Channel[connectionsPerNodeReg], new Channel[connectionsPerNodeState],
-            new Channel[connectionsPerNodePing]);
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
+        final Channel[] channels = new Channel[profile.getNumConnections()];
+        final NodeChannels nodeChannels = new NodeChannels(channels, profile);
         boolean success = false;
         try {
             int numConnections = connectionsPerNodeBulk + connectionsPerNodePing + connectionsPerNodeRecovery + connectionsPerNodeReg
@@ -358,27 +347,15 @@ public class Netty3Transport extends TcpTransport<Channel> {
             }
             final Iterator<ChannelFuture> iterator = connections.iterator();
             try {
-                for (Channel[] channels : nodeChannels.getChannelArrays()) {
-                    for (int i = 0; i < channels.length; i++) {
-                        assert iterator.hasNext();
-                        ChannelFuture future = iterator.next();
-                        future.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                        if (!future.isSuccess()) {
-                            throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.getCause());
-                        }
-                        channels[i] = future.getChannel();
-                        channels[i].getCloseFuture().addListener(new ChannelCloseListener(node));
+                for (int i = 0; i < channels.length; i++) {
+                    assert iterator.hasNext();
+                    ChannelFuture future = iterator.next();
+                    future.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
+                    if (!future.isSuccess()) {
+                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.getCause());
                     }
-                }
-                if (nodeChannels.recovery.length == 0) {
-                    if (nodeChannels.bulk.length > 0) {
-                        nodeChannels.recovery = nodeChannels.bulk;
-                    } else {
-                        nodeChannels.recovery = nodeChannels.reg;
-                    }
-                }
-                if (nodeChannels.bulk.length == 0) {
-                    nodeChannels.bulk = nodeChannels.reg;
+                    channels[i] = future.getChannel();
+                    channels[i].getCloseFuture().addListener(new ChannelCloseListener(node));
                 }
             } catch (RuntimeException e) {
                 for (ChannelFuture future : Collections.unmodifiableList(connections)) {
@@ -396,7 +373,11 @@ public class Netty3Transport extends TcpTransport<Channel> {
             success = true;
         } finally {
             if (success == false) {
-                nodeChannels.close();
+                try {
+                    nodeChannels.close();
+                } catch (IOException e) {
+                    logger.trace("exception while closing channels", e);
+                }
             }
         }
         return nodeChannels;

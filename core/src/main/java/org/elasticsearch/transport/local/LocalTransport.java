@@ -45,6 +45,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -57,8 +58,8 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportSerializationException;
 import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportStatus;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -167,12 +168,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
     }
 
     @Override
-    public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-        connectToNode(node);
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
         synchronized (this) {
             if (connectedNodes.containsKey(node)) {
                 return;

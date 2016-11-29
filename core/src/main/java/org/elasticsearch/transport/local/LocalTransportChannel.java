@@ -28,14 +28,11 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
-import org.elasticsearch.transport.support.TransportStatus;
+import org.elasticsearch.transport.TransportStatus;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- *
- */
 public class LocalTransportChannel implements TransportChannel {
 
     private static final String LOCAL_TRANSPORT_PROFILE = "default";

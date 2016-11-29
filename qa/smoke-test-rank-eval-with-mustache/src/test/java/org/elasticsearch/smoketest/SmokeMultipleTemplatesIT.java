@@ -19,14 +19,7 @@
 
 package org.elasticsearch.smoketest;
 
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.rankeval.EvalQueryQuality;
 import org.elasticsearch.index.rankeval.Precision;
-import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
 import org.elasticsearch.index.rankeval.RankEvalAction;
 import org.elasticsearch.index.rankeval.RankEvalPlugin;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
@@ -35,11 +28,9 @@ import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedDocument;
 import org.elasticsearch.index.rankeval.RatedRequest;
-import org.elasticsearch.index.rankeval.RatedSearchHit;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
@@ -50,10 +41,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
-import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
 
 
 public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
@@ -94,79 +81,30 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
 
         List<RatedRequest> specifications = new ArrayList<>();
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", null, indices, types, createRelevant("2", "3", "4", "5"));
+        Map<String, Object> ams_params = new HashMap<>();
+        ams_params.put("querystring", "amsterdam");
+        amsterdamRequest.setParams(ams_params);
         specifications.add(amsterdamRequest);
+
         RatedRequest berlinRequest = new RatedRequest("berlin_query", null, indices, types, createRelevant("1"));
+        Map<String, Object> berlin_params = new HashMap<>();
+        berlin_params.put("querystring", "berlin");
+        berlinRequest.setParams(berlin_params);
         specifications.add(berlinRequest);
 
         Precision metric = new Precision();
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        final Map<String, Object> params = new HashMap<>();
-        XContentBuilder sbuilder = XContentFactory.jsonBuilder();
-        sbuilder.startObject();
-        sbuilder.field("field", "\"query\": {\"match_all\": {}}");
-        sbuilder.endObject();
-        task.setTemplate(new Script(ScriptType.INLINE, "mustache", sbuilder.string(), params));
+        task.setTemplate(
+                new Script(
+                        ScriptType.INLINE,
+                        "mustache", "{\"query\": {\"match\": {\"text\": \"{{querystring}}\"}}}",
+                        new HashMap<>()));
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        assertEquals(1.0, response.getQualityLevel(), Double.MIN_VALUE);
-        Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
-        assertEquals(2, entrySet.size());
-        for (Entry<String, EvalQueryQuality> entry : entrySet) {
-            EvalQueryQuality quality = entry.getValue();
-            if (entry.getKey() == "amsterdam_query") {
-                assertEquals(2, filterUnknownDocuments(quality.getHitsAndRatings()).size());
-                List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
-                assertEquals(6, hitsAndRatings.size());
-                for (RatedSearchHit hit : hitsAndRatings) {
-                    String id = hit.getSearchHit().getId();
-                    if (id.equals("1") || id.equals("6")) {
-                        assertFalse(hit.getRating().isPresent());
-                    } else {
-                        assertEquals(Rating.RELEVANT.ordinal(), hit.getRating().get().intValue());
-                    }
-                }
-            }
-            if (entry.getKey() == "berlin_query") {
-                assertEquals(5, filterUnknownDocuments(quality.getHitsAndRatings()).size());
-                List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
-                assertEquals(6, hitsAndRatings.size());
-                for (RatedSearchHit hit : hitsAndRatings) {
-                    String id = hit.getSearchHit().getId();
-                    if (id.equals("1")) {
-                        assertEquals(Rating.RELEVANT.ordinal(), hit.getRating().get().intValue());
-                    } else {
-                        assertFalse(hit.getRating().isPresent());
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * test that running a bad query (e.g. one that will target a non existing field) will error
-     */
-    public void testBadQuery() {
-        List<String> indices = Arrays.asList(new String[] { "test" });
-        List<String> types = Arrays.asList(new String[] { "testtype" });
-
-        List<RatedRequest> specifications = new ArrayList<>();
-        SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
-        amsterdamQuery.query(new MatchAllQueryBuilder());
-        specifications.add(new RatedRequest("amsterdam_query", amsterdamQuery, indices, types, createRelevant("2", "3", "4", "5")));
-        SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
-        RangeQueryBuilder brokenRangeQuery = new RangeQueryBuilder("text").timeZone("CET");
-        brokenQuery.query(brokenRangeQuery);
-        specifications.add(new RatedRequest("broken_query", brokenQuery, indices, types, createRelevant("1")));
-
-        RankEvalSpec task = new RankEvalSpec(specifications, new Precision());
-
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
-
-        expectThrows(SearchPhaseExecutionException.class, () -> client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet());
+        assertEquals(0.9, response.getQualityLevel(), Double.MIN_VALUE);
     }
 
     private static List<RatedDocument> createRelevant(String... docs) {
@@ -176,4 +114,9 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         }
         return relevant;
     }
+
+    public enum Rating {
+        IRRELEVANT, RELEVANT;
+    }
+
  }

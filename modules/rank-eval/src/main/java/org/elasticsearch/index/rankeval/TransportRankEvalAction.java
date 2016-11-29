@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -26,14 +27,23 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -52,15 +62,19 @@ import java.util.concurrent.atomic.AtomicInteger;
  * */
 public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
     private Client client;
-    private IndicesQueriesRegistry queryParsers;
+    private ScriptService scriptService;
+    private SearchRequestParsers searchRequestParsers;
+    
+    private static final Logger logger = Loggers.getLogger(TransportRankEvalAction.class); 
 
     @Inject
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
-            IndicesQueriesRegistry queryParsers) {
+            SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
         super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 RankEvalRequest::new);
-        this.queryParsers = queryParsers;
+        this.searchRequestParsers = searchRequestParsers;
+        this.scriptService = scriptService;
         this.client = client;
     }
 
@@ -77,6 +91,21 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask.getMetric(), querySpecification,
                     partialResults, errors, responseCounter);
             SearchSourceBuilder specRequest = querySpecification.getTestRequest();
+            if (specRequest == null) {
+                Map<String, Object> params = querySpecification.getParams();
+                Script scriptWithParams = new Script(qualityTask.getTemplate().getType(), qualityTask.getTemplate().getLang(),
+                        qualityTask.getTemplate().getIdOrCode(), params);
+                String resolvedRequest = ((BytesReference) (scriptService.executable(scriptWithParams, ScriptContext.Standard.SEARCH)
+                        .run())).utf8ToString();
+                logger.error("RANTRANTRANT" + resolvedRequest);
+                try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
+                    QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, subParser, parseFieldMatcher);
+                    specRequest = SearchSourceBuilder.fromXContent(parseContext, searchRequestParsers.aggParsers,
+                            searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                }
+            }
             List<String> summaryFields = querySpecification.getSummaryFields();
             if (summaryFields.isEmpty()) {
                 specRequest.fetchSource(false);

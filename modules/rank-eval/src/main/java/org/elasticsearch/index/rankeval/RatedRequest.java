@@ -74,7 +74,9 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
 
     public RatedRequest(StreamInput in) throws IOException {
         this.specId = in.readString();
-        testRequest = new SearchSourceBuilder(in);
+        if (in.readBoolean()) {
+            testRequest = new SearchSourceBuilder(in);
+        }
         int indicesSize = in.readInt();
         indices = new ArrayList<>(indicesSize);
         for (int i = 0; i < indicesSize; i++) {
@@ -101,7 +103,13 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(specId);
-        testRequest.writeTo(out);
+        if (testRequest != null) {
+            out.writeBoolean(true);
+            testRequest.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }   
+
         out.writeInt(indices.size());
         for (String index : indices) {
             out.writeString(index);
@@ -255,8 +263,9 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID_FIELD.getPreferredName(), this.specId);
-        if (testRequest != null)
+        if (testRequest != null) {
             builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
+        }
         builder.startObject(PARAMS_FIELD.getPreferredName());
         for (Entry<String, Object> entry : this.params.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());

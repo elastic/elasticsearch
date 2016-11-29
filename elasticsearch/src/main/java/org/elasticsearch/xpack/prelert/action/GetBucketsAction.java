@@ -387,8 +387,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
                 BucketsQueryBuilder.BucketsQuery query =
                         new BucketsQueryBuilder().expand(request.expand)
                                 .includeInterim(request.includeInterim)
-                                .epochStart(request.start)
-                                .epochEnd(request.end)
+                                .start(request.start)
+                                .end(request.end)
                                 .from(request.pageParams.getFrom())
                                 .size(request.pageParams.getSize())
                                 .anomalyScoreThreshold(request.anomalyScore)

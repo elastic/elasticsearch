@@ -32,8 +32,8 @@ public class BucketsQueryBuilderTests extends ESTestCase {
                 .expand(true)
                 .anomalyScoreThreshold(50.0d)
                 .normalizedProbabilityThreshold(70.0d)
-                .epochStart("1000")
-                .epochEnd("2000")
+                .start("1000")
+                .end("2000")
                 .partitionValue("foo")
                 .sortField("anomalyScore")
                 .sortDescending(true)
@@ -60,8 +60,8 @@ public class BucketsQueryBuilderTests extends ESTestCase {
                 .expand(true)
                 .anomalyScoreThreshold(50.0d)
                 .normalizedProbabilityThreshold(70.0d)
-                .epochStart("1000")
-                .epochEnd("2000")
+                .start("1000")
+                .end("2000")
                 .partitionValue("foo");
 
         BucketsQueryBuilder query2 = new BucketsQueryBuilder()
@@ -71,8 +71,8 @@ public class BucketsQueryBuilderTests extends ESTestCase {
                 .expand(true)
                 .anomalyScoreThreshold(50.0d)
                 .normalizedProbabilityThreshold(70.0d)
-                .epochStart("1000")
-                .epochEnd("2000")
+                .start("1000")
+                .end("2000")
                 .partitionValue("foo");
 
         assertEquals(query.build(), query2.build());
@@ -86,8 +86,8 @@ public class BucketsQueryBuilderTests extends ESTestCase {
         .expand(true)
         .anomalyScoreThreshold(50.0d)
         .normalizedProbabilityThreshold(70.0d)
-        .epochStart("1000")
-        .epochEnd("2000")
+        .start("1000")
+        .end("2000")
         .partitionValue("foo");
         assertEquals(query.build(), query2.build());
 
@@ -98,8 +98,8 @@ public class BucketsQueryBuilderTests extends ESTestCase {
         .expand(true)
         .anomalyScoreThreshold(50.1d)
         .normalizedProbabilityThreshold(70.0d)
-        .epochStart("1000")
-        .epochEnd("2000")
+        .start("1000")
+        .end("2000")
         .partitionValue("foo");
         assertFalse(query.build().equals(query2.build()));
     }

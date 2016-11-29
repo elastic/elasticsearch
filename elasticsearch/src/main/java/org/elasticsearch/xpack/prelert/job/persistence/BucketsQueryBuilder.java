@@ -91,7 +91,7 @@ public final class BucketsQueryBuilder {
     /**
      * If startTime &lt;= 0 the parameter is not set
      */
-    public BucketsQueryBuilder epochStart(String startTime) {
+    public BucketsQueryBuilder start(String startTime) {
         bucketsQuery.start = startTime;
         return this;
     }
@@ -99,7 +99,7 @@ public final class BucketsQueryBuilder {
     /**
      * If endTime &lt;= 0 the parameter is not set
      */
-    public BucketsQueryBuilder epochEnd(String endTime) {
+    public BucketsQueryBuilder end(String endTime) {
         bucketsQuery.end = endTime;
         return this;
     }

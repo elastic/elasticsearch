@@ -36,7 +36,7 @@ setup:
 "Test result influencers api":
   - do:
       xpack.prelert.get_influencers:
-        jobId: "farequote"
+        job_id: "farequote"
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
 

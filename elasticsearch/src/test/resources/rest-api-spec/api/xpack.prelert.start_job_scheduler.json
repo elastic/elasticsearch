@@ -24,6 +24,8 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description": "The start scheduler parameters"
+    }
   }
 }

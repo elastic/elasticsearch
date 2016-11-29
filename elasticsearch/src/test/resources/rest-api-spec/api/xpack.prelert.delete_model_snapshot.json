@@ -2,15 +2,15 @@
   "xpack.prelert.delete_model_snapshot": {
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/prelert/modelsnapshots/{jobId}/{snapshotId}",
-      "paths": [ "/_xpack/prelert/modelsnapshots/{jobId}/{snapshotId}" ],
+      "path": "/_xpack/prelert/modelsnapshots/{job_id}/{snapshot_id}",
+      "paths": [ "/_xpack/prelert/modelsnapshots/{job_id}/{snapshot_id}" ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type": "string",
           "required": true,
           "description": "The ID of the job to fetch"
         },
-        "snapshotId": {
+        "snapshot_id": {
           "type": "string",
           "required": true,
           "description": "The Snapshot ID of the job to fetch"

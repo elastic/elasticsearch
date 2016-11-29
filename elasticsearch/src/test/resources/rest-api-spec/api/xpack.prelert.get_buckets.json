@@ -2,29 +2,34 @@
   "xpack.prelert.get_buckets": {
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/results/{jobId}/buckets/{timestamp}",
+      "path": "/_xpack/prelert/results/{job_id}/buckets/{timestamp}",
       "paths": [
-        "/_xpack/prelert/results/{jobId}/buckets/{timestamp}",
-        "/_xpack/prelert/results/{jobId}/buckets"
+        "/_xpack/prelert/results/{job_id}/buckets/{timestamp}",
+        "/_xpack/prelert/results/{job_id}/buckets"
       ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type" : "string",
-          "required": true
+          "required": true,
+          "description": "ID of the job to get bucket results from"
         },
         "timestamp": {
-          "type" : "string"
+          "type" : "string",
+          "description" : "The timestamp of the desired single bucket result"
         }
       },
       "params": {
         "expand": {
-          "type": "boolean"
+          "type": "boolean",
+          "description" : "Include anomaly records"
         },
         "includeInterim": {
-          "type": "boolean"
+          "type": "boolean",
+          "description" : "Include interim results"
         },
         "partitionValue": {
-          "type": "string"
+          "type": "string",
+          "description": "If expand is true filter anomaly records by the partitionFieldValue"
         },
         "from": {
           "type": "int",
@@ -35,16 +40,20 @@
           "description": "specifies a max number of buckets to get"
         },
         "start": {
-          "type": "string"
+          "type": "string",
+          "description" : "Start time filter for buckets"
         },
         "end": {
-          "type": "string"
+          "type": "string",
+          "description" : "End time filter for buckets"
         },
         "anomalyScore": {
-          "type": "double"
+          "type": "double",
+          "description": "Filter for the most anomalous buckets"
         },
         "maxNormalizedProbability": {
-          "type": "double"
+          "type": "double",
+          "description": "Filter for buckets containing the most anomalous records"
         }
       }
     },

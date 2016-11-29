@@ -2,10 +2,10 @@
   "xpack.prelert.post_data": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/prelert/data/{jobId}",
-      "paths": [ "/_xpack/prelert/data/{jobId}" ],
+      "path": "/_xpack/prelert/data/{job_id}",
+      "paths": [ "/_xpack/prelert/data/{job_id}" ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type": "string",
           "required": true,
           "description": "The name of the job receiving the data"

@@ -1,18 +1,19 @@
 {
   "xpack.prelert.get_influencers": {
-    "methods": [ "GET" ],
+    "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/results/{jobId}/influencers",
-      "paths": [ "/_xpack/prelert/results/{jobId}/influencers" ],
+      "path": "/_xpack/prelert/results/{job_id}/influencers",
+      "paths": [ "/_xpack/prelert/results/{job_id}/influencers" ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type" : "string",
           "required": true
         }
       },
       "params": {
         "includeInterim": {
-          "type": "boolean"
+          "type": "boolean",
+          "description" : "Include interim results"
         },
         "from": {
           "type": "int",
@@ -45,6 +46,9 @@
           "description": "whether the results should be sorted in decending order"
         }
       }
+    },
+    "body": {
+      "description": "Influencer selection criteria"
     }
   }
 }

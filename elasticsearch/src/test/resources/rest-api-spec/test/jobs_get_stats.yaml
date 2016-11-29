@@ -54,14 +54,14 @@ setup:
 
   - do:
       xpack.prelert.post_data:
-        jobId: job-stats-test
+        job_id: job-stats-test
         body: >
           {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
 
   - do:
       xpack.prelert.flush_data:
-        jobId: job-stats-test
+        job_id: job-stats-test
   - match: { acknowledged: true }
 
 

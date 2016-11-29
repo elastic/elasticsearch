@@ -73,18 +73,18 @@ setup:
         index: prelertresults-foo
 
 ---
-"Test revert model with only jobId":
+"Test revert model with only job_id":
   - do:
       catch: request
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
 
 ---
 "Test revert model with invalid time":
   - do:
       catch: request
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         time: "foo"
 
 ---
@@ -92,7 +92,7 @@ setup:
   - do:
       catch: /resource_not_found_exception/
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         snapshotId: "not_exist"
 
 ---
@@ -100,14 +100,14 @@ setup:
   - do:
       catch: /resource_not_found_exception/
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         description: "foo"
 
 ---
 "Test revert model with valid snapshotId":
   - do:
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         snapshotId: "foo1"
 
   - match: { exists: true }
@@ -120,7 +120,7 @@ setup:
 
   - do:
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         snapshotId: "foo2"
 
   - match: { exists: true }
@@ -135,7 +135,7 @@ setup:
 "Test revert model with valid time":
   - do:
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         time: "2016-06-02T01:00:00Z"
 
   - match: { exists: true }
@@ -148,7 +148,7 @@ setup:
 
   - do:
         xpack.prelert.revert_model_snapshot:
-          jobId: "foo"
+          job_id: "foo"
           time: "2016-06-01T01:00:00Z"
 
   - match: { exists: true }
@@ -163,7 +163,7 @@ setup:
 "Test revert model with valid description":
   - do:
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         description: "first"
 
   - match: { exists: true }
@@ -176,7 +176,7 @@ setup:
 
   - do:
         xpack.prelert.revert_model_snapshot:
-          jobId: "foo"
+          job_id: "foo"
           description: "second"
 
   - match: { exists: true }
@@ -191,7 +191,7 @@ setup:
 "Test revert model with deleteInterveningResults":
   - do:
       xpack.prelert.get_buckets:
-        jobId: "foo"
+        job_id: "foo"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
 
@@ -199,7 +199,7 @@ setup:
 
   - do:
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         snapshotId: "foo2"
         deleteInterveningResults: true
 
@@ -209,7 +209,7 @@ setup:
 
   - do:
       xpack.prelert.get_buckets:
-        jobId: "foo"
+        job_id: "foo"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
 

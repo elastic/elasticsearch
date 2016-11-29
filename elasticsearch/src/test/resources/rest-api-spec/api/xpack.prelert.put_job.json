@@ -7,7 +7,7 @@
       "params": {
         "overwrite": {
           "type": "boolean",
-          "description": ""
+          "description": "Overwrite an existing job"
         }
       }
     },

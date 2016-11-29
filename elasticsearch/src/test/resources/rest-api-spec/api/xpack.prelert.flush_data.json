@@ -4,12 +4,12 @@
       "POST"
     ],
     "url": {
-      "path": "/_xpack/prelert/data/{jobId}/_flush",
+      "path": "/_xpack/prelert/data/{job_id}/_flush",
       "paths": [
-        "/_xpack/prelert/data/{jobId}/_flush"
+        "/_xpack/prelert/data/{job_id}/_flush"
       ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type": "string",
           "required": true,
           "description": "The name of the job to flush"
@@ -33,6 +33,9 @@
           "description": "Setting this tells the Engine API that no data prior to advanceTime is expected"
         }
       }
+    },
+    "body": {
+      "description": "Flush parameters"
     }
   }
 }

@@ -2,18 +2,20 @@
   "xpack.prelert.get_categories": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/prelert/results/{jobId}/categorydefinitions/{categoryId}",
+      "path": "/_xpack/prelert/results/{job_id}/categorydefinitions/{category_id}",
       "paths": [
-        "/_xpack/prelert/results/{jobId}/categorydefinitions/{categoryId}",
-        "/_xpack/prelert/results/{jobId}/categorydefinitions/"
+        "/_xpack/prelert/results/{job_id}/categorydefinitions/{category_id}",
+        "/_xpack/prelert/results/{job_id}/categorydefinitions/"
       ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type" : "string",
-          "required": true
+          "required": true,
+          "description": "The name of the job"
         },
-        "categoryId": {
-          "type" : "string"
+        "category_id": {
+          "type" : "string",
+          "description" : "The identifier of the category definition of interest"
         }
       },
       "params": {

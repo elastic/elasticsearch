@@ -2,10 +2,10 @@
   "xpack.prelert.get_records": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/prelert/results/{jobId}/records",
-      "paths": [ "/_xpack/prelert/results/{jobId}/records" ],
+      "path": "/_xpack/prelert/results/{job_id}/records",
+      "paths": [ "/_xpack/prelert/results/{job_id}/records" ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type" : "string",
           "required": true
         }
@@ -15,7 +15,8 @@
           "type": "boolean"
         },
         "includeInterim": {
-          "type": "boolean"
+          "type": "boolean",
+          "description" : "Include interim results"
         },
         "from": {
           "type": "int",
@@ -27,11 +28,13 @@
         },
         "start": {
           "type": "string",
-          "required": true
+          "required": true,
+          "description" : "Start time filter for records"
         },
         "end": {
           "type": "string",
-          "required": true
+          "required": true,
+          "description" : "End time filter for records"
         },
         "anomalyScore": {
           "type": "double"
@@ -40,13 +43,16 @@
           "type": "double"
         },
         "partitionValue": {
-          "type": "string"
+          "type": "string",
+          "description": "Filter anomaly records by the partitionFieldValue"
         },
         "sort": {
-          "type": "string"
+          "type": "string",
+          "description": "Sort records by a particular field"
         },
         "desc": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Set the sort direction"
         }
       }
     }

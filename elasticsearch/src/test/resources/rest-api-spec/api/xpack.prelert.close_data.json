@@ -2,10 +2,10 @@
   "xpack.prelert.close_data": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/prelert/data/{jobId}/_close",
-      "paths": [ "/_xpack/prelert/data/{jobId}/_close" ],
+      "path": "/_xpack/prelert/data/{job_id}/_close",
+      "paths": [ "/_xpack/prelert/data/{job_id}/_close" ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type": "string",
           "required": true,
           "description": "The name of the job to close"

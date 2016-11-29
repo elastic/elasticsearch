@@ -52,6 +52,8 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
         super(settings);
         this.transportGetModelSnapshotsAction = transportGetModelSnapshotsAction;
         controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "modelsnapshots/{jobId}", this);
+        // endpoints that support body parameters must also accept POST
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "modelsnapshots/{jobId}", this);
     }
 
     @Override

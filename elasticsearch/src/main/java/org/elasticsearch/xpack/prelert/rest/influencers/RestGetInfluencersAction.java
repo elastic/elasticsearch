@@ -32,8 +32,10 @@ public class RestGetInfluencersAction extends BaseRestHandler {
         super(settings);
         this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/influencers",
-                this);
+                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/influencers", this);
+        // endpoints that support body parameters must also accept POST
+        controller.registerHandler(RestRequest.Method.POST,
+                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/influencers", this);
     }
 
     @Override

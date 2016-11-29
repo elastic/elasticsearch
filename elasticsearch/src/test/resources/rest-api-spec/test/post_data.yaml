@@ -20,7 +20,7 @@ setup:
 "Test POST data job api, flush, close and verify DataCounts doc":
   - do:
       xpack.prelert.post_data:
-        jobId: farequote
+        job_id: farequote
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
@@ -37,12 +37,12 @@ setup:
 
   - do:
       xpack.prelert.flush_data:
-        jobId: farequote
+        job_id: farequote
   - match: { acknowledged: true }
 
   - do:
       xpack.prelert.close_data:
-        jobId: farequote
+        job_id: farequote
   - match: { acknowledged: true }
 
   - do:
@@ -72,7 +72,7 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.prelert.post_data:
-        jobId: foo
+        job_id: foo
         resetStart: not_a_date
         body:  >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -81,7 +81,7 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.prelert.post_data:
-        jobId: foo
+        job_id: foo
         resetEnd: end_not_a_date
         body:  >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -92,17 +92,17 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.prelert.flush_data:
-        jobId: foo
+        job_id: foo
         start: not_a_date
 
   - do:
       catch: /parse_exception/
       xpack.prelert.flush_data:
-        jobId: foo
+        job_id: foo
         end: end_not_a_date
 
   - do:
       catch: /parse_exception/
       xpack.prelert.flush_data:
-        jobId: foo
+        job_id: foo
         advanceTime: advance_time_not_a_date

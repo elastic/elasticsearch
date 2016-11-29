@@ -78,10 +78,10 @@ setup:
   - do:
       catch: param
       xpack.prelert.delete_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
 
 ---
-"Test delete snapshot missing jobId":
+"Test delete snapshot missing job_id":
   - do:
       catch: param
       xpack.prelert.delete_model_snapshot:
@@ -91,7 +91,7 @@ setup:
 "Test valid delete snapshot":
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
   - match: { count: 2 }
 
   - do:
@@ -103,8 +103,8 @@ setup:
 
   - do:
       xpack.prelert.delete_model_snapshot:
-        jobId: "foo"
-        snapshotId: "foo1"
+        job_id: "foo"
+        snapshot_id: "foo1"
   - match: { acknowledged: true }
 
   - do:
@@ -113,7 +113,7 @@ setup:
 
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
   - match: { count: 1 }
   - match: { modelSnapshots.0.snapshotId: "foo2"}
 
@@ -128,11 +128,11 @@ setup:
 "Test delete with in-use model":
   - do:
       xpack.prelert.revert_model_snapshot:
-        jobId: "foo"
+        job_id: "foo"
         snapshotId: "foo2"
 
   - do:
       catch: request
       xpack.prelert.delete_model_snapshot:
-        jobId: "foo"
-        snapshotId: "foo2"
+        job_id: "foo"
+        snapshot_id: "foo2"

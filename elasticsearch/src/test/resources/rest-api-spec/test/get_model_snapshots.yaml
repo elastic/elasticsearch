@@ -32,7 +32,7 @@ setup:
 "Test get model snapshots API with no params":
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
 
 
   - match: { count: 2 }
@@ -43,7 +43,7 @@ setup:
 "Test get model snapshots API with start/end":
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
 
@@ -56,7 +56,7 @@ setup:
 "Test get model snapshots API with ascending":
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
         desc: false
 
 
@@ -68,7 +68,7 @@ setup:
 "Test get model snapshots API with size":
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
         size: 1
 
 
@@ -81,7 +81,7 @@ setup:
 "Test get model snapshots API with from":
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
         from: 1
 
 

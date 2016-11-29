@@ -46,8 +46,8 @@ setup:
   - do:
       catch: request
       xpack.prelert.put_model_snapshot_description:
-        jobId: "foo"
-        snapshotId: "foo"
+        job_id: "foo"
+        snapshot_id: "foo"
         body: >
           {
             "some_field": "foo"
@@ -57,7 +57,7 @@ setup:
 "Test with valid description":
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
         description: "new_description"
 
   - match: { count: 0 }
@@ -65,8 +65,8 @@ setup:
 
   - do:
       xpack.prelert.put_model_snapshot_description:
-        jobId: "foo"
-        snapshotId: "foo"
+        job_id: "foo"
+        snapshot_id: "foo"
         body: >
           {
             "description": "new_description"
@@ -78,7 +78,7 @@ setup:
 
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
         description: "new_description"
 
   - match: { count: 1 }
@@ -89,7 +89,7 @@ setup:
 "Test with conflict against existing description":
   - do:
       xpack.prelert.get_model_snapshots:
-        jobId: "foo"
+        job_id: "foo"
         description: "bar"
 
   - match: { count: 1 }
@@ -100,8 +100,8 @@ setup:
   - do:
       catch: request
       xpack.prelert.put_model_snapshot_description:
-        jobId: "foo"
-        snapshotId: "foo"
+        job_id: "foo"
+        snapshot_id: "foo"
         body: >
           {
             "description": "bar"

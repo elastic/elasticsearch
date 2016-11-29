@@ -1,11 +1,11 @@
 {
   "xpack.prelert.get_model_snapshots": {
-    "methods": [ "GET" ],
+    "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/modelsnapshots/{jobId}",
-      "paths": [ "/_xpack/prelert/modelsnapshots/{jobId}" ],
+      "path": "/_xpack/prelert/modelsnapshots/{job_id}",
+      "paths": [ "/_xpack/prelert/modelsnapshots/{job_id}" ],
       "parts": {
-        "jobId": {
+        "job_id": {
           "type": "string",
           "required": true,
           "description": "The ID of the job to fetch"
@@ -14,7 +14,7 @@
       "params": {
         "from": {
           "type": "integer",
-          "description": ""
+          "description": "Skips a number of documents"
         },
         "size": {
           "type": "integer",
@@ -42,6 +42,8 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description": "Model snapshot selection criteria"
+    }
   }
 }

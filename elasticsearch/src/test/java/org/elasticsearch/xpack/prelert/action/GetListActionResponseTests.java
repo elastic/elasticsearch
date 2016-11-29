@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.xpack.prelert.action.GetListAction.Response;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.lists.ListDocument;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.prelert.utils.SingleDocument;
@@ -16,13 +17,11 @@ public class GetListActionResponseTests extends AbstractStreamableTestCase<GetLi
 
     @Override
     protected Response createTestInstance() {
-        final SingleDocument<ListDocument> result;
-        if (randomBoolean()) {
-            result = SingleDocument.empty(ListDocument.TYPE.getPreferredName());
-        } else {
-            result = new SingleDocument<>(ListDocument.TYPE.getPreferredName(),
-                    new ListDocument(randomAsciiOfLengthBetween(1, 20), Collections.singletonList(randomAsciiOfLengthBetween(1, 20))));
-        }
+        final QueryPage<ListDocument> result;
+
+        ListDocument doc = new ListDocument(
+                randomAsciiOfLengthBetween(1, 20), Collections.singletonList(randomAsciiOfLengthBetween(1, 20)));
+        result = new QueryPage<>(Collections.singletonList(doc), 1, ListDocument.RESULTS_FIELD);
         return new Response(result);
     }
 

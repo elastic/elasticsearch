@@ -19,10 +19,6 @@ setup:
       xpack.prelert.get_lists:
         list_id: "do_not_exist"
 
-  - match: { exists:   false }
-  - match: { type:    "list"   }
-  - is_false: document
-
 ---
 "Test get list API":
 
@@ -30,10 +26,9 @@ setup:
       xpack.prelert.get_lists:
         list_id: "foo"
 
-  - match: { exists:   true }
-  - match: { type:    "list"   }
+  - match: { count:   1 }
   - match:
-      document:
+      lists.0:
         id: "foo"
         items: ["abc", "xyz"]
 
@@ -52,10 +47,9 @@ setup:
       xpack.prelert.get_lists:
         list_id: "foo2"
 
-  - match: { exists:   true }
-  - match: { type:    "list"   }
+  - match: { count:   1 }
   - match:
-      document:
+      lists.0:
         id: "foo2"
         items: ["abc", "xyz"]
 

@@ -34,10 +34,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.lists.ListDocument;
-import org.elasticsearch.xpack.prelert.utils.SingleDocument;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -125,44 +126,44 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
 
     public static class Response extends ActionResponse implements StatusToXContent {
 
-        private SingleDocument<ListDocument> response;
+        private QueryPage<ListDocument> lists;
 
-        public Response(SingleDocument<ListDocument> document) {
-            this.response = document;
+        public Response(QueryPage<ListDocument> lists) {
+            this.lists = lists;
         }
 
         Response() {
         }
 
-        public SingleDocument<ListDocument> getResponse() {
-            return response;
+        public QueryPage<ListDocument> getLists() {
+            return lists;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            response = new SingleDocument<>(in, ListDocument::new);
+            lists = new QueryPage<>(in, ListDocument::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            response.writeTo(out);
+            lists.writeTo(out);
         }
 
         @Override
         public RestStatus status() {
-            return response.status();
+            return lists.count() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return response.toXContent(builder, params);
+            return lists.doXContentBody(builder, params);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(response);
+            return Objects.hash(lists);
         }
 
         @Override
@@ -174,7 +175,7 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(response, other.response);
+            return Objects.equals(lists, other.lists);
         }
 
         @SuppressWarnings("deprecation")
@@ -183,9 +184,7 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.prettyPrint();
-                builder.startObject();
                 toXContent(builder, EMPTY_PARAMS);
-                builder.endObject();
                 return builder.string();
             } catch (Exception e) {
                 // So we have a stack trace logged somewhere
@@ -231,17 +230,19 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
                 public void onResponse(GetResponse getDocResponse) {
 
                     try {
-                        SingleDocument<ListDocument> responseBody;
+                        QueryPage<ListDocument> responseBody;
                         if (getDocResponse.isExists()) {
                             BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                             XContentParser parser = XContentFactory.xContent(docSource).createParser(docSource);
                             ListDocument listDocument = ListDocument.PARSER.apply(parser, () -> parseFieldMatcher);
-                            responseBody = new SingleDocument<>(ListDocument.TYPE.getPreferredName(), listDocument);
+                            responseBody = new QueryPage<>(Collections.singletonList(listDocument), 1, ListDocument.RESULTS_FIELD);
+
+                            Response listResponse = new Response(responseBody);
+                            listener.onResponse(listResponse);
                         } else {
-                            responseBody = SingleDocument.empty(ListDocument.TYPE.getPreferredName());
+                            this.onFailure(QueryPage.emptyQueryPage(ListDocument.RESULTS_FIELD));
                         }
-                        Response listResponse = new Response(responseBody);
-                        listener.onResponse(listResponse);
+
                     } catch (Exception e) {
                         this.onFailure(e);
                     }

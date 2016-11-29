@@ -25,6 +25,9 @@ public class ListDocument extends ToXContentToBytes implements Writeable {
     public static final ParseField ID = new ParseField("id");
     public static final ParseField ITEMS = new ParseField("items");
 
+    // For QueryPage
+    public static final ParseField RESULTS_FIELD = new ParseField("lists");
+
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ListDocument, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new ListDocument((String) a[0], (List<String>) a[1]));

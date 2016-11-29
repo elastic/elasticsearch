@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportSettings;
 import org.hamcrest.Matcher;
@@ -408,6 +409,7 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
+    @TestLogging("_root:DEBUG")
     public void testTwoNodeCluster() throws Exception {
         final boolean autoManageMinMasterNodes = randomBoolean();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {

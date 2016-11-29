@@ -260,7 +260,7 @@ public class ElasticsearchJobProvider implements JobProvider {
                     parser = XContentFactory.xContent(source).createParser(source);
                     return DataCounts.PARSER.apply(parser, () -> parseFieldMatcher);
                 } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to parser bucket", e);
+                    throw new ElasticsearchParseException("failed to parse bucket", e);
                 }
             }
 
@@ -586,7 +586,7 @@ public class ElasticsearchJobProvider implements JobProvider {
             try {
                 parser = XContentFactory.xContent(source).createParser(source);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parser category definition", e);
+                throw new ElasticsearchParseException("failed to parse category definition", e);
             }
             CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
             results.add(categoryDefinition);
@@ -617,7 +617,7 @@ public class ElasticsearchJobProvider implements JobProvider {
             try {
                 parser = XContentFactory.xContent(source).createParser(source);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parser category definition", e);
+                throw new ElasticsearchParseException("failed to parse category definition", e);
             }
             CategoryDefinition definition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
             return new QueryPage<>(Collections.singletonList(definition), 1, CategoryDefinition.RESULTS_FIELD);
@@ -696,7 +696,7 @@ public class ElasticsearchJobProvider implements JobProvider {
             try {
                 parser = XContentFactory.xContent(source).createParser(source);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parser records", e);
+                throw new ElasticsearchParseException("failed to parse records", e);
             }
             AnomalyRecord record = AnomalyRecord.PARSER.apply(parser, () -> parseFieldMatcher);
 
@@ -729,6 +729,10 @@ public class ElasticsearchJobProvider implements JobProvider {
                         " with sort " + (sortDescending ? "descending" : "ascending") + " on field " + esSortField(sortField) : "",
                 () -> from, () -> size);
 
+        filterBuilder = new BoolQueryBuilder()
+                .filter(filterBuilder)
+                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Influencer.RESULT_TYPE_VALUE));
+
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch(indexName)
                 .setTypes(Result.TYPE.getPreferredName())
                 .setQuery(filterBuilder)
@@ -752,7 +756,7 @@ public class ElasticsearchJobProvider implements JobProvider {
             try {
                 parser = XContentFactory.xContent(source).createParser(source);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parser list", e);
+                throw new ElasticsearchParseException("failed to parse influencer", e);
             }
             Influencer influencer = Influencer.PARSER.apply(parser, () -> parseFieldMatcher);
             influencer.setId(hit.getId());
@@ -886,7 +890,7 @@ public class ElasticsearchJobProvider implements JobProvider {
             try {
                 parser = XContentFactory.xContent(source).createParser(source);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parser list", e);
+                throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
             }
             ModelSnapshot modelSnapshot = ModelSnapshot.PARSER.apply(parser, () -> parseFieldMatcher);
             results.add(modelSnapshot);
@@ -957,7 +961,7 @@ public class ElasticsearchJobProvider implements JobProvider {
         try {
             parser = XContentFactory.xContent(source).createParser(source);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parser quantiles", e);
+            throw new ElasticsearchParseException("failed to parse quantiles", e);
         }
         Quantiles quantiles = Quantiles.PARSER.apply(parser, () -> parseFieldMatcher);
         if (quantiles.getQuantileState() == null) {
@@ -987,7 +991,7 @@ public class ElasticsearchJobProvider implements JobProvider {
                 try {
                     parser = XContentFactory.xContent(source).createParser(source);
                 } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to parser model size stats", e);
+                    throw new ElasticsearchParseException("failed to parse model size stats", e);
                 }
                 ModelSizeStats modelSizeStats = ModelSizeStats.PARSER.apply(parser, () -> parseFieldMatcher).build();
                 return Optional.of(modelSizeStats);
@@ -1009,7 +1013,7 @@ public class ElasticsearchJobProvider implements JobProvider {
         try {
             parser = XContentFactory.xContent(source).createParser(source);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parser list", e);
+            throw new ElasticsearchParseException("failed to parse list", e);
         }
         ListDocument listDocument = ListDocument.PARSER.apply(parser, () -> parseFieldMatcher);
         return Optional.of(listDocument);

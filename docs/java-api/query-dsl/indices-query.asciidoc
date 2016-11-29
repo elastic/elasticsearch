@@ -1,6 +1,8 @@
 [[java-query-dsl-indices-query]]
 ==== Indices Query
 
+deprecated[5.0.0, Search on the '_index' field instead]
+
 See {ref}/query-dsl-indices-query.html[Indices Query]
 
 [source,java]

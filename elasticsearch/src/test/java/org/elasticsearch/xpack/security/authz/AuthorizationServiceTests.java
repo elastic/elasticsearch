@@ -148,7 +148,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(roleMap.get((String)i.getArguments()[0]));
+            callback.onResponse(roleMap.get(i.getArguments()[0]));
             return Void.TYPE;
         }).when(rolesStore).roles(any(String.class), any(ActionListener.class));
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
@@ -771,11 +771,12 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testCompositeActionsIndicesAreCheckedAtTheShardLevel() {
         String action;
-        switch(randomIntBetween(0, 6)) {
+        switch(randomIntBetween(0, 5)) {
             case 0:
                 action = MultiGetAction.NAME + "[shard]";
                 break;
             case 1:
+                //reindex, msearch, search template, and multi search template delegate to search
                 action = SearchAction.NAME;
                 break;
             case 2:
@@ -788,11 +789,8 @@ public class AuthorizationServiceTests extends ESTestCase {
                 action = "indices:data/read/mpercolate[s]";
                 break;
             case 5:
-                action = "indices:data/read/search/template";
-                break;
-            case 6:
-                //reindex delegates to search and index
-                action = randomBoolean() ? SearchAction.NAME : IndexAction.NAME;
+                //reindex delegates to index, other than search covered above
+                action = IndexAction.NAME;
                 break;
             default:
                 throw new UnsupportedOperationException();
@@ -810,7 +808,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
-        switch(randomIntBetween(0, 6)) {
+        switch(randomIntBetween(0, 7)) {
             case 0:
                 return Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "type", "id"));
             case 1:
@@ -824,6 +822,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             case 5:
                 return Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
             case 6:
+                return Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
+            case 7:
                 return Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
             default:
                 throw new UnsupportedOperationException();

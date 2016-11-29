@@ -1,0 +1,153 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      xpack.security.put_user:
+        username: "inline_template_user"
+        body:  >
+            {
+              "password": "changeme",
+              "roles" : [ "role" ]
+            }
+
+  - do:
+      xpack.security.put_role:
+        name: "role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["read"]
+                }
+              ]
+            }
+
+  - do:
+      index:
+        index: foobar
+        type: type
+        id: 1
+        body:
+          title: "contains some words"
+
+  - do:
+      index:
+        index: unauthorized_index
+        type: type
+        id: 2
+        body:
+          title: "contains some words too"
+
+  - do:
+      indices.refresh: {}
+
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "inline_template_user"
+        ignore: 404
+
+---
+"Test inline template against specific index":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+      search_template:
+        index: foobar
+        body:
+          inline:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._id: "1"}
+
+---
+"Test inline template against all indices":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+      search_template:
+        body:
+          inline:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._id: "1"}
+
+---
+"Test inline template against wildcard expression":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+      search_template:
+        index: foo*
+        body:
+          inline:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._id: "1"}
+---
+"Test unauthorized inline template against wildcard expression":
+
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+      search_template:
+        index: unauthorized*
+        body:
+          inline:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match: { hits.total: 0}
+
+---
+"Basic multi-search template":
+
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+      msearch_template:
+        body:
+          - index: foobar
+          - inline:
+              query:
+                match:
+                  title: "{{query_string}}"
+            params:
+              query_string: "search for these words"
+          - index: unauthorized*
+          - inline:
+              query:
+                match:
+                  title: "{{query_string}}"
+            params:
+              query_string: "search for these words"
+
+  - match:  { responses.0.hits.total:     1  }
+  - match:  { responses.1.hits.total:     0  }
+

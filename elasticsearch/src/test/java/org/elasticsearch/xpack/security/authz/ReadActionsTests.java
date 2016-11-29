@@ -203,7 +203,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     }
 
     public void testMultiSearchUnauthorizedIndex() {
-        //index1 is not authorized, the whole request fails due to that
+        //index1 is not authorized, only that specific item fails
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()

@@ -340,6 +340,7 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals(MultiSearchAction.NAME) ||
                 action.equals("indices:data/read/mpercolate") ||
                 action.equals("indices:data/read/msearch/template") ||
+                action.equals("indices:data/read/search/template") ||
                 action.equals("indices:data/write/reindex");
     }
 

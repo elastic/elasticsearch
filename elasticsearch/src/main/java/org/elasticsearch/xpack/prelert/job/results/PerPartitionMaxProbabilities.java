@@ -58,7 +58,8 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return new Date(TimeUtils.dateStringToEpoch(p.text()));
             }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + Bucket.TIMESTAMP.getPreferredName() + "]");
+            throw new IllegalArgumentException(
+                    "unexpected token [" + p.currentToken() + "] for [" + Bucket.TIMESTAMP.getPreferredName() + "]");
         }, Bucket.TIMESTAMP, ObjectParser.ValueType.VALUE);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), PartitionProbability.PARSER, PER_PARTITION_MAX_PROBABILITIES);
         PARSER.declareString((p, s) -> {}, Result.RESULT_TYPE);
@@ -205,7 +206,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     public static class PartitionProbability extends ToXContentToBytes implements Writeable  {
 
         public static final ConstructingObjectParser<PartitionProbability, ParseFieldMatcherSupplier> PARSER =
-                new ConstructingObjectParser<>(PER_PARTITION_MAX_PROBABILITIES.getPreferredName(),
+                new ConstructingObjectParser<>("partitionProbability",
                         a -> new PartitionProbability((String) a[0], (double) a[1]));
 
         static {
@@ -266,7 +267,8 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
 
             PartitionProbability that = (PartitionProbability) other;
 
-            return Objects.equals(this.partitionValue, that.partitionValue) && this.maxNormalisedProbability == that.maxNormalisedProbability;
+            return Objects.equals(this.partitionValue, that.partitionValue)
+                    && this.maxNormalisedProbability == that.maxNormalisedProbability;
         }
     }
 }

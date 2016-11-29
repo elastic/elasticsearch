@@ -14,11 +14,11 @@ import org.joda.time.DateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PerPartitionMaxProbabilitiesTest extends AbstractSerializingTestCase<PerPartitionMaxProbabilities> {
+public class PerPartitionMaxProbabilitiesTests extends AbstractSerializingTestCase<PerPartitionMaxProbabilities> {
 
     @Override
     protected PerPartitionMaxProbabilities createTestInstance() {
-        int num = randomInt(10);
+        int num = randomIntBetween(1, 10);
         List<PerPartitionMaxProbabilities.PartitionProbability> pps = new ArrayList<>();
         for (int i=0; i<num; i++) {
             pps.add(new PerPartitionMaxProbabilities.PartitionProbability(randomAsciiOfLength(12), randomDouble()));

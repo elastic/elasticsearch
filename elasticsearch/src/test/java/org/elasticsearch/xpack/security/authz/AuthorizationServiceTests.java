@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -831,10 +830,6 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {
-        @Override
-        public List<? extends IndicesRequest> subRequests() {
-            return Collections.singletonList(new MockIndicesRequest(IndicesOptions.strictExpandOpen(), "index"));
-        }
     }
 
     public void testDoesNotUseRolesStoreForXPackUser() {

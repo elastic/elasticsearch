@@ -75,7 +75,7 @@ import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 import org.elasticsearch.xpack.prelert.rest.data.RestPostDataAction;
 import org.elasticsearch.xpack.prelert.rest.data.RestPostDataCloseAction;
 import org.elasticsearch.xpack.prelert.rest.data.RestPostDataFlushAction;
-import org.elasticsearch.xpack.prelert.rest.influencers.RestGetInfluencersAction;
+import org.elasticsearch.xpack.prelert.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPauseJobAction;

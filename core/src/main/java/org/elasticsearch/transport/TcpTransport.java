@@ -67,7 +67,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -81,6 +80,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -91,12 +91,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -178,6 +179,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final boolean compress;
     protected volatile BoundTransportAddress boundAddress;
     private final String transportName;
+    private final ConnectionProfile defaultConnectionProfile;
 
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -200,6 +202,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         this.connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
         this.connectTimeout = TCP_CONNECT_TIMEOUT.get(settings);
         this.blockingClient = TCP_BLOCKING_CLIENT.get(settings);
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
+        builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
+        builder.addConnections(connectionsPerNodeRecovery, TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
+        builder.addConnections(connectionsPerNodeState, TransportRequestOptions.Type.STATE);
+        defaultConnectionProfile = builder.build();
     }
 
     @Override
@@ -255,7 +264,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
-                for (Channel channel : channels.allChannels) {
+                for (Channel channel : channels.getChannels()) {
                     try {
                         sendMessage(channel, pingHeader, successfulPings::inc);
                     } catch (Exception e) {
@@ -304,40 +313,31 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    public class NodeChannels implements Closeable {
+    public final class NodeChannels implements Closeable {
+        private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping
+            = new EnumMap<>(TransportRequestOptions.Type.class);
+        private final Channel[] channels;
+        private final AtomicBoolean establishedAllConnections = new AtomicBoolean(false);
 
-        public List<Channel> allChannels = Collections.emptyList();
-        public Channel[] recovery;
-        public final AtomicInteger recoveryCounter = new AtomicInteger();
-        public Channel[] bulk;
-        public final AtomicInteger bulkCounter = new AtomicInteger();
-        public Channel[] reg;
-        public final AtomicInteger regCounter = new AtomicInteger();
-        public Channel[] state;
-        public final AtomicInteger stateCounter = new AtomicInteger();
-        public Channel[] ping;
-        public final AtomicInteger pingCounter = new AtomicInteger();
-
-        public NodeChannels(Channel[] recovery, Channel[] bulk, Channel[] reg, Channel[] state, Channel[] ping) {
-            this.recovery = recovery;
-            this.bulk = bulk;
-            this.reg = reg;
-            this.state = state;
-            this.ping = ping;
+        public NodeChannels(Channel[] channels, ConnectionProfile connectionProfile) {
+            this.channels = channels;
+            assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
+                + connectionProfile.getNumConnections() + " but was: [" + channels.length + "]";
+            for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
+                for (TransportRequestOptions.Type type : handle.getTypes())
+                typeMapping.put(type, handle);
+            }
         }
 
-        public void start() {
-            List<Channel> newAllChannels = new ArrayList<>();
-            newAllChannels.addAll(Arrays.asList(recovery));
-            newAllChannels.addAll(Arrays.asList(bulk));
-            newAllChannels.addAll(Arrays.asList(reg));
-            newAllChannels.addAll(Arrays.asList(state));
-            newAllChannels.addAll(Arrays.asList(ping));
-            this.allChannels = Collections.unmodifiableList(newAllChannels);
+        public void connectionsEstablished() {
+            if (establishedAllConnections.compareAndSet(false, true) == false) {
+                throw new AssertionError("connected more than once");
+            }
+
         }
 
         public boolean hasChannel(Channel channel) {
-            for (Channel channel1 : allChannels) {
+            for (Channel channel1 : channels) {
                 if (channel.equals(channel1)) {
                     return true;
                 }
@@ -345,29 +345,26 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             return false;
         }
 
-        public Channel channel(TransportRequestOptions.Type type) {
-            if (type == TransportRequestOptions.Type.REG) {
-                return reg[Math.floorMod(regCounter.incrementAndGet(), reg.length)];
-            } else if (type == TransportRequestOptions.Type.STATE) {
-                return state[Math.floorMod(stateCounter.incrementAndGet(), state.length)];
-            } else if (type == TransportRequestOptions.Type.PING) {
-                return ping[Math.floorMod(pingCounter.incrementAndGet(), ping.length)];
-            } else if (type == TransportRequestOptions.Type.BULK) {
-                return bulk[Math.floorMod(bulkCounter.incrementAndGet(), bulk.length)];
-            } else if (type == TransportRequestOptions.Type.RECOVERY) {
-                return recovery[Math.floorMod(recoveryCounter.incrementAndGet(), recovery.length)];
+        public List<Channel> getChannels() {
+            if (establishedAllConnections.get()) { // don't expose the channels until we are connected
+                return Arrays.asList(channels);
             } else {
-                throw new IllegalArgumentException("no type channel for [" + type + "]");
+                return Collections.emptyList();
             }
         }
 
-        public List<Channel[]> getChannelArrays() {
-            return Arrays.asList(recovery, bulk, reg, state, ping);
+        public Channel channel(TransportRequestOptions.Type type) {
+            assert establishedAllConnections.get();
+            ConnectionProfile.ConnectionTypeHandle connectionTypeHandle = typeMapping.get(type);
+            if (connectionTypeHandle == null) {
+                throw new IllegalArgumentException("no type channel for [" + type + "]");
+            }
+            return connectionTypeHandle.getChannel(channels);
         }
 
         @Override
         public synchronized void close() throws IOException {
-            closeChannels(allChannels);
+            closeChannels(Arrays.asList(channels).stream().filter(Objects::nonNull).collect(Collectors.toList()));
         }
     }
 
@@ -377,16 +374,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-        connectToNode(node, true);
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node) {
-        connectToNode(node, false);
-    }
-
-    public void connectToNode(DiscoveryNode node, boolean light) {
+    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        connectionProfile = connectionProfile == null ? defaultConnectionProfile : connectionProfile;
         if (!lifecycle.started()) {
             throw new IllegalStateException("can't add nodes to a stopped transport");
         }
@@ -405,20 +394,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     return;
                 }
                 try {
-                    if (light) {
-                        nodeChannels = connectToChannelsLight(node);
-                    } else {
-                        try {
-                            nodeChannels = connectToChannels(node);
-                        } catch (Exception e) {
-                            logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to connect to [{}], cleaning dangling connections", node), e);
-                            throw e;
-                        }
+                    try {
+                        nodeChannels = connectToChannels(node, connectionProfile);
+                    } catch (Exception e) {
+                        logger.trace(
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to connect to [{}], cleaning dangling connections", node), e);
+                        throw e;
                     }
                     // we acquire a connection lock, so no way there is an existing connection
-                    nodeChannels.start();
+                    nodeChannels.connectionsEstablished();
                     connectedNodes.put(node, nodeChannels);
                     if (logger.isDebugEnabled()) {
                         logger.debug("connected to node [{}]", node);
@@ -884,21 +869,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     protected abstract void closeChannels(List<Channel> channel) throws IOException;
 
-    /**
-     * Connects to the given node in a light way. This means we are not creating multiple connections like we do
-     * for production connections. This connection is for pings or handshakes
-     */
-    protected abstract NodeChannels connectToChannelsLight(DiscoveryNode node) throws IOException;
-
 
     protected abstract void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) throws IOException;
 
-    /**
-     * Connects to the node in a <tt>heavy</tt> way.
-     *
-     * @see #connectToChannelsLight(DiscoveryNode)
-     */
-    protected abstract NodeChannels connectToChannels(DiscoveryNode node) throws IOException;
+    protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 
     /**
      * Called to tear down internal resources

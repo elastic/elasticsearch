@@ -44,7 +44,7 @@ import java.util.Optional;
 /**
  * A Query that does fuzzy matching for a specific value.
  *
- * @deprecated Fuzzy queries are not useful enough. This class will be removed with Elasticsearch 4.0. In most cases you may want to use
+ * @deprecated Fuzzy queries are not useful enough. This class will be removed with Elasticsearch 6.0. In most cases you may want to use
  * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
  */
 @Deprecated
@@ -94,6 +94,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * @param fieldName  The name of the field
      * @param value The value of the text
      */
+    @Deprecated
     public FuzzyQueryBuilder(String fieldName, String value) {
         this(fieldName, (Object) value);
     }
@@ -104,6 +105,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * @param fieldName  The name of the field
      * @param value The value of the text
      */
+    @Deprecated
     public FuzzyQueryBuilder(String fieldName, int value) {
         this(fieldName, (Object) value);
     }
@@ -114,6 +116,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * @param fieldName  The name of the field
      * @param value The value of the text
      */
+    @Deprecated
     public FuzzyQueryBuilder(String fieldName, long value) {
         this(fieldName, (Object) value);
     }
@@ -124,6 +127,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * @param fieldName  The name of the field
      * @param value The value of the text
      */
+    @Deprecated
     public FuzzyQueryBuilder(String fieldName, float value) {
         this(fieldName, (Object) value);
     }
@@ -134,6 +138,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * @param fieldName  The name of the field
      * @param value The value of the text
      */
+    @Deprecated
     public FuzzyQueryBuilder(String fieldName, double value) {
         this(fieldName, (Object) value);
     }
@@ -144,6 +149,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * @param fieldName  The name of the field
      * @param value The value of the text
      */
+    @Deprecated
     public FuzzyQueryBuilder(String fieldName, boolean value) {
         this(fieldName, (Object) value);
     }
@@ -154,6 +160,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * @param fieldName  The name of the field
      * @param value The value of the term
      */
+    @Deprecated
     public FuzzyQueryBuilder(String fieldName, Object value) {
         DEPRECATION_LOGGER.deprecated("{} query is deprecated. Instead use the [match] query with fuzziness parameter", NAME);
         if (Strings.isEmpty(fieldName)) {

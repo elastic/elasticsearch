@@ -151,3 +151,19 @@ teardown:
   - match:  { responses.0.hits.total:     1  }
   - match:  { responses.1.hits.total:     0  }
 
+---
+"Test render template":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+      render_search_template:
+        body:
+          inline:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match:  { template_output.query.match.title: "search for these words" }
+

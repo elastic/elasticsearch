@@ -112,8 +112,10 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
             if (e.getCause() instanceof TimeoutException) {
                 logger.warn("Connection to process was dropped due to a timeout - if you are feeding this job from a connector it " +
                         "may be that your connector stalled for too long", e.getCause());
+            } else {
+                logger.error("Unexpected exception", e);
             }
-            throw ExceptionsHelper.serverError(msg);
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 

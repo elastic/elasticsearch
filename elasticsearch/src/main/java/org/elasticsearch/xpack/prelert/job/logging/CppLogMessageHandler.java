@@ -153,7 +153,10 @@ public class CppLogMessageHandler implements Closeable {
                 // No more markers in this block
                 break;
             }
-            parseMessage(xContent, bytesRef.slice(from, nextMarker - from));
+            // Ignore blank lines
+            if (nextMarker > from) {
+                parseMessage(xContent, bytesRef.slice(from, nextMarker - from));
+            }
             from = nextMarker + 1;
         }
         return bytesRef.slice(from, bytesRef.length() - from);

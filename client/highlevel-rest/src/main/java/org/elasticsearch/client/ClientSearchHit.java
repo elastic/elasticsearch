@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
@@ -72,8 +73,7 @@ public class ClientSearchHit implements SearchHit {
 
     @Override
     public Iterator<SearchHitField> iterator() {
-        // TODO
-        return null;
+        return fields().values().iterator();
     }
 
     @Override
@@ -215,15 +215,26 @@ public class ClientSearchHit implements SearchHit {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Map<String, HighlightField> highlightFields() {
-        // TODO
-        return null;
+        Map<String, Object> originalMap = (Map<String, Object>) this.objectPath.evaluate("highlight");
+        Map<String, HighlightField> fields = new HashMap<>(originalMap.size());
+        for (Entry<String, Object> original : originalMap.entrySet()) {
+            List<String> fragments = (List<String>) original.getValue();
+            Text[] asText = new Text[fragments.size()];
+            int i = 0;
+            for (String fragment : fragments) {
+                asText[i] = new Text(fragment);
+                i++;
+            }
+            fields.put(original.getKey(), new HighlightField(original.getKey(), asText));
+        }
+        return fields;
     }
 
     @Override
     public Map<String, HighlightField> getHighlightFields() {
-        // TODO
-        return null;
+        return highlightFields();
     }
 
     @Override

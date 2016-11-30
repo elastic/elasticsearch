@@ -437,7 +437,7 @@ public class NodeJoinController extends AbstractComponent {
             Version minNodeVersion = Version.CURRENT;
             // processing any joins
             for (final DiscoveryNode node : joiningNodes) {
-                minNodeVersion = Version.smallest(minNodeVersion, node.getVersion());
+                minNodeVersion = Version.min(minNodeVersion, node.getVersion());
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_TASK)) {
                     // noop
                 } else if (currentNodes.nodeExists(node)) {

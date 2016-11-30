@@ -128,7 +128,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     MetaData.Builder metaData = MetaData.builder(currentState.metaData());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-                    Version minIndexCompatibilityVersion = currentState.getNodes().getSmallestNonClientNodeVersion()
+                    final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
                         .minimumIndexCompatibilityVersion();
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();

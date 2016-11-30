@@ -226,7 +226,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     if (!renamedIndices.isEmpty()) {
                         // We have some indices to restore
                         ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
-                        Version minIndexCompatibilityVersion = currentState.getNodes().getSmallestNonClientNodeVersion()
+                        final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
                             .minimumIndexCompatibilityVersion();
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();

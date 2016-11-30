@@ -909,7 +909,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.smallest(getCurrentVersion(), node.getVersion());
+            Version version = Version.min(getCurrentVersion(), node.getVersion());
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);

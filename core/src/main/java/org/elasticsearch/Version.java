@@ -217,11 +217,16 @@ public class Version {
     }
 
     /**
-     * Returns the smallest version between the 2.
+     * Returns the minimum version between the 2.
      */
-    public static Version smallest(Version version1, Version version2) {
+    public static Version min(Version version1, Version version2) {
         return version1.id < version2.id ? version1 : version2;
     }
+
+    /**
+     * Returns the maximum version between the 2
+     */
+    public static Version max(Version version1, Version version2) { return version1.id > version2.id ? version1 : version2; }
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
@@ -325,7 +330,7 @@ public class Version {
             bwcMajor = major;
             bwcMinor = 0;
         }
-        return Version.smallest(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
     }
 
     /**
@@ -340,7 +345,7 @@ public class Version {
             bwcMajor = major - 1;
         }
         final int bwcMinor = 0;
-        return Version.smallest(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
     }
 
     /**
@@ -428,5 +433,4 @@ public class Version {
     public boolean isRelease() {
         return build == 99;
     }
-
 }

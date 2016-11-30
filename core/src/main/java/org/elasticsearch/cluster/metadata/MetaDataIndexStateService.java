@@ -161,7 +161,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
-                Version minIndexCompatibilityVersion = currentState.getNodes().getSmallestNonClientNodeVersion()
+                final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
                     .minimumIndexCompatibilityVersion();
                 for (IndexMetaData closedMetaData : indicesToOpen) {
                     final String indexName = closedMetaData.getIndex().getName();

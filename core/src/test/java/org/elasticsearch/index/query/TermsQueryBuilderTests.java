@@ -29,7 +29,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -77,7 +76,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             String fieldName;
             do {
                 fieldName = getRandomFieldName();
-            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
+            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME)
+                || fieldName.equals(INT_RANGE_FIELD_NAME) || fieldName.equals(DATE_RANGE_FIELD_NAME));
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -255,19 +255,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 2, parsed.values().size());
-
-        String deprecatedJson =
-                "{\n" +
-                        "  \"in\" : {\n" +
-                        "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
-                        "    \"boost\" : 1.0\n" +
-                        "  }\n" +
-                        "}";
-        QueryBuilder inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
-        assertThat(inShortcutParsed, equalTo(parsed));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
-        assertEquals("Deprecated field [in] used, expected [terms] instead", e.getMessage());
     }
 
     @Override

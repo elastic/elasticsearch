@@ -63,7 +63,11 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
 
     @Override
     public List<? extends IndicesRequest> subRequests() {
-        return requests;
+        List<IndicesRequest> indicesRequests = new ArrayList<>();
+        for (SearchTemplateRequest request : requests) {
+            indicesRequests.addAll(request.subRequests());
+        }
+        return indicesRequests;
     }
 
     @Override

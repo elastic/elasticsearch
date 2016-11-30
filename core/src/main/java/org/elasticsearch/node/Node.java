@@ -591,11 +591,13 @@ public class Node implements Closeable {
         discovery.start();
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-        // tribe nodes don't have a master so we shouldn't register an observer
-        if (DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis() > 0) {
+        // tribe nodes don't have a master so we shouldn't register an observer         s
+        final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
+        if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
             if (observer.observedState().getClusterState().nodes().getMasterNodeId() == null) {
+                logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -609,10 +611,10 @@ public class Node implements Closeable {
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         logger.warn("timed out while waiting for initial discovery state - timeout: {}",
-                            DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                            initialStateTimeout);
                         latch.countDown();
                     }
-                }, MasterNodeChangePredicate.INSTANCE, DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                }, MasterNodeChangePredicate.INSTANCE, initialStateTimeout);
 
                 try {
                     latch.await();

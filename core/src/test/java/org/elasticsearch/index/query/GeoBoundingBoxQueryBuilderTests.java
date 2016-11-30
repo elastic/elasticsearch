@@ -27,7 +27,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -466,24 +465,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, 40.01, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
-        String deprecatedJson =
-                "{\n" +
-                        "  \"geo_bbox\" : {\n" +
-                        "    \"pin.location\" : {\n" +
-                        "      \"top_left\" : [ -74.1, 40.73 ],\n" +
-                        "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
-                        "    },\n" +
-                        "    \"validation_method\" : \"STRICT\",\n" +
-                        "    \"type\" : \"MEMORY\",\n" +
-                        "    \"ignore_unmapped\" : false,\n" +
-                        "    \"boost\" : 1.0\n" +
-                        "  }\n" +
-                        "}";
-        QueryBuilder parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
-        assertThat(parsedGeoBboxShortcut, equalTo(parsed));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
-        assertEquals("Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead", e.getMessage());
     }
 
     public void testFromJsonCoerceFails() throws IOException {

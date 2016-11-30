@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -314,8 +314,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Relation isFieldWithinQuery(IndexReader reader,
-                Object from, Object to,
-                boolean includeLower, boolean includeUpper,
+                Object from, Object to, boolean includeLower, boolean includeUpper,
                 DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
@@ -425,7 +424,7 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
             Object dateAsObject = context.externalValue();

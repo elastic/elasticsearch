@@ -61,7 +61,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -151,8 +150,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 assertThat(hit.explanation(), notNullValue());
                 assertThat(hit.explanation().getDetails().length, equalTo(1));
                 assertThat(hit.explanation().getDetails()[0].getDetails().length, equalTo(2));
-                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDescription(),
-                    endsWith("idf(docFreq=100, docCount=100)"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
+                    equalTo("docFreq"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
+                    equalTo(100.0f));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
+                    equalTo("docCount"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
+                    equalTo(100.0f));
                 assertThat("id[" + hit.id() + "] -> " + hit.explanation().toString(), hit.id(), equalTo(Integer.toString(100 - total - i - 1)));
             }
             total += hits.length;
@@ -179,8 +185,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 assertThat(hit.explanation(), notNullValue());
                 assertThat(hit.explanation().getDetails().length, equalTo(1));
                 assertThat(hit.explanation().getDetails()[0].getDetails().length, equalTo(2));
-                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDescription(),
-                    endsWith("idf(docFreq=100, docCount=100)"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
+                    equalTo("docFreq"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
+                    equalTo(100.0f));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
+                    equalTo("docCount"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
+                    equalTo(100.0f));
                 assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(total + i)));
             }
             total += hits.length;
@@ -329,8 +342,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             assertThat(hit.explanation(), notNullValue());
             assertThat(hit.explanation().getDetails().length, equalTo(1));
             assertThat(hit.explanation().getDetails()[0].getDetails().length, equalTo(2));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDescription(),
-                endsWith("idf(docFreq=100, docCount=100)"));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
+                equalTo("docFreq"));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
+                equalTo(100.0f));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
+                equalTo("docCount"));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
+                equalTo(100.0f));
 //            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
             assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }

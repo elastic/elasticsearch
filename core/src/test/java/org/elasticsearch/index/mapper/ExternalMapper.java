@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
@@ -190,7 +191,7 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         throw new UnsupportedOperationException();
     }
 

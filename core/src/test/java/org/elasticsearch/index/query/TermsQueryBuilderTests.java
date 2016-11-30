@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
@@ -43,6 +44,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -214,7 +216,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
-            assertEquals(Arrays.asList(1, 3, 4), values);
+            assertEquals(Arrays.asList(1L, 3L, 4L), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
@@ -296,6 +298,28 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
         // that's why we return true here all the time
         return super.isCachable(queryBuilder);
+    }
+
+    public void testConversion() {
+        List<Object> list = Arrays.asList();
+        assertSame(Collections.emptyList(), TermsQueryBuilder.convert(list));
+        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+
+        list = Arrays.asList("abc");
+        assertEquals(Arrays.asList(new BytesRef("abc")), TermsQueryBuilder.convert(list));
+        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+
+        list = Arrays.asList("abc", new BytesRef("def"));
+        assertEquals(Arrays.asList(new BytesRef("abc"), new BytesRef("def")), TermsQueryBuilder.convert(list));
+        assertEquals(Arrays.asList("abc", "def"), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+
+        list = Arrays.asList(5, 42L);
+        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convert(list));
+        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+
+        list = Arrays.asList(5, 42d);
+        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
+        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
     }
 }
 

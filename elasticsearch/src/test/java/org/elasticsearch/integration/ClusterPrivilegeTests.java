@@ -95,7 +95,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("user_a", "GET", "/_nodes/hot_threads");
         assertAccessIsAllowed("user_a", "GET", "/_nodes/infos");
         assertAccessIsAllowed("user_a", "POST", "/_cluster/reroute");
-        assertAccessIsAllowed("user_a", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
+        assertAccessIsAllowed("user_a", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
 
         // user_b can do monitoring
         assertAccessIsAllowed("user_b", "GET", "/_cluster/state");
@@ -108,7 +108,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("user_b", "GET", "/_nodes/infos");
         // but no admin stuff
         assertAccessIsDenied("user_b", "POST", "/_cluster/reroute");
-        assertAccessIsDenied("user_b", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
+        assertAccessIsDenied("user_b", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
 
         // sorry user_c, you are not allowed anything
         assertAccessIsDenied("user_c", "GET", "/_cluster/state");
@@ -120,7 +120,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_c", "GET", "/_nodes/hot_threads");
         assertAccessIsDenied("user_c", "GET", "/_nodes/infos");
         assertAccessIsDenied("user_c", "POST", "/_cluster/reroute");
-        assertAccessIsDenied("user_c", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
+        assertAccessIsDenied("user_c", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
     }
 
     @TestLogging("org.elasticsearch.test.rest.client.http:TRACE")

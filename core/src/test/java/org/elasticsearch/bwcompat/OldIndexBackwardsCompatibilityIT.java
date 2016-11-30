@@ -436,7 +436,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
      * search-able though.
      */
     void assertAliasWithBadName(String indexName, Version version) throws Exception {
-        if (version.onOrAfter(Version.V_5_1_0)) {
+        if (version.onOrAfter(Version.V_5_1_1)) {
             return;
         }
         // We can read from the alias just like we can read from the index.

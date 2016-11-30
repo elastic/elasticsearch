@@ -397,22 +397,6 @@ public class DiscoveryNode implements Writeable, ToXContent {
     }
 
     /**
-     * A toXContent implementation that leaves off some of the non-critical fields, and assumes the outer object
-     * is created outside of this method call.
-     */
-    public XContentBuilder toXContentLight(XContentBuilder builder, Params params) throws IOException {
-        builder.field("id", getId());
-        builder.field("name", getName());
-        builder.field("transport_address", getAddress().toString());
-        builder.startObject("attributes");
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    /**
      * Enum that holds all the possible roles that that a node can fulfill in a cluster.
      * Each role has its name and a corresponding abbreviation used by cat apis.
      */

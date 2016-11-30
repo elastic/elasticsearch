@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStore;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardStateMetaData;
@@ -262,7 +263,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     private static final Comparator<NodeGatewayStartedShards> PRIMARY_FIRST_COMPARATOR =
         Comparator.comparing(NodeGatewayStartedShards::primary).reversed();
 
-    private static ShardStore shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
+    private static ShardStoreInfo shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
         final Exception storeErr = nodeShardState.storeException();
         final StoreStatus storeStatus;
         if (inSyncAllocationIds.isEmpty()) {
@@ -275,7 +276,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             storeStatus = StoreStatus.STALE;
         }
 
-        return new ShardStore(storeStatus, nodeShardState.allocationId(), nodeShardState.legacyVersion(), storeErr);
+        return new ShardStoreInfo(storeStatus, nodeShardState.allocationId(), storeErr);
     }
 
     /**

@@ -300,7 +300,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
                 }
             } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
                 explanation = "cannot allocate because the cluster is waiting " +
-                                  TimeValue.timeValueSeconds(remainingDelayInMillis / 1000L).toString() +
+                                  TimeValue.timeValueMillis(remainingDelayInMillis) +
                                   " for the departed node holding a replica to rejoin";
             } else {
                 assert allocationStatus == AllocationStatus.DECIDERS_NO;
@@ -329,15 +329,15 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         }
         if (assignedNode != null) {
             builder.startObject("assigned_node");
-            assignedNode.toXContentLight(builder, params);
+            discoveryNodeToXContent(builder, params, assignedNode);
             builder.endObject();
         }
         if (allocationId != null) {
             builder.field("allocation_id", allocationId);
         }
         if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            builder.field("remaining_delay", TimeValue.timeValueSeconds(remainingDelayInMillis / 1000L).toString());
-            builder.field("total_delay", TimeValue.timeValueSeconds(totalDelayInMillis / 1000L).toString());
+            builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayInMillis));
+            builder.timeValueField("total_delay_in_millis", "total_delay", TimeValue.timeValueMillis(totalDelayInMillis));
         }
         nodeDecisionsToXContent(builder, params, nodeDecisions);
         return builder;
@@ -364,6 +364,22 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         out.writeVLong(totalDelayInMillis);
     }
 
+    /**
+     * A toXContent implementation that leaves off some of the non-critical fields, and assumes the outer object
+     * is created outside of this method call.
+     */
+    public static XContentBuilder discoveryNodeToXContent(XContentBuilder builder, Params params, DiscoveryNode node) throws IOException {
+        builder.field("id", node.getId());
+        builder.field("name", node.getName());
+        builder.field("transport_address", node.getAddress().toString());
+        builder.startObject("attributes");
+        for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
+        }
+        builder.endObject();
+        return builder;
+    }
+
     public static XContentBuilder nodeDecisionsToXContent(XContentBuilder builder, Params params,
                                                           Map<String, ? extends NodeAllocationResult> nodeDecisions) throws IOException {
         if (nodeDecisions != null) {
@@ -386,10 +402,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
                     // lastly, sort by node id
                     return explanation1.getNode().getId().compareTo(explanation2.getNode().getId());
                 });
-                List<String> nodeIds = new ArrayList<>(nodeDecisions.keySet());
-                Collections.sort(nodeIds);
-                for (String nodeId : nodeIds) {
-                    NodeAllocationResult explanation = nodeDecisions.get(nodeId);
+                for (Map.Entry<String, ? extends NodeAllocationResult> entry : entries) {
+                    NodeAllocationResult explanation = nodeDecisions.get(entry.getKey());
                     explanation.toXContent(builder, params);
                 }
             }

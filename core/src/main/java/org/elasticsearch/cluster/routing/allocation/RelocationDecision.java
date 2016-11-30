@@ -30,6 +30,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.discoveryNodeToXContent;
+
 /**
  * Represents a decision to relocate a started shard from its current node.
  */
@@ -88,7 +90,7 @@ public abstract class RelocationDecision implements ToXContent, Writeable {
         builder.field("explanation", getExplanation());
         if (assignedNode != null) {
             builder.startObject("assigned_node");
-            assignedNode.toXContentLight(builder, params);
+            discoveryNodeToXContent(builder, params, assignedNode);
             builder.endObject();
         }
         return builder;

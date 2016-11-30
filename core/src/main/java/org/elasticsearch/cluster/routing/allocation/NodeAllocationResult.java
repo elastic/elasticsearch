@@ -20,18 +20,18 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+
+import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.discoveryNodeToXContent;
 
 /**
  * This class represents the shard allocation decision and its explanation for a single node.
@@ -40,27 +40,27 @@ public class NodeAllocationResult implements ToXContent, Writeable {
 
     private final DiscoveryNode node;
     @Nullable
-    private final ShardStore shardStore;
+    private final ShardStoreInfo shardStoreInfo;
     private final Decision canAllocateDecision;
     private final int weightRanking;
 
-    public NodeAllocationResult(DiscoveryNode node, ShardStore shardStore, Decision decision) {
+    public NodeAllocationResult(DiscoveryNode node, ShardStoreInfo shardStoreInfo, Decision decision) {
         this.node = node;
-        this.shardStore = shardStore;
+        this.shardStoreInfo = shardStoreInfo;
         this.canAllocateDecision = decision;
         this.weightRanking = 0;
     }
 
     public NodeAllocationResult(DiscoveryNode node, Decision decision, int weightRanking) {
         this.node = node;
-        this.shardStore = null;
+        this.shardStoreInfo = null;
         this.canAllocateDecision = decision;
         this.weightRanking = weightRanking;
     }
 
     public NodeAllocationResult(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
-        shardStore = in.readOptionalWriteable(ShardStore::new);
+        shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
         canAllocateDecision = Decision.readFrom(in);
         weightRanking = in.readVInt();
     }
@@ -68,7 +68,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
-        out.writeOptionalWriteable(shardStore);
+        out.writeOptionalWriteable(shardStoreInfo);
         canAllocateDecision.writeTo(out);
         out.writeVInt(weightRanking);
     }
@@ -84,8 +84,8 @@ public class NodeAllocationResult implements ToXContent, Writeable {
      * Get the shard store information for the node, if it exists.
      */
     @Nullable
-    public ShardStore getShardStore() {
-        return shardStore;
+    public ShardStoreInfo getShardStoreInfo() {
+        return shardStoreInfo;
     }
 
     /**
@@ -108,7 +108,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
      * deciders ran.  For example, suppose there are 3 nodes which the allocation deciders
      * decided upon: node1, node2, and node3.  If node2 had the best weight for holding the
      * shard, followed by node3, followed by node1, then node2's weight will be 1, node3's
-     * weight will be 2, and node1's weight will be 1.  A value of -1 means the weight was
+     * weight will be 2, and node1's weight will be 1.  A value of 0 means the weight was
      * not calculated or factored into the decision.
      */
     public int getWeightRanking() {
@@ -128,12 +128,12 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         {
             builder.startObject("node_info");
             {
-                node.toXContentLight(builder, params);
+                discoveryNodeToXContent(builder, params, node);
             }
             builder.endObject(); // end node_info
             builder.field("node_decision", getNodeDecisionType());
-            if (shardStore != null) {
-                shardStore.toXContent(builder, params);
+            if (shardStoreInfo != null) {
+                shardStoreInfo.toXContent(builder, params);
             }
             if (isWeightRanked()) {
                 builder.field("weight_ranking", getWeightRanking());
@@ -152,35 +152,31 @@ public class NodeAllocationResult implements ToXContent, Writeable {
     }
 
     /** A class that captures metadata about a shard store on a node. */
-    public static final class ShardStore implements ToXContent, Writeable {
+    public static final class ShardStoreInfo implements ToXContent, Writeable {
         private final StoreStatus storeStatus;
         @Nullable
         private final String allocationId;
-        private final long version;
         private final long matchingBytes;
         @Nullable
         private final Exception storeException;
 
-        public ShardStore(StoreStatus storeStatus, String allocationId, long version, Exception storeException) {
+        public ShardStoreInfo(StoreStatus storeStatus, String allocationId, Exception storeException) {
             this.storeStatus = storeStatus;
             this.allocationId = allocationId;
-            this.version = version;
             this.matchingBytes = -1;
             this.storeException = storeException;
         }
 
-        public ShardStore(StoreStatus storeStatus, long matchingBytes) {
+        public ShardStoreInfo(StoreStatus storeStatus, long matchingBytes) {
             this.storeStatus = storeStatus;
             this.allocationId = null;
-            this.version = -1;
             this.matchingBytes = matchingBytes;
             this.storeException = null;
         }
 
-        public ShardStore(StreamInput in) throws IOException {
+        public ShardStoreInfo(StreamInput in) throws IOException {
             this.storeStatus = StoreStatus.readFrom(in);
             this.allocationId = in.readOptionalString();
-            this.version = in.readLong();
             this.matchingBytes = in.readLong();
             this.storeException = in.readException();
         }
@@ -201,14 +197,6 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         }
 
         /**
-         * Gets the Elasticsearch version number with which the shard store was created,
-         * returns -1 if unknown.
-         */
-        public long getVersion() {
-            return version;
-        }
-
-        /**
          * Gets the number of matching bytes the shard copy has with the primary shard.
          * Returns -1 if not applicable (this value only applies to assigning replica shards).
          */
@@ -220,7 +208,6 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             storeStatus.writeTo(out);
             out.writeOptionalString(allocationId);
-            out.writeLong(version);
             out.writeLong(matchingBytes);
             out.writeException(storeException);
         }
@@ -233,11 +220,8 @@ public class NodeAllocationResult implements ToXContent, Writeable {
                 if (allocationId != null) {
                     builder.field("allocation_id", allocationId);
                 }
-                if (version > 0) {
-                    builder.field("version", Version.fromId((int) version));
-                }
                 if (matchingBytes >= 0) {
-                    builder.field("matching_bytes", new ByteSizeValue(matchingBytes).toString());
+                    builder.byteSizeField("matching_size_in_bytes", "matching_size", matchingBytes);
                 }
                 if (storeException != null) {
                     builder.startObject("store_exception");

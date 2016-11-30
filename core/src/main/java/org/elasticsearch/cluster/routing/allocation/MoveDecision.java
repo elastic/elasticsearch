@@ -58,11 +58,11 @@ public final class MoveDecision extends RelocationDecision {
     public MoveDecision(StreamInput in) throws IOException {
         super(in);
         canRemainDecision = in.readOptionalWriteable(Decision::readFrom);
-        Map<String, NodeAllocationResult> nodeDecisionsMap = null;
         if (in.readBoolean()) {
-            nodeDecisionsMap = in.readMap(StreamInput::readString, NodeAllocationResult::new);
+            nodeDecisions = Collections.unmodifiableMap(in.readMap(StreamInput::readString, NodeAllocationResult::new));
+        } else {
+            nodeDecisions = null;
         }
-        nodeDecisions = nodeDecisionsMap == null ? null : Collections.unmodifiableMap(nodeDecisionsMap);
     }
 
     @Override
@@ -149,7 +149,7 @@ public final class MoveDecision extends RelocationDecision {
         } else if (getFinalDecisionType() == Type.YES) {
             explanation = "shard cannot remain on this node and is force-moved to another node";
         } else if (getFinalDecisionType() == Type.THROTTLE) {
-            explanation = "throttled on force-moving shard to another node";
+            explanation = "shard cannot remain on this node but is throttled on moving to another node";
         } else {
             assert getFinalDecisionType() == Type.NO;
             explanation = "cannot move shard to another node, even though it is not allowed to remain on its current node";

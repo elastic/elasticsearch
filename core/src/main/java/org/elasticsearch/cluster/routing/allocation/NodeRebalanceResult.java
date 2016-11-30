@@ -35,21 +35,21 @@ import java.util.Objects;
 public final class NodeRebalanceResult extends NodeAllocationResult {
     private final Decision.Type nodeDecisionType;
     private final boolean deltaAboveThreshold;
-    private final boolean betterWeightWithShardAdded;
+    private final boolean betterBalance;
 
     public NodeRebalanceResult(DiscoveryNode node, Decision.Type nodeDecisionType, Decision canAllocate, int weightRanking,
-                               boolean deltaAboveThreshold, boolean betterWeightWithShardAdded) {
+                               boolean deltaAboveThreshold, boolean betterBalance) {
         super(node, canAllocate, weightRanking);
         this.nodeDecisionType = Objects.requireNonNull(nodeDecisionType);
         this.deltaAboveThreshold = deltaAboveThreshold;
-        this.betterWeightWithShardAdded = betterWeightWithShardAdded;
+        this.betterBalance = betterBalance;
     }
 
     public NodeRebalanceResult(StreamInput in) throws IOException {
         super(in);
         nodeDecisionType = Decision.Type.readFrom(in);
         deltaAboveThreshold = in.readBoolean();
-        betterWeightWithShardAdded = in.readBoolean();
+        betterBalance = in.readBoolean();
     }
 
     @Override
@@ -65,18 +65,20 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
     }
 
     /**
-     * Returns if the simulated weight of the shard after assigning the node to it would be better than the current node's weight.
-     * If {@code true}, then the shard should be rebalanced to the node, assuming allocation is allowed to the node.
+     * Returns {@code true} if moving the shard to this node will provide a better balance to the cluster,
+     * as long as the balance differential is above the threshold to warrant moving the shard.  Returns
+     * {@code false} if {@link #isDeltaAboveThreshold()} returns {@code false} or if moving the shard to
+     * the node does not result in a more balanced cluster.
      */
-    public boolean isBetterWeightWithShardAdded() {
-        return betterWeightWithShardAdded;
+    public boolean isBetterBalance() {
+        return betterBalance;
     }
 
     @Override
     protected void innerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field("delta_above_threshold", deltaAboveThreshold);
         if (deltaAboveThreshold) {
-            builder.field("better_weight_with_shard_added", betterWeightWithShardAdded);
+            builder.field("better_balance", betterBalance);
         }
     }
 
@@ -85,6 +87,6 @@ public final class NodeRebalanceResult extends NodeAllocationResult {
         super.writeTo(out);
         nodeDecisionType.writeTo(out);
         out.writeBoolean(deltaAboveThreshold);
-        out.writeBoolean(betterWeightWithShardAdded);
+        out.writeBoolean(betterBalance);
     }
 }

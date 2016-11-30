@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStore;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -350,13 +350,13 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             long matchingBytes = -1;
             if (explain) {
                 matchingBytes = computeMatchingBytes(primaryStore, storeFilesMetaData);
-                ShardStore shardStore;
+                ShardStoreInfo shardStoreInfo;
                 if (matchingBytes == Long.MAX_VALUE) {
-                    shardStore = new ShardStore(StoreStatus.MATCHING_SYNC_ID, -1);
+                    shardStoreInfo = new ShardStoreInfo(StoreStatus.MATCHING_SYNC_ID, -1);
                 } else {
-                    shardStore = new ShardStore(StoreStatus.UNKNOWN, matchingBytes);
+                    shardStoreInfo = new ShardStoreInfo(StoreStatus.UNKNOWN, matchingBytes);
                 }
-                nodeDecisions.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStore, decision));
+                nodeDecisions.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStoreInfo, decision));
             }
 
             if (decision.type() == Decision.Type.NO) {

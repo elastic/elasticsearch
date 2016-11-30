@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStore;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -52,41 +52,37 @@ public class NodeAllocationResultTests extends ESTestCase {
         Decision decision = randomFrom(Decision.YES, Decision.THROTTLE, Decision.NO);
         StoreStatus storeStatus = randomFrom(StoreStatus.values());
         long matchingBytes = (long) randomIntBetween(1, 1000);
-        ShardStore shardStore = new ShardStore(storeStatus, matchingBytes);
-        NodeAllocationResult explanation = new NodeAllocationResult(node, shardStore, decision);
+        ShardStoreInfo shardStoreInfo = new ShardStoreInfo(storeStatus, matchingBytes);
+        NodeAllocationResult explanation = new NodeAllocationResult(node, shardStoreInfo, decision);
         BytesStreamOutput output = new BytesStreamOutput();
         explanation.writeTo(output);
         NodeAllocationResult readExplanation = new NodeAllocationResult(output.bytes().streamInput());
         assertNodeExplanationEquals(explanation, readExplanation);
-        assertEquals(matchingBytes, explanation.getShardStore().getMatchingBytes());
-        assertEquals(-1, explanation.getShardStore().getVersion());
-        assertNull(explanation.getShardStore().getAllocationId());
+        assertEquals(matchingBytes, explanation.getShardStoreInfo().getMatchingBytes());
+        assertNull(explanation.getShardStoreInfo().getAllocationId());
 
         String allocId = randomAsciiOfLength(5);
-        long version = (long) randomIntBetween(1, 1000);
-        shardStore = new ShardStore(storeStatus, allocId, version, randomBoolean() ? new Exception("bad stuff") : null);
-        explanation = new NodeAllocationResult(node, shardStore, decision);
+        shardStoreInfo = new ShardStoreInfo(storeStatus, allocId, randomBoolean() ? new Exception("bad stuff") : null);
+        explanation = new NodeAllocationResult(node, shardStoreInfo, decision);
         output = new BytesStreamOutput();
         explanation.writeTo(output);
         readExplanation = new NodeAllocationResult(output.bytes().streamInput());
         assertNodeExplanationEquals(explanation, readExplanation);
-        assertEquals(storeStatus, explanation.getShardStore().getStoreStatus());
-        assertEquals(-1, explanation.getShardStore().getMatchingBytes());
-        assertEquals(version, explanation.getShardStore().getVersion());
-        assertEquals(allocId, explanation.getShardStore().getAllocationId());
+        assertEquals(storeStatus, explanation.getShardStoreInfo().getStoreStatus());
+        assertEquals(-1, explanation.getShardStoreInfo().getMatchingBytes());
+        assertEquals(allocId, explanation.getShardStoreInfo().getAllocationId());
     }
 
     private void assertNodeExplanationEquals(NodeAllocationResult expl1, NodeAllocationResult expl2) {
         assertEquals(expl1.getNode(), expl2.getNode());
         assertEquals(expl1.getCanAllocateDecision(), expl2.getCanAllocateDecision());
         assertEquals(0, Float.compare(expl1.getWeightRanking(), expl2.getWeightRanking()));
-        if (expl1.getShardStore() != null) {
-            assertEquals(expl1.getShardStore().getStoreStatus(), expl2.getShardStore().getStoreStatus());
-            assertEquals(expl1.getShardStore().getVersion(), expl2.getShardStore().getVersion());
-            assertEquals(expl1.getShardStore().getAllocationId(), expl2.getShardStore().getAllocationId());
-            assertEquals(expl1.getShardStore().getMatchingBytes(), expl2.getShardStore().getMatchingBytes());
+        if (expl1.getShardStoreInfo() != null) {
+            assertEquals(expl1.getShardStoreInfo().getStoreStatus(), expl2.getShardStoreInfo().getStoreStatus());
+            assertEquals(expl1.getShardStoreInfo().getAllocationId(), expl2.getShardStoreInfo().getAllocationId());
+            assertEquals(expl1.getShardStoreInfo().getMatchingBytes(), expl2.getShardStoreInfo().getMatchingBytes());
         } else {
-            assertNull(expl2.getShardStore());
+            assertNull(expl2.getShardStoreInfo());
         }
     }
 }

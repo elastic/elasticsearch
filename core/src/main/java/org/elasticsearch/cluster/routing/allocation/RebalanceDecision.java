@@ -38,21 +38,19 @@ import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDec
  */
 public final class RebalanceDecision extends RelocationDecision {
     /** a constant representing no decision taken */
-    public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, null, Float.POSITIVE_INFINITY, false);
+    public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, null, false);
 
     @Nullable
     private final Decision canRebalanceDecision;
     @Nullable
     private final Map<String, NodeRebalanceResult> nodeDecisions;
-    private final float currentWeight;
     private final boolean fetchPending;
 
     private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
-                              Map<String, NodeRebalanceResult> nodeDecisions, float currentWeight, boolean fetchPending) {
+                              Map<String, NodeRebalanceResult> nodeDecisions, boolean fetchPending) {
         super(finalDecision, assignedNode);
         this.canRebalanceDecision = canRebalanceDecision;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
-        this.currentWeight = currentWeight;
         this.fetchPending = fetchPending;
     }
 
@@ -64,7 +62,6 @@ public final class RebalanceDecision extends RelocationDecision {
             nodeDecisionsMap = in.readMap(StreamInput::readString, NodeRebalanceResult::new);
         }
         nodeDecisions = nodeDecisionsMap == null ? null : Collections.unmodifiableMap(nodeDecisionsMap);
-        currentWeight = in.readFloat();
         fetchPending = in.readBoolean();
     }
 
@@ -82,7 +79,6 @@ public final class RebalanceDecision extends RelocationDecision {
         } else {
             out.writeBoolean(false);
         }
-        out.writeFloat(currentWeight);
         out.writeBoolean(fetchPending);
     }
 
@@ -90,16 +86,16 @@ public final class RebalanceDecision extends RelocationDecision {
      * Creates a new NO {@link RebalanceDecision}.
      */
     public static RebalanceDecision no(Decision canRebalanceDecision, Map<String, NodeRebalanceResult> nodeDecisions,
-                                       float currentWeight, boolean fetchPending) {
-        return new RebalanceDecision(canRebalanceDecision, Type.NO, null, nodeDecisions, currentWeight, fetchPending);
+                                       boolean fetchPending) {
+        return new RebalanceDecision(canRebalanceDecision, Type.NO, null, nodeDecisions, fetchPending);
     }
 
     /**
      * Creates a new {@link RebalanceDecision}.
      */
     public static RebalanceDecision decision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
-                                             Map<String, NodeRebalanceResult> nodeDecisions, float currentWeight) {
-        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNode, nodeDecisions, currentWeight, false);
+                                             Map<String, NodeRebalanceResult> nodeDecisions) {
+        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNode, nodeDecisions, false);
     }
 
     /**
@@ -146,7 +142,6 @@ public final class RebalanceDecision extends RelocationDecision {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         super.toXContent(builder, params);
-        builder.field("current_weight", currentWeight);
         builder.startObject("can_rebalance_decision");
         {
             builder.field("decision", canRebalanceDecision.type().toString());

@@ -163,13 +163,6 @@ The `ids` filter has been replaced by the <<query-dsl-ids-query>>.  It behaves
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
 
-[role="exclude",id="query-dsl-indices-filter"]
-=== Indices Filter
-
-The `indices` filter has been replaced by the <<query-dsl-indices-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
 [role="exclude",id="query-dsl-match-all-filter"]
 === Match All Filter
 

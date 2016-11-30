@@ -54,7 +54,6 @@ import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
@@ -200,18 +199,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 .addIds("1", "4", "100");
 
         idsQuery().addIds("1", "4", "100");
-    }
-
-    public void testIndices() {
-        indicesQuery(
-                termQuery("tag", "wow"),
-                "index1", "index2"
-            ).noMatchQuery(termQuery("tag", "kow"));
-
-        indicesQuery(
-                termQuery("tag", "wow"),
-                "index1", "index2"
-            ).noMatchQuery("all");
     }
 
     public void testMatchAll() {

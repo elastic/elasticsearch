@@ -130,7 +130,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put("xpack.security.authc.realms.index.type", NativeRealm.TYPE)
                 .put("xpack.security.authc.realms.index.order", "1")
                 .put(getNodeSSLSettings());
-
         return builder.build();
     }
 

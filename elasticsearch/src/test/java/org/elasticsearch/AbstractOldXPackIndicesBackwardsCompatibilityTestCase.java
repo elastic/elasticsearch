@@ -101,6 +101,7 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allReleasedVersions()) {
             if (false == shouldTestVersion(v)) continue;
+            if (v.before(Version.V_5_0_0)) continue; // we can only support one major version backward
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             if (v.isBeta() == true || v.isAlpha() == true || v.isRC() == true) continue; // don't check alphas etc
             expectedVersions.add("x-pack-" + v.toString() + ".zip");

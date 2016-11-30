@@ -1508,6 +1508,29 @@ after the `json` processor operates on it, it will look like:
 }
 --------------------------------------------------
 
+If the following configuration had been provided, omitting the optional `target_field` setting:
+[source,js]
+--------------------------------------------------
+{
+  "json" : {
+    "field" : "source_and_target"
+  }
+}
+--------------------------------------------------
+
+then after the `json` processor operated on the same document, it would have looked like:
+
+[source,js]
+--------------------------------------------------
+{
+  "source_and_target": {
+    "foo": 2000
+  }
+}
+--------------------------------------------------
+
+because, by default, the `target_field` is the same field provided in the required `field` configuration.
+
 [[lowercase-processor]]
 === Lowercase Processor
 Converts a string to its lowercase equivalent.

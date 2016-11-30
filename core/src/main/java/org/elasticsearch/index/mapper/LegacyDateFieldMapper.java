@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -426,7 +427,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
     }
 
     @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void innerParseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         String dateAsString = null;
         float boost = fieldType().boost();
         if (context.externalValueSet()) {

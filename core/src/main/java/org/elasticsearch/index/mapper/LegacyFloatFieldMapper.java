@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -194,7 +195,7 @@ public class LegacyFloatFieldMapper extends LegacyNumberFieldMapper {
     }
 
     @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void innerParseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         float value;
         float boost = fieldType().boost();
         if (context.externalValueSet()) {

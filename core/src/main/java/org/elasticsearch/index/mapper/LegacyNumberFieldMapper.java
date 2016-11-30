@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -170,7 +171,7 @@ public abstract class LegacyNumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         RuntimeException e = null;
         try {
             innerParseCreateField(context, fields);
@@ -185,9 +186,9 @@ public abstract class LegacyNumberFieldMapper extends FieldMapper {
         }
     }
 
-    protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
+    protected abstract void innerParseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
 
-    protected final void addDocValue(ParseContext context, List<Field> fields, long value) {
+    protected final void addDocValue(ParseContext context, List<IndexableField> fields, long value) {
         fields.add(new SortedNumericDocValuesField(fieldType().name(), value));
     }
 

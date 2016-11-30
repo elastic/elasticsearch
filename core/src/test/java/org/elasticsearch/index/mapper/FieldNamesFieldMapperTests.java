@@ -216,7 +216,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         }
 
         @Override

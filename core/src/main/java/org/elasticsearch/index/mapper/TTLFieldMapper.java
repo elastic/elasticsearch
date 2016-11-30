@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -197,7 +198,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException, AlreadyExpiredException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException, AlreadyExpiredException {
         if (enabledState.enabled) {
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value

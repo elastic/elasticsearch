@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -162,45 +163,51 @@ PutModelSnapshotDescriptionAction.RequestBuilder> {
 
     public static class Response extends ActionResponse implements StatusToXContent {
 
-        private SingleDocument<ModelSnapshot> response;
+        private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
+        private static final ParseField MODEL = new ParseField("model");
 
-        public Response() {
-            response = SingleDocument.empty(ModelSnapshot.TYPE.getPreferredName());
+        private ModelSnapshot model;
+
+        Response() {
+
         }
 
         public Response(ModelSnapshot modelSnapshot) {
-            response = new SingleDocument<>(ModelSnapshot.TYPE.getPreferredName(), modelSnapshot);
+            model = modelSnapshot;
         }
 
-        public SingleDocument<ModelSnapshot> getResponse() {
-            return response;
+        public ModelSnapshot getModel() {
+            return model;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            response = new SingleDocument<>(in, ModelSnapshot::new);
+            model = new ModelSnapshot(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            response.writeTo(out);
+            model.writeTo(out);
         }
 
         @Override
         public RestStatus status() {
-            return response.status();
+            return RestStatus.OK;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return response.toXContent(builder, params);
+            builder.field(ACKNOWLEDGED.getPreferredName(), true);
+            builder.field(MODEL.getPreferredName());
+            builder = model.toXContent(builder, params);
+            return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(response);
+            return Objects.hash(model);
         }
 
         @Override
@@ -212,7 +219,7 @@ PutModelSnapshotDescriptionAction.RequestBuilder> {
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(response, other.response);
+            return Objects.equals(model, other.model);
         }
 
         @SuppressWarnings("deprecation")

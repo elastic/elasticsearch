@@ -72,6 +72,9 @@ setup:
             "description": "new_description"
           }
 
+  - match: { acknowledged: true }
+  - match: { model.description: "new_description" }
+
   - do:
       indices.refresh:
         index: prelertresults-foo

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
@@ -153,8 +152,6 @@ final class DocumentParser {
             context.sourceToParse().id(),
             context.sourceToParse().type(),
             source.routing(),
-            source.timestamp(),
-            source.ttl(),
             context.docs(),
             context.sourceToParse().source(),
             update
@@ -636,35 +633,19 @@ final class DocumentParser {
     }
 
     private static Mapper.Builder<?, ?> newLongBuilder(String name, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
-            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
-        } else {
-            return new LegacyLongFieldMapper.Builder(name);
-        }
+        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
     }
 
     private static Mapper.Builder<?, ?> newFloatBuilder(String name, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
-            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
-        } else {
-            return new LegacyFloatFieldMapper.Builder(name);
-        }
+        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
     }
 
     private static Mapper.Builder<?, ?> newDateBuilder(String name, FormatDateTimeFormatter dateTimeFormatter, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
-            DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
-            if (dateTimeFormatter != null) {
-                builder.dateTimeFormatter(dateTimeFormatter);
-            }
-            return builder;
-        } else {
-            LegacyDateFieldMapper.Builder builder = new LegacyDateFieldMapper.Builder(name);
-            if (dateTimeFormatter != null) {
-                builder.dateTimeFormatter(dateTimeFormatter);
-            }
-            return builder;
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
+        if (dateTimeFormatter != null) {
+            builder.dateTimeFormatter(dateTimeFormatter);
         }
+        return builder;
     }
 
     private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context, XContentParser.Token token, String currentFieldName) throws IOException {

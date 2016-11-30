@@ -17,3 +17,8 @@ The deprecated request parameters and plain text in request body has been remove
 The `ignore_unavailable` and `allow_no_indices` options are no longer accepted
 as they could cause undesired results when their values differed from their
 defaults.
+
+=== `timestamp` and `ttl` in index requests
+
+`timestamp` and `ttl` are not accepted anymore as parameters of index/update
+requests.

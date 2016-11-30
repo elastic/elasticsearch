@@ -235,14 +235,6 @@ public class DocumentMapper implements ToXContent {
         return metadataMapper(ParentFieldMapper.class);
     }
 
-    public TimestampFieldMapper timestampFieldMapper() {
-        return metadataMapper(TimestampFieldMapper.class);
-    }
-
-    public TTLFieldMapper TTLFieldMapper() {
-        return metadataMapper(TTLFieldMapper.class);
-    }
-
     public IndexFieldMapper IndexFieldMapper() {
         return metadataMapper(IndexFieldMapper.class);
     }

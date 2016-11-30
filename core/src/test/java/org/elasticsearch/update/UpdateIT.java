@@ -743,24 +743,19 @@ public class UpdateIT extends ESIntegTestCase {
         ensureGreen();
 
         // Index some documents
-        long timestamp = System.currentTimeMillis();
         client().prepareIndex()
                 .setIndex("test")
                 .setType("type1")
                 .setId("parentId1")
-                .setTimestamp(String.valueOf(timestamp-1))
                 .setSource("field1", 0, "content", "bar")
                 .execute().actionGet();
 
-        long ttl = 10000;
         client().prepareIndex()
                 .setIndex("test")
                 .setType("subtype1")
                 .setId("id1")
                 .setParent("parentId1")
                 .setRouting("routing1")
-                .setTimestamp(String.valueOf(timestamp))
-                .setTTL(ttl)
                 .setSource("field1", 1, "content", "foo")
                 .execute().actionGet();
 

@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.document.Field;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -58,8 +57,6 @@ public class ExternalMapper extends FieldMapper {
 
         private BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
-        private GeoPointFieldMapper.Builder pointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
-        private LegacyGeoPointFieldMapper.Builder legacyPointBuilder = new LegacyGeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private LatLonPointFieldMapper.Builder latLonPointBuilder = new LatLonPointFieldMapper.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
         private Mapper.Builder stringBuilder;
@@ -84,14 +81,7 @@ public class ExternalMapper extends FieldMapper {
             context.path().add(name);
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
-            BaseGeoPointFieldMapper pointMapper;
-            if (context.indexCreatedVersion().before(Version.V_2_2_0)) {
-                pointMapper = legacyPointBuilder.build(context);
-            } else if (context.indexCreatedVersion().onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-                pointMapper = latLonPointBuilder.build(context);
-            } else {
-                pointMapper = pointBuilder.build(context);
-            }
+            BaseGeoPointFieldMapper pointMapper = latLonPointBuilder.build(context);
             GeoShapeFieldMapper shapeMapper = shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();

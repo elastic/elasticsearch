@@ -38,9 +38,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
@@ -90,7 +90,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return Collections.singletonMap("fake-mapper", new StringFieldMapper.TypeParser());
+            return Collections.singletonMap("fake-mapper", new KeywordFieldMapper.TypeParser());
         }
 
         @Override

@@ -37,13 +37,12 @@ public final class ConnectionProfile {
      * types.
      */
     public static final ConnectionProfile LIGHT_PROFILE = new ConnectionProfile(
-        Collections.singletonList(new ConnectionTypeHandle(0, 1,
-            EnumSet.copyOf(Arrays.asList(
+        Collections.singletonList(new ConnectionTypeHandle(0, 1, EnumSet.of(
             TransportRequestOptions.Type.BULK,
             TransportRequestOptions.Type.PING,
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE)))), 1);
+            TransportRequestOptions.Type.STATE))), 1);
 
     private final List<ConnectionTypeHandle> handles;
     private final int numConnections;

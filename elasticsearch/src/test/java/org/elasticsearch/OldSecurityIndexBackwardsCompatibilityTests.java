@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.action.XPackUsageResponse;
@@ -139,7 +138,7 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
 
         /* check that a search that misses all documents doesn't hit any alias starting with `-`. We have one in the backwards compatibility
          * indices for versions before 5.1.0 because we can't create them any more. */
-        if (version.before(Version.V_5_1_0_UNRELEASED)) {
+        if (version.before(Version.V_5_1_1_UNRELEASED)) {
             GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases().get();
             List<AliasMetaData> aliases = aliasesResponse.getAliases().get("index3");
             assertThat("alias doesn't exist", aliases, hasSize(1));

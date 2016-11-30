@@ -78,7 +78,7 @@ public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPoin
                         if (ord >= 0) {
                             return point.resetFromIndexHash(indexedPoints.get(ord));
                         }
-                        return point.reset(Double.NaN, Double.NaN);
+                        return point.reset(0, 0);
                     }
                 };
                 return FieldData.singleton(values, DocValues.docsWithValue(singleOrds, maxDoc));
@@ -136,7 +136,7 @@ public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPoin
                     if (set == null || set.get(docID)) {
                         return point.resetFromIndexHash(indexedPoint.get(docID));
                     }
-                    return point.reset(Double.NaN, Double.NaN);
+                    return point.reset(0, 0);
                 }
             };
             return FieldData.singleton(values, set);

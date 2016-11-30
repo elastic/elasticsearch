@@ -30,7 +30,7 @@ public abstract class GeoPointValues {
      * Get the {@link GeoPoint} associated with <code>docID</code>.
      * The returned {@link GeoPoint} might be reused across calls.
      * If the given <code>docID</code> does not have a value then the returned
-     * geo point mught have both latitude and longitude set to 0.
+     * geo point will have both latitude and longitude set to 0.
      */
     public abstract GeoPoint get(int docID);
 

@@ -19,11 +19,16 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
 import java.util.Arrays;
@@ -55,6 +60,24 @@ final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData
 
     @Override
     public MultiGeoPointValues getGeoPointValues() {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        if (singleton != null) {
+            final Bits docsWithField = DocValues.unwrapSingletonBits(values);
+            final GeoPointValues values = new GeoPointValues() {
+                final GeoPoint point = new GeoPoint();
+
+                @Override
+                public GeoPoint get(int docID) {
+                    final long encoded = singleton.get(docID);
+                    final double lat = GeoEncodingUtils.decodeLatitude((int)(encoded >>> 32));
+                    final double lon = GeoEncodingUtils.decodeLongitude((int)encoded);
+                    point.reset(lat, lon);
+                    return point;
+                }
+            };
+            return FieldData.singleton(values, docsWithField);
+        }
+
         return new MultiGeoPointValues() {
             GeoPoint[] points = new GeoPoint[0];
             private int count = 0;

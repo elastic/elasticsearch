@@ -245,7 +245,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         boolean changed = false;
         final MetaData.Builder upgradedMetaData = MetaData.builder(metaData);
         for (IndexMetaData indexMetaData : metaData) {
-            IndexMetaData newMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
+            IndexMetaData newMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData,
+                Version.CURRENT.minimumIndexCompatibilityVersion());
             changed |= indexMetaData != newMetaData;
             upgradedMetaData.put(newMetaData, false);
         }

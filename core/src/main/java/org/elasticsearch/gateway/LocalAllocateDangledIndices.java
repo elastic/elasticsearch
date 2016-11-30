@@ -154,7 +154,8 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                         try {
                             // The dangled index might be from an older version, we need to make sure it's compatible
                             // with the current version and upgrade it if needed.
-                            upgradedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
+                            upgradedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData,
+                                minIndexCompatibilityVersion);
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn((Supplier<?>) () -> new ParameterizedMessage("found dangled index [{}] on node [{}]. This index cannot be upgraded to the latest version, adding as closed", indexMetaData.getIndex(), request.fromNode), ex);

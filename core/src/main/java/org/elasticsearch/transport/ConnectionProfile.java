@@ -50,10 +50,10 @@ public final class ConnectionProfile {
     private final int numConnections;
     private final TimeValue connectTimeout;
 
-    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue timeout) {
+    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout) {
         this.handles = handles;
         this.numConnections = numConnections;
-        connectTimeout = timeout;
+        this.connectTimeout = connectTimeout;
     }
 
     /**
@@ -66,13 +66,13 @@ public final class ConnectionProfile {
         private TimeValue connectTimeout;
 
         /**
-         * Sets a connect timeout for this connection profile
+         * Sets a connect connectTimeout for this connection profile
          */
-        public void setConnectTimeout(TimeValue timeout) {
-            if (timeout.millis() < 0) {
-                throw new IllegalArgumentException("timeout must be positive but was: " + timeout);
+        public void setConnectTimeout(TimeValue connectTimeout) {
+            if (connectTimeout.millis() < 0) {
+                throw new IllegalArgumentException("connectTimeout must be non-negative but was: " + connectTimeout);
             }
-            this.connectTimeout = timeout;
+            this.connectTimeout = connectTimeout;
         }
 
         /**

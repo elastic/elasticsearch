@@ -26,6 +26,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,13 +41,17 @@ public class HLClientSearchIT extends ESRestTestCase {
 
     public void createTestDoc() throws IOException {
         Map<String, String> params = new HashMap<>();
+        client().performRequest("PUT", "test", params,
+                new StringEntity("{ \"mappings\": { \"type\" : { \"properties\" : { \"foo\": { \"type\": \"text\", \"store\": true },"
+                        + "  \"title\": { \"type\": \"text\", \"store\" : true } } } } }"));
         params.put("refresh", "wait_for");
-        client().performRequest("PUT", "test/type/1", params, new StringEntity("{\"foo\": \"bar\"}"));
+        client().performRequest("PUT", "test/type/1", params, new StringEntity("{\"foo\": \"bar\", \"title\" : \"baz\"}"));
     }
 
     public void testSearch() throws IOException {
         createTestDoc();
-        SearchResponse searchResponse = aClient.performSearchRequest(new SearchRequest(new SearchSourceBuilder().version(true)));
+        SearchResponse searchResponse = aClient.performSearchRequest(new SearchRequest(
+                new SearchSourceBuilder().version(true).storedFields(Arrays.asList("_source", "foo", "title"))));
         assertFalse(searchResponse.isTimedOut());
         assertTrue(searchResponse.getTookInMillis() > 0);
         assertEquals(5, searchResponse.getTotalShards());
@@ -62,6 +67,10 @@ public class HLClientSearchIT extends ESRestTestCase {
         assertEquals("1", searchResponse.getHits().hits()[0].id());
         assertEquals(1, searchResponse.getHits().hits()[0].version());
         assertEquals(1.0, searchResponse.getHits().hits()[0].score(), Float.MIN_VALUE);
+        assertEquals(2, searchResponse.getHits().hits()[0].fields().size());
+        assertEquals("bar", searchResponse.getHits().hits()[0].field("foo").getValue());
+        assertEquals("baz", searchResponse.getHits().hits()[0].field("title").getValue());
+        assertNull(searchResponse.getHits().hits()[0].field("something"));
     }
 
     @After

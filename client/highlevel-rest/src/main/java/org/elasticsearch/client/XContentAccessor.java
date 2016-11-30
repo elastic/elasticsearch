@@ -67,12 +67,53 @@ public class XContentAccessor {
     }
 
     /**
+     * Returns the String corresponding to the provided path if present, null otherwise
+     */
+    public String evaluateString(String path) {
+        return (String) evaluate(path);
+    }
+
+    /**
+     * Returns the String corresponding to the provided path if present, null otherwise
+     */
+    public Integer evaluateInteger(String path) {
+        return (Integer) evaluate(path);
+    }
+
+    /**
+     * Returns the Float corresponding to the provided path if present, null otherwise
+     */
+    public Float evaluateFloat(String path) {
+        return (Float) evaluate(path);
+    }
+
+    /**
+     * Returns the Double value corresponding to the provided path if present, null otherwise.
+     * If the object it a {@link Float}, its double value is returned.
+     * If it is neither {@link Float}, {@link Double} or <tt>null</tt>
+     * we throw an {@link IllegalArgumentException}
+     */
+    public Double evaluateDouble(String path) {
+        Object obj = evaluate(path);
+        if (obj == null) {
+            return null;
+        }
+        if (obj instanceof Double) {
+            return ((Double) obj);
+        }
+        if (obj instanceof Float) {
+            return ((Float) obj).doubleValue();
+        }
+        throw new IllegalArgumentException("Object under [" + path + "] should be Double, Float or null.");
+    }
+
+    /**
      * Returns the object corresponding to the provided path if present, null
      * otherwise. If the object it an {@link Integer}, its long value is
      * returned. If it is neither {@link Integer}, {@link Long} or <tt>null</tt>
      * we throw an {@link IllegalArgumentException}
      */
-    public Long evaluateAsLong(String path) {
+    public Long evaluateLong(String path) {
         Object obj = evaluate(path);
         if (obj == null) {
             return null;

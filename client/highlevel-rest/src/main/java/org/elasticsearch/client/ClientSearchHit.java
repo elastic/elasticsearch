@@ -33,10 +33,14 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.internal.InternalSearchHitField;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 public class ClientSearchHit implements SearchHit {
 
@@ -74,7 +78,7 @@ public class ClientSearchHit implements SearchHit {
 
     @Override
     public float score() {
-        return ((Double) this.objectPath.evaluate("_score")).floatValue();
+        return this.objectPath.evaluateDouble("_score").floatValue();
     }
 
     @Override
@@ -84,7 +88,7 @@ public class ClientSearchHit implements SearchHit {
 
     @Override
     public String index() {
-        return (String) this.objectPath.evaluate("_index");
+        return this.objectPath.evaluateString("_index");
     }
 
     @Override
@@ -94,7 +98,7 @@ public class ClientSearchHit implements SearchHit {
 
     @Override
     public String id() {
-        return (String) this.objectPath.evaluate("_id");
+        return this.objectPath.evaluateString("_id");
     }
 
     @Override
@@ -104,7 +108,7 @@ public class ClientSearchHit implements SearchHit {
 
     @Override
     public String type() {
-        return (String) this.objectPath.evaluate("_type");
+        return this.objectPath.evaluateString("_type");
     }
 
     @Override
@@ -120,7 +124,7 @@ public class ClientSearchHit implements SearchHit {
 
     @Override
     public long version() {
-        Long version = this.objectPath.evaluateAsLong("_version");
+        Long version = this.objectPath.evaluateLong("_version");
         if (version == null) {
             return -1L; // same as returned by InternalSearchHit if version not set
         }
@@ -191,20 +195,23 @@ public class ClientSearchHit implements SearchHit {
 
     @Override
     public SearchHitField field(String fieldName) {
-        // TODO
-        return null;
+        return fields().get(fieldName);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Map<String, SearchHitField> fields() {
-        // TODO
-        return null;
+        Map<String, Object> originalMap = (Map<String, Object>) this.objectPath.evaluate("fields");
+        Map<String, SearchHitField> fields = new HashMap<>(originalMap.size());
+        for (Entry<String, Object> original : originalMap.entrySet()) {
+            fields.put(original.getKey(), new InternalSearchHitField(original.getKey(), (List<Object>) original.getValue()));
+        }
+        return fields;
     }
 
     @Override
     public Map<String, SearchHitField> getFields() {
-        // TODO
-        return null;
+        return fields();
     }
 
     @Override

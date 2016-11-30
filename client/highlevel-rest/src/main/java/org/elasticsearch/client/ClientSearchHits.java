@@ -64,7 +64,7 @@ public class ClientSearchHits implements SearchHits {
 
     @Override
     public long totalHits() {
-        return this.objectPath.evaluateAsLong("total");
+        return this.objectPath.evaluateLong("total");
     }
 
     @Override
@@ -74,7 +74,7 @@ public class ClientSearchHits implements SearchHits {
 
     @Override
     public float maxScore() {
-        return ((Double) this.objectPath.evaluate("max_score")).floatValue();
+        return this.objectPath.evaluateDouble("max_score").floatValue();
     }
 
     @Override

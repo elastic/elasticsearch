@@ -172,6 +172,10 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             this.type = Objects.requireNonNull(type);
         }
 
+        public BytesRef getTerm() {
+            return type;
+        }
+
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
             Term term = new Term(CONTENT_TYPE, type);

@@ -186,6 +186,10 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             this.types = types;
         }
 
+        public BytesRef[] getTerms() {
+            return types;
+        }
+
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
             final int threshold = Math.min(BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD, BooleanQuery.getMaxClauseCount());

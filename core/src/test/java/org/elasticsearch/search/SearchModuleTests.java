@@ -264,7 +264,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "has_child",
             "has_parent",
             "ids",
-            "indices",
             "match",
             "match_all",
             "match_none",

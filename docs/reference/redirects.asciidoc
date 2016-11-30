@@ -163,13 +163,6 @@ The `ids` filter has been replaced by the <<query-dsl-ids-query>>.  It behaves
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
 
-[role="exclude",id="query-dsl-indices-filter"]
-=== Indices Filter
-
-The `indices` filter has been replaced by the <<query-dsl-indices-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
 [role="exclude",id="query-dsl-match-all-filter"]
 === Match All Filter
 
@@ -253,6 +246,15 @@ the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
 The `fuzzy_like_this_field` or `flt_field` query has been removed.  Instead use
 the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
 <<query-dsl-match-query,`match` query>> or the <<query-dsl-mlt-query>>.
+
+[role="exclude",id="query-dsl-geo-distance-range-query"]
+=== Geo distance range Query
+
+The `geo_distance_range` query has been removed. Instead use the
+<<query-dsl-geo-distance-query, Geo Distance Query>> with pagination
+or the
+<<search-aggregations-bucket-geodistance-aggregation, Geo Distance Aggregation>>
+depending on your needs.
 
 [role="exclude",id="query-dsl-geohash-cell-query"]
 === Geohash Cell Query

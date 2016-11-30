@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -162,11 +161,6 @@ public class MultiPercolateRequest extends ActionRequest implements CompositeInd
         }
 
         return this;
-    }
-
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return requests;
     }
 
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {

@@ -87,7 +87,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("Both values and termsLookup specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values =  values == null ? null : convert(values);
+        this.values = values == null ? null : convert(values);
         this.termsLookup = termsLookup;
     }
 
@@ -204,6 +204,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private static final Set<Class<?>> STRING_TYPES = new HashSet<>(
             Arrays.asList(BytesRef.class, String.class));
 
+    /**
+     * Same as {@link #convert(List)} but on an {@link Iterable}.
+     */
     private static List<?> convert(Iterable<?> values) {
         List<?> list;
         if (values instanceof List<?>) {
@@ -218,7 +221,15 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return convert(list);
     }
 
-    private static List<?> convert(List<?> list) {
+    /**
+     * Convert the list in a way that optimizes storage in the case that all
+     * elements are either integers or {@link String}s/{@link BytesRef}s. This
+     * is useful to help garbage collections for use-cases that involve sending
+     * very large terms queries to Elasticsearch. If the list does not only
+     * contain integers or {@link String}s, then a list is returned where all
+     * {@link String}s have been replaced with {@link BytesRef}s.
+     */
+    static List<?> convert(List<?> list) {
         if (list.isEmpty()) {
             return Collections.emptyList();
         }
@@ -249,7 +260,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     if (o instanceof BytesRef) {
                         b = (BytesRef) o;
                     } else {
-                        builder.copyChars((String) o); 
+                        builder.copyChars(o.toString()); 
                         b = builder.get();
                     }
                     bytesOut.writeBytes(b.bytes, b.offset, b.length);
@@ -274,10 +285,16 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             }
         }
 
-        return list;
+        return list.stream().map(o -> o instanceof String ? new BytesRef(o.toString()) : o).collect(Collectors.toList());
     }
 
-    private static List<Object> convertBack(List<?> list) {
+    /**
+     * Convert the internal {@link List} of values back to a user-friendly list.
+     * Integers are kept as-is since the terms query does not make any difference
+     * between {@link Integer}s and {@link Long}s, but {@link BytesRef}s are
+     * converted back to {@link String}s.
+     */
+    static List<Object> convertBack(List<?> list) {
         return new AbstractList<Object>() {
             @Override
             public int size() {

@@ -109,7 +109,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         private String partitionValue;
         private String start;
         private String end;
-        private PageParams pageParams = null;
+        private PageParams pageParams = new PageParams();
         private double anomalyScore = 0.0;
         private double maxNormalizedProbability = 0.0;
 

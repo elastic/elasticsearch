@@ -38,8 +38,8 @@ public class RestGetRecordsAction extends BaseRestHandler {
                 restRequest.param(GetRecordsAction.Request.START.getPreferredName()),
                 restRequest.param(GetRecordsAction.Request.END.getPreferredName()));
         request.setIncludeInterim(restRequest.paramAsBoolean(GetRecordsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
-        request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), 0),
-                restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), 100)));
+        request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         request.setAnomalyScore(
                 Double.parseDouble(restRequest.param(GetRecordsAction.Request.ANOMALY_SCORE_FILTER.getPreferredName(), "0.0")));
         request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(),

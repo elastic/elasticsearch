@@ -23,6 +23,10 @@ public class PageParams extends ToXContentToBytes implements Writeable {
     public static final ParseField FROM = new ParseField("from");
     public static final ParseField SIZE = new ParseField("size");
 
+    public static final int DEFAULT_FROM = 0;
+    public static final int DEFAULT_SIZE = 100;
+
+
     public static final ConstructingObjectParser<PageParams, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
             PAGE.getPreferredName(), a -> new PageParams((int) a[0], (int) a[1]));
 
@@ -46,19 +50,24 @@ public class PageParams extends ToXContentToBytes implements Writeable {
         out.writeVInt(size);
     }
 
-    public PageParams(int from, int SIZE) {
+    public PageParams() {
+        this.from = DEFAULT_FROM;
+        this.size = DEFAULT_SIZE;
+    }
+
+    public PageParams(int from, int size) {
         if (from < 0) {
             throw new IllegalArgumentException("Parameter [" + FROM.getPreferredName() + "] cannot be < 0");
         }
-        if (SIZE < 0) {
+        if (size < 0) {
             throw new IllegalArgumentException("Parameter [" + PageParams.SIZE.getPreferredName() + "] cannot be < 0");
         }
-        if (from + SIZE > MAX_FROM_SIZE_SUM) {
+        if (from + size > MAX_FROM_SIZE_SUM) {
             throw new IllegalArgumentException("The sum of parameters [" + FROM.getPreferredName() + "] and ["
                     + PageParams.SIZE.getPreferredName() + "] cannot be higher than " + MAX_FROM_SIZE_SUM + ".");
         }
         this.from = from;
-        this.size = SIZE;
+        this.size = size;
     }
 
     public int getFrom() {

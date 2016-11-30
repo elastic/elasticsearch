@@ -95,7 +95,7 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
         private String start;
         private String end;
         private boolean desc;
-        private PageParams pageParams = new PageParams(0, 100);
+        private PageParams pageParams = new PageParams();
 
         Request() {
         }

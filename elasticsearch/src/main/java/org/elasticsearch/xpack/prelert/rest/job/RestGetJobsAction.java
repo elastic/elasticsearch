@@ -26,8 +26,6 @@ import java.io.IOException;
 import java.util.Set;
 
 public class RestGetJobsAction extends BaseRestHandler {
-    private static final int DEFAULT_FROM = 0;
-    private static final int DEFAULT_SIZE = 100;
 
     private final GetJobsAction.TransportAction transportGetJobAction;
 
@@ -62,8 +60,8 @@ public class RestGetJobsAction extends BaseRestHandler {
             Set<String> stats = Strings.splitStringByCommaToSet(
                     restRequest.param(GetJobsAction.Request.METRIC.getPreferredName(), "config"));
             request.setStats(stats);
-            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), DEFAULT_SIZE)));
+            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
 
         return channel -> transportGetJobAction.execute(request, new RestStatusToXContentListener<>(channel));

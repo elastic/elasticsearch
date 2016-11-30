@@ -98,7 +98,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         private String start;
         private String end;
         private boolean includeInterim = false;
-        private PageParams pageParams = new PageParams(0, 100);
+        private PageParams pageParams = new PageParams();
         private double anomalyScoreFilter = 0.0;
         private String sort = Influencer.ANOMALY_SCORE.getPreferredName();
         private boolean decending = false;

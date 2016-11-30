@@ -67,8 +67,8 @@ public class RestGetBucketsAction extends BaseRestHandler {
                 // Multiple buckets
                 request.setStart(start);
                 request.setEnd(end);
-                request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), 0),
-                        restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), 100)));
+                request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                        restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
                 request.setAnomalyScore(
                         Double.parseDouble(restRequest.param(GetBucketsAction.Request.ANOMALY_SCORE.getPreferredName(), "0.0")));
                 request.setMaxNormalizedProbability(

@@ -41,8 +41,6 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     private final String DEFAULT_END = null;
     private final String DEFAULT_DESCRIPTION = null;
     private final boolean DEFAULT_DESC_ORDER = true;
-    private final int DEFAULT_FROM = 0;
-    private final int DEFAULT_SIZE = 100;
 
     private final GetModelSnapshotsAction.TransportAction transportGetModelSnapshotsAction;
 
@@ -77,8 +75,8 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
                 getModelSnapshots.setDescriptionString(restRequest.param(DESCRIPTION.getPreferredName(), DEFAULT_DESCRIPTION));
             }
             getModelSnapshots.setDescOrder(restRequest.paramAsBoolean(DESC_ORDER.getPreferredName(), DEFAULT_DESC_ORDER));
-            getModelSnapshots.setPageParams(new PageParams(restRequest.paramAsInt(FROM.getPreferredName(), DEFAULT_FROM),
-                    restRequest.paramAsInt(SIZE.getPreferredName(), DEFAULT_SIZE)));
+            getModelSnapshots.setPageParams(new PageParams(restRequest.paramAsInt(FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
 
         return channel -> transportGetModelSnapshotsAction.execute(getModelSnapshots, new RestToXContentListener<>(channel));

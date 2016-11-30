@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
@@ -108,7 +110,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
-            assertThat(query, either(instanceOf(TermsQuery.class)).or(instanceOf(PointInSetQuery.class)));
+            assertThat(query, either(instanceOf(TermsQuery.class))
+                    .or(instanceOf(PointInSetQuery.class))
+                    .or(instanceOf(ConstantScoreQuery.class)));
+            if (query instanceof ConstantScoreQuery) {
+                assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(BooleanQuery.class));
+            }
 
             // we only do the check below for string fields (otherwise we'd have to decode the values)
             if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)

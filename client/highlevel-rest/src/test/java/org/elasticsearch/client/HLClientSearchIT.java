@@ -29,6 +29,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -89,10 +91,12 @@ public class HLClientSearchIT extends ESRestTestCase {
         createTestDoc();
         SearchResponse searchResponse = aClient.performSearchRequest(new SearchRequest(
                 new SearchSourceBuilder()
-                .query(new MatchQueryBuilder("content", "buzz"))
+                .query(new MatchQueryBuilder("content", "buzz").queryName("buzz_query"))
                 .version(true)
                 .storedFields(Arrays.asList("_source", "content", "title"))
-                .highlighter(new HighlightBuilder().field("content"))));
+                .highlighter(new HighlightBuilder().field("content"))
+                .sort(new ScoreSortBuilder().order(SortOrder.ASC))
+                .trackScores(true)));
         assertFalse(searchResponse.isTimedOut());
         assertTrue(searchResponse.getTookInMillis() > 0);
         assertEquals(5, searchResponse.getTotalShards());
@@ -109,7 +113,8 @@ public class HLClientSearchIT extends ESRestTestCase {
         assertEquals("type", searchHit.type());
         assertEquals("1", searchHit.id());
         assertEquals(1, searchHit.version());
-        assertThat(searchHit.score(), greaterThan(0.0f));
+        float score = searchHit.score();
+        assertThat(score, greaterThan(0.0f));
         assertEquals(2, searchHit.fields().size());
         assertThat(searchHit.field("content").getValues(), contains("buzz cola", "some buzz"));
         assertEquals("some title", searchHit.field("title").getValue());
@@ -118,6 +123,10 @@ public class HLClientSearchIT extends ESRestTestCase {
         assertEquals("content", searchHit.highlightFields().get("content").name());
         assertThat(Arrays.asList(searchHit.highlightFields().get("content").fragments()),
                 contains(new Text("<em>buzz</em> cola"), new Text("some <em>buzz</em>")));
+        assertEquals(1, searchHit.sortValues().length);
+        assertEquals(score, ((Double) searchHit.sortValues()[0]).floatValue(), Float.MIN_VALUE);
+        assertEquals(1, searchHit.matchedQueries().length);
+        assertEquals("buzz_query", searchHit.matchedQueries()[0]);
     }
 
     private static XContentBuilder randomXContentBuilder() throws IOException {
@@ -130,5 +139,4 @@ public class HLClientSearchIT extends ESRestTestCase {
     public void shutDown() throws IOException {
         this.aClient.close();
     }
-
 }

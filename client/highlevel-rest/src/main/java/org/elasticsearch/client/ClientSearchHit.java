@@ -189,8 +189,7 @@ public class ClientSearchHit implements SearchHit {
 
     @Override
     public Explanation getExplanation() {
-        // TODO
-        return null;
+        return explanation();
     }
 
     @Override
@@ -237,46 +236,50 @@ public class ClientSearchHit implements SearchHit {
         return highlightFields();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Object[] sortValues() {
-        // TODO
-        return null;
+        return ((List<Object>) this.objectPath.evaluate("sort")).toArray();
     }
 
     @Override
     public Object[] getSortValues() {
-        // TODO
-        return null;
+        return sortValues();
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public String[] matchedQueries() {
-        // TODO
-        return null;
+        List<String> matched = (List<String>) this.objectPath.evaluate("matched_queries");
+        return matched.toArray(new String[matched.size()]);
     }
 
     @Override
     public String[] getMatchedQueries() {
-        // TODO
-        return null;
+        return matchedQueries();
     }
 
     @Override
     public SearchShardTarget shard() {
-        // TODO
+        // TODO, not sure this will work
         return null;
     }
 
     @Override
     public SearchShardTarget getShard() {
-        // TODO
-        return null;
+        return shard();
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Map<String, SearchHits> getInnerHits() {
-        // TODO
-        return null;
+        Map<String, Object> originalMap = (Map<String, Object>) this.objectPath.evaluate("inner_hits");
+        Map<String, SearchHits> innerHits = new HashMap<>(originalMap.size());
+        for (Entry<String, Object> original : originalMap.entrySet()) {
+            SearchHits hits = new ClientSearchHits((Map<String, Object>) original.getValue());
+            innerHits.put(original.getKey(), hits);
+        }
+        return innerHits;
     }
 
     private static String mapToString(Map<String, Object> map) {

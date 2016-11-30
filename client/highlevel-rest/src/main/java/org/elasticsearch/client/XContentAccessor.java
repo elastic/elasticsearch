@@ -27,10 +27,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: shameless rip off ObjectPath in the yaml tests, maybe think about
+ * TODO: started as a clone off ObjectPath in the yaml tests, maybe think about
  * extracting common functionality or rework this class to better fit the
  * purpose in the client project Holds an {@link XContent} object as {@link Map}
- * and allows to extract specific values from it given their path
  */
 public class XContentAccessor {
 
@@ -89,22 +88,9 @@ public class XContentAccessor {
 
     /**
      * Returns the Double value corresponding to the provided path if present, null otherwise.
-     * If the object it a {@link Float}, its double value is returned.
-     * If it is neither {@link Float}, {@link Double} or <tt>null</tt>
-     * we throw an {@link IllegalArgumentException}
      */
     public Double evaluateDouble(String path) {
-        Object obj = evaluate(path);
-        if (obj == null) {
-            return null;
-        }
-        if (obj instanceof Double) {
-            return ((Double) obj);
-        }
-        if (obj instanceof Float) {
-            return ((Float) obj).doubleValue();
-        }
-        throw new IllegalArgumentException("Object under [" + path + "] should be Double, Float or null.");
+        return (Double) evaluate(path);
     }
 
     /**

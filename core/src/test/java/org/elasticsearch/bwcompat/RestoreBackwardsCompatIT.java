@@ -45,7 +45,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -98,7 +97,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         for (Version v : VersionUtils.allReleasedVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
             if (v.isRelease() == false) continue; // no guarantees for prereleases
-            if (v.onOrBefore(Version.V_5_0_0_beta1)) continue; // we can only test back one major lucene version
+            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we only support versions N and N-1
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add(v.toString());
         }

@@ -98,8 +98,9 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
         if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData,
             minimumIndexCompatibilityVersion) == false) {
-            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v5.0.0.beta1."
-                    + " It should be reindexed in Elasticsearch 5.x before upgrading to " + Version.CURRENT + ".");
+            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before ["
+                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major
+                + ".x before upgrading to " + Version.CURRENT + ".");
         }
     }
 

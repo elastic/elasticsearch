@@ -56,7 +56,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
@@ -319,8 +318,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              */
             index.routing(mainRequest.getDestination().routing());
             index.parent(mainRequest.getDestination().parent());
-            index.timestamp(mainRequest.getDestination().timestamp());
-            index.ttl(mainRequest.getDestination().ttl());
             index.contentType(mainRequest.getDestination().getContentType());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             // OpType is synthesized from version so it is handled when we copy version above.
@@ -405,20 +402,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             @Override
             protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
                 request.setRouting(Objects.toString(to, null));
-            }
-
-            @Override
-            protected void scriptChangedTimestamp(RequestWrapper<?> request, Object to) {
-                request.setTimestamp(Objects.toString(to, null));
-            }
-
-            @Override
-            protected void scriptChangedTTL(RequestWrapper<?> request, Object to) {
-                if (to == null) {
-                    request.setTtl(null);
-                } else {
-                    request.setTtl(asLong(to, TTLFieldMapper.NAME));
-                }
             }
 
             private long asLong(Object from, String name) {

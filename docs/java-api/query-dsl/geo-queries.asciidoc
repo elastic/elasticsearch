@@ -36,6 +36,4 @@ include::geo-bounding-box-query.asciidoc[]
 
 include::geo-distance-query.asciidoc[]
 
-include::geo-distance-range-query.asciidoc[]
-
 include::geo-polygon-query.asciidoc[]

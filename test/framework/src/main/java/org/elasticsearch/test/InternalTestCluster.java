@@ -294,9 +294,10 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] dedicated masters, " +
-                "[{}] (data) nodes and [{}] coord only nodes",
+                "[{}] (data) nodes and [{}] coord only nodes (min_master_nodes are [{}])",
             clusterName, SeedUtils.formatSeed(clusterSeed),
-            numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes);
+            numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes,
+            autoManageMinMasterNodes ? "auto-managed" : "manual");
         this.nodeConfigurationSource = nodeConfigurationSource;
         Builder builder = Settings.builder();
         if (random.nextInt(5) == 0) { // sometimes set this

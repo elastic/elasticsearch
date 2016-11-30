@@ -1310,7 +1310,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         try {
-            serviceB.connectToNodeLightAndHandshake(nodeA, 100);
+            serviceB.connectToNodeAndHandshake(nodeA, 100);
             fail("exception should be thrown");
         } catch (ConnectTransportException e) {
             // all is well
@@ -1368,7 +1368,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         try {
-            serviceB.connectToNodeLightAndHandshake(nodeA, 100);
+            serviceB.connectToNodeAndHandshake(nodeA, 100);
             fail("exception should be thrown");
         } catch (ConnectTransportException e) {
             // all is well

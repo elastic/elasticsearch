@@ -386,7 +386,7 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new LimitTokenCountFilter(tokenStream, LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT, LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS);
         }
-    }
+    },
 
     ;
 

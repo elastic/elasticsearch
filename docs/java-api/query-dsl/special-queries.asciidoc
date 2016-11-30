@@ -26,8 +26,6 @@ This query finds percolator queries based on documents.
 
 include::mlt-query.asciidoc[]
 
-include::template-query.asciidoc[]
-
 include::script-query.asciidoc[]
 
 include::percolate-query.asciidoc[]

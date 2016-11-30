@@ -225,7 +225,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(zenPingD);
 
         logger.info("ping from UZP_A");
-        Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
+        Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(100));
         assertThat(pingResponses.size(), equalTo(1));
         ZenPing.PingResponse ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_B"));
@@ -234,7 +234,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // ping again, this time from B,
         logger.info("ping from UZP_B");
-        pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
+        pingResponses = zenPingB.pingAndWait(TimeValue.timeValueMillis(100));
         assertThat(pingResponses.size(), equalTo(1));
         ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_A"));
@@ -242,12 +242,12 @@ public class UnicastZenPingTests extends ESTestCase {
         assertCounters(handleB, handleA, handleB, handleC, handleD);
 
         logger.info("ping from UZP_C");
-        pingResponses = zenPingC.pingAndWait(TimeValue.timeValueSeconds(1));
+        pingResponses = zenPingC.pingAndWait(TimeValue.timeValueMillis(100));
         assertThat(pingResponses.size(), equalTo(0));
         assertCounters(handleC, handleA, handleB, handleC, handleD);
 
         logger.info("ping from UZP_D");
-        pingResponses = zenPingD.pingAndWait(TimeValue.timeValueSeconds(1));
+        pingResponses = zenPingD.pingAndWait(TimeValue.timeValueMillis(100));
         assertThat(pingResponses.size(), equalTo(0));
         assertCounters(handleD, handleA, handleB, handleC, handleD);
     }
@@ -347,7 +347,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // the presence of an unresolvable host should not prevent resolvable hosts from being pinged
         {
-            final Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(3));
+            final Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(100));
             assertThat(pingResponses.size(), equalTo(1));
             ZenPing.PingResponse ping = pingResponses.iterator().next();
             assertThat(ping.node().getId(), equalTo("UZP_C"));
@@ -366,7 +366,7 @@ public class UnicastZenPingTests extends ESTestCase {
         // now we should see pings to UZP_B; this establishes that host resolutions are not cached
         {
             // ping from C so that we can assert on the counters from a fresh source (as opposed to resetting them)
-            final Collection<ZenPing.PingResponse> secondPingResponses = zenPingC.pingAndWait(TimeValue.timeValueSeconds(3));
+            final Collection<ZenPing.PingResponse> secondPingResponses = zenPingC.pingAndWait(TimeValue.timeValueMillis(100));
             assertThat(secondPingResponses.size(), equalTo(2));
             final Set<String> ids = new HashSet<>(secondPingResponses.stream().map(p -> p.node().getId()).collect(Collectors.toList()));
             assertThat(ids, equalTo(new HashSet<>(Arrays.asList("UZP_A", "UZP_B"))));

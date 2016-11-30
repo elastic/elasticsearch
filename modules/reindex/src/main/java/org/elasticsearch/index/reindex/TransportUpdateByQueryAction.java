@@ -36,8 +36,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -161,15 +159,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
             }
 
-            @Override
-            protected void scriptChangedTimestamp(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + TimestampFieldMapper.NAME + "] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedTTL(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + TTLFieldMapper.NAME + "] not allowed");
-            }
         }
     }
 }

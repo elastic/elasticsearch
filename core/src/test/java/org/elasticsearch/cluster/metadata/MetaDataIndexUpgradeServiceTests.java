@@ -83,18 +83,18 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(),
             Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         final IndexMetaData metaData = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_2_0_0_beta1)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("1.7.0"))
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("2.4.0"))
             .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE,
             Version.CURRENT.luceneVersion.toString()).build());
         String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(metaData,
-            Version.V_5_0_0.minimumIndexCompatibilityVersion())).getMessage();
-        assertEquals(message, "The index [[foo/BOOM]] was created before v2.0.0.beta1. It should be reindexed in Elasticsearch 2.x " +
+            Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
+        assertEquals(message, "The index [[foo/BOOM]] was created before [5.0.0]. It should be re-indexed in Elasticsearch 5.x " +
             "before upgrading to " + Version.CURRENT.toString() + ".");
 
         IndexMetaData goodMeta = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_2_0_0_beta1)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("2.1.0"))
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("5.1.0"))
             .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE,
                 Version.CURRENT.luceneVersion.toString()).build());
         service.upgradeIndexMetaData(goodMeta, Version.V_5_0_0.minimumIndexCompatibilityVersion());
@@ -106,7 +106,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_CREATION_DATE, 1)
             .put(IndexMetaData.SETTING_INDEX_UUID, "BOOM")
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_2_0_0_beta1)
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
             .put(indexSettings)
             .build();
         IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();

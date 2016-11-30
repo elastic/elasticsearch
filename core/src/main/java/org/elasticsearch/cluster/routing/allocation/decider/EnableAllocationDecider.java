@@ -98,7 +98,8 @@ public class EnableAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
-            return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of allocation");
+            return allocation.decision(Decision.YES, NAME,
+                "explicitly ignoring any disabling of allocation due to manual allocation commands via the reroute API");
         }
 
         final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());

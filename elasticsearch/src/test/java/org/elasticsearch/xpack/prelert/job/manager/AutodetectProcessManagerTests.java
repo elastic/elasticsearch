@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
+import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
@@ -37,6 +38,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.mock.orig.Mockito.doThrow;
 import static org.elasticsearch.mock.orig.Mockito.times;
@@ -51,7 +53,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 /**
- * Calling the {@link AutodetectProcessManager#processData(String, InputStream, DataLoadParams)}
+ * Calling the {@link DataProcessor#processData(String, InputStream, DataLoadParams, java.util.function.Supplier)}
  * method causes an AutodetectCommunicator to be created on demand. Most of these tests have to
  * do that before they can assert other things
  */
@@ -77,7 +79,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(0, manager.numberOfRunningJobs());
 
         DataLoadParams params = new DataLoadParams(TimeRange.builder().build());
-        manager.processData("foo", createInputStream(""), params);
+        manager.processData("foo", createInputStream(""), params, () -> false);
         assertEquals(1, manager.numberOfRunningJobs());
     }
 
@@ -87,10 +89,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         DataLoadParams params = mock(DataLoadParams.class);
         InputStream inputStream = createInputStream("");
-        doThrow(new IOException("blah")).when(communicator).writeToJob(inputStream, params);
+        Supplier<Boolean> cancellable = () -> false;
+        doThrow(new IOException("blah")).when(communicator).writeToJob(inputStream, params, cancellable);
 
         ESTestCase.expectThrows(ElasticsearchException.class,
-                () -> manager.processData("foo", inputStream, params));
+                () -> manager.processData("foo", inputStream, params, cancellable));
     }
 
     public void testCloseJob() {
@@ -99,7 +102,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createManager(communicator);
         assertEquals(0, manager.numberOfRunningJobs());
 
-        manager.processData("foo", createInputStream(""), mock(DataLoadParams.class));
+        manager.processData("foo", createInputStream(""), mock(DataLoadParams.class), () -> false);
 
         // job is created
         assertEquals(1, manager.numberOfRunningJobs());
@@ -111,10 +114,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManager(communicator);
 
+        Supplier<Boolean> cancellable = () -> false;
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1000").endTime("2000").build(), true);
         InputStream inputStream = createInputStream("");
-        manager.processData("foo", inputStream, params);
-        verify(communicator).writeToJob(inputStream, params);
+        manager.processData("foo", inputStream, params, cancellable);
+        verify(communicator).writeToJob(inputStream, params, cancellable);
     }
 
     public void testFlush() throws IOException {
@@ -123,7 +127,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
 
         InputStream inputStream = createInputStream("");
-        manager.processData("foo", inputStream, mock(DataLoadParams.class));
+        manager.processData("foo", inputStream, mock(DataLoadParams.class), () -> false);
 
         InterimResultsParams params = InterimResultsParams.builder().build();
         manager.flushJob("foo", params);
@@ -154,7 +158,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createManager(communicator);
         assertFalse(manager.jobHasActiveAutodetectProcess("foo"));
 
-        manager.processData("foo", createInputStream(""), mock(DataLoadParams.class));
+        manager.processData("foo", createInputStream(""), mock(DataLoadParams.class), () -> false);
 
         assertTrue(manager.jobHasActiveAutodetectProcess("foo"));
         assertFalse(manager.jobHasActiveAutodetectProcess("bar"));
@@ -170,7 +174,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         givenAllocationWithStatus(JobStatus.PAUSING);
 
         InputStream inputStream = createInputStream("");
-        DataCounts dataCounts = manager.processData("foo", inputStream, mock(DataLoadParams.class));
+        DataCounts dataCounts = manager.processData("foo", inputStream, mock(DataLoadParams.class), () -> false);
 
         assertThat(dataCounts, equalTo(new DataCounts("foo")));
     }
@@ -182,7 +186,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         givenAllocationWithStatus(JobStatus.PAUSED);
         AutodetectProcessManager manager = createManager(communicator);
         InputStream inputStream = createInputStream("");
-        DataCounts dataCounts = manager.processData("foo", inputStream, mock(DataLoadParams.class));
+        DataCounts dataCounts = manager.processData("foo", inputStream, mock(DataLoadParams.class), () -> false);
 
         assertThat(dataCounts, equalTo(new DataCounts("foo")));
     }
@@ -227,7 +231,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     private AutodetectProcessManager createManagerAndCallProcessData(AutodetectCommunicator communicator, String jobId) {
         AutodetectProcessManager manager = createManager(communicator);
-        manager.processData(jobId, createInputStream(""), mock(DataLoadParams.class));
+        manager.processData(jobId, createInputStream(""), mock(DataLoadParams.class), () -> false);
         return manager;
     }
 

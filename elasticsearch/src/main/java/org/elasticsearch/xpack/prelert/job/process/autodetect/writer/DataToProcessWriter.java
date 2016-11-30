@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.Supplier;
 
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 
@@ -24,7 +25,7 @@ public interface DataToProcessWriter {
      *
      * @return Counts of the records processed, bytes read etc
      */
-    DataCounts write(InputStream inputStream) throws IOException;
+    DataCounts write(InputStream inputStream, Supplier<Boolean> cancelled) throws IOException;
 
     /**
      * Flush the outputstream

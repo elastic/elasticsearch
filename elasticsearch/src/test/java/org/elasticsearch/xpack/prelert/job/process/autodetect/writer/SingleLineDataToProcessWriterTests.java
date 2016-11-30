@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
 
+import static org.elasticsearch.xpack.prelert.job.process.autodetect.writer.JsonDataToProcessWriterTests.endLessStream;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -18,8 +21,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
 import org.junit.Before;
@@ -71,6 +77,38 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         transformConfigs = new ArrayList<>();
     }
 
+    public void testWrite_cancel() throws Exception {
+        TransformConfig transformConfig = new TransformConfig("extract");
+        transformConfig.setInputs(Arrays.asList("raw"));
+        transformConfig.setOutputs(Arrays.asList("time", "message"));
+        transformConfig.setArguments(Arrays.asList("(.{20}) (.*)"));
+        transformConfigs.add(transformConfig);
+
+        InputStream inputStream = endLessStream("", "2015-04-29 10:00:00Z this is a message\n");
+        SingleLineDataToProcessWriter writer = createWriter();
+
+        AtomicBoolean cancel = new AtomicBoolean(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        Thread t = new Thread(() -> {
+            try {
+                writer.write(inputStream, cancel::get);
+            } catch (Exception e) {
+                exception.set(e);
+            }
+        });
+        t.start();
+        try {
+            assertBusy(() -> verify(statusReporter, atLeastOnce()).reportRecordWritten(anyLong(), anyLong()));
+        } finally {
+            cancel.set(true);
+            t.join();
+        }
+
+        assertNotNull(exception.get());
+        assertEquals(TaskCancelledException.class, exception.get().getClass());
+        assertEquals("cancelled", exception.get().getMessage());
+    }
+
     public void testWrite_GivenDataIsValid() throws Exception {
         TransformConfig transformConfig = new TransformConfig("extract");
         transformConfig.setInputs(Arrays.asList("raw"));
@@ -85,7 +123,7 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         SingleLineDataToProcessWriter writer = createWriter();
 
-        writer.write(inputStream);
+        writer.write(inputStream, () -> false);
         verify(statusReporter, times(1)).getLatestRecordTime();
         verify(statusReporter, times(1)).startNewIncrementalCount();
         verify(statusReporter, times(1)).setAnalysedFieldsPerRecord(1);
@@ -122,7 +160,7 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         SingleLineDataToProcessWriter writer = createWriter();
 
-        writer.write(inputStream);
+        writer.write(inputStream, () -> false);
         verify(statusReporter, times(1)).getLatestRecordTime();
         verify(statusReporter, times(1)).startNewIncrementalCount();
         verify(statusReporter, times(1)).setAnalysedFieldsPerRecord(1);
@@ -148,7 +186,7 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         SingleLineDataToProcessWriter writer = createWriter();
 
-        writer.write(inputStream);
+        writer.write(inputStream, () -> false);
         verify(statusReporter, times(1)).startNewIncrementalCount();
         verify(statusReporter, times(1)).setAnalysedFieldsPerRecord(1);
         verify(statusReporter, times(1)).reportDateParseError(1);

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadPar
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 
 import java.io.InputStream;
+import java.util.function.Supplier;
 
 public interface DataProcessor {
 
@@ -27,12 +28,13 @@ public interface DataProcessor {
      *     <li>If a high proportion of the records chronologically out of order</li>
      * </ol>
      *
-     * @param jobId the jobId
-     * @param input Data input stream
-     * @param params Data processing parameters
+     * @param jobId     the jobId
+     * @param input     Data input stream
+     * @param params    Data processing parameters
+     * @param cancelled Whether the data processing has been cancelled
      * @return Count of records, fields, bytes, etc written
      */
-    DataCounts processData(String jobId, InputStream input, DataLoadParams params);
+    DataCounts processData(String jobId, InputStream input, DataLoadParams params, Supplier<Boolean> cancelled);
 
     /**
      * Flush the running job, ensuring that the native process has had the

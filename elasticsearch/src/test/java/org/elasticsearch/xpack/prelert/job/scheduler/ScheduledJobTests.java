@@ -49,7 +49,7 @@ public class ScheduledJobTests extends ESTestCase {
         InputStream inputStream = mock(InputStream.class);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
         DataCounts dataCounts = new DataCounts("_job_id", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
-        when(dataProcessor.processData(eq("_job_id"), same(inputStream), any())).thenReturn(dataCounts);
+        when(dataProcessor.processData(eq("_job_id"), same(inputStream), any(), any())).thenReturn(dataCounts);
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -141,7 +141,7 @@ public class ScheduledJobTests extends ESTestCase {
 
     public void testAnalysisProblem() throws Exception {
         dataProcessor = mock(DataProcessor.class);
-        when(dataProcessor.processData(eq("_job_id"), any(), any())).thenThrow(new RuntimeException());
+        when(dataProcessor.processData(eq("_job_id"), any(), any(), any())).thenThrow(new RuntimeException());
 
         ScheduledJob scheduledJob = createScheduledJob(1000, 500, -1, -1);
         SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTED, 0L, 1000L);

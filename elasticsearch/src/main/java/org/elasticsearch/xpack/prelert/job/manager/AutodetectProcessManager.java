@@ -49,6 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 public class AutodetectProcessManager extends AbstractComponent implements DataProcessor {
 
@@ -93,7 +94,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     }
 
     @Override
-    public DataCounts processData(String jobId, InputStream input, DataLoadParams params) {
+    public DataCounts processData(String jobId, InputStream input, DataLoadParams params, Supplier<Boolean> cancelled) {
         Allocation allocation = jobManager.getJobAllocation(jobId);
         if (allocation.getStatus().isAnyOf(JobStatus.PAUSING, JobStatus.PAUSED)) {
             return new DataCounts(jobId);
@@ -105,7 +106,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
             return c;
         });
         try {
-            return communicator.writeToJob(input, params);
+            return communicator.writeToJob(input, params, cancelled);
             // TODO check for errors from autodetect
         } catch (IOException e) {
             String msg = String.format(Locale.ROOT, "Exception writing to process for job %s", jobId);

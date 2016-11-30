@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.apache.logging.log4j.Logger;
 
@@ -59,11 +60,11 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * timeField is missing from the JOSN inputIndex an exception is thrown
      */
     @Override
-    public DataCounts write(InputStream inputStream) throws IOException {
+    public DataCounts write(InputStream inputStream, Supplier<Boolean> cancelled) throws IOException {
         statusReporter.startNewIncrementalCount();
 
         try (JsonParser parser = new JsonFactory().createParser(inputStream)) {
-            writeJson(parser);
+            writeJson(parser, cancelled);
 
             // this line can throw and will be propagated
             statusReporter.finishReporting();
@@ -72,7 +73,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         return statusReporter.incrementalStats();
     }
 
-    private void writeJson(JsonParser parser) throws IOException {
+    private void writeJson(JsonParser parser, Supplier<Boolean> cancelled) throws IOException {
         Collection<String> analysisFields = inputFields();
 
         buildTransformsAndWriteHeader(analysisFields.toArray(new String[0]));
@@ -101,7 +102,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
                 record[inOut.outputIndex] = (field == null) ? "" : field;
             }
 
-            applyTransformsAndWrite(input, record, inputFieldCount);
+            applyTransformsAndWrite(cancelled, input, record, inputFieldCount);
 
             inputFieldCount = recordReader.read(input, gotFields);
         }

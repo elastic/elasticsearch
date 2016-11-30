@@ -42,7 +42,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build());
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            communicator.writeToJob(new ByteArrayInputStream(new byte[0]), params);
+            communicator.writeToJob(new ByteArrayInputStream(new byte[0]), params, () -> false);
             Mockito.verify(process).writeResetBucketsControlMessage(params);
         }
     }
@@ -143,10 +143,11 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
 
         communicator.inUse.set(new CountDownLatch(1));
-        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeToJob(in, mock(DataLoadParams.class)));
+        expectThrows(ElasticsearchStatusException.class,
+                () -> communicator.writeToJob(in, mock(DataLoadParams.class), () -> false));
 
         communicator.inUse.set(null);
-        communicator.writeToJob(in, mock(DataLoadParams.class));
+        communicator.writeToJob(in, mock(DataLoadParams.class), () -> false);
     }
 
     public void testFlushInUse() throws IOException {

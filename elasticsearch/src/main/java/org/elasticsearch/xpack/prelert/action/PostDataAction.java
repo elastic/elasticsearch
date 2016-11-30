@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -25,6 +24,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
@@ -124,6 +126,14 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         }
     }
 
+    static class PostDataTask extends CancellableTask {
+
+        PostDataTask(long id, String type, String action, TaskId parentTaskId, String jobId) {
+            super(id, type, action, jobId + "_post_data", parentTaskId);
+        }
+
+    }
+
     public static class Request extends ActionRequest {
 
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignoreDowntime");
@@ -176,6 +186,11 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
 
         public void setContent(BytesReference content) {
             this.content = content;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new PostDataTask(id, type, action, parentTaskId, jobId);
         }
 
         @Override
@@ -241,17 +256,24 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         }
 
         @Override
-        protected final void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            PostDataTask postDataTask = (PostDataTask) task;
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, request.isIgnoreDowntime());
             threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() -> {
                 try {
-                    DataCounts dataCounts = processManager.processData(request.getJobId(), request.content.streamInput(), params);
+                    DataCounts dataCounts = processManager.processData(request.getJobId(), request.content.streamInput(), params,
+                            postDataTask::isCancelled);
                     listener.onResponse(new Response(dataCounts));
-                } catch (IOException | ElasticsearchException e) {
+                } catch (Exception e) {
                     listener.onFailure(e);
                 }
             });
+        }
+
+        @Override
+        protected final void doExecute(Request request, ActionListener<Response> listener) {
+            throw new UnsupportedOperationException("the task parameter is required");
         }
     }
 }

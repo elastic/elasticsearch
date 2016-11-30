@@ -333,7 +333,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         String[] input = { "1", "metricA", "0" };
         String[] output = new String[3];
 
-        assertFalse(writer.applyTransformsAndWrite(input, output, 3));
+        assertFalse(writer.applyTransformsAndWrite(() -> false, input, output, 3));
 
         verify(autodetectProcess, never()).writeRecord(output);
         verify(statusReporter, never()).reportRecordWritten(anyLong(), anyLong());
@@ -344,7 +344,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         // this is ok
         input = new String[] { "2", "metricB", "0" };
         String[] expectedOutput = { "2", null, null };
-        assertTrue(writer.applyTransformsAndWrite(input, output, 3));
+        assertTrue(writer.applyTransformsAndWrite(() -> false, input, output, 3));
 
         verify(autodetectProcess, times(1)).writeRecord(expectedOutput);
         verify(statusReporter, times(1)).reportRecordWritten(3, 2000);

@@ -133,7 +133,7 @@ class ScheduledJob {
             if (extractedData.isPresent()) {
                 DataCounts counts;
                 try {
-                    counts = dataProcessor.processData(jobId, extractedData.get(), DATA_LOAD_PARAMS);
+                    counts = dataProcessor.processData(jobId, extractedData.get(), DATA_LOAD_PARAMS, () -> false);
                 } catch (Exception e) {
                     error = new AnalysisProblemException(e);
                     break;

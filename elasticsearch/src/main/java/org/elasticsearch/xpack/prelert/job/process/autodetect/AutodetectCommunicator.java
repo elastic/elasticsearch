@@ -73,13 +73,13 @@ public class AutodetectCommunicator implements Closeable {
                 job.getSchedulerConfig(), new TransformConfigs(job.getTransforms()) , statusReporter, LOGGER);
     }
 
-    public DataCounts writeToJob(InputStream inputStream, DataLoadParams params) throws IOException {
+    public DataCounts writeToJob(InputStream inputStream, DataLoadParams params, Supplier<Boolean> cancelled) throws IOException {
         return checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPLOAD, jobId), () -> {
             if (params.isResettingBuckets()) {
                 autodetectProcess.writeResetBucketsControlMessage(params);
             }
             CountingInputStream countingStream = new CountingInputStream(inputStream, statusReporter);
-            DataCounts results = autoDetectWriter.write(countingStream);
+            DataCounts results = autoDetectWriter.write(countingStream, cancelled);
             autoDetectWriter.flush();
             return results;
         }, false);

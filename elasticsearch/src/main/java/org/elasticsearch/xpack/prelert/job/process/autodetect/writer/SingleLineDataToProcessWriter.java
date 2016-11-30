@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.apache.logging.log4j.Logger;
 
@@ -43,7 +44,7 @@ public class SingleLineDataToProcessWriter extends AbstractDataToProcessWriter {
     }
 
     @Override
-    public DataCounts write(InputStream inputStream) throws IOException {
+    public DataCounts write(InputStream inputStream, Supplier<Boolean> cancelled) throws IOException {
         statusReporter.startNewIncrementalCount();
 
         try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -56,7 +57,7 @@ public class SingleLineDataToProcessWriter extends AbstractDataToProcessWriter {
             for (String line = bufferedReader.readLine(); line != null;
                     line = bufferedReader.readLine()) {
                 Arrays.fill(record, "");
-                applyTransformsAndWrite(new String[]{line}, record, 1);
+                applyTransformsAndWrite(cancelled, new String[]{line}, record, 1);
             }
             statusReporter.finishReporting();
         }

@@ -9,11 +9,7 @@ Filters documents that have fields that match any of the provided terms
 GET /_search
 {
     "query": {
-        "constant_score" : {
-            "filter" : {
-                "terms" : { "user" : ["kimchy", "elasticsearch"]}
-            }
-        }
+        "terms" : { "user" : ["kimchy", "elasticsearch"]}
     }
 }
 --------------------------------------------------

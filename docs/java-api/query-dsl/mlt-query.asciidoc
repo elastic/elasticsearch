@@ -1,5 +1,5 @@
 [[java-query-dsl-mlt-query]]
-==== More Like This Query (mlt)
+==== More Like This Query
 
 See:
  * {ref}/query-dsl-mlt-query.html[More Like This Query]

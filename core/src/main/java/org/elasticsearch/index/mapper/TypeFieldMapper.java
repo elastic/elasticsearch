@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -33,7 +34,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -256,13 +256,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     private static MappedFieldType defaultFieldType(Settings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        Version indexCreated = Version.indexCreated(indexSettings);
-        if (indexCreated.before(Version.V_2_1_0)) {
-            // enables fielddata loading, doc values was disabled on _type between 2.0 and 2.1.
-            ((TypeFieldType) defaultFieldType).setFielddata(true);
-        } else {
-            defaultFieldType.setHasDocValues(true);
-        }
+        defaultFieldType.setHasDocValues(true);
         return defaultFieldType;
     }
 
@@ -282,7 +276,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }

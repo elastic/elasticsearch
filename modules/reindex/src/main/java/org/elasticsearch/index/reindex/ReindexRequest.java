@@ -93,12 +93,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
             }
         }
-        if (destination.ttl() != null) {
-            e = addValidationError("setting ttl on destination isn't supported. use scripts instead.", e);
-        }
-        if (destination.timestamp() != null) {
-            e = addValidationError("setting timestamp on destination isn't supported. use scripts instead.", e);
-        }
         if (getRemoteInfo() != null) {
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);

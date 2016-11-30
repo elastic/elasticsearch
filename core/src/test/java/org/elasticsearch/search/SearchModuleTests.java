@@ -259,10 +259,8 @@ public class SearchModuleTests extends ModuleTestCase {
             "fuzzy",
             "geo_bounding_box",
             "geo_distance",
-            "geo_distance_range",
             "geo_polygon",
             "geo_shape",
-            "geohash_cell",
             "has_child",
             "has_parent",
             "ids",
@@ -297,13 +295,8 @@ public class SearchModuleTests extends ModuleTestCase {
             "wrapper"
     };
 
-    private static final String[] DEPRECATED_QUERIES = new String[] {
-            "fuzzy_match",
-            "geo_bbox",
-            "in",
-            "match_fuzzy",
-            "mlt"
-    };
+    //add here deprecated queries to make sure we log a deprecation warnings when they are used
+    private static final String[] DEPRECATED_QUERIES = new String[] {};
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.

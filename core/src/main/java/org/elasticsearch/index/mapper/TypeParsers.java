@@ -71,32 +71,6 @@ public class TypeParsers {
         }
     }
 
-    @Deprecated // for legacy ints only
-    public static void parseNumberField(LegacyNumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, Mapper.TypeParser.ParserContext parserContext) {
-        parseField(builder, name, numberNode, parserContext);
-        for (Iterator<Map.Entry<String, Object>> iterator = numberNode.entrySet().iterator(); iterator.hasNext();) {
-            Map.Entry<String, Object> entry = iterator.next();
-            String propName = entry.getKey();
-            Object propNode = entry.getValue();
-            if (propName.equals("precision_step")) {
-                builder.precisionStep(nodeIntegerValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("ignore_malformed")) {
-                builder.ignoreMalformed(nodeBooleanValue("ignore_malformed", propNode, parserContext));
-                iterator.remove();
-            } else if (propName.equals("coerce")) {
-                builder.coerce(nodeBooleanValue("coerce", propNode, parserContext));
-                iterator.remove();
-            } else if (propName.equals("similarity")) {
-                SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
-                builder.similarity(similarityProvider);
-                iterator.remove();
-            } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
-                iterator.remove();
-            }
-        }
-    }
-
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
         NamedAnalyzer indexAnalyzer = null;
         NamedAnalyzer searchAnalyzer = null;
@@ -270,22 +244,12 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("copy_to")) {
                 if (parserContext.isWithinMultiField()) {
-                    if (indexVersionCreated.after(Version.V_2_1_0) ||
-                        (indexVersionCreated.after(Version.V_2_0_1) && indexVersionCreated.before(Version.V_2_1_0))) {
-                        throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] which is within a multi field.");
-                    } else {
-                        ESLoggerFactory.getLogger("mapping [" + parserContext.type() + "]").warn("Found a copy_to in field [{}] which is within a multi field. This feature has been removed and the copy_to will be removed from the mapping.", name);
-                    }
+                    throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] which is within a multi field.");
                 } else {
                     parseCopyFields(propNode, builder);
                 }
                 iterator.remove();
             }
-        }
-        if (indexVersionCreated.before(Version.V_2_2_0)) {
-            // analyzer, search_analyzer, term_vectors were accepted on all fields
-            // before 2.2, even though it made little sense
-            parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
         }
     }
 

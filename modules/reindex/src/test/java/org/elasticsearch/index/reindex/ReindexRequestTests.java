@@ -34,14 +34,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
  */
 public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
-    public void testTimestampAndTtlNotAllowed() {
-        ReindexRequest reindex = newRequest();
-        reindex.getDestination().ttl("1s").timestamp("now");
-        ActionRequestValidationException e = reindex.validate();
-        assertEquals("Validation Failed: 1: setting ttl on destination isn't supported. use scripts instead.;"
-                + "2: setting timestamp on destination isn't supported. use scripts instead.;",
-                e.getMessage());
-    }
 
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();

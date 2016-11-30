@@ -20,14 +20,12 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -160,12 +158,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
-                if (metaData == IngestDocument.MetaData.TTL) {
-                    ingestDocument.setFieldValue(IngestDocument.MetaData.TTL.getFieldName(), "35d");
-                } else {
-                    ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
-                }
-
+                ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
             }
             return null;
         }).when(processor).execute(any());
@@ -186,8 +179,6 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         assertThat(indexRequest.id(), equalTo("update_id"));
         assertThat(indexRequest.routing(), equalTo("update_routing"));
         assertThat(indexRequest.parent(), equalTo("update_parent"));
-        assertThat(indexRequest.timestamp(), equalTo("update_timestamp"));
-        assertThat(indexRequest.ttl(), equalTo(new TimeValue(3024000000L)));
     }
 
     public void testExecuteFailure() throws Exception {
@@ -264,53 +255,6 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
-    }
-
-    public void testExecuteSetTTL() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("_ttl", "5d"));
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, new CompoundProcessor(processor)));
-
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        @SuppressWarnings("unchecked")
-        Consumer<Exception> failureHandler = mock(Consumer.class);
-        @SuppressWarnings("unchecked")
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-
-        assertThat(indexRequest.ttl(), equalTo(TimeValue.parseTimeValue("5d", null, "ttl")));
-        verify(failureHandler, never()).accept(any());
-        verify(completionHandler, times(1)).accept(true);
-    }
-
-    public void testExecuteSetInvalidTTL() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("_ttl", "abc"));
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, new CompoundProcessor(processor)));
-
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        @SuppressWarnings("unchecked")
-        Consumer<Exception> failureHandler = mock(Consumer.class);
-        @SuppressWarnings("unchecked")
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(failureHandler, times(1)).accept(any(ElasticsearchParseException.class));
-        verify(completionHandler, never()).accept(anyBoolean());
-    }
-
-    public void testExecuteProvidedTTL() throws Exception {
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, mock(CompoundProcessor.class)));
-
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline("_id")
-                .source(Collections.emptyMap())
-                .ttl(1000L);
-        @SuppressWarnings("unchecked")
-        Consumer<Exception> failureHandler = mock(Consumer.class);
-        @SuppressWarnings("unchecked")
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-
-        assertThat(indexRequest.ttl(), equalTo(new TimeValue(1000L)));
-        verify(failureHandler, never()).accept(any());
-        verify(completionHandler, times(1)).accept(true);
     }
 
     public void testBulkRequestExecutionWithFailures() throws Exception {
@@ -439,7 +383,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         private final IngestDocument ingestDocument;
 
         public IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, type, id, null, null, null, null, source);
+            this.ingestDocument = new IngestDocument(index, type, id, null, null, source);
         }
 
         @Override

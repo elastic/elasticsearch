@@ -1475,11 +1475,35 @@ Converts a JSON string into a structured JSON object.
 | `target_field` | no        | `field`  | The field to insert the converted structured object into
 |======
 
+Suppose you provide this configuration of the `json` processor:
+
 [source,js]
 --------------------------------------------------
 {
-  "json": {
-    "field": "{\"foo\": 2000}"
+  "json" : {
+    "field" : "string_source",
+    "target_field" : "json_target"
+  }
+}
+--------------------------------------------------
+
+If the following document is processed:
+
+[source,js]
+--------------------------------------------------
+{
+  "string_source": "{\"foo\": 2000}"
+}
+--------------------------------------------------
+
+after the `json` processor operates on it, it will look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "string_source": "{\"foo\": 2000}",
+  "json_target": {
+    "foo": 2000
   }
 }
 --------------------------------------------------

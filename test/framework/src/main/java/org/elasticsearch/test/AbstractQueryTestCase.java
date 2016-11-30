@@ -830,7 +830,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 value = randomIntBetween(0, 10);
                 break;
             case DOUBLE_FIELD_NAME:
-                value = randomDouble() * 10;
+                value = 1 + randomDouble() * 9;
                 break;
             case BOOLEAN_FIELD_NAME:
                 value = randomBoolean();

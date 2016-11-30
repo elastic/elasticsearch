@@ -84,4 +84,17 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(2, build.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(1, build.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
     }
+
+    public void testNoChannels() {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1, TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.STATE,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG);
+        builder.addConnections(0, TransportRequestOptions.Type.PING);
+        ConnectionProfile build = builder.build();
+        Integer[] array = new Integer[]{Integer.valueOf(0)};
+        assertEquals(Integer.valueOf(0), build.getHandles().get(0).getChannel(array));
+        expectThrows(IllegalStateException.class, () -> build.getHandles().get(1).getChannel(array));
+    }
 }

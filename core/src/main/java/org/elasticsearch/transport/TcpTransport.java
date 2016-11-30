@@ -206,20 +206,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
-        Set<TransportRequestOptions.Type> regSet = EnumSet.of(TransportRequestOptions.Type.REG);
-        if (DiscoveryNode.isMasterNode(settings)) {
-            builder.addConnections(connectionsPerNodeState, TransportRequestOptions.Type.STATE);
-        } else {
-            // if we are not master eligible we don't need a dedicated channel to publish the state
-            regSet.add(TransportRequestOptions.Type.STATE);
-        }
-        if (DiscoveryNode.isDataNode(settings)) {
-            builder.addConnections(connectionsPerNodeRecovery, TransportRequestOptions.Type.RECOVERY);
-        } else {
-            // if we are not a data-node we don't need any dedicated channels for recovery
-            regSet.add(TransportRequestOptions.Type.RECOVERY);
-        }
-        builder.addConnections(connectionsPerNodeReg, regSet.toArray(new TransportRequestOptions.Type[regSet.size()]));
+        // if we are not master eligible we don't need a dedicated channel to publish the state
+        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
+        // if we are not a data-node we don't need any dedicated channels for recovery
+        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
         return builder.build();
     }
 

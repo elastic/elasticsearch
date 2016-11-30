@@ -143,7 +143,7 @@ if (sr.isTerminatedEarly()) {
 <1> Finish after 1000 docs
 
 [[java-search-template]]
-==== Search Template
+=== Search Template
 
 See {ref}/search-template.html[Search Template] documentation
 

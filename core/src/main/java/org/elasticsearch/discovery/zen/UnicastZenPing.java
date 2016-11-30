@@ -64,6 +64,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -584,7 +585,6 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         List<PingResponse> pingResponses = CollectionUtils.iterableAsArrayList(temporalResponses);
         pingResponses.add(createPingResponse(contextProvider.nodes()));
 
-
         UnicastPingResponse unicastPingResponse = new UnicastPingResponse();
         unicastPingResponse.id = request.id;
         unicastPingResponse.pingResponses = pingResponses.toArray(new PingResponse[pingResponses.size()]);
@@ -596,8 +596,18 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         @Override
         public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
-            channel.sendResponse(handlePingRequest(request));
+            if (request.pingResponse.clusterName().equals(clusterName)) {
+                channel.sendResponse(handlePingRequest(request));
+            } else {
+                throw new IllegalStateException(
+                        String.format(
+                                Locale.ROOT,
+                                "mismatched cluster names; request: [%s], local: [%s]",
+                                request.pingResponse.clusterName().value(),
+                                clusterName.value()));
+            }
         }
+
     }
 
     public static class UnicastPingRequest extends TransportRequest {

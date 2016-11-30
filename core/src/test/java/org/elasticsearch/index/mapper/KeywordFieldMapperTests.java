@@ -268,37 +268,6 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping, mapper.mappingSource().toString());
     }
 
-    public void testBoostImplicitlyEnablesNormsOnOldIndex() throws IOException {
-        indexService = createIndex("test2",
-                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build());
-        parser = indexService.mapperService().documentMapperParser();
-
-        String mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "keyword")
-                            .field("boost", 2f)
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        String expectedMapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "string")
-                            .field("boost", 2f)
-                            .field("index", "not_analyzed")
-                            .field("norms", true)
-                            .field("fielddata", false)
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        assertEquals(expectedMapping, mapper.mappingSource().toString());
-    }
-
     public void testEnableNorms() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "keyword").field("norms", true).endObject().endObject()
@@ -334,24 +303,5 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // empty name allowed in index created before 5.0
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        indexService = createIndex("test_old", oldIndexSettings);
-        parser = indexService.mapperService().documentMapperParser();
-
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        String downgradedMapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("")
-                            .field("type", "string")
-                            .field("index", "not_analyzed")
-                            .field("fielddata", false)
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        assertEquals(downgradedMapping, defaultMapper.mappingSource().string());
     }
 }

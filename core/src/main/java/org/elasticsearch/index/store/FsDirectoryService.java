@@ -84,7 +84,7 @@ public class FsDirectoryService extends DirectoryService {
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
             IndexModule.Type.FS.getSettingsKey());
-        if (IndexModule.Type.FS.match(storeType) || IndexModule.Type.DEFAULT.match(storeType)) {
+        if (IndexModule.Type.FS.match(storeType)) {
             return FSDirectory.open(location, lockFactory); // use lucene defaults
         } else if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new SimpleFSDirectory(location, lockFactory);

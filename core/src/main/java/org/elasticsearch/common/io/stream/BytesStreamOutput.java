@@ -75,7 +75,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     }
 
     @Override
-    public void writeBytes(byte[] b, int offset, int length) throws IOException {
+    public void writeBytes(byte[] b, int offset, int length) {
         // nothing to copy
         if (length == 0) {
             return;

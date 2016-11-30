@@ -187,14 +187,6 @@ public abstract class ScrollableHitSource implements Closeable {
          * The routing on the hit if there is any or null if there isn't.
          */
         @Nullable String getRouting();
-        /**
-         * The {@code _timestamp} on the hit if one was stored with the hit or null if one wasn't.
-         */
-        @Nullable Long getTimestamp();
-        /**
-         * The {@code _ttl} on the hit if one was set on it or null one wasn't.
-         */
-        @Nullable Long getTTL();
     }
 
     /**
@@ -210,8 +202,6 @@ public abstract class ScrollableHitSource implements Closeable {
         private BytesReference source;
         private String parent;
         private String routing;
-        private Long timestamp;
-        private Long ttl;
 
         public BasicHit(String index, String type, String id, long version) {
             this.index = index;
@@ -267,26 +257,6 @@ public abstract class ScrollableHitSource implements Closeable {
 
         public BasicHit setRouting(String routing) {
             this.routing = routing;
-            return this;
-        }
-
-        @Override
-        public Long getTimestamp() {
-            return timestamp;
-        }
-
-        public BasicHit setTimestamp(Long timestamp) {
-            this.timestamp = timestamp;
-            return this;
-        }
-
-        @Override
-        public Long getTTL() {
-            return ttl;
-        }
-
-        public BasicHit setTTL(Long ttl) {
-            this.ttl = ttl;
             return this;
         }
     }

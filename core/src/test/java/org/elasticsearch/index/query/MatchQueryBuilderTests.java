@@ -363,34 +363,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
     }
 
-    public void testLegacyFuzzyMatchQuery() throws IOException {
-        MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
-        String type = randomFrom("fuzzy_match", "match_fuzzy");
-        String json = "{\n" +
-                "  \"" + type + "\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"to be or not to be\",\n" +
-                "      \"operator\" : \"OR\",\n" +
-                "      \"slop\" : 0,\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 50,\n" +
-                "      \"fuzzy_transpositions\" : true,\n" +
-                "      \"lenient\" : false,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
-        assertThat(qb, equalTo(expectedQB));
-        checkWarningHeaders("Deprecated field [" + type + "] used, expected [match] instead",
-                "Deprecated field [slop] used, replaced by [match_phrase query]");
-
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(), containsString("Deprecated field [" + type + "] used, expected [match] instead"));
-    }
-
     public void testFuzzinessOnNonStringField() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         MatchQueryBuilder query = new MatchQueryBuilder(INT_FIELD_NAME, 42);

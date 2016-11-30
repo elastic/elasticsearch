@@ -64,8 +64,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     /** The name for the match query */
     public static final String NAME = "match";
 
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "match_fuzzy", "fuzzy_match");
-
     /** The default mode terms are combined in a match query */
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
 

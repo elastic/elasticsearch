@@ -228,49 +228,53 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
     public static class Response extends AcknowledgedResponse implements StatusToXContent {
 
-        private SingleDocument<ModelSnapshot> response;
+        private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
+        private static final ParseField MODEL = new ParseField("model");
+        private ModelSnapshot model;
 
-        public Response() {
-            super(false);
-            response = SingleDocument.empty(ModelSnapshot.TYPE.getPreferredName());
+        Response() {
+
         }
 
         public Response(ModelSnapshot modelSnapshot) {
             super(true);
-            response = new SingleDocument<>(ModelSnapshot.TYPE.getPreferredName(), modelSnapshot);
+            model = modelSnapshot;
         }
 
-        public SingleDocument<ModelSnapshot> getResponse() {
-            return response;
+        public ModelSnapshot getModel() {
+            return model;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             readAcknowledged(in);
-            response = new SingleDocument<>(in, ModelSnapshot::new);
+            model = new ModelSnapshot(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             writeAcknowledged(out);
-            response.writeTo(out);
+            model.writeTo(out);
         }
 
         @Override
         public RestStatus status() {
-            return response.status();
+            return RestStatus.OK;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return response.toXContent(builder, params);
+            builder.field(ACKNOWLEDGED.getPreferredName(), true);
+            builder.field(MODEL.getPreferredName());
+            builder = model.toXContent(builder, params);
+            return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(response);
+            return Objects.hash(model);
         }
 
         @Override
@@ -282,7 +286,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(response, other.response);
+            return Objects.equals(model, other.model);
         }
 
         @SuppressWarnings("deprecation")

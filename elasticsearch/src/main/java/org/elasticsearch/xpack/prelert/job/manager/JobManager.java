@@ -435,10 +435,8 @@ public class JobManager extends AbstractComponent {
 
             @Override
             protected RevertModelSnapshotAction.Response newResponse(boolean acknowledged) {
-                RevertModelSnapshotAction.Response response;
-
                 if (acknowledged) {
-                    response = new RevertModelSnapshotAction.Response(modelSnapshot);
+                    return new RevertModelSnapshotAction.Response(modelSnapshot);
 
                     // NORELEASE: This is not the place the audit log
                     // (indexes a document), because this method is
@@ -448,10 +446,9 @@ public class JobManager extends AbstractComponent {
                     // audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_REVERTED,
                     // modelSnapshot.getDescription()));
 
-                } else {
-                    response = new RevertModelSnapshotAction.Response();
                 }
-                return response;
+                throw new IllegalStateException("Could not revert modelSnapshot on job ["
+                        + request.getJobId() + "], not acknowledged by master.");
             }
 
             @Override

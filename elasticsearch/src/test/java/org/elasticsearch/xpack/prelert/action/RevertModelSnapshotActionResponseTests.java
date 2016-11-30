@@ -13,13 +13,9 @@ public class RevertModelSnapshotActionResponseTests extends AbstractStreamableTe
 
     @Override
     protected Response createTestInstance() {
-        if (randomBoolean()) {
-            return new Response();
-        } else {
-            ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-            modelSnapshot.setDescription(randomAsciiOfLengthBetween(1, 20));
-            return new RevertModelSnapshotAction.Response(modelSnapshot);
-        }
+        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
+        modelSnapshot.setDescription(randomAsciiOfLengthBetween(1, 20));
+        return new RevertModelSnapshotAction.Response(modelSnapshot);
     }
 
     @Override

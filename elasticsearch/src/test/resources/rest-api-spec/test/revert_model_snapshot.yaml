@@ -110,26 +110,24 @@ setup:
         job_id: "foo"
         snapshotId: "foo1"
 
-  - match: { exists: true }
-  - match: { type: "modelSnapshot" }
-  - match: { document.jobId: "foo" }
-  - match: { document.timestamp: 1464825600000 }
-  - match: { document.restorePriority: 1 }
-  - match: { document.snapshotId: "foo1" }
-  - match: { document.snapshotDocCount: 0 }
+  - match: { acknowledged: true }
+  - match: { model.jobId: "foo" }
+  - match: { model.timestamp: 1464825600000 }
+  - match: { model.restorePriority: 1 }
+  - match: { model.snapshotId: "foo1" }
+  - match: { model.snapshotDocCount: 0 }
 
   - do:
       xpack.prelert.revert_model_snapshot:
         job_id: "foo"
         snapshotId: "foo2"
 
-  - match: { exists: true }
-  - match: { type: "modelSnapshot" }
-  - match: { document.jobId: "foo" }
-  - match: { document.timestamp: 1464739200000 }
-  - match: { document.restorePriority: 2 }
-  - match: { document.snapshotId: "foo2" }
-  - match: { document.snapshotDocCount: 0 }
+  - match: { acknowledged: true }
+  - match: { model.jobId: "foo" }
+  - match: { model.timestamp: 1464739200000 }
+  - match: { model.restorePriority: 2 }
+  - match: { model.snapshotId: "foo2" }
+  - match: { model.snapshotDocCount: 0 }
 
 ---
 "Test revert model with valid time":
@@ -138,26 +136,24 @@ setup:
         job_id: "foo"
         time: "2016-06-02T01:00:00Z"
 
-  - match: { exists: true }
-  - match: { type: "modelSnapshot" }
-  - match: { document.jobId: "foo" }
-  - match: { document.timestamp: 1464825600000 }
-  - match: { document.restorePriority: 1 }
-  - match: { document.snapshotId: "foo1" }
-  - match: { document.snapshotDocCount: 0 }
+  - match: { acknowledged: true }
+  - match: { model.jobId: "foo" }
+  - match: { model.timestamp: 1464825600000 }
+  - match: { model.restorePriority: 1 }
+  - match: { model.snapshotId: "foo1" }
+  - match: { model.snapshotDocCount: 0 }
 
   - do:
         xpack.prelert.revert_model_snapshot:
           job_id: "foo"
           time: "2016-06-01T01:00:00Z"
 
-  - match: { exists: true }
-  - match: { type: "modelSnapshot" }
-  - match: { document.jobId: "foo" }
-  - match: { document.timestamp: 1464739200000 }
-  - match: { document.restorePriority: 2 }
-  - match: { document.snapshotId: "foo2" }
-  - match: { document.snapshotDocCount: 0 }
+  - match: { acknowledged: true }
+  - match: { model.jobId: "foo" }
+  - match: { model.timestamp: 1464739200000 }
+  - match: { model.restorePriority: 2 }
+  - match: { model.snapshotId: "foo2" }
+  - match: { model.snapshotDocCount: 0 }
 
 ---
 "Test revert model with valid description":
@@ -166,26 +162,24 @@ setup:
         job_id: "foo"
         description: "first"
 
-  - match: { exists: true }
-  - match: { type: "modelSnapshot" }
-  - match: { document.jobId: "foo" }
-  - match: { document.timestamp: 1464825600000 }
-  - match: { document.restorePriority: 1 }
-  - match: { document.snapshotId: "foo1" }
-  - match: { document.snapshotDocCount: 0 }
+  - match: { acknowledged: true }
+  - match: { model.jobId: "foo" }
+  - match: { model.timestamp: 1464825600000 }
+  - match: { model.restorePriority: 1 }
+  - match: { model.snapshotId: "foo1" }
+  - match: { model.snapshotDocCount: 0 }
 
   - do:
         xpack.prelert.revert_model_snapshot:
           job_id: "foo"
           description: "second"
 
-  - match: { exists: true }
-  - match: { type: "modelSnapshot" }
-  - match: { document.jobId: "foo" }
-  - match: { document.timestamp: 1464739200000 }
-  - match: { document.restorePriority: 2 }
-  - match: { document.snapshotId: "foo2" }
-  - match: { document.snapshotDocCount: 0 }
+  - match: { acknowledged: true }
+  - match: { model.jobId: "foo" }
+  - match: { model.timestamp: 1464739200000 }
+  - match: { model.restorePriority: 2 }
+  - match: { model.snapshotId: "foo2" }
+  - match: { model.snapshotDocCount: 0 }
 
 ---
 "Test revert model with deleteInterveningResults":

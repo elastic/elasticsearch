@@ -89,8 +89,8 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             Version.CURRENT.luceneVersion.toString()).build());
         String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(metaData,
             Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
-        assertEquals(message, "The index [[foo/BOOM]] was created before [5.0.0]. It should be re-indexed in Elasticsearch 5.x " +
-            "before upgrading to " + Version.CURRENT.toString() + ".");
+        assertEquals(message, "The index [[foo/BOOM]] was created with version [2.4.0] but the minimum compatible version is [5.0.0]." +
+            " It should be re-indexed in Elasticsearch 5.x before upgrading to " + Version.CURRENT.toString() + ".");
 
         IndexMetaData goodMeta = newIndexMeta("foo", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)

@@ -92,13 +92,16 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     }
 
     /**
-     * Elasticsearch 6.0 no longer supports indices with pre Lucene v5.0 (Elasticsearch v5.0.0.beta1) segments. All indices
-     * that were created before Elasticsearch v5.0.0.beta1 should be reindexed in Elasticsearch 5.x
-     * before they can be opened by this version of elasticsearch.     */
+     * Elasticsearch v6.0 no longer supports indices created pre v5.0. All indices
+     * that were created before Elasticsearch v5.0 should be re-indexed in Elasticsearch 5.x
+     * before they can be opened by this version of elasticsearch.
+     */
     private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
         if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData,
             minimumIndexCompatibilityVersion) == false) {
-            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before ["
+            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created with version ["
+                + indexMetaData.getCreationVersion() + "] but the minimum compatible version is ["
+
                 + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major
                 + ".x before upgrading to " + Version.CURRENT + ".");
         }

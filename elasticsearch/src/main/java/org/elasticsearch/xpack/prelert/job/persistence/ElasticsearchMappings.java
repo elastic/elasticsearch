@@ -341,15 +341,6 @@ public class ElasticsearchMappings {
         .endObject()
         .startObject(Influencer.INFLUENCER_FIELD_VALUE.getPreferredName())
             .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-        .endObject()
-        .startObject(Influencer.ANOMALY_SCORE.getPreferredName())
-            .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-        .endObject()
-        .startObject(Influencer.INITIAL_ANOMALY_SCORE.getPreferredName())
-            .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-        .endObject()
-        .startObject(Influencer.PROBABILITY.getPreferredName())
-            .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
         .endObject();
 
         return builder;

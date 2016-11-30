@@ -19,7 +19,6 @@
 
 package org.elasticsearch;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -721,7 +720,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
-            org.elasticsearch.tasks.TaskCancelledException::new, 146, Version.V_5_1_0),
+            org.elasticsearch.tasks.TaskCancelledException::new, 146, Version.V_5_1_1),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
                                            org.elasticsearch.env.ShardLockObtainFailedException::new, 147, Version.V_5_0_2);
 

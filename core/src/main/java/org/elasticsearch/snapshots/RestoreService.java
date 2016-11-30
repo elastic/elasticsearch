@@ -857,7 +857,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     public void indexShardRestoreCompleted(Snapshot snapshot, ShardId shardId) {
         logger.trace("[{}] successfully restored shard  [{}]", snapshot, shardId);
         DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
-        if (masterNode != null && masterNode.getVersion().before(Version.V_5_1_0)) {
+        if (masterNode != null && masterNode.getVersion().before(Version.V_5_1_1)) {
             // just here for backward compatibility with versions before 5.1.0
             UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshot, shardId,
                 new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.SUCCESS));
@@ -871,7 +871,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     public void failRestore(Snapshot snapshot, ShardId shardId) {
         logger.debug("[{}] failed to restore shard  [{}]", snapshot, shardId);
         DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
-        if (masterNode != null && masterNode.getVersion().before(Version.V_5_1_0)) {
+        if (masterNode != null && masterNode.getVersion().before(Version.V_5_1_1)) {
             // just here for backward compatibility with versions before 5.1.0
             UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshot, shardId,
                 new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.FAILURE));

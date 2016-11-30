@@ -47,7 +47,6 @@ import java.util.stream.IntStream;
 
 import static java.lang.Math.abs;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
@@ -356,7 +355,7 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
         assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
-        if (version.onOrAfter(Version.V_5_1_0)) {
+        if (version.onOrAfter(Version.V_5_1_1)) {
             assertThat(actual.getSliceStatuses(), hasSize(expected.getSliceStatuses().size()));
             for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
                 BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);

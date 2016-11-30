@@ -185,7 +185,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
         }
 
         public Status(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_5_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
                 sliceId = in.readOptionalVInt();
             } else {
                 sliceId = null;
@@ -203,7 +203,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
             throttledUntil = new TimeValue(in);
-            if (in.getVersion().onOrAfter(Version.V_5_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
                 sliceStatuses = in.readList(stream -> stream.readOptionalWriteable(StatusOrException::new));
             } else {
                 sliceStatuses = emptyList();
@@ -212,7 +212,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_5_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
                 out.writeOptionalVInt(sliceId);
             }
             out.writeVLong(total);
@@ -228,7 +228,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
             out.writeFloat(requestsPerSecond);
             out.writeOptionalString(reasonCancelled);
             throttledUntil.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_5_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
                 out.writeVInt(sliceStatuses.size());
                 for (StatusOrException sliceStatus : sliceStatuses) {
                     out.writeOptionalWriteable(sliceStatus);

@@ -334,10 +334,12 @@ public class TransportService extends AbstractLifecycleComponent {
         if (node.equals(localNode)) {
             return localNode;
         }
+        logger.trace("connecting with node [{}] to perform handshake", node);
         transport.connectToNode(node, ConnectionProfile.LIGHT_PROFILE);
         try {
             return handshake(node, handshakeTimeout, checkClusterName);
         } catch (ConnectTransportException | IllegalStateException e) {
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("disconnecting from node [{}] after failed handshake", node), e);
             transport.disconnectFromNode(node);
             throw e;
         }

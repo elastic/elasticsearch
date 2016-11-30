@@ -59,6 +59,16 @@ final class RequestLogger {
             logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) +
                     "] returned [" + httpResponse.getStatusLine() + "]");
         }
+        if (logger.isWarnEnabled()) {
+            Header[] warnings = httpResponse.getHeaders("Warning");
+            if (warnings != null && warnings.length > 0) {
+                String line = "Received warnings:";
+                for (int i = 0; i < warnings.length; i++) {
+                    line += " " + (i+1) + ") " + warnings[i].getValue();
+                }
+                logger.warn(line);
+            }
+        }
         if (tracer.isTraceEnabled()) {
             String requestLine;
             try {

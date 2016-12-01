@@ -37,8 +37,7 @@ setup:
             "jobId": "farequote",
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
-            "anomalyScore": 60.0,
-            "result_type": "record"
+            "anomalyScore": 60.0
           }
 
   - do:
@@ -51,8 +50,7 @@ setup:
               "jobId": "farequote",
               "result_type": "record",
               "timestamp": "2016-06-02T00:00:00Z",
-              "anomalyScore": 80.0,
-              "result_type": "record"
+              "anomalyScore": 80.0
             }
 
   - do:

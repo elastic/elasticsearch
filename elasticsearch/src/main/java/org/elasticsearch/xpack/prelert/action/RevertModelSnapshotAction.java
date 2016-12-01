@@ -334,9 +334,10 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            logger.debug("Received request to revert to time '" + request.getTime() + "' description '" + request.getDescription()
-            + "' snapshot id '" + request.getSnapshotId() + "' for job '" + request.getJobId() + "', deleting intervening "
-            + " results: " + request.getDeleteInterveningResults());
+            logger.debug("Received request to revert to time '{}' description '{}' snapshot id '{}' for job '{}', deleting intervening " +
+                            "results: {}",
+                    request.getTime(), request.getDescription(), request.getSnapshotId(), request.getJobId(),
+                    request.getDeleteInterveningResults());
 
             if (request.getTime() == null && request.getSnapshotId() == null && request.getDescription() == null) {
                 throw new IllegalStateException(Messages.getMessage(Messages.REST_INVALID_REVERT_PARAMS));
@@ -344,7 +345,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
             QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
             Allocation allocation = jobManager.getJobAllocation(request.getJobId());
-            if (job.count() > 0 && allocation.getStatus().equals(JobStatus.RUNNING)) {
+            if (job.count() > 0 && allocation.getStatus().equals(JobStatus.CLOSED) == false) {
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
             }
 
@@ -386,12 +387,12 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                     logger.debug("Removing intervening records: last record: " + deleteAfter + ", last result: "
                             + modelSnapshot.getLatestResultTimeStamp());
 
-                    logger.info("Deleting buckets after '" + deleteAfter + "'");
+                    logger.info("Deleting results after '" + deleteAfter + "'");
 
                     // NORELEASE: OldDataRemover is basically delete-by-query.
                     // We should replace this
                     // whole abstraction with DBQ eventually
-                    OldDataRemover remover = new OldDataRemover(jobProvider, bulkDeleterFactory);
+                    OldDataRemover remover = new OldDataRemover(bulkDeleterFactory);
                     remover.deleteResultsAfter(new ActionListener<BulkResponse>() {
                         @Override
                         public void onResponse(BulkResponse bulkItemResponses) {

@@ -69,6 +69,49 @@ setup:
         body:   { "jobId": "foo", "result_type": "bucket", "timestamp": "2016-05-01T00:00:00Z", "bucketSpan":1 }
 
   - do:
+       index:
+        index:  prelertresults-foo
+        type:   result
+        id:     "foo_1464825600000_1_record"
+        body:   { "jobId": "foo", "result_type": "record", "timestamp": "2016-06-02T00:00:00Z" }
+
+  - do:
+       index:
+         index:  prelertresults-foo
+         type:   result
+         id:     "foo_1462060800000_1_record"
+         body:   { "jobId": "foo", "result_type": "record", "timestamp": "2016-05-01T00:00:00Z" }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   result
+        id:     "foo_1464825600000_1_influencer"
+        body:   {
+                  "jobId": "foo",
+                  "result_type": "influencer",
+                  "timestamp": "2016-06-02T00:00:00Z",
+                  "influencerFieldName": "foo",
+                  "influencerFieldValue": "zoo",
+                  "anomalyScore": 50.0
+                }
+
+  - do:
+      index:
+        index:  prelertresults-foo
+        type:   result
+        id:     "foo_1462060800000_1_influencer"
+        body:
+           {
+              "jobId": "foo",
+              "result_type": "influencer",
+              "timestamp": "2016-05-01T00:00:00Z",
+              "influencerFieldName": "foo",
+              "influencerFieldValue": "zoo",
+              "anomalyScore": 50.0
+            }
+
+  - do:
       indices.refresh:
         index: prelertresults-foo
 
@@ -210,6 +253,26 @@ setup:
   - match: { count: 1 }
   - match: { buckets.0.jobId: "foo" }
   - match: { buckets.0.timestamp: 1462060800000 }
+
+  - do:
+      xpack.prelert.get_records:
+        job_id: "foo"
+        start: "2016-01-01T00:00:00Z"
+        end: "2016-12-01T00:00:00Z"
+
+  - match: { count: 1 }
+  - match: { records.0.jobId: "foo" }
+  - match: { records.0.timestamp: 1462060800000 }
+
+  - do:
+      xpack.prelert.get_influencers:
+        job_id: "foo"
+        start: "2016-01-01T00:00:00Z"
+        end: "2016-12-01T01:00:00Z"
+
+  - match: { count: 1 }
+  - match: { influencers.0.jobId: "foo" }
+  - match: { influencers.0.timestamp: 1462060800000 }
 
   - do:
       xpack.prelert.get_jobs:

@@ -9,31 +9,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
-import org.elasticsearch.xpack.prelert.job.results.Bucket;
-import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 
 public interface JobDataDeleter {
-    /**
-     * Delete a {@code Bucket} and its records
-     *
-     * @param bucket the bucket to delete
-     */
-    void deleteBucket(Bucket bucket);
 
     /**
-     * Delete the records of a {@code Bucket}
+     * Delete all result types (Buckets, Records, Influencers) from {@code cutOffTime}
      *
-     * @param bucket the bucket whose records to delete
+     * @param cutoffEpochMs Results at and after this time will be deleted
      */
-    void deleteRecords(Bucket bucket);
-
-    /**
-     * Delete an {@code Influencer}
-     *
-     * @param influencer the influencer to delete
-     */
-    void deleteInfluencer(Influencer influencer);
+    void deleteResultsFromTime(long cutoffEpochMs);
 
     /**
      * Delete a {@code ModelSnapshot}
@@ -55,6 +40,11 @@ public interface JobDataDeleter {
      * @param modelSizeStats to delete
      */
     void deleteModelSizeStats(ModelSizeStats modelSizeStats);
+
+    /**
+     * Delete all results marked as interim
+     */
+    void deleteInterimResults();
 
     /**
      * Commit the deletions without enforcing the removal of data from disk

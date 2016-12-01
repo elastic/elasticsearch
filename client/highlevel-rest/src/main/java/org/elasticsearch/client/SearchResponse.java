@@ -70,28 +70,28 @@ public class SearchResponse {
      * How long the search took in milliseconds.
      */
     public long getTookInMillis() {
-        return this.object.evaluateAsLong(org.elasticsearch.action.search.SearchResponse.Fields.TOOK);
+        return this.object.evaluateLong(org.elasticsearch.action.search.SearchResponse.Fields.TOOK);
     }
 
     /**
      * The total number of shards the search was executed on.
      */
     public int getTotalShards() {
-        return (Integer) get("_shards.total");
+        return this.object.evaluateInteger("_shards.total");
     }
 
     /**
      * The successful number of shards the search was executed on.
      */
     public int getSuccessfulShards() {
-        return (Integer) get("_shards.successful");
+        return this.object.evaluateInteger("_shards.successful");
     }
 
     /**
      * The failed number of shards the search was executed on.
      */
     public int getFailedShards() {
-        return (Integer) get("_shards.failed");
+        return this.object.evaluateInteger("_shards.failed");
     }
 
     /**

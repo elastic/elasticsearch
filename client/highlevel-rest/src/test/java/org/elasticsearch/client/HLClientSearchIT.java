@@ -20,14 +20,28 @@
 package org.elasticsearch.client;
 
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class HLClientSearchIT extends ESRestTestCase {
 
@@ -39,34 +53,90 @@ public class HLClientSearchIT extends ESRestTestCase {
     }
 
     public void createTestDoc() throws IOException {
+        XContentBuilder mappingsBuilder = randomXContentBuilder();
+        mappingsBuilder.startObject();
+        mappingsBuilder.startObject("mappings");
+        mappingsBuilder.startObject("type");
+        mappingsBuilder.startObject("properties");
+        mappingsBuilder.startObject("title");
+        mappingsBuilder.field("type", "text");
+        mappingsBuilder.field("store", "true");
+        mappingsBuilder.endObject();
+        mappingsBuilder.startObject("content");
+        mappingsBuilder.field("type", "text");
+        mappingsBuilder.field("store", "true");
+        mappingsBuilder.endObject();
+        mappingsBuilder.endObject();
+        mappingsBuilder.endObject();
+        mappingsBuilder.endObject();
+        mappingsBuilder.endObject();
+
         Map<String, String> params = new HashMap<>();
+        client().performRequest("PUT", "test", params,
+                new StringEntity(mappingsBuilder.string()));
         params.put("refresh", "wait_for");
-        client().performRequest("PUT", "test/type/1", params, new StringEntity("{\"foo\": \"bar\"}"));
+
+        XContentBuilder document = randomXContentBuilder();
+        document.startObject();
+        document.startArray("content");
+        document.value("buzz cola");
+        document.value("some buzz");
+        document.endArray();
+        document.field("title", "some title");
+        document.endObject();
+        client().performRequest("PUT", "test/type/1", params, new StringEntity(document.string()));
     }
 
     public void testSearch() throws IOException {
         createTestDoc();
-        SearchResponse searchResponse = aClient.performSearchRequest(new SearchRequest(new SearchSourceBuilder().version(true)));
+        SearchResponse searchResponse = aClient.performSearchRequest(new SearchRequest(
+                new SearchSourceBuilder()
+                .query(new MatchQueryBuilder("content", "buzz").queryName("buzz_query"))
+                .version(true)
+                .storedFields(Arrays.asList("_source", "content", "title"))
+                .highlighter(new HighlightBuilder().field("content"))
+                .sort(new ScoreSortBuilder().order(SortOrder.ASC))
+                .trackScores(true)));
         assertFalse(searchResponse.isTimedOut());
         assertTrue(searchResponse.getTookInMillis() > 0);
         assertEquals(5, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(1, searchResponse.getHits().getTotalHits());
-        assertEquals(1, searchResponse.getHits().totalHits());
-        assertEquals(1.0, searchResponse.getHits().maxScore(), Float.MIN_VALUE);
-        assertEquals(1.0, searchResponse.getHits().getMaxScore(), Float.MIN_VALUE);
-        assertEquals("bar", searchResponse.getHits().hits()[0].sourceAsMap().get("foo"));
-        assertEquals("test", searchResponse.getHits().hits()[0].index());
-        assertEquals("type", searchResponse.getHits().hits()[0].type());
-        assertEquals("1", searchResponse.getHits().hits()[0].id());
-        assertEquals(1, searchResponse.getHits().hits()[0].version());
-        assertEquals(1.0, searchResponse.getHits().hits()[0].score(), Float.MIN_VALUE);
+        SearchHits hits = searchResponse.getHits();
+        assertEquals(1, hits.getTotalHits());
+        assertEquals(1, hits.totalHits());
+        assertThat(hits.maxScore(), greaterThan(0.0f));
+        assertThat(hits.getMaxScore(), greaterThan(0.0f));
+        SearchHit searchHit = hits.hits()[0];
+        assertEquals("some title", searchHit.sourceAsMap().get("title"));
+        assertEquals("test", searchHit.index());
+        assertEquals("type", searchHit.type());
+        assertEquals("1", searchHit.id());
+        assertEquals(1, searchHit.version());
+        float score = searchHit.score();
+        assertThat(score, greaterThan(0.0f));
+        assertEquals(2, searchHit.fields().size());
+        assertThat(searchHit.field("content").getValues(), contains("buzz cola", "some buzz"));
+        assertEquals("some title", searchHit.field("title").getValue());
+        assertNull(searchHit.field("something"));
+        assertEquals(1, searchHit.highlightFields().size());
+        assertEquals("content", searchHit.highlightFields().get("content").name());
+        assertThat(Arrays.asList(searchHit.highlightFields().get("content").fragments()),
+                contains(new Text("<em>buzz</em> cola"), new Text("some <em>buzz</em>")));
+        assertEquals(1, searchHit.sortValues().length);
+        assertEquals(score, ((Double) searchHit.sortValues()[0]).floatValue(), Float.MIN_VALUE);
+        assertEquals(1, searchHit.matchedQueries().length);
+        assertEquals("buzz_query", searchHit.matchedQueries()[0]);
+    }
+
+    private static XContentBuilder randomXContentBuilder() throws IOException {
+        //only string based formats are supported, no cbor nor smile
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
+        return XContentBuilder.builder(XContentFactory.xContent(xContentType));
     }
 
     @After
     public void shutDown() throws IOException {
         this.aClient.close();
     }
-
 }

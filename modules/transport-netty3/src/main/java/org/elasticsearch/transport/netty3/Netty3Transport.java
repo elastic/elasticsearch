@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.bootstrap.ClientBootstrap;
@@ -281,8 +282,12 @@ public class Netty3Transport extends TcpTransport<Channel> {
         if (logger.isDebugEnabled()) {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
                     + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
-                name, workerCount, port, bindHost, publishHost, compress, connectTimeout, connectionsPerNodeRecovery,
-                connectionsPerNodeBulk, connectionsPerNodeReg, connectionsPerNodeState, connectionsPerNodePing, receivePredictorMin,
+                name, workerCount, port, bindHost, publishHost, compress, connectTimeout,
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.REG),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.PING), receivePredictorMin,
                 receivePredictorMax);
         }
 
@@ -338,11 +343,9 @@ public class Netty3Transport extends TcpTransport<Channel> {
         final NodeChannels nodeChannels = new NodeChannels(channels, profile);
         boolean success = false;
         try {
-            int numConnections = connectionsPerNodeBulk + connectionsPerNodePing + connectionsPerNodeRecovery + connectionsPerNodeReg
-                + connectionsPerNodeState;
-            ArrayList<ChannelFuture> connections = new ArrayList<>();
-            InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
-            for (int i = 0; i < numConnections; i++) {
+            final ArrayList<ChannelFuture> connections = new ArrayList<>(channels.length);
+            final InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
+            for (int i = 0; i < channels.length; i++) {
                 connections.add(clientBootstrap.connect(address));
             }
             final Iterator<ChannelFuture> iterator = connections.iterator();
@@ -357,6 +360,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
                     channels[i] = future.getChannel();
                     channels[i].getCloseFuture().addListener(new ChannelCloseListener(node));
                 }
+                assert iterator.hasNext() == false : "not all created connection have been consumed";
             } catch (RuntimeException e) {
                 for (ChannelFuture future : Collections.unmodifiableList(connections)) {
                     future.cancel();

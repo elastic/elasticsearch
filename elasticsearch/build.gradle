@@ -55,9 +55,7 @@ bundlePlugin {
     from { zipTree(project(':cpp').buildZip.outputs.files.singleFile) }
     dependsOn ':cpp:buildZip'
   } else {
-    print "READ ME ::::::::: " + downloadCppDist.outputs + "\n"
     for (file in downloadCppDist.outputs.files) {
-      print "READ ME ::::::::: " + file + "\n"
       from{ zipTree(file) }
     }
     dependsOn 'downloadCppDist'

@@ -78,10 +78,4 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, clientTypeKey)
                 .build();
     }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
 }

@@ -1717,10 +1717,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    protected boolean ignoreExternalCluster() {
-        return false;
-    }
-
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         final String nodePrefix;
         switch (scope) {

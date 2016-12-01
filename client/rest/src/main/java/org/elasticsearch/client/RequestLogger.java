@@ -62,11 +62,7 @@ final class RequestLogger {
         if (logger.isWarnEnabled()) {
             Header[] warnings = httpResponse.getHeaders("Warning");
             if (warnings != null && warnings.length > 0) {
-                String line = "Received warnings:";
-                for (int i = 0; i < warnings.length; i++) {
-                    line += " " + (i+1) + ") " + warnings[i].getValue();
-                }
-                logger.warn(line);
+                logger.warn(buildWarningLine(request, host, warnings));
             }
         }
         if (tracer.isTraceEnabled()) {
@@ -105,6 +101,14 @@ final class RequestLogger {
             }
             tracer.trace(traceRequest);
         }
+    }
+
+    static String buildWarningLine(HttpUriRequest request, HttpHost host, Header[] warnings) {
+        String line = "request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) + "] returned warnings:";
+        for (int i = 0; i < warnings.length; i++) {
+            line += " " + (i+1) + ") " + warnings[i].getValue();
+        }
+        return line;
     }
 
     /**

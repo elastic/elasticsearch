@@ -85,12 +85,12 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return doDecide(shardRouting, node, allocation, (count, limit) -> { return count >= limit;});
+        return doDecide(shardRouting, node, allocation, (count, limit) -> count >= limit);
     }
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return doDecide(shardRouting, node, allocation, (count, limit) -> {return count > limit;});
+        return doDecide(shardRouting, node, allocation, (count, limit) -> count > limit);
 
     }
 
@@ -104,7 +104,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
         if (indexShardLimit <= 0 && clusterShardLimit <= 0) {
             return allocation.decision(Decision.YES, NAME, "total shard limits are disabled: [index: %d, cluster: %d] <= 0",
-                indexShardLimit, clusterShardLimit);
+                    indexShardLimit, clusterShardLimit);
         }
 
         int indexShardCount = 0;

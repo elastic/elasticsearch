@@ -23,8 +23,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -86,8 +88,9 @@ public class MoveDecisionTests extends ESTestCase {
         Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 2));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
+        Decision nodeDecision = randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES);
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, nodeDecision, 2));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, nodeDecision, 1));
         MoveDecision decision = MoveDecision.decision(Decision.NO, Type.NO, null, nodeDecisions);
         assertNotNull(decision.getFinalDecisionType());
         assertNotNull(decision.getExplanation());
@@ -98,5 +101,28 @@ public class MoveDecisionTests extends ESTestCase {
 
         decision = MoveDecision.decision(Decision.NO, Type.YES, node2, null);
         assertEquals("node2", decision.getAssignedNode().getId());
+    }
+
+    public void testSerialization() throws IOException {
+        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
+        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Type finalDecision = randomFrom(Type.values());
+        DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 2));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, finalDecision == Type.YES ? Decision.YES :
+                                                                       randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
+        MoveDecision moveDecision = MoveDecision.decision(Decision.NO, finalDecision, assignedNode, nodeDecisions);
+        BytesStreamOutput output = new BytesStreamOutput();
+        moveDecision.writeTo(output);
+        MoveDecision readDecision = new MoveDecision(output.bytes().streamInput());
+        assertEquals(moveDecision.cannotRemain(), readDecision.cannotRemain());
+        assertEquals(moveDecision.getExplanation(), readDecision.getExplanation());
+        assertEquals(moveDecision.move(), readDecision.move());
+        assertEquals(moveDecision.getNodeDecisions().size(), readDecision.getNodeDecisions().size());
+        assertEquals(moveDecision.getAssignedNode(), readDecision.getAssignedNode());
+        assertEquals(moveDecision.getFinalDecisionType(), readDecision.getFinalDecisionType());
+        // node2 should have the highest sort order
+        assertEquals("node2", readDecision.getNodeDecisions().keySet().iterator().next());
     }
 }

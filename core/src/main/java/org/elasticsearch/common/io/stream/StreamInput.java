@@ -442,6 +442,22 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a map created using the given map supplier.
+     */
+    public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, Supplier<Map<K, V>> mapSupplier)
+        throws IOException {
+
+        int size = readVInt();
+        Map<K, V> map = mapSupplier.get();
+        for (int i = 0; i < size; i++) {
+            K key = keyReader.read(this);
+            V value = valueReader.read(this);
+            map.put(key, value);
+        }
+        return map;
+    }
+
+    /**
      * Read a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
      * <pre><code>
      * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);

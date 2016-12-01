@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.nodeDecisionsToXContent;
@@ -58,7 +60,8 @@ public final class MoveDecision extends RelocationDecision {
     public MoveDecision(StreamInput in) throws IOException {
         super(in);
         canRemainDecision = in.readOptionalWriteable(Decision::readFrom);
-        nodeDecisions = in.readBoolean() ? sortNodeDecisions(in.readMap(StreamInput::readString, NodeAllocationResult::new)) : null;
+        nodeDecisions = in.readBoolean() ? Collections.unmodifiableMap(
+            in.readMap(StreamInput::readString, NodeAllocationResult::new, LinkedHashMap::new)) : null;
     }
 
     @Override

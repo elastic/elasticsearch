@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -111,7 +112,8 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         allocationStatus = in.readOptionalWriteable(AllocationStatus::readFrom);
         assignedNode = in.readOptionalWriteable(DiscoveryNode::new);
         allocationId = in.readOptionalString();
-        nodeDecisions = in.readBoolean() ? sortNodeDecisions(in.readMap(StreamInput::readString, NodeAllocationResult::new)) : null;
+        nodeDecisions = in.readBoolean() ? Collections.unmodifiableMap(
+            in.readMap(StreamInput::readString, NodeAllocationResult::new, LinkedHashMap::new)) : null;
         reuseStore = in.readBoolean();
         remainingDelayInMillis = in.readVLong();
         totalDelayInMillis = in.readVLong();

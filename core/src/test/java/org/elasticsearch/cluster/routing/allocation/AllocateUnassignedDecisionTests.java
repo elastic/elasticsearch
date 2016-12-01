@@ -23,8 +23,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -160,6 +162,37 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         AllocateUnassignedDecision second = AllocateUnassignedDecision.yes(node1, "abc", dummyMap, randomBoolean());
         // same fields for the ShardAllocationDecision, but should be different instances
         assertNotSame(first, second);
+    }
+
+    public void testSerialization() throws IOException {
+        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
+        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Decision.Type finalDecision = randomFrom(Decision.Type.values());
+        DiscoveryNode assignedNode = finalDecision == Decision.Type.YES ? node1 : null;
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 2));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, finalDecision == Decision.Type.YES ? Decision.YES :
+                                                                       randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
+        AllocateUnassignedDecision decision;
+        if (finalDecision == Decision.Type.YES) {
+            decision = AllocateUnassignedDecision.yes(assignedNode, randomBoolean() ? randomAsciiOfLength(5) : null,
+                nodeDecisions, randomBoolean());
+        } else {
+            decision = AllocateUnassignedDecision.no(randomFrom(
+                AllocationStatus.DELAYED_ALLOCATION, AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA
+            ), nodeDecisions, randomBoolean());
+        }
+        BytesStreamOutput output = new BytesStreamOutput();
+        decision.writeTo(output);
+        AllocateUnassignedDecision readDecision = new AllocateUnassignedDecision(output.bytes().streamInput());
+        assertEquals(decision.getAssignedNode(), readDecision.getAssignedNode());
+        assertEquals(decision.getAllocationStatus(), readDecision.getAllocationStatus());
+        assertEquals(decision.getExplanation(), readDecision.getExplanation());
+        assertEquals(decision.getNodeDecisions().size(), readDecision.getNodeDecisions().size());
+        assertEquals(decision.getAllocationId(), readDecision.getAllocationId());
+        assertEquals(decision.getDecision(), readDecision.getDecision());
+        // node2 should have the highest sort order
+        assertEquals("node2", readDecision.getNodeDecisions().keySet().iterator().next());
     }
 
 }

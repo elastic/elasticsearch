@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.nodeDecisionsToXContent;
@@ -57,7 +59,8 @@ public final class RebalanceDecision extends RelocationDecision {
     public RebalanceDecision(StreamInput in) throws IOException {
         super(in);
         canRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
-        nodeDecisions = in.readBoolean() ? sortNodeDecisions(in.readMap(StreamInput::readString, NodeRebalanceResult::new)) : null;
+        nodeDecisions = in.readBoolean() ? Collections.unmodifiableMap(
+            in.readMap(StreamInput::readString, NodeRebalanceResult::new, LinkedHashMap::new)) : null;
         fetchPending = in.readBoolean();
     }
 

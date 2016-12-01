@@ -40,14 +40,7 @@ integTest {
 integTest.mustRunAfter noBootstrapTest
 
 bundlePlugin {
-  from("${rootDir}/cppdistribution") {
-    into '.'
-    // Don't copy Windows import libraries
-    exclude "**/*.lib"
-    // Don't copy the test support library
-    exclude "**/libPreTest.*"
-    includeEmptyDirs = false
-  }
+  from { zipTree(project(':cpp').buildZip.outputs.files.singleFile) }
 }
 
-bundlePlugin.dependsOn(':cpp:strip')
+bundlePlugin.dependsOn(':cpp:buildZip')

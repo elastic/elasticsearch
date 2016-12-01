@@ -213,11 +213,25 @@ public class Version {
     }
 
     /**
-     * Returns the smallest version between the 2.
+     * Returns the minimum version between the 2.
      */
-    public static Version smallest(Version version1, Version version2) {
+    public static Version min(Version version1, Version version2) {
         return version1.id < version2.id ? version1 : version2;
     }
+
+    /**
+     * Returns the minimum version between the 2.
+     * @deprecated use {@link #min(Version, Version)} instead
+     */
+    @Deprecated
+    public static Version smallest(Version version1, Version version2) {
+        return min(version1, version2);
+    }
+
+    /**
+     * Returns the maximum version between the 2
+     */
+    public static Version max(Version version1, Version version2) { return version1.id > version2.id ? version1 : version2; }
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
@@ -312,7 +326,22 @@ public class Version {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
-        return Version.smallest(this, fromId(major * 1000000 + 99));
+        return Version.min(this, fromId(major * 1000000 + 99));
+    }
+
+    /**
+     * Returns the minimum created index version that this version supports. Indices created with lower versions
+     * can't be used with this version.
+     */
+    public Version minimumIndexCompatibilityVersion() {
+        final int bwcMajor;
+        if (major == 5) {
+            bwcMajor = 2; // we jumped from 2 to 5
+        } else {
+            bwcMajor = major - 1;
+        }
+        final int bwcMinor = 0;
+        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
     }
 
     @SuppressForbidden(reason = "System.out.*")
@@ -389,5 +418,4 @@ public class Version {
     public boolean isRelease() {
         return build == 99;
     }
-
 }

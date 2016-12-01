@@ -200,7 +200,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
             TransportRequestOptions options) throws IOException, TransportException {
-        final Version version = Version.smallest(node.getVersion(), getVersion());
+        final Version version = Version.min(node.getVersion(), getVersion());
 
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(version);

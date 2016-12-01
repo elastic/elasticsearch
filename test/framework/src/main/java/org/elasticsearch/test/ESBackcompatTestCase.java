@@ -142,7 +142,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         }
         CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
         if (annotation != null) {
-            return Version.smallest(Version.fromId(annotation.version()), compatibilityVersion(clazz.getSuperclass()));
+            return Version.min(Version.fromId(annotation.version()), compatibilityVersion(clazz.getSuperclass()));
         }
         return compatibilityVersion(clazz.getSuperclass());
     }

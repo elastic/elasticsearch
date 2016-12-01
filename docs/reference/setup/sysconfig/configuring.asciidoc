@@ -101,8 +101,8 @@ any changes in that file, such as:
 LimitMEMLOCK=infinity
 ---------------------------------
 
-[[es-java-opts]]
-==== Setting JVM system properties
+[[jvm-options]]
+==== Setting JVM options
 
 The preferred method of setting Java Virtual Machine options (including
 system properties and JVM flags) is via the `jvm.options` configuration

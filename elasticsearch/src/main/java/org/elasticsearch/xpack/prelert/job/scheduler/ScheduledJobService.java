@@ -93,7 +93,7 @@ public class ScheduledJobService extends AbstractComponent {
                 holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
             } catch (ScheduledJob.EmptyDataCountException e) {
                 if (holder.problemTracker.updateEmptyDataCount(true)) {
-                    requestStopping(job.getJobId());
+                    requestStopping(job.getId());
                 }
             } catch (Exception e) {
                 logger.error("Failed lookback import for job[" + job.getId() + "]", e);
@@ -162,13 +162,13 @@ public class ScheduledJobService extends AbstractComponent {
     }
 
     Holder createJobScheduler(Job job) {
-        Auditor auditor = jobProvider.audit(job.getJobId());
+        Auditor auditor = jobProvider.audit(job.getId());
         Duration frequency = getFrequencyOrDefault(job);
         Duration queryDelay = Duration.ofSeconds(job.getSchedulerConfig().getQueryDelay());
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(job);
-        ScheduledJob scheduledJob =  new ScheduledJob(job.getJobId(), frequency.toMillis(), queryDelay.toMillis(),
+        ScheduledJob scheduledJob =  new ScheduledJob(job.getId(), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractor, dataProcessor, auditor, currentTimeSupplier, getLatestFinalBucketEndTimeMs(job),
-                getLatestRecordTimestamp(job.getJobId()));
+                getLatestRecordTimestamp(job.getId()));
         return new Holder(scheduledJob, new ProblemTracker(() -> auditor));
     }
 

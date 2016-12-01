@@ -202,22 +202,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     }
 
     /**
-     * Return the Job Id. This name is preferred when serialising to the REST
-     * API.
+     * Return the Job Id.
      *
      * @return The job Id string
      */
     public String getId() {
-        return jobId;
-    }
-
-    /**
-     * Return the Job Id. This name is preferred when serialising to the data
-     * store.
-     *
-     * @return The job Id string
-     */
-    public String getJobId() {
         return jobId;
     }
 

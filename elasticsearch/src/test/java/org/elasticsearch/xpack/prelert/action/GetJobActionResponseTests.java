@@ -97,7 +97,7 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
                 jobStatus = randomFrom(EnumSet.allOf(JobStatus.class));
             }
 
-            Response.JobInfo jobInfo = new Response.JobInfo(job, dataCounts, sizeStats, schedulerState, jobStatus);
+            Response.JobInfo jobInfo = new Response.JobInfo(jobId, job, dataCounts, sizeStats, schedulerState, jobStatus);
             jobInfoList.add(jobInfo);
         }
 

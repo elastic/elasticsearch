@@ -62,6 +62,12 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
     public static final GetJobsAction INSTANCE = new GetJobsAction();
     public static final String NAME = "cluster:admin/prelert/jobs/get";
 
+    private static final String CONFIG = "config";
+    private static final String DATA_COUNTS = "data_counts";
+    private static final String MODEL_SIZE_STATS = "model_size_stats";
+    private static final String SCHEDULER_STATE = "scheduler_state";
+    private static final String STATUS = "status";
+
     private GetJobsAction() {
         super(NAME);
     }
@@ -168,11 +174,11 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             if (stats.contains("_all")) {
                 all();
             } else {
-                config(stats.contains("config"));
-                dataCounts(stats.contains("data_counts"));
-                modelSizeStats(stats.contains("model_size_stats"));
-                schedulerStatus(stats.contains("scheduler_state"));
-                status(stats.contains("status"));
+                config(stats.contains(CONFIG));
+                dataCounts(stats.contains(DATA_COUNTS));
+                modelSizeStats(stats.contains(MODEL_SIZE_STATS));
+                schedulerStatus(stats.contains(SCHEDULER_STATE));
+                status(stats.contains(STATUS));
             }
         }
 
@@ -248,6 +254,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
     public static class Response extends ActionResponse implements StatusToXContent {
 
         public static class JobInfo implements ToXContent, Writeable {
+            private final String jobId;
             @Nullable
             private Job jobConfig;
             @Nullable
@@ -261,8 +268,9 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
 
 
-            JobInfo(@Nullable Job job, @Nullable DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
+            JobInfo(String jobId, @Nullable Job job, @Nullable DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
                     @Nullable SchedulerState schedulerStatus, @Nullable JobStatus status) {
+                this.jobId = jobId;
                 this.jobConfig = job;
                 this.dataCounts = dataCounts;
                 this.modelSizeStats = modelSizeStats;
@@ -271,11 +279,16 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             }
 
             JobInfo(StreamInput in) throws IOException {
+                jobId = in.readString();
                 jobConfig = in.readOptionalWriteable(Job::new);
                 dataCounts = in.readOptionalWriteable(DataCounts::new);
                 modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
                 schedulerState = in.readOptionalWriteable(SchedulerState::new);
                 status = in.readOptionalWriteable(JobStatus::fromStream);
+            }
+
+            public String getJobid() {
+                return jobId;
             }
 
             public Job getJobConfig() {
@@ -301,20 +314,21 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
+                builder.field(Job.ID.getPreferredName(), jobId);
                 if (jobConfig != null) {
-                    builder.field("config", jobConfig);
+                    builder.field(CONFIG, jobConfig);
                 }
                 if (dataCounts != null) {
-                    builder.field("data_counts", dataCounts);
+                    builder.field(DATA_COUNTS, dataCounts);
                 }
                 if (modelSizeStats != null) {
-                    builder.field("model_size_stats", modelSizeStats);
+                    builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
                 if (schedulerState != null) {
-                    builder.field("scheduler_state", schedulerState);
+                    builder.field(SCHEDULER_STATE, schedulerState);
                 }
                 if (status != null) {
-                    builder.field("status", status);
+                    builder.field(STATUS, status);
                 }
                 builder.endObject();
 
@@ -323,6 +337,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
+                out.writeString(jobId);
                 out.writeOptionalWriteable(jobConfig);
                 out.writeOptionalWriteable(dataCounts);
                 out.writeOptionalWriteable(modelSizeStats);
@@ -332,7 +347,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobConfig, dataCounts, modelSizeStats, schedulerState, status);
+                return Objects.hash(jobId, jobConfig, dataCounts, modelSizeStats, schedulerState, status);
             }
 
             @Override
@@ -344,7 +359,8 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                     return false;
                 }
                 JobInfo other = (JobInfo) obj;
-                return Objects.equals(jobConfig, other.jobConfig)
+                return Objects.equals(jobId, other.jobId)
+                        && Objects.equals(jobConfig, other.jobConfig)
                         && Objects.equals(this.dataCounts, other.dataCounts)
                         && Objects.equals(this.modelSizeStats, other.modelSizeStats)
                         && Objects.equals(this.schedulerState, other.schedulerState)
@@ -474,7 +490,8 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 SchedulerState schedulerStatus = readSchedulerState(request.schedulerStatus(), request.getJobId());
                 JobStatus jobStatus = readJobStatus(request.status(), request.getJobId());
 
-                Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats, schedulerStatus, jobStatus);
+                Response.JobInfo jobInfo = new Response.JobInfo(
+                        request.getJobId(), jobConfig, dataCounts, modelSizeStats, schedulerStatus, jobStatus);
                 response = new QueryPage<>(Collections.singletonList(jobInfo), 1, Job.RESULTS_FIELD);
 
             } else {
@@ -483,11 +500,12 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 List<Response.JobInfo> jobInfoList = new ArrayList<>();
                 for (Job job : jobsPage.results()) {
                     Job jobConfig = request.config() ? job : null;
-                    DataCounts dataCounts = readDataCounts(request.dataCounts(), job.getJobId());
-                    ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), job.getJobId());
-                    SchedulerState schedulerStatus = readSchedulerState(request.schedulerStatus(), job.getJobId());
-                    JobStatus jobStatus = readJobStatus(request.status(), job.getJobId());
-                    Response.JobInfo jobInfo = new Response.JobInfo(jobConfig, dataCounts, modelSizeStats, schedulerStatus, jobStatus);
+                    DataCounts dataCounts = readDataCounts(request.dataCounts(), job.getId());
+                    ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), job.getId());
+                    SchedulerState schedulerStatus = readSchedulerState(request.schedulerStatus(), job.getId());
+                    JobStatus jobStatus = readJobStatus(request.status(), job.getId());
+                    Response.JobInfo jobInfo = new Response.JobInfo(job.getId(), jobConfig, dataCounts, modelSizeStats,
+                            schedulerStatus, jobStatus);
                     jobInfoList.add(jobInfo);
                 }
                 response = new QueryPage<>(jobInfoList, jobsPage.count(), Job.RESULTS_FIELD);

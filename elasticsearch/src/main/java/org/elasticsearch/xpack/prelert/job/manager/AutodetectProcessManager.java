@@ -131,8 +131,8 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService executorService = threadPool.executor(PrelertPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME);
 
-        UsageReporter usageReporter = new UsageReporter(settings, job.getJobId(), usagePersister);
-        StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getJobId(),
+        UsageReporter usageReporter = new UsageReporter(settings, job.getId(), usagePersister);
+        StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getId(),
                 jobProvider.dataCounts(jobId), usageReporter, jobDataCountsPersister);
         AutoDetectResultProcessor processor =  new AutoDetectResultProcessor(new NoOpRenormaliser(), jobResultsPersister, parser);
 

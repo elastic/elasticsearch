@@ -76,7 +76,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                 // until restore it is done before we can accept data.
                 executorService.execute(() -> {
                     try (OutputStream r = processPipes.getRestoreStream().get()) {
-                        jobProvider.restoreStateToStream(job.getJobId(), modelSnapshot, r);
+                        jobProvider.restoreStateToStream(job.getId(), modelSnapshot, r);
                     } catch (Exception e) {
                         LOGGER.error("Error restoring model state for job " + job.getId(), e);
                     }

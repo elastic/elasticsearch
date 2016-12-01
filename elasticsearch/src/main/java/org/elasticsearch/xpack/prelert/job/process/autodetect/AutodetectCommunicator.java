@@ -52,7 +52,7 @@ public class AutodetectCommunicator implements Closeable {
 
     public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process, StatusReporter statusReporter,
                                   AutoDetectResultProcessor autoDetectResultProcessor, StateProcessor stateProcessor) {
-        this.jobId = job.getJobId();
+        this.jobId = job.getId();
         this.autodetectProcess = process;
         this.statusReporter = statusReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;

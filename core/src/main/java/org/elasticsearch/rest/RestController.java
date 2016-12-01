@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 
@@ -148,12 +149,9 @@ public class RestController extends AbstractComponent {
                 }
             }
 
-            final RestHandler rawHandler = getHandler(request);
-            final RestHandler handler = handlerWrapper.apply(rawHandler);
+            final RestHandler handler = getHandler(request);
 
-            if (handler != null) {
-                handler.handleRequest(request, channel, client);
-            } else {
+            if (handler == null) {
                 if (request.method() == RestRequest.Method.OPTIONS) {
                     // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
                     channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -161,6 +159,9 @@ public class RestController extends AbstractComponent {
                     final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
                     channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
                 }
+            } else {
+                final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
+                wrappedHandler.handleRequest(request, channel, client);
             }
         }
     }

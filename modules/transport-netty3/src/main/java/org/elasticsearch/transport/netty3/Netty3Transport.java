@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -205,7 +206,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
                     new HashedWheelTimer(daemonThreadFactory(settings, "transport_client_timer"))));
         }
         clientBootstrap.setPipelineFactory(configureClientChannelPipelineFactory());
-        clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
+        clientBootstrap.setOption("connectTimeoutMillis", defaultConnectionProfile.getConnectTimeout().millis());
 
         boolean tcpNoDelay = TCP_NO_DELAY.get(settings);
         clientBootstrap.setOption("tcpNoDelay", tcpNoDelay);
@@ -282,7 +283,8 @@ public class Netty3Transport extends TcpTransport<Channel> {
         if (logger.isDebugEnabled()) {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
                     + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
-                name, workerCount, port, bindHost, publishHost, compress, connectTimeout,
+                name, workerCount, port, bindHost, publishHost, compress,
+                defaultConnectionProfile.getConnectTimeout(),
                 defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
                 defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
                 defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.REG),
@@ -343,6 +345,17 @@ public class Netty3Transport extends TcpTransport<Channel> {
         final NodeChannels nodeChannels = new NodeChannels(channels, profile);
         boolean success = false;
         try {
+            final TimeValue connectTimeout;
+            final ClientBootstrap clientBootstrap;
+            final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
+            if (profile.getConnectTimeout() != null && profile.getConnectTimeout().equals(defaultConnectTimeout) == false) {
+                clientBootstrap = new ClientBootstrap(this.clientBootstrap.getFactory());
+                clientBootstrap.setOption("connectTimeoutMillis", Math.toIntExact(profile.getConnectTimeout().millis()));
+                connectTimeout = profile.getConnectTimeout();
+            } else {
+                connectTimeout = defaultConnectTimeout;
+                clientBootstrap = this.clientBootstrap;
+            }
             final ArrayList<ChannelFuture> connections = new ArrayList<>(channels.length);
             final InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
             for (int i = 0; i < channels.length; i++) {

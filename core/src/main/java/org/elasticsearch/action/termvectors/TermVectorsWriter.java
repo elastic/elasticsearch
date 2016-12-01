@@ -295,7 +295,7 @@ final class TermVectorsWriter {
 
     /** Implements an empty {@link Terms}. */
     private static final Terms EMPTY_TERMS = new Terms() {
-        @Override public TermsEnum iterator() throws IOException { return EMPTY_TERMS_ENUM; }
+        @Override public TermsEnum iterator() throws IOException { return TermsEnum.EMPTY; }
         @Override public long size() throws IOException { return 0; }
         @Override public long getSumTotalTermFreq() throws IOException { return 0; }
         @Override public long getSumDocFreq() throws IOException { return 0; }
@@ -304,18 +304,6 @@ final class TermVectorsWriter {
         @Override public boolean hasOffsets() { return false; }
         @Override public boolean hasPositions() { return false; }
         @Override public boolean hasPayloads() { return false; }
-    };
-
-    /** Implements an empty {@link TermsEnum}. */
-    private static final TermsEnum EMPTY_TERMS_ENUM = new TermsEnum() {
-        @Override public BytesRef next() throws IOException { return null; }
-        @Override public SeekStatus seekCeil(BytesRef text) throws IOException { return SeekStatus.END; }
-        @Override public void seekExact(long ord) throws IOException { }
-        @Override public BytesRef term() throws IOException { return null; }
-        @Override public long ord() throws IOException { return 0; }
-        @Override public int docFreq() throws IOException { return 0; }
-        @Override public long totalTermFreq() throws IOException { return 0; }
-        @Override public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException { return null; }
     };
 
 }

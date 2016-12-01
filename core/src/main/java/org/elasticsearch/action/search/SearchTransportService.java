@@ -188,23 +188,23 @@ public class SearchTransportService extends AbstractComponent {
         if (nodes == null) {
             throw new IllegalArgumentException("no remote cluster configured with name [" + clusterName + "]");
         }
-        DiscoveryNode node = nodes.get(Randomness.get().nextInt(nodes.size()));
+        DiscoveryNode remoteNode = nodes.get(Randomness.get().nextInt(nodes.size()));
         //TODO we just take a random host for now, implement fallback in case of connect failure
         try {
-            return connectToRemoteNode(node);
+            DiscoveryNode discoveryNode = transportService.connectToNodeLightAndHandshake(remoteNode, 10000, false);
+            transportService.disconnectFromNode(remoteNode); // disconnect the light connection
+            // now go and do a real connection with the updated version of the node
+            connectToRemoteNode(discoveryNode);
+            //TODO at the moment the configured cluster names are really just labels. We should validate that all the nodes
+            //belong to the same cluster, also validate the cluster name against the configured label and make sure they match
+            return discoveryNode;
         } catch(ConnectTransportException e) {
-            throw new ConnectTransportException(node, "unable to connect to remote cluster [" + clusterName + "]", e);
+            throw new ConnectTransportException(remoteNode, "unable to connect to remote cluster [" + clusterName + "]", e);
         }
     }
 
-    DiscoveryNode connectToRemoteNode(DiscoveryNode remoteNode) {
-        DiscoveryNode discoveryNode = transportService.connectToNodeLightAndHandshake(remoteNode, 10000, false);
-        transportService.disconnectFromNode(remoteNode); // disconnect the light connection
-        // now go and do a real connection with the updated version of the node
-        transportService.connectToNode(discoveryNode);
-        //TODO at the moment the configured cluster names are really just labels. We should validate that all the nodes
-        //belong to the same cluster, also validate the cluster name against the configured label and make sure they match
-        return discoveryNode;
+    void connectToRemoteNode(DiscoveryNode remoteNode) {
+        transportService.connectToNode(remoteNode);
     }
 
     void sendSearchShards(SearchRequest searchRequest, Map<String, List<String>> remoteIndicesByCluster,
@@ -214,6 +214,7 @@ public class SearchTransportService extends AbstractComponent {
         final AtomicReference<TransportException> transportException = new AtomicReference<>();
         for (Map.Entry<String, List<String>> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterName = entry.getKey();
+            //TODO we should rather eagerly connect to every configured remote node of all remote clusters
             final DiscoveryNode node = connectToRemoteCluster(clusterName);
             final List<String> indices = entry.getValue();
             //local true so we don't go to the master for each single remote search

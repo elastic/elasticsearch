@@ -30,17 +30,24 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Comparator;
 
-import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.discoveryNodeToXContent;
+import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
 /**
  * This class represents the shard allocation decision and its explanation for a single node.
  */
-public class NodeAllocationResult implements ToXContent, Writeable {
+public class NodeAllocationResult implements ToXContent, Writeable, Comparable<NodeAllocationResult> {
+
+    private static final Comparator<NodeAllocationResult> nodeResultComparator =
+        Comparator.comparing(NodeAllocationResult::getNodeDecisionType)
+            .thenComparingInt(NodeAllocationResult::getWeightRanking)
+            .thenComparing(r -> r.getNode().getId());
 
     private final DiscoveryNode node;
     @Nullable
     private final ShardStoreInfo shardStoreInfo;
+    private final Decision.Type nodeDecisionType;
     private final Decision canAllocateDecision;
     private final int weightRanking;
 
@@ -48,13 +55,23 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         this.node = node;
         this.shardStoreInfo = shardStoreInfo;
         this.canAllocateDecision = decision;
+        this.nodeDecisionType = canAllocateDecision.type();
         this.weightRanking = 0;
+    }
+
+    public NodeAllocationResult(DiscoveryNode node, Decision.Type nodeDecisionType, Decision canAllocate, int weightRanking) {
+        this.node = node;
+        this.shardStoreInfo = null;
+        this.canAllocateDecision = canAllocate;
+        this.nodeDecisionType = nodeDecisionType;
+        this.weightRanking = weightRanking;
     }
 
     public NodeAllocationResult(DiscoveryNode node, Decision decision, int weightRanking) {
         this.node = node;
         this.shardStoreInfo = null;
         this.canAllocateDecision = decision;
+        this.nodeDecisionType = decision.type();
         this.weightRanking = weightRanking;
     }
 
@@ -62,6 +79,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         node = new DiscoveryNode(in);
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
         canAllocateDecision = Decision.readFrom(in);
+        nodeDecisionType = Decision.Type.readFrom(in);
         weightRanking = in.readVInt();
     }
 
@@ -70,6 +88,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
         node.writeTo(out);
         out.writeOptionalWriteable(shardStoreInfo);
         canAllocateDecision.writeTo(out);
+        nodeDecisionType.writeTo(out);
         out.writeVInt(weightRanking);
     }
 
@@ -119,7 +138,7 @@ public class NodeAllocationResult implements ToXContent, Writeable {
      * Gets the decision type for allocating to this node.
      */
     public Decision.Type getNodeDecisionType() {
-        return canAllocateDecision.type();
+        return nodeDecisionType;
     }
 
     @Override
@@ -138,17 +157,15 @@ public class NodeAllocationResult implements ToXContent, Writeable {
             if (isWeightRanked()) {
                 builder.field("weight_ranking", getWeightRanking());
             }
-            innerToXContent(builder, params);
             getCanAllocateDecision().toXContent(builder, params);
         }
         builder.endObject();
         return builder;
     }
 
-    /**
-     * Sub-classes should override this to add any extra x-content.
-     */
-    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public int compareTo(NodeAllocationResult other) {
+        return nodeResultComparator.compare(this, other);
     }
 
     /** A class that captures metadata about a shard store on a node. */

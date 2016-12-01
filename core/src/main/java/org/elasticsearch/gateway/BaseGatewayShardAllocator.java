@@ -60,7 +60,7 @@ public abstract class BaseGatewayShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            if (allocateUnassignedDecision.getDecisionSafe() == Decision.Type.YES) {
+            if (allocateUnassignedDecision.getDecisionTypeSafe() == Decision.Type.YES) {
                 unassignedIterator.initialize(allocateUnassignedDecision.getAssignedNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
                     shard.primary() ? ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE :

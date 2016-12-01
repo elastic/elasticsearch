@@ -26,26 +26,19 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.discoveryNodeToXContent;
-import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.nodeDecisionsToXContent;
-import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.sortNodeDecisions;
 
 /**
  * Represents the allocation decision by an allocator for an unassigned shard.
  */
-public class AllocateUnassignedDecision implements ToXContent, Writeable {
+public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     /** a constant representing a shard decision where no decision was taken */
     public static final AllocateUnassignedDecision NOT_TAKEN =
         new AllocateUnassignedDecision(null, null, null, null, null, false, 0L, 0L);
@@ -70,15 +63,9 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     @Nullable
-    private final Type decision;
-    @Nullable
     private final AllocationStatus allocationStatus;
     @Nullable
-    private final DiscoveryNode assignedNode;
-    @Nullable
     private final String allocationId;
-    @Nullable
-    private final Map<String, NodeAllocationResult> nodeDecisions;
     private final boolean reuseStore;
     private final long remainingDelayInMillis;
     private final long totalDelayInMillis;
@@ -91,29 +78,24 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
                                        boolean reuseStore,
                                        long remainingDelayInMillis,
                                        long totalDelayInMillis) {
+        super(decision, assignedNode, nodeDecisions);
         assert assignedNode != null || decision == null || decision != Type.YES :
             "a yes decision must have a node to assign the shard to";
         assert allocationStatus != null || decision == null || decision == Type.YES :
             "only a yes decision should not have an allocation status";
         assert allocationId == null || assignedNode != null :
             "allocation id can only be null if the assigned node is null";
-        this.decision = decision;
         this.allocationStatus = allocationStatus;
-        this.assignedNode = assignedNode;
         this.allocationId = allocationId;
-        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
         this.reuseStore = reuseStore;
         this.remainingDelayInMillis = remainingDelayInMillis;
         this.totalDelayInMillis = totalDelayInMillis;
     }
 
     public AllocateUnassignedDecision(StreamInput in) throws IOException {
-        decision = in.readOptionalWriteable(Type::readFrom);
+        super(in);
         allocationStatus = in.readOptionalWriteable(AllocationStatus::readFrom);
-        assignedNode = in.readOptionalWriteable(DiscoveryNode::new);
         allocationId = in.readOptionalString();
-        nodeDecisions = in.readBoolean() ? Collections.unmodifiableMap(
-            in.readMap(StreamInput::readString, NodeAllocationResult::new, LinkedHashMap::new)) : null;
         reuseStore = in.readBoolean();
         remainingDelayInMillis = in.readVLong();
         totalDelayInMillis = in.readVLong();
@@ -193,50 +175,12 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Returns <code>true</code> if a decision was taken by the allocator, {@code false} otherwise.
-     * If no decision was taken, then the rest of the fields in this object are meaningless and return {@code null}.
-     */
-    public boolean isDecisionTaken() {
-        return decision != null;
-    }
-
-    /**
-     * Returns the decision made by the allocator on whether to assign the shard.
-     * This value can only be {@code null} if {@link #isDecisionTaken()} returns {@code false}.
-     */
-    @Nullable
-    public Type getDecision() {
-        return decision;
-    }
-
-    /**
-     * Returns the decision made by the allocator on whether to assign the shard.
-     * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
-     * throw an {@code IllegalArgumentException}.
-     */
-    public Type getDecisionSafe() {
-        if (isDecisionTaken() == false) {
-            throw new IllegalArgumentException("decision must have been taken in order to return the final decision");
-        }
-        return decision;
-    }
-
-    /**
      * Returns the status of an unsuccessful allocation attempt.  This value will be {@code null} if
      * no decision was taken or if the decision was {@link Decision.Type#YES}.
      */
     @Nullable
     public AllocationStatus getAllocationStatus() {
         return allocationStatus;
-    }
-
-    /**
-     * Get the node that the allocator will assign the shard to, unless {@link #getDecision()} returns
-     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
-     */
-    @Nullable
-    public DiscoveryNode getAssignedNode() {
-        return assignedNode;
     }
 
     /**
@@ -248,16 +192,6 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     @Nullable
     public String getAllocationId() {
         return allocationId;
-    }
-
-    /**
-     * Gets the individual node-level decisions that went into making the final decision as represented by
-     * {@link #getDecision()}.  The map that is returned has the node id as the key and a {@link Decision}
-     * as the decision for the given node.
-     */
-    @Nullable
-    public Map<String, NodeAllocationResult> getNodeDecisions() {
-        return nodeDecisions;
     }
 
     /**
@@ -280,18 +214,17 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         return totalDelayInMillis;
     }
 
-    /**
-     * Returns the explanation behind the {@link #getDecision()} that is returned for this decision.
-     */
+    @Override
     public String getExplanation() {
         String explanation;
+        Type decision = getDecisionType();
         if (decision == Type.NO) {
             assert allocationStatus != null : "if the decision is NO, it must have an AllocationStatus";
             if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
                 explanation = "cannot allocate because information about existing shard data is still being retrieved from " +
                                   "some of the nodes";
             } else if (allocationStatus == AllocationStatus.NO_VALID_SHARD_COPY) {
-                if (nodeDecisions != null && nodeDecisions.size() > 0) {
+                if (getNodeDecisions() != null && getNodeDecisions().size() > 0) {
                     explanation = "cannot allocate because all existing copies of the shard are unreadable";
                 } else {
                     explanation = "cannot allocate because a previous copy of the shard existed, but could not be found";
@@ -319,16 +252,9 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("decision", decision.toString());
-        builder.field("explanation", getExplanation());
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (allocationStatus != null) {
             builder.field("allocation_status", allocationStatus.value());
-        }
-        if (assignedNode != null) {
-            builder.startObject("assigned_node");
-            discoveryNodeToXContent(builder, params, assignedNode);
-            builder.endObject();
         }
         if (allocationId != null) {
             builder.field("allocation_id", allocationId);
@@ -337,26 +263,13 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
             builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayInMillis));
             builder.timeValueField("total_delay_in_millis", "total_delay", TimeValue.timeValueMillis(totalDelayInMillis));
         }
-        nodeDecisionsToXContent(builder, params, nodeDecisions);
-        return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(decision);
+        super.writeTo(out);
         out.writeOptionalWriteable(allocationStatus);
-        out.writeOptionalWriteable(assignedNode);
         out.writeOptionalString(allocationId);
-        if (nodeDecisions != null) {
-            out.writeBoolean(true);
-            out.writeVInt(nodeDecisions.size());
-            for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        } else {
-            out.writeBoolean(false);
-        }
         out.writeBoolean(reuseStore);
         out.writeVLong(remainingDelayInMillis);
         out.writeVLong(totalDelayInMillis);

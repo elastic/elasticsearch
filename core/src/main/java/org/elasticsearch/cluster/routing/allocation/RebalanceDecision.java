@@ -28,39 +28,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
-
-import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.nodeDecisionsToXContent;
-import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.sortNodeDecisions;
 
 /**
  * Represents a decision to move a started shard to form a more optimally balanced cluster.
  */
-public final class RebalanceDecision extends RelocationDecision {
+public final class RebalanceDecision extends AbstractAllocationDecision {
     /** a constant representing no decision taken */
     public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, null, false);
 
     @Nullable
     private final Decision canRebalanceDecision;
-    @Nullable
-    private final Map<String, NodeRebalanceResult> nodeDecisions;
     private final boolean fetchPending;
 
     private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
-                              Map<String, NodeRebalanceResult> nodeDecisions, boolean fetchPending) {
-        super(finalDecision, assignedNode);
+                              Map<String, NodeAllocationResult> nodeDecisions, boolean fetchPending) {
+        super(finalDecision, assignedNode, nodeDecisions);
         this.canRebalanceDecision = canRebalanceDecision;
-        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
         this.fetchPending = fetchPending;
     }
 
     public RebalanceDecision(StreamInput in) throws IOException {
         super(in);
         canRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
-        nodeDecisions = in.readBoolean() ? Collections.unmodifiableMap(
-            in.readMap(StreamInput::readString, NodeRebalanceResult::new, LinkedHashMap::new)) : null;
         fetchPending = in.readBoolean();
     }
 
@@ -68,23 +58,13 @@ public final class RebalanceDecision extends RelocationDecision {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(canRebalanceDecision);
-        if (nodeDecisions != null) {
-            out.writeBoolean(true);
-            out.writeVInt(nodeDecisions.size());
-            for (Map.Entry<String, NodeRebalanceResult> entry : nodeDecisions.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        } else {
-            out.writeBoolean(false);
-        }
         out.writeBoolean(fetchPending);
     }
 
     /**
      * Creates a new NO {@link RebalanceDecision}.
      */
-    public static RebalanceDecision no(Decision canRebalanceDecision, Map<String, NodeRebalanceResult> nodeDecisions,
+    public static RebalanceDecision no(Decision canRebalanceDecision, Map<String, NodeAllocationResult> nodeDecisions,
                                        boolean fetchPending) {
         return new RebalanceDecision(canRebalanceDecision, Type.NO, null, nodeDecisions, fetchPending);
     }
@@ -93,7 +73,7 @@ public final class RebalanceDecision extends RelocationDecision {
      * Creates a new {@link RebalanceDecision}.
      */
     public static RebalanceDecision decision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
-                                             Map<String, NodeRebalanceResult> nodeDecisions) {
+                                             Map<String, NodeAllocationResult> nodeDecisions) {
         return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNode, nodeDecisions, false);
     }
 
@@ -103,15 +83,6 @@ public final class RebalanceDecision extends RelocationDecision {
     @Nullable
     public Decision getCanRebalanceDecision() {
         return canRebalanceDecision;
-    }
-
-    /**
-     * Gets the individual node-level decisions that went into making the final decision as represented by
-     * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link NodeRebalanceResult}.
-     */
-    @Nullable
-    public Map<String, NodeRebalanceResult> getNodeDecisions() {
-        return nodeDecisions;
     }
 
     @Override
@@ -125,7 +96,7 @@ public final class RebalanceDecision extends RelocationDecision {
             explanation = "rebalancing is throttled";
         } else {
             if (getAssignedNode() != null) {
-                if (getFinalDecisionType() == Type.THROTTLE) {
+                if (getDecisionType() == Type.THROTTLE) {
                     explanation = "shard rebalancing throttled";
                 } else {
                     explanation = "can rebalance shard";
@@ -139,7 +110,7 @@ public final class RebalanceDecision extends RelocationDecision {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         super.toXContent(builder, params);
         builder.startObject("can_rebalance_decision");
         {
@@ -147,7 +118,5 @@ public final class RebalanceDecision extends RelocationDecision {
             canRebalanceDecision.toXContent(builder, params);
         }
         builder.endObject();
-        nodeDecisionsToXContent(builder, params, nodeDecisions);
-        return builder;
     }
 }

@@ -47,12 +47,12 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     public void testDecisionNotTaken() {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         assertFalse(allocateUnassignedDecision.isDecisionTaken());
-        assertNull(allocateUnassignedDecision.getDecision());
+        assertNull(allocateUnassignedDecision.getDecisionType());
         assertNull(allocateUnassignedDecision.getAllocationStatus());
         assertNull(allocateUnassignedDecision.getAllocationId());
         assertNull(allocateUnassignedDecision.getAssignedNode());
         assertNull(allocateUnassignedDecision.getNodeDecisions());
-        expectThrows(IllegalArgumentException.class, () -> allocateUnassignedDecision.getDecisionSafe());
+        expectThrows(IllegalArgumentException.class, () -> allocateUnassignedDecision.getDecisionTypeSafe());
         expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getExplanation());
     }
 
@@ -62,7 +62,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         );
         AllocateUnassignedDecision noDecision = AllocateUnassignedDecision.no(allocationStatus, null);
         assertTrue(noDecision.isDecisionTaken());
-        assertEquals(Decision.Type.NO, noDecision.getDecision());
+        assertEquals(Decision.Type.NO, noDecision.getDecisionType());
         assertEquals(allocationStatus, noDecision.getAllocationStatus());
         if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
             assertEquals("cannot allocate because information about existing shard data is still being retrieved from " +
@@ -83,7 +83,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         final boolean reuseStore = randomBoolean();
         noDecision = AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, nodeDecisions, reuseStore);
         assertTrue(noDecision.isDecisionTaken());
-        assertEquals(Decision.Type.NO, noDecision.getDecision());
+        assertEquals(Decision.Type.NO, noDecision.getDecisionType());
         assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
         if (reuseStore) {
             assertEquals("cannot allocate because allocation is not permitted to any of the nodes that hold a valid shard copy",
@@ -107,7 +107,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.THROTTLE, 2));
         AllocateUnassignedDecision throttleDecision = AllocateUnassignedDecision.throttle(nodeDecisions);
         assertTrue(throttleDecision.isDecisionTaken());
-        assertEquals(Decision.Type.THROTTLE, throttleDecision.getDecision());
+        assertEquals(Decision.Type.THROTTLE, throttleDecision.getDecisionType());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), startsWith("allocation temporarily throttled"));
         assertEquals(nodeDecisions, throttleDecision.getNodeDecisions());
@@ -125,7 +125,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(
             node2, allocId, nodeDecisions, randomBoolean());
         assertTrue(yesDecision.isDecisionTaken());
-        assertEquals(Decision.Type.YES, yesDecision.getDecision());
+        assertEquals(Decision.Type.YES, yesDecision.getDecisionType());
         assertNull(yesDecision.getAllocationStatus());
         assertEquals("can allocate the shard", yesDecision.getExplanation());
         assertEquals(nodeDecisions, yesDecision.getNodeDecisions());
@@ -190,7 +190,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(decision.getExplanation(), readDecision.getExplanation());
         assertEquals(decision.getNodeDecisions().size(), readDecision.getNodeDecisions().size());
         assertEquals(decision.getAllocationId(), readDecision.getAllocationId());
-        assertEquals(decision.getDecision(), readDecision.getDecision());
+        assertEquals(decision.getDecisionType(), readDecision.getDecisionType());
         // node2 should have the highest sort order
         assertEquals("node2", readDecision.getNodeDecisions().keySet().iterator().next());
     }

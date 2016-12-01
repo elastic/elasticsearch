@@ -61,7 +61,7 @@ public class MoveDecisionTests extends ESTestCase {
         stay1 = MoveDecision.decision(Decision.NO, Type.NO, null, new HashMap<>());
         stay2 = MoveDecision.decision(Decision.NO, Type.NO, null, new HashMap<>());
         assertNotSame(stay1, stay2);
-        assertSame(stay1.getFinalDecisionType(), stay2.getFinalDecisionType());
+        assertSame(stay1.getDecisionType(), stay2.getDecisionType());
         assertNotNull(stay1.getExplanation());
         assertEquals(stay1.getExplanation(), stay2.getExplanation());
     }
@@ -73,7 +73,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertTrue(stay.isDecisionTaken());
         assertNull(stay.getNodeDecisions());
         assertNotNull(stay.getExplanation());
-        assertEquals(Type.NO, stay.getFinalDecisionType());
+        assertEquals(Type.NO, stay.getDecisionType());
 
         stay = MoveDecision.stay(Decision.YES);
         assertFalse(stay.cannotRemain());
@@ -81,7 +81,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertTrue(stay.isDecisionTaken());
         assertNull(stay.getNodeDecisions());
         assertEquals("can remain on its current node", stay.getExplanation());
-        assertEquals(Type.NO, stay.getFinalDecisionType());
+        assertEquals(Type.NO, stay.getDecisionType());
     }
 
     public void testDecisionWithNodeExplanations() {
@@ -92,7 +92,7 @@ public class MoveDecisionTests extends ESTestCase {
         nodeDecisions.put("node1", new NodeAllocationResult(node1, nodeDecision, 2));
         nodeDecisions.put("node2", new NodeAllocationResult(node2, nodeDecision, 1));
         MoveDecision decision = MoveDecision.decision(Decision.NO, Type.NO, null, nodeDecisions);
-        assertNotNull(decision.getFinalDecisionType());
+        assertNotNull(decision.getDecisionType());
         assertNotNull(decision.getExplanation());
         assertNotNull(decision.getNodeDecisions());
         assertEquals(2, decision.getNodeDecisions().size());
@@ -121,7 +121,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(moveDecision.move(), readDecision.move());
         assertEquals(moveDecision.getNodeDecisions().size(), readDecision.getNodeDecisions().size());
         assertEquals(moveDecision.getAssignedNode(), readDecision.getAssignedNode());
-        assertEquals(moveDecision.getFinalDecisionType(), readDecision.getFinalDecisionType());
+        assertEquals(moveDecision.getDecisionType(), readDecision.getDecisionType());
         // node2 should have the highest sort order
         assertEquals("node2", readDecision.getNodeDecisions().keySet().iterator().next());
     }

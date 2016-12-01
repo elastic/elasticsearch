@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
-import org.elasticsearch.cluster.routing.allocation.NodeRebalanceResult;
 import org.elasticsearch.cluster.routing.allocation.RebalanceDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -361,7 +360,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float currentWeight = sorter.weight(currentNode);
             final AllocationDeciders deciders = allocation.deciders();
             final String idxName = shard.getIndexName();
-            Map<String, NodeRebalanceResult> nodeDecisions = new HashMap<>(modelNodes.length - 1);
+            Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>(modelNodes.length - 1);
             Type rebalanceDecisionType = Type.NO;
             ModelNode assignedNode = null;
             int weightRanking = 0;
@@ -407,13 +406,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         assignedNode = node;
                     }
                 }
-                nodeDecisions.put(node.getNodeId(), new NodeRebalanceResult(
+                nodeDecisions.put(node.getNodeId(), new NodeAllocationResult(
                     node.routingNode.node(),
                     rebalanceConditionsMet ? canAllocate.type() : Type.NO,
                     canAllocate,
-                    ++weightRanking,
-                    deltaAboveThreshold,
-                    betterWeightWithShardAdded)
+                    ++weightRanking)
                 );
             }
 
@@ -646,8 +643,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          *   1. If the shard is not started, no decision will be taken and {@link MoveDecision#isDecisionTaken()} will return false.
          *   2. If the shard is allowed to remain on its current node, no attempt will be made to move the shard and
          *      {@link MoveDecision#canRemainDecision} will have a decision type of YES.  All other fields in the object will be null.
-         *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#finalDecision} will be populated
-         *      with the decision of moving to another node.  If {@link MoveDecision#finalDecision} returns YES, then
+         *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getDecisionType()} will be populated
+         *      with the decision of moving to another node.  If {@link MoveDecision#getDecisionType()} returns YES, then
          *      {@link MoveDecision#assignedNode} will return a non-null value, otherwise the assignedNodeId will be null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#nodeDecisions} will have a non-null value.
@@ -786,7 +783,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 for (int i = 0; i < primaryLength; i++) {
                     ShardRouting shard = primary[i];
                     AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard, throttledNodes);
-                    final Type decisionType = allocationDecision.getDecision();
+                    final Type decisionType = allocationDecision.getDecisionType();
                     final String assignedNodeId = allocationDecision.getAssignedNode() != null ?
                                                       allocationDecision.getAssignedNode().getId() : null;
                     final ModelNode minNode = assignedNodeId != null ? nodes.get(assignedNodeId) : null;

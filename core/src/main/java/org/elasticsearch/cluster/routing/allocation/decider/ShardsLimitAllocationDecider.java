@@ -122,17 +122,17 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
         if (clusterShardLimit > 0 && decider.test(nodeShardCount, clusterShardLimit)) {
             return allocation.decision(Decision.NO, NAME,
-                    "too many shards [%d] allocated to this node, [%s=%d]",
-                    nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
+                "too many shards [%d] allocated to this node, [%s=%d]",
+                nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
         }
         if (indexShardLimit > 0 && decider.test(indexShardCount, indexShardLimit)) {
             return allocation.decision(Decision.NO, NAME,
-                    "too many shards [%d] allocated to this node for index [%s], [%s=%d]",
-                    indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
+                "too many shards [%d] allocated to this node for index [%s], [%s=%d]",
+                indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
         }
         return allocation.decision(Decision.YES, NAME,
-                "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]",
-                nodeShardCount, indexShardLimit, clusterShardLimit);
+            "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]",
+            nodeShardCount, indexShardLimit, clusterShardLimit);
     }
 
     @Override
@@ -157,11 +157,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
         if (clusterShardLimit >= 0 && nodeShardCount >= clusterShardLimit) {
             return allocation.decision(Decision.NO, NAME,
-                    "too many shards [%d] allocated to this node, [%s=%d]",
-                    nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
+                "too many shards [%d] allocated to this node, [%s=%d]",
+                nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);
         }
         return allocation.decision(Decision.YES, NAME,
-                "the shard count [%d] for this node is under the cluster level node limit [%d]",
-                nodeShardCount, clusterShardLimit);
+            "the shard count [%d] for this node is under the cluster level node limit [%d]",
+            nodeShardCount, clusterShardLimit);
     }
 }

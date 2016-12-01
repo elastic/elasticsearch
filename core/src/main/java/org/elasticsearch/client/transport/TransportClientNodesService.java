@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
@@ -389,9 +390,9 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                     try {
                         // its a listed node, light connect to it...
                         logger.trace("connecting to listed node (light) [{}]", listedNode);
-                        transportService.connectToNodeLight(listedNode);
+                        transportService.connectToNode(listedNode, ConnectionProfile.LIGHT_PROFILE);
                     } catch (Exception e) {
-                        logger.debug(
+                        logger.info(
                             (Supplier<?>)
                                 () -> new ParameterizedMessage("failed to connect to node [{}], removed from nodes list", listedNode), e);
                         hostFailureListener.onNodeDisconnected(listedNode, e);
@@ -469,7 +470,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                     } else {
                                         // its a listed node, light connect to it...
                                         logger.trace("connecting to listed node (light) [{}]", listedNode);
-                                        transportService.connectToNodeLight(listedNode);
+                                        transportService.connectToNode(listedNode, ConnectionProfile.LIGHT_PROFILE);
                                     }
                                 } catch (Exception e) {
                                     logger.debug(

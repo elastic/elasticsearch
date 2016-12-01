@@ -21,7 +21,6 @@ package org.elasticsearch.search.geo;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -34,7 +33,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -49,8 +47,6 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
-import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -70,22 +66,16 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoHashCellQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
@@ -383,9 +373,6 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .startObject("properties")
                 .startObject("pin")
                 .field("type", "geo_point");
-        if (version.before(Version.V_2_2_0)) {
-            xContentBuilder.field("lat_lon", true);
-        }
         xContentBuilder.field("store", true)
                 .endObject()
                 .startObject("location")
@@ -430,95 +417,13 @@ public class GeoFilterIT extends ESIntegTestCase {
         GeoPoint point = new GeoPoint();
         for (SearchHit hit : distance.getHits()) {
             String name = hit.getId();
-            if (version.before(Version.V_2_2_0)) {
-                point.resetFromString(hit.fields().get("pin").getValue().toString());
-            } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-                point.resetFromIndexHash(hit.fields().get("pin").getValue());
-            } else {
-                point.resetFromString(hit.getFields().get("pin").getValue());
-            }
+            point.resetFromString(hit.getFields().get("pin").getValue());
             double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
             assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
             assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
             if (key.equals(name)) {
                 assertThat(dist, closeTo(0d, 0.1d));
-            }
-        }
-    }
-
-    public void testLegacyGeohashCellFilter() throws IOException {
-        String geohash = randomhash(10);
-        logger.info("Testing geohash_cell filter for [{}]", geohash);
-
-        Collection<? extends CharSequence> neighbors = GeoHashUtils.neighbors(geohash);
-        Collection<? extends CharSequence> parentNeighbors = GeoHashUtils.neighbors(geohash.substring(0, geohash.length() - 1));
-
-        logger.info("Neighbors {}", neighbors);
-        logger.info("Parent Neighbors {}", parentNeighbors);
-
-        ensureYellow();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-
-        client().admin().indices().prepareCreate("locations").setSettings(settings).addMapping("location", "pin",
-            "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
-
-        // Index a pin
-        client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();
-
-        // index neighbors
-        Iterator<? extends CharSequence> iterator = neighbors.iterator();
-        for (int i = 0; iterator.hasNext(); i++) {
-            client().prepareIndex("locations", "location", "N" + i).setCreate(true).setSource("pin", iterator.next()).execute().actionGet();
-        }
-
-        // Index parent cell
-        client().prepareIndex("locations", "location", "p").setCreate(true).setSource("pin", geohash.substring(0, geohash.length() - 1)).execute().actionGet();
-
-        // index neighbors
-        iterator = parentNeighbors.iterator();
-        for (int i = 0; iterator.hasNext(); i++) {
-            client().prepareIndex("locations", "location", "p" + i).setCreate(true).setSource("pin", iterator.next()).execute().actionGet();
-        }
-
-        client().admin().indices().prepareRefresh("locations").execute().actionGet();
-
-        Map<GeohashCellQuery.Builder, Long> expectedCounts = new HashMap<>();
-        Map<GeohashCellQuery.Builder, String[]> expectedResults = new HashMap<>();
-
-        expectedCounts.put(geoHashCellQuery("pin", geohash, false), 1L);
-
-        expectedCounts.put(geoHashCellQuery("pin", geohash.substring(0, geohash.length() - 1), true), 2L + neighbors.size() + parentNeighbors.size());
-
-        // Testing point formats and precision
-        GeoPoint point = GeoPoint.fromGeohash(geohash);
-        int precision = geohash.length();
-
-        expectedCounts.put(geoHashCellQuery("pin", point).neighbors(true).precision(precision), 1L + neighbors.size());
-
-
-        List<GeohashCellQuery.Builder> filterBuilders = new ArrayList<>(expectedCounts.keySet());
-        for (GeohashCellQuery.Builder builder : filterBuilders) {
-            try {
-                long expectedCount = expectedCounts.get(builder);
-                SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
-                        .setPostFilter(builder).setSize((int) expectedCount).get();
-                assertHitCount(response, expectedCount);
-                String[] expectedIds = expectedResults.get(builder);
-                if (expectedIds == null) {
-                    ArrayList<String> ids = new ArrayList<>();
-                    for (SearchHit hit : response.getHits()) {
-                        ids.add(hit.id());
-                    }
-                    expectedResults.put(builder, ids.toArray(Strings.EMPTY_ARRAY));
-                    continue;
-                }
-
-                assertSearchHits(response, expectedIds);
-
-            } catch (AssertionError error) {
-                throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
             }
         }
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
@@ -52,6 +53,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -599,6 +603,22 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     } else {
                         logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                     }
+                } catch (ScriptException e) {
+                    try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                        builder.prettyPrint();
+                        builder.startObject();
+                        ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, e);
+                        builder.endObject();
+                        logger.warn("failed to load/compile script [{}]: {}", scriptNameExt.v1(), builder.string());
+                    } catch (IOException ioe) {
+                        ioe.addSuppressed(e);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to log an appropriate warning after failing to load/compile script [{}]", scriptNameExt.v1()), ioe);
+                    }
+                    /* Log at the whole exception at the debug level as well just in case the stack trace is important. That way you can
+                     * turn on the stack trace if you need it. */
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile script [{}]. full exception:",
+                            scriptNameExt.v1()), e);
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile script [{}]", scriptNameExt.v1()), e);
                 }

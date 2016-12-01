@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Nullable;
@@ -74,11 +73,6 @@ public class MultiTermVectorsRequest extends ActionRequest implements Iterable<T
             }
         }
         return validationException;
-    }
-
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return requests;
     }
 
     @Override

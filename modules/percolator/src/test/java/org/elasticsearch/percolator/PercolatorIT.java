@@ -242,7 +242,7 @@ public class PercolatorIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(INDEX_NAME)
                 .setSettings(Settings.builder().put("index.number_of_shards", 2))
                 .addMapping(TYPE_NAME, "query", "type=percolator")
-                .addMapping("type", "field1", "type=string")
+                .addMapping("type", "field1", "type=text")
                 .execute().actionGet();
         ensureGreen();
 

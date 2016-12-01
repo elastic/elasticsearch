@@ -60,7 +60,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
     private final String grandChildType = "grand-child";
 
     @Before
-    public void before() throws Exception {
+    public void setupData() throws Exception {
         mapperService.merge(
                 childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), MapperService.MergeReason.MAPPING_UPDATE, false
         );

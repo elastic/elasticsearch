@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -51,12 +50,12 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(Decision.Type.NO, d.type());
         assertEquals(ClusterAllocationExplanation.FinalDecision.NO, fd);
         assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, storeCopy);
-        assertTrue(d.toString(), d.toString().contains("NO(the shard cannot be allocated on the same node id"));
+        assertTrue(d.toString(), d.toString().contains("NO(the shard cannot be allocated to the same node"));
         assertTrue(d instanceof Decision.Multi);
         Decision.Multi md = (Decision.Multi) d;
         Decision ssd = md.getDecisions().get(0);
         assertEquals(Decision.Type.NO, ssd.type());
-        assertTrue(ssd.toString(), ssd.toString().contains("NO(the shard cannot be allocated on the same node id"));
+        assertTrue(ssd.toString(), ssd.toString().contains("NO(the shard cannot be allocated to the same node"));
         Float weight = explanation.getWeight();
         assertNotNull("should have a weight", weight);
 
@@ -78,12 +77,14 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(Decision.Type.NO, d.type());
         assertEquals(ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED, fd);
         assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, storeCopy);
-        assertTrue(d.toString(), d.toString().contains("NO(the shard cannot be allocated on the same node id"));
+        assertTrue(d.toString(), d.toString().contains(
+            "NO(the shard cannot be allocated to the node on which it already exists [[test][0]"));
         assertTrue(d instanceof Decision.Multi);
         md = (Decision.Multi) d;
         ssd = md.getDecisions().get(0);
         assertEquals(Decision.Type.NO, ssd.type());
-        assertTrue(ssd.toString(), ssd.toString().contains("NO(the shard cannot be allocated on the same node id"));
+        assertTrue(ssd.toString(), ssd.toString().contains(
+            "NO(the shard cannot be allocated to the node on which it already exists [[test][0]"));
         weight = explanation.getWeight();
         assertNotNull("should have a weight", weight);
 

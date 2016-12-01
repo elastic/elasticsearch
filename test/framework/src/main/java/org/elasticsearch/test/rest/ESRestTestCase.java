@@ -37,7 +37,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -53,8 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.net.ssl.SSLContext;
-
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
@@ -62,7 +63,7 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
  */
-public class ESRestTestCase extends ESTestCase {
+public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
 
@@ -76,66 +77,79 @@ public class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private final List<HttpHost> clusterHosts;
+    private static List<HttpHost> clusterHosts;
     /**
-     * A client for the running Elasticsearch cluster. Lazily initialized on first use.
+     * A client for the running Elasticsearch cluster
      */
-    private final RestClient client;
+    private static RestClient client;
     /**
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
-     * completes. Lazily initialized on first use.
+     * completes
      */
-    private final RestClient adminClient;
+    private static RestClient adminClient;
 
-    public ESRestTestCase() {
-        String cluster = System.getProperty("tests.rest.cluster");
-        if (cluster == null) {
-            throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
-                    + "to which to send REST requests");
-        }
-        String[] stringUrls = cluster.split(",");
-        List<HttpHost> clusterHosts = new ArrayList<>(stringUrls.length);
-        for (String stringUrl : stringUrls) {
-            int portSeparator = stringUrl.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+    @Before
+    public void initClient() throws IOException {
+        if (client == null) {
+            assert adminClient == null;
+            assert clusterHosts == null;
+            String cluster = System.getProperty("tests.rest.cluster");
+            if (cluster == null) {
+                throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
+                        + "to which to send REST requests");
             }
-            String host = stringUrl.substring(0, portSeparator);
-            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-            clusterHosts.add(new HttpHost(host, port, getProtocol()));
-        }
-        this.clusterHosts = unmodifiableList(clusterHosts);
-        try {
+            String[] stringUrls = cluster.split(",");
+            List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
+            for (String stringUrl : stringUrls) {
+                int portSeparator = stringUrl.lastIndexOf(':');
+                if (portSeparator < 0) {
+                    throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+                }
+                String host = stringUrl.substring(0, portSeparator);
+                int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+                hosts.add(new HttpHost(host, port, getProtocol()));
+            }
+            clusterHosts = unmodifiableList(hosts);
+            logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings());
             adminClient = buildClient(restAdminSettings());
-        } catch (IOException e) {
-            // Wrap the IOException so children don't have to declare a constructor just to rethrow it.
-            throw new RuntimeException("Error building clients", e);
         }
+        assert client != null;
+        assert adminClient != null;
+        assert clusterHosts != null;
     }
-
 
     /**
      * Clean up after the test case.
      */
     @After
-    public final void after() throws Exception {
+    public final void cleanUpCluster() throws Exception {
         wipeCluster();
         logIfThereAreRunningTasks();
-        closeClients();
+    }
+
+    @AfterClass
+    public static void closeClients() throws IOException {
+        try {
+            IOUtils.close(client, adminClient);
+        } finally {
+            clusterHosts = null;
+            client = null;
+            adminClient = null;
+        }
     }
 
     /**
-     * Get a client, building it if it hasn't been built for this test.
+     * Get the client used for ordinary api calls while writing a test
      */
-    protected final RestClient client() {
+    protected static RestClient client() {
         return client;
     }
 
     /**
      * Get the client used for test administrative actions. Do not use this while writing a test. Only use it for cleaning up after tests.
      */
-    protected final RestClient adminClient() {
+    protected static RestClient adminClient() {
         return adminClient;
     }
 
@@ -230,10 +244,6 @@ public class ESRestTestCase extends ESTestCase {
          */
     }
 
-    private void closeClients() throws IOException {
-        IOUtils.close(client, adminClient);
-    }
-
     /**
      * Used to obtain settings for the REST client that is used to send REST requests.
      */
@@ -262,8 +272,9 @@ public class ESRestTestCase extends ESTestCase {
         return "http";
     }
 
-    private RestClient buildClient(Settings settings) throws IOException {
-        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[0])).setMaxRetryTimeoutMillis(30000)
+    private static RestClient buildClient(Settings settings) throws IOException {
+        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()]))
+                .setMaxRetryTimeoutMillis(30000)
                 .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
@@ -314,5 +325,4 @@ public class ESRestTestCase extends ESTestCase {
         }
         return runningTasks;
     }
-
 }

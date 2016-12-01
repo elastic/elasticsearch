@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -169,11 +168,6 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannelsLight(DiscoveryNode node) throws IOException {
-                    return new NodeChannels(new Object[0], new Object[0], new Object[0], new Object[0], new Object[0]);
-                }
-
-                @Override
                 protected void sendMessage(Object o, BytesReference reference, Runnable sendListener) throws IOException {
                     StreamInput streamIn = reference.streamInput();
                     streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
@@ -198,8 +192,8 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannels(DiscoveryNode node) throws IOException {
-                    return new NodeChannels(new Object[0], new Object[0], new Object[0], new Object[0], new Object[0]);
+                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+                    return new NodeChannels(new Object[profile.getNumConnections()], profile);
                 }
 
                 @Override
@@ -214,7 +208,8 @@ public class TCPTransportTests extends ESTestCase {
 
                 @Override
                 protected Object nodeChannel(DiscoveryNode node, TransportRequestOptions options) throws ConnectTransportException {
-                    return new NodeChannels(new Object[0], new Object[0], new Object[0], new Object[0], new Object[0]);
+                    return new NodeChannels(new Object[ConnectionProfile.LIGHT_PROFILE.getNumConnections()],
+                        ConnectionProfile.LIGHT_PROFILE);
                 }
             };
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -241,6 +236,40 @@ public class TCPTransportTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
         }
+    }
+
+    public void testDefaultConnectionProfile() {
+        ConnectionProfile profile = TcpTransport.buildDefaultConnectionProfile(Settings.EMPTY);
+        assertEquals(13, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+
+        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
+        assertEquals(12, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+
+        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
+        assertEquals(11, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+
+        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).put("node.master", false).build());
+        assertEquals(10, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
     }
 
 }

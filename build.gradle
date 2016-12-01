@@ -4,6 +4,7 @@ import org.gradle.internal.os.OperatingSystem
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 import org.elasticsearch.gradle.VersionProperties
+import org.elastic.gradle.UploadS3Task
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -31,6 +32,12 @@ project.ext.nasDirectory = isWindows ? "\\\\prelert-nas\\builds\\6.5.0\\" :
 project.ext.nasExtension = '_' + (System.getenv()['GIT_COMMIT'] ?: 'xxxxxxxxxxxxxx').substring(0, 14) +
     (isWindows ? "_windows-x86_64.zip" : (isMacOsX ? "_darwin-x86_64.zip" :
     (isLinux ? "_linux-x86_64.zip" : "_sunos-x86_64.zip")))
+
+String uploadEnabledStr = properties.get('upload', 'false')
+if (['true', 'false'].contains(uploadEnabledStr) == false) {
+  throw new GradleException("upload must be true or false, got ${uploadEnabledStr}")
+}
+project.ext.uploadEnabled = uploadEnabledStr == 'true'
 
 // C++ build can be explicitly enabled or disabled, or if neither is chosen
 // it will be enabled if the necessary 3rd party dependencies are present
@@ -88,7 +95,7 @@ subprojects {
 }
 
 task bundlePack(type: Zip) {
-  onlyIf { project('kibana').bundlePlugin.enabled && project('cpp').strip.enabled }
+  onlyIf { project('kibana').bundlePlugin.enabled }
   dependsOn 'elasticsearch:bundlePlugin'
   dependsOn 'kibana:bundlePlugin'
   from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }
@@ -103,7 +110,12 @@ task assemble(dependsOn: bundlePack) {
   description = 'Assembles the outputs of this project.'
 }
 
-task build(dependsOn: assemble) {
+task test(dependsOn: [':elasticsearch:test', ':cpp:test', ':kibana:test']) {
+  group = 'Build'
+  description = 'Assembles and tests this project.'
+}
+
+task build(dependsOn: [assemble, test]) {
   group = 'Build'
   description = 'Assembles and tests this project.'
 }
@@ -126,16 +138,21 @@ class SimpleCopy extends DefaultTask {
 }
 
 // norelease: by the time we move to x-plugins we cannot use the Prelert NAS at all
-task uploadPack(type: SimpleCopy) {
+task uploadPack(type: SimpleCopy, dependsOn: [build]) {
   // This doesn't use a Copy task because that builds hashes for a huge number of files on the NAS
   String zipFile = "prelert-${elasticsearchVersion}.zip"
   sourceFile = "${projectDir}/build/distributions/" + zipFile
   destFile = project.ext.nasDirectory + zipFile.replace('.zip', project.ext.nasExtension)
 }
 
-uploadPack.dependsOn build
+task uploadPackToS3(type: UploadS3Task, dependsOn: [build]) {
+  enabled project.uploadEnabled
+  description = 'upload pack zip to S3 Bucket'
+  bucket 'prelert-artifacts'
+  upload bundlePack.outputs.files.singleFile, "maven/org.elasticsearch.prelert/prelert/${elasticsearchVersion}/${bundlePack.outputs.files.singleFile.name}"
+}
 
-task deploy(dependsOn: uploadPack) {
+task deploy(dependsOn: [uploadPackToS3, ':cpp:upload']) {
 
 }
 

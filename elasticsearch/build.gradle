@@ -46,22 +46,20 @@ task downloadCppDist(type: DownloadS3Task) {
   bucket 'prelert-artifacts'
   destDir file("${buildDir}/cppDist")
   flatten true
-  download "maven/${project.group}/prelert_cpp_darwin-x86_64/${elasticsearchVersion}/prelert_cpp_darwin-x86_64.zip"
+  download "maven/${project.group}/prelert-cpp/${elasticsearchVersion}/prelert-cpp-darwin-x86_64-${elasticsearchVersion}.zip"
+  outputs.file(file("${buildDir}/cppDist/prelert-cpp-darwin-x86_64-${elasticsearchVersion}.zip"))
 }
 
 bundlePlugin {
   if (project.cppEnabled) {
     from { zipTree(project(':cpp').buildZip.outputs.files.singleFile) }
+    dependsOn ':cpp:buildZip'
   } else {
-    from("${rootDir}/cppdistribution") {
-      into '.'
-      // Don't copy Windows import libraries
-      exclude "**/*.lib"
-      // Don't copy the test support library
-      exclude "**/libPreTest.*"
-      includeEmptyDirs = false
+    print "READ ME ::::::::: " + downloadCppDist.outputs + "\n"
+    for (file in downloadCppDist.outputs.files) {
+      print "READ ME ::::::::: " + file + "\n"
+      from{ zipTree(file) }
     }
+    dependsOn 'downloadCppDist'
   }
 }
-
-bundlePlugin.dependsOn([':cpp:buildZip', 'downloadCppDist'])

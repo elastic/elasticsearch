@@ -5,13 +5,29 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import joptsimple.OptionSet;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
+import java.io.FileNotFoundException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isEmptyString;
 
 /**
  * Unit tests for the {@code ESNativeRealmMigrateTool}
@@ -46,4 +62,67 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
                                 "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}}],\"run_as\":[],\"metadata\":{}}"));
     }
 
+    public void testTerminalLogger() throws Exception {
+        Logger terminalLogger = ESNativeRealmMigrateTool.getTerminalLogger(terminal);
+        assertThat(terminal.getOutput(), isEmptyString());
+
+        // only error and fatal gets logged at normal verbosity
+        terminal.setVerbosity(Verbosity.NORMAL);
+        List<Level> nonLoggingLevels = new ArrayList<>(Arrays.asList(Level.values()));
+        nonLoggingLevels.removeAll(Arrays.asList(Level.ERROR, Level.FATAL));
+        for (Level level : nonLoggingLevels) {
+            terminalLogger.log(level, "this level should not log " + level.name());
+            assertThat(terminal.getOutput(), isEmptyString());
+        }
+
+        terminalLogger.log(Level.ERROR, "logging an error");
+        assertEquals("logging an error" + System.lineSeparator(), terminal.getOutput());
+        terminal.reset();
+        assertThat(terminal.getOutput(), isEmptyString());
+
+        terminalLogger.log(Level.FATAL, "logging a fatal message");
+        assertEquals("logging a fatal message" + System.lineSeparator(), terminal.getOutput());
+        terminal.reset();
+        assertThat(terminal.getOutput(), isEmptyString());
+
+        // everything will get logged at verbose!
+        terminal.setVerbosity(Verbosity.VERBOSE);
+        List<Level> loggingLevels = new ArrayList<>(Arrays.asList(Level.values()));
+        loggingLevels.remove(Level.OFF);
+        for (Level level : loggingLevels) {
+            terminalLogger.log(level, "this level should log " + level.name());
+            assertEquals("this level should log " + level.name() + System.lineSeparator(), terminal.getOutput());
+            terminal.reset();
+            assertThat(terminal.getOutput(), isEmptyString());
+        }
+    }
+
+    public void testMissingFiles() throws Exception {
+        Path homeDir = createTempDir();
+        Path confDir = homeDir.resolve("config");
+        Path xpackConfDir = confDir.resolve("x-pack");
+        Files.createDirectories(xpackConfDir);
+
+        ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
+        OptionSet options = muor.getParser().parse("-u", "elastic", "-p", "changeme", "-U", "http://localhost:9200");
+        Settings settings = Settings.builder()
+                .put("path.home", homeDir)
+                .put("path.conf", confDir)
+                .build();
+        Environment environment = new Environment(settings);
+        MockTerminal mockTerminal = new MockTerminal();
+
+        FileNotFoundException fnfe = expectThrows(FileNotFoundException.class,
+                () -> muor.importUsers(mockTerminal, settings, environment, options));
+        assertThat(fnfe.getMessage(), containsString("users file"));
+
+        Files.createFile(xpackConfDir.resolve("users"));
+        fnfe = expectThrows(FileNotFoundException.class,
+                () -> muor.importUsers(mockTerminal, settings, environment, options));
+        assertThat(fnfe.getMessage(), containsString("users_roles file"));
+
+        fnfe = expectThrows(FileNotFoundException.class,
+                () -> muor.importRoles(mockTerminal, settings, environment, options));
+        assertThat(fnfe.getMessage(), containsString("roles.yml file"));
+    }
 }

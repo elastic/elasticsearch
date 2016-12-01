@@ -10,12 +10,25 @@ import javax.net.ssl.HttpsURLConnection;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,12 +44,14 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -72,7 +87,6 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
         private final OptionSpec<String> url;
         private final OptionSpec<String> usersToMigrateCsv;
         private final OptionSpec<String> rolesToMigrateCsv;
-        private final OptionSpec<String> esConfigDir;
 
         public MigrateUserOrRoles() {
             super("Migrates users or roles from file to native realm");
@@ -90,9 +104,6 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                     .withRequiredArg();
             this.rolesToMigrateCsv = parser.acceptsAll(Arrays.asList("r", "roles"),
                     "Roles to migrate from file to native realm")
-                    .withRequiredArg();
-            this.esConfigDir = parser.acceptsAll(Arrays.asList("c", "config"),
-                    "Configuration directory to use instead of default")
                     .withRequiredArg();
         }
 
@@ -114,9 +125,6 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             terminal.println("starting migration of users and roles...");
             Settings.Builder sb = Settings.builder();
             sb.put(settings);
-            if (this.esConfigDir != null) {
-                sb.put("path.conf", this.esConfigDir.value(options));
-            }
             Settings shieldSettings = sb.build();
             Environment shieldEnv = new Environment(shieldSettings);
             importUsers(terminal, shieldSettings, shieldEnv, options);
@@ -187,7 +195,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             }
         }
 
-        public Set<String> getUsersThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
+        Set<String> getUsersThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
             Set<String> existingUsers = new HashSet<>();
             String allUsersJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/user/", options, null);
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(allUsersJson)) {
@@ -208,7 +216,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             return existingUsers;
         }
 
-        public static String createUserJson(String[] roles, char[] password) throws IOException {
+        static String createUserJson(String[] roles, char[] password) throws IOException {
             XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
@@ -223,14 +231,21 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             return builder.string();
         }
 
-        public void importUsers(Terminal terminal, Settings settings, Environment env, OptionSet options) {
+        void importUsers(Terminal terminal, Settings settings, Environment env, OptionSet options) throws FileNotFoundException {
             String usersCsv = usersToMigrateCsv.value(options);
             String[] usersToMigrate = (usersCsv != null) ? usersCsv.split(",") : Strings.EMPTY_ARRAY;
             Path usersFile = FileUserPasswdStore.resolveFile(env);
             Path usersRolesFile = FileUserRolesStore.resolveFile(env);
+            if (Files.exists(usersFile) == false) {
+                throw new FileNotFoundException("users file [" + usersFile + "] does not exist");
+            } else if (Files.exists(usersRolesFile) == false) {
+                throw new FileNotFoundException("users_roles file [" + usersRolesFile + "] does not exist");
+            }
+
             terminal.println("importing users from [" + usersFile + "]...");
-            Map<String, char[]> userToHashedPW = FileUserPasswdStore.parseFile(usersFile, null, settings);
-            Map<String, String[]> userToRoles = FileUserRolesStore.parseFile(usersRolesFile, null);
+            final Logger logger = getTerminalLogger(terminal);
+            Map<String, char[]> userToHashedPW = FileUserPasswdStore.parseFile(usersFile, logger, settings);
+            Map<String, String[]> userToRoles = FileUserRolesStore.parseFile(usersRolesFile, logger);
             Set<String> existingUsers;
             try {
                 existingUsers = getUsersThatExist(terminal, settings, env, options);
@@ -242,7 +257,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             }
             for (String user : usersToMigrate) {
                 if (userToHashedPW.containsKey(user) == false) {
-                    terminal.println("no user [" + user + "] found, skipping");
+                    terminal.println("user [" + user + "] was not found in files, skipping");
                     continue;
                 } else if (existingUsers.contains(user)) {
                     terminal.println("user [" + user + "] already exists, skipping");
@@ -261,7 +276,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             }
         }
 
-        public Set<String> getRolesThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
+        Set<String> getRolesThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
             Set<String> existingRoles = new HashSet<>();
             String allRolesJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/role/", options, null);
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(allRolesJson)) {
@@ -282,18 +297,22 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             return existingRoles;
         }
 
-        public static String createRoleJson(RoleDescriptor rd) throws IOException {
+        static String createRoleJson(RoleDescriptor rd) throws IOException {
             XContentBuilder builder = jsonBuilder();
             rd.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return builder.string();
         }
 
-        public void importRoles(Terminal terminal, Settings settings, Environment env, OptionSet options) {
+        void importRoles(Terminal terminal, Settings settings, Environment env, OptionSet options) throws FileNotFoundException {
             String rolesCsv = rolesToMigrateCsv.value(options);
             String[] rolesToMigrate = (rolesCsv != null) ? rolesCsv.split(",") : Strings.EMPTY_ARRAY;
             Path rolesFile = FileRolesStore.resolveFile(env).toAbsolutePath();
+            if (Files.exists(rolesFile) == false) {
+                throw new FileNotFoundException("roles.yml file [" + rolesFile + "] does not exist");
+            }
             terminal.println("importing roles from [" + rolesFile + "]...");
-            Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, null, true, Settings.EMPTY);
+            Logger logger = getTerminalLogger(terminal);
+            Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, logger, true, settings);
             Set<String> existingRoles;
             try {
                 existingRoles = getRolesThatExist(terminal, settings, env, options);
@@ -323,5 +342,42 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                 }
             }
         }
+    }
+
+    /**
+     * Creates a new Logger that is detached from the ROOT logger and only has an appender that will output log messages to the terminal
+     */
+    static Logger getTerminalLogger(final Terminal terminal) {
+        final Logger logger = ESLoggerFactory.getLogger(ESNativeRealmMigrateTool.class);
+        Loggers.setLevel(logger, Level.ALL);
+
+        // create appender
+        final Appender appender = new AbstractAppender(ESNativeRealmMigrateTool.class.getName(), null,
+                PatternLayout.newBuilder().withPattern("%m").build()) {
+            @Override
+            public void append(LogEvent event) {
+                switch (event.getLevel().getStandardLevel()) {
+                    case FATAL:
+                    case ERROR:
+                        terminal.println(Verbosity.NORMAL, event.getMessage().getFormattedMessage());
+                        break;
+                    case OFF:
+                        break;
+                    default:
+                        terminal.println(Verbosity.VERBOSE, event.getMessage().getFormattedMessage());
+                        break;
+                }
+            }
+        };
+        appender.start();
+
+        // get the config, detach from parent, remove appenders, add custom appender
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        final LoggerConfig loggerConfig = config.getLoggerConfig(ESNativeRealmMigrateTool.class.getName());
+        loggerConfig.setParent(null);
+        loggerConfig.getAppenders().forEach((s, a) -> Loggers.removeAppender(logger, a));
+        Loggers.addAppender(logger, appender);
+        return logger;
     }
 }

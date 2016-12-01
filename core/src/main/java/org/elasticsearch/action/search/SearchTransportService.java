@@ -110,7 +110,7 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     private static void validateRemoteClustersSeeds(Settings settings) {
-        //TODO add a static whitelist like in reindex from remote
+        //TODO do we need a static whitelist like in reindex from remote?
         for (String clusterName : settings.names()) {
             String[] remoteHosts = settings.getAsArray(clusterName);
             if (remoteHosts.length == 0) {
@@ -191,8 +191,6 @@ public class SearchTransportService extends AbstractComponent {
         DiscoveryNode node = nodes.get(Randomness.get().nextInt(nodes.size()));
         //TODO we just take a random host for now, implement fallback in case of connect failure
         try {
-            //TODO we should call liveness api and get back an updated discovery node. that would have the updated version
-            // and would make the search shards call more future-proof. Also validating the cluster name may be a thing.
             return connectToRemoteNode(node);
         } catch(ConnectTransportException e) {
             throw new ConnectTransportException(node, "unable to connect to remote cluster [" + clusterName + "]", e);
@@ -202,11 +200,9 @@ public class SearchTransportService extends AbstractComponent {
     DiscoveryNode connectToRemoteNode(DiscoveryNode remoteNode) {
         DiscoveryNode discoveryNode = transportService.connectToNodeLightAndHandshake(remoteNode, 10000, false);
         transportService.disconnectFromNode(remoteNode); // disconnect the light connection
-        //TODO should the list of seeds get updated based on nodes that we get back from the remote cluster through search_shards?
         // now go and do a real connection with the updated version of the node
         transportService.connectToNode(discoveryNode);
         return discoveryNode;
-        //TODO is it ok to connect and leave the node connected? It will be pinged from now on?
     }
 
     void sendSearchShards(SearchRequest searchRequest, Map<String, List<String>> remoteIndicesByCluster,

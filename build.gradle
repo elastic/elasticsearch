@@ -9,8 +9,14 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 
-project.ext.awsAccessKey = AWS_ACCESS_KEY
+if (project.hasProperty("AWS_ACCESS_KEY")) {
+  project.ext.awsAccessKey = AWS_ACCESS_KEY
+}
+
+if (project.hasProperty("AWS_SECRET_KEY")) {
 project.ext.awsSecretKey = AWS_SECRET_KEY
+}
+
 
 boolean isWindows = OperatingSystem.current().isWindows()
 boolean isLinux = OperatingSystem.current().isLinux()

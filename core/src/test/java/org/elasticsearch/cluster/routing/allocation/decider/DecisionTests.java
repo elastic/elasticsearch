@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.NO;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.THROTTLE;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.YES;
@@ -49,5 +51,20 @@ public class DecisionTests extends ESTestCase {
         assertFalse(NO.higherThan(NO));
         assertFalse(NO.higherThan(THROTTLE));
         assertFalse(NO.higherThan(YES));
+    }
+
+    /**
+     * Tests the order of values in the {@link Type} enumeration, because we depend on the
+     * natural enum sort order for sorting {@link Type} instances.
+     */
+    public void testValuesOrder() {
+        assertEquals(0, Type.YES.ordinal());
+        assertEquals(1, Type.THROTTLE.ordinal());
+        assertEquals(2, Type.NO.ordinal());
+        Type[] types = Type.values();
+        Arrays.sort(types);
+        assertEquals(Type.YES, types[0]);
+        assertEquals(Type.THROTTLE, types[1]);
+        assertEquals(Type.NO, types[2]);
     }
 }

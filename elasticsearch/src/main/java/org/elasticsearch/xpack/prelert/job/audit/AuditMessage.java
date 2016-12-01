@@ -61,10 +61,10 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
         // Default constructor
     }
 
-    private AuditMessage(String jobId, String message, Level severity) {
+    private AuditMessage(String jobId, String message, Level level) {
         this.jobId = jobId;
         this.message = message;
-        level = severity;
+        this.level = level;
         timestamp = new Date();
     }
 

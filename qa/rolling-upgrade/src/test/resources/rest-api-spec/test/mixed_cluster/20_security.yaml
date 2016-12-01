@@ -1,0 +1,31 @@
+---
+"Verify user and role in mixed cluster":
+  - do:
+      headers:
+        Authorization: "Basic bmF0aXZlX3VzZXI6Y2hhbmdlbWU="
+      cluster.health:
+        wait_for_status: yellow
+        wait_for_nodes: 2
+        timeout: 25s
+  - match: { timed_out: false }
+
+  - do:
+      xpack.security.get_user:
+        username: "native_user"
+  - match: { native_user.username:  "native_user" }
+  - match: { native_user.roles.0:  "native_role" }
+
+  - do:
+      xpack.security.get_role:
+        name: "native_role"
+  - match: { native_role.cluster.0:  "all" }
+  - match: { native_role.indices.0.names.0: "test_index" }
+  - match: { native_role.indices.0.privileges.0:  "all" }
+
+  - do:
+      xpack.security.clear_cached_roles:
+        name: "native_role"
+
+  - do:
+      xpack.security.clear_cached_realms:
+        realms: "_all"

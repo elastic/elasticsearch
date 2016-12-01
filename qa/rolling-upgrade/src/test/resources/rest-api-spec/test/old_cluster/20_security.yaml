@@ -1,0 +1,59 @@
+---
+"Create user and role":
+  - do:
+     cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 2
+        timeout: 25s
+
+  - do:
+     xpack.security.put_user:
+       username: "native_user"
+       body:  >
+           {
+             "password" : "changeme",
+             "roles" : [ "native_role" ]
+           }
+  - match: { user: { created: true } }
+
+  - do:
+      xpack.security.put_role:
+        name: "native_role"
+        body:  >
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": "test_index",
+                  "privileges": ["all"]
+                }
+              ]
+            }
+  - match: { role: { created: true } }
+
+  # validate that the user and role work in the cluster by executing a health request and getting a valid response back
+  - do:
+      headers:
+        Authorization: "Basic bmF0aXZlX3VzZXI6Y2hhbmdlbWU="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  - do:
+      xpack.security.clear_cached_roles:
+        name: "native_role"
+
+  - do:
+      xpack.security.clear_cached_realms:
+        realms: "_all"
+
+  - do:
+      cluster.health:
+        index: ".monitoring-*" # include monitoring-data-* and monitoring-es-*
+        wait_for_active_shards: 4 # 1 primary and 1 replica each for the two monitoring indices
+        timeout: 25s
+
+  - do:
+      cluster.health:
+        index: ".security"
+        wait_for_active_shards: 2 # 1 primary and 1 replica since we have two nodes
+        timeout: 25s

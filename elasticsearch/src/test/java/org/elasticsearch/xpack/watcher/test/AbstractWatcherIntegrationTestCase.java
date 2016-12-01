@@ -574,12 +574,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         });
 
         // Verify that the index templates exist:
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(HISTORY_TEMPLATE_NAME).get();
-        assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
-        response = client().admin().indices().prepareGetTemplates(TRIGGERED_TEMPLATE_NAME).get();
-        assertThat("[" + TRIGGERED_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
-        response = client().admin().indices().prepareGetTemplates(WATCHES_TEMPLATE_NAME).get();
-        assertThat("[" + WATCHES_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
+        assertBusy(() -> {
+            GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(HISTORY_TEMPLATE_NAME).get();
+            assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
+            response = client().admin().indices().prepareGetTemplates(TRIGGERED_TEMPLATE_NAME).get();
+            assertThat("[" + TRIGGERED_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
+            response = client().admin().indices().prepareGetTemplates(WATCHES_TEMPLATE_NAME).get();
+            assertThat("[" + WATCHES_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
+        });
     }
 
     protected void ensureLicenseEnabled() throws Exception {

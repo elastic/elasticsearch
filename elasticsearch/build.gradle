@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elastic.gradle.DownloadS3Task
 
 apply plugin: 'elasticsearch.esplugin'
 
@@ -39,6 +40,15 @@ integTest {
 
 integTest.mustRunAfter noBootstrapTest
 
+task downloadCppDist(type: DownloadS3Task) {
+  enabled project.cppEnabled == false
+  description = 'download cpp zips from S3 Bucket'
+  bucket 'prelert-artifacts'
+  destDir file("${buildDir}/cppDist")
+  flatten true
+  download "maven/${project.group}/prelert_cpp_darwin-x86_64/${elasticsearchVersion}/prelert_cpp_darwin-x86_64.zip"
+}
+
 bundlePlugin {
   if (project.cppEnabled) {
     from { zipTree(project(':cpp').buildZip.outputs.files.singleFile) }
@@ -54,4 +64,4 @@ bundlePlugin {
   }
 }
 
-bundlePlugin.dependsOn(':cpp:buildZip')
+bundlePlugin.dependsOn([':cpp:buildZip', 'downloadCppDist'])

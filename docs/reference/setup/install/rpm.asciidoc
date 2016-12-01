@@ -112,6 +112,8 @@ sudo rpm --install elasticsearch-{version}.rpm
 
 endif::[]
 
+include::skip-set-kernel-parameters.asciidoc[]
+
 include::init-systemd.asciidoc[]
 
 [[rpm-running-init]]

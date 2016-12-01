@@ -118,7 +118,8 @@ public class HttpServer extends AbstractLifecycleComponent implements HttpServer
                 responseChannel.sendResponse(new BytesRestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+                logger.error((Supplier<?>) () ->
+                    new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
             }
         }
     }

@@ -69,18 +69,18 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -122,7 +122,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     private IndexSettings indexSettings;
 
     @Before
-    public void before() throws Exception {
+    public void setup() throws Exception {
         Index index = new Index("_index", "testUUID");
         scriptService = mock(ScriptService.class);
         indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
@@ -149,7 +149,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     @After
-    public void after() throws Exception {
+    public void tearDown() throws Exception {
         esIn.close();
     }
 

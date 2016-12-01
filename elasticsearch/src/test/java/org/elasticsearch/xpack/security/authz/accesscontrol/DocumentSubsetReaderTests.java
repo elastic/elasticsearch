@@ -44,7 +44,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
     private BitsetFilterCache bitsetFilterCache;
 
     @Before
-    public void before() {
+    public void setUpDirectory() {
         directory = newDirectory();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
@@ -61,7 +61,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
     }
 
     @After
-    public void after() throws Exception {
+    public void cleanDirectory() throws Exception {
         if (directoryReader != null) {
             directoryReader.close();
         }

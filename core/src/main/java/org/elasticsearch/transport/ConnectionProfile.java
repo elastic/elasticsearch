@@ -39,12 +39,12 @@ public final class ConnectionProfile {
      * types.
      */
     public static final ConnectionProfile LIGHT_PROFILE = new ConnectionProfile(
-        Collections.singletonList(new ConnectionTypeHandle(0, 1,
+        Collections.singletonList(new ConnectionTypeHandle(0, 1, EnumSet.of(
             TransportRequestOptions.Type.BULK,
             TransportRequestOptions.Type.PING,
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE)), 1, null);
+            TransportRequestOptions.Type.STATE))), 1, null);
 
     private final List<ConnectionTypeHandle> handles;
     private final int numConnections;
@@ -90,7 +90,7 @@ public final class ConnectionProfile {
                 }
             }
             addedTypes.addAll(Arrays.asList(types));
-            handles.add(new ConnectionTypeHandle(offset, numConnections, types));
+            handles.add(new ConnectionTypeHandle(offset, numConnections, EnumSet.copyOf(Arrays.asList(types))));
             offset += numConnections;
         }
 
@@ -124,6 +124,22 @@ public final class ConnectionProfile {
     }
 
     /**
+     * Returns the number of connections per type for this profile. This might return a count that is shared with other types such
+     * that the sum of all connections per type might be higher than {@link #getNumConnections()}. For instance if
+     * {@link org.elasticsearch.transport.TransportRequestOptions.Type#BULK} shares connections with
+     * {@link org.elasticsearch.transport.TransportRequestOptions.Type#REG} they will return both the same number of connections from
+     * this method but the connections are not distinct.
+     */
+    public int getNumConnectionsPerType(TransportRequestOptions.Type type) {
+        for (ConnectionTypeHandle handle : handles) {
+            if (handle.getTypes().contains(type)) {
+                return handle.length;
+            }
+        }
+        throw new AssertionError("no handle found for type: "  + type);
+    }
+
+    /**
      * Returns the type handles for this connection profile
      */
     List<ConnectionTypeHandle> getHandles() {
@@ -136,10 +152,10 @@ public final class ConnectionProfile {
     static final class ConnectionTypeHandle {
         public final int length;
         public final int offset;
-        private final TransportRequestOptions.Type[] types;
+        private final Set<TransportRequestOptions.Type> types;
         private final AtomicInteger counter = new AtomicInteger();
 
-        private ConnectionTypeHandle(int offset, int length, TransportRequestOptions.Type... types) {
+        private ConnectionTypeHandle(int offset, int length, Set<TransportRequestOptions.Type> types) {
             this.length = length;
             this.offset = offset;
             this.types = types;
@@ -150,6 +166,9 @@ public final class ConnectionProfile {
          * fashion.
          */
         <T> T getChannel(T[] channels) {
+            if (length == 0) {
+                throw new IllegalStateException("can't select channel size is 0");
+            }
             assert channels.length >= offset + length : "illegal size: " + channels.length + " expected >= " + (offset + length);
             return channels[offset + Math.floorMod(counter.incrementAndGet(), length)];
         }
@@ -157,7 +176,7 @@ public final class ConnectionProfile {
         /**
          * Returns all types for this handle
          */
-        TransportRequestOptions.Type[] getTypes() {
+        Set<TransportRequestOptions.Type> getTypes() {
             return types;
         }
     }

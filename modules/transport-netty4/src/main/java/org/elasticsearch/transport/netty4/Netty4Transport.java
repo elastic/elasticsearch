@@ -65,6 +65,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -270,8 +271,13 @@ public class Netty4Transport extends TcpTransport<Channel> {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
                     + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
                 name, workerCount, settings.get("port"), settings.get("bind_host"), settings.get("publish_host"), compress,
-                getDefaultConnectTimeout(), connectionsPerNodeRecovery, connectionsPerNodeBulk, connectionsPerNodeReg,
-                connectionsPerNodeState, connectionsPerNodePing, receivePredictorMin, receivePredictorMax);
+                defaultConnectionProfile.getConnectTimeout(),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.REG),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.PING),
+                receivePredictorMin, receivePredictorMax);
         }
 
         final ThreadFactory workerFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX, name);
@@ -347,7 +353,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(profile.getConnectTimeout().millis()));
                 connectTimeout = profile.getConnectTimeout();
             } else {
-                connectTimeout = getDefaultConnectTimeout();
+                connectTimeout = defaultConnectionProfile.getConnectTimeout();
                 bootstrap = this.bootstrap;
             }
             final ArrayList<ChannelFuture> connections = new ArrayList<>(numConnections);

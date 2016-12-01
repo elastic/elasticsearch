@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This script is used as a single command to run the x-plugins tests.
 #
 # It will attempt to check out 'elasticsearch' into a sibling directory
@@ -12,29 +12,45 @@
 #
 
 # Turn on semi-strict mode
-set -e pipefail
+set -e
+set -o pipefail
+
+# Allow the user choose different test through a single cli arg
+# default to `check` if no argument has been supplied
+key=${1-check}
+case $key in
+    packagingTest)
+        GRADLE_OPT_STRING="--info -Pvagrant.boxes=all :x-plugins:qa:vagrant:packagingTest"
+        ;;
+    check)
+        GRADLE_OPT_STRING="--info check -Dtests.network=true -Dtests.badapples=true"
+        ;;
+    *)
+        echo "Unsupported cli argument $1. Allowed arguments are packagingTest or check. No argument defaults to check."
+        exit 1;;
+esac
 
 SCRIPT="$0"
 
 # SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.
 while [ -h "$SCRIPT" ] ; do
-  ls=`ls -ld "$SCRIPT"`
+  ls=$(ls -ld "$SCRIPT")
   # Drop everything prior to ->
-  link=`expr "$ls" : '.*-> \(.*\)$'`
+  link=$(expr "$ls" : '.*-> \(.*\)$')
   if expr "$link" : '/.*' > /dev/null; then
     SCRIPT="$link"
   else
-    SCRIPT=`dirname "$SCRIPT"`/"$link"
+    SCRIPT=$(dirname "$SCRIPT")/"$link"
   fi
 done
 
 # determine base directory
-BASE_DIR=`dirname "$SCRIPT"`/..
+BASE_DIR=$(dirname "$SCRIPT")/..
 
 # make BASE_DIR absolute
-BASE_DIR=`cd "$BASE_DIR"; pwd`
+BASE_DIR=$(cd "$BASE_DIR"; pwd)
 
-PARENT_DIR=`cd "$BASE_DIR"/..; pwd`
+PARENT_DIR=$(cd "$BASE_DIR"/..; pwd)
 
 # go to the parent directory
 cd $PARENT_DIR
@@ -89,6 +105,6 @@ set -xuf
 gradle --stacktrace clean
 
 # Actually run the tests
-gradle --info check -Dtests.network=true -Dtests.badapples=true
+gradle $GRADLE_OPT_STRING
 
 # ~*~ shell-script-mode ~*~

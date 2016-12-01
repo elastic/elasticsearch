@@ -191,12 +191,12 @@ public class SearchTransportService extends AbstractComponent {
         DiscoveryNode remoteNode = nodes.get(Randomness.get().nextInt(nodes.size()));
         //TODO we just take a random host for now, implement fallback in case of connect failure
         try {
-            DiscoveryNode discoveryNode = transportService.connectToNodeLightAndHandshake(remoteNode, 10000, false);
+            //TODO at the moment the configured cluster names are really just labels. We should validate that all the nodes
+            //belong to the same cluster, also validate the cluster name against the configured label and make sure they match
+            DiscoveryNode discoveryNode = transportService.connectToNodeAndHandshake(remoteNode, 10000, false);
             transportService.disconnectFromNode(remoteNode); // disconnect the light connection
             // now go and do a real connection with the updated version of the node
             connectToRemoteNode(discoveryNode);
-            //TODO at the moment the configured cluster names are really just labels. We should validate that all the nodes
-            //belong to the same cluster, also validate the cluster name against the configured label and make sure they match
             return discoveryNode;
         } catch(ConnectTransportException e) {
             throw new ConnectTransportException(remoteNode, "unable to connect to remote cluster [" + clusterName + "]", e);

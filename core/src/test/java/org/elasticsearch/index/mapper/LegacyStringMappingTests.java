@@ -73,7 +73,7 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test",
                 // we need 2.x since string is deprecated in 5.0
                 Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build());

@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportSettings;
 import org.hamcrest.Matcher;
@@ -409,9 +408,7 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
-    @TestLogging("_root:DEBUG")
     public void testTwoNodeCluster() throws Exception {
-        final boolean autoManageMinMasterNodes = randomBoolean();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -430,7 +427,7 @@ public class InternalTestClusterTests extends ESTestCase {
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
-        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, autoManageMinMasterNodes, 2, 2,
+        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, true, 2, 2,
             "test", nodeConfigurationSource, 0, enableHttpPipelining, nodePrefix,
             Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class), Function.identity());
         try {

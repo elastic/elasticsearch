@@ -229,9 +229,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
+    @Before
+    public final void before()  {
+        logger.info("[{}]: before test", getTestName());
+    }
+
     @After
-    public final void ensureCleanedUp() throws Exception {
+    public final void after() throws Exception {
         checkStaticState();
+        ensureAllSearchContextsReleased();
+        ensureCheckIndexPassed();
+        logger.info("[{}]: after test", getTestName());
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -277,7 +285,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
-    @After
     public final void ensureAllSearchContextsReleased() throws Exception {
         assertBusy(() -> MockSearchService.assertNoInFlightContext());
     }
@@ -293,7 +300,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         checkIndexFailed = false;
     }
 
-    @After
     public final void ensureCheckIndexPassed() throws Exception {
         assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }

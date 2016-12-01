@@ -106,7 +106,7 @@ public class NodeExplanation implements Writeable, ToXContent {
             }
             builder.endObject(); // end store
             builder.field("final_decision", finalDecision.toString());
-            builder.field("final_explanation", finalExplanation.toString());
+            builder.field("final_explanation", finalExplanation);
             builder.field("weight", nodeWeight);
             nodeDecision.toXContent(builder, params);
         }

@@ -28,10 +28,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.nodeDecisionsToXContent;
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.nodeDecisionsToXContent;
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.sortNodeDecisions;
 
 /**
  * Represents a decision to move a started shard to form a more optimally balanced cluster.
@@ -50,18 +50,14 @@ public final class RebalanceDecision extends RelocationDecision {
                               Map<String, NodeRebalanceResult> nodeDecisions, boolean fetchPending) {
         super(finalDecision, assignedNode);
         this.canRebalanceDecision = canRebalanceDecision;
-        this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
+        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
         this.fetchPending = fetchPending;
     }
 
     public RebalanceDecision(StreamInput in) throws IOException {
         super(in);
         canRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
-        Map<String, NodeRebalanceResult> nodeDecisionsMap = null;
-        if (in.readBoolean()) {
-            nodeDecisionsMap = in.readMap(StreamInput::readString, NodeRebalanceResult::new);
-        }
-        nodeDecisions = nodeDecisionsMap == null ? null : Collections.unmodifiableMap(nodeDecisionsMap);
+        nodeDecisions = in.readBoolean() ? sortNodeDecisions(in.readMap(StreamInput::readString, NodeRebalanceResult::new)) : null;
         fetchPending = in.readBoolean();
     }
 

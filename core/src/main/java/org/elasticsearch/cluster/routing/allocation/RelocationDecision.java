@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.discoveryNodeToXContent;
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.discoveryNodeToXContent;
 
 /**
  * Represents a decision to relocate a started shard from its current node.

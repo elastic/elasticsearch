@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.discoveryNodeToXContent;
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.discoveryNodeToXContent;
 
 /**
  * This class represents the shard allocation decision and its explanation for a single node.

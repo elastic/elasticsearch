@@ -32,12 +32,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.discoveryNodeToXContent;
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.nodeDecisionsToXContent;
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.sortNodeDecisions;
 
 /**
  * Represents the allocation decision by an allocator for an unassigned shard.
@@ -98,7 +100,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         this.allocationStatus = allocationStatus;
         this.assignedNode = assignedNode;
         this.allocationId = allocationId;
-        this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
+        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
         this.reuseStore = reuseStore;
         this.remainingDelayInMillis = remainingDelayInMillis;
         this.totalDelayInMillis = totalDelayInMillis;
@@ -109,13 +111,7 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         allocationStatus = in.readOptionalWriteable(AllocationStatus::readFrom);
         assignedNode = in.readOptionalWriteable(DiscoveryNode::new);
         allocationId = in.readOptionalString();
-
-        Map<String, NodeAllocationResult> nodeDecisions = null;
-        if (in.readBoolean()) {
-            nodeDecisions = in.readMap(StreamInput::readString, NodeAllocationResult::new);
-        }
-        this.nodeDecisions = (nodeDecisions != null) ? Collections.unmodifiableMap(nodeDecisions) : null;
-
+        nodeDecisions = in.readBoolean() ? sortNodeDecisions(in.readMap(StreamInput::readString, NodeAllocationResult::new)) : null;
         reuseStore = in.readBoolean();
         remainingDelayInMillis = in.readVLong();
         totalDelayInMillis = in.readVLong();
@@ -362,54 +358,6 @@ public class AllocateUnassignedDecision implements ToXContent, Writeable {
         out.writeBoolean(reuseStore);
         out.writeVLong(remainingDelayInMillis);
         out.writeVLong(totalDelayInMillis);
-    }
-
-    /**
-     * A toXContent implementation that leaves off some of the non-critical fields, and assumes the outer object
-     * is created outside of this method call.
-     */
-    public static XContentBuilder discoveryNodeToXContent(XContentBuilder builder, Params params, DiscoveryNode node) throws IOException {
-        builder.field("id", node.getId());
-        builder.field("name", node.getName());
-        builder.field("transport_address", node.getAddress().toString());
-        builder.startObject("attributes");
-        for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    public static XContentBuilder nodeDecisionsToXContent(XContentBuilder builder, Params params,
-                                                          Map<String, ? extends NodeAllocationResult> nodeDecisions) throws IOException {
-        if (nodeDecisions != null) {
-            builder.startObject("node_decisions");
-            {
-                List<Map.Entry<String, ? extends NodeAllocationResult>> entries = new ArrayList<>(nodeDecisions.entrySet());
-                Collections.sort(entries, (e1, e2) -> {
-                    NodeAllocationResult explanation1 = e1.getValue();
-                    NodeAllocationResult explanation2 = e2.getValue();
-                    // first, sort by decisions, YES nodes coming first, then THROTTLE, then NO
-                    int sort = explanation1.getNodeDecisionType().compare(explanation2.getNodeDecisionType());
-                    if (sort != 0) {
-                        return sort;
-                    }
-                    // then, sort by weight ranking
-                    sort = explanation1.getWeightRanking() - explanation2.getWeightRanking();
-                    if (sort != 0) {
-                        return sort;
-                    }
-                    // lastly, sort by node id
-                    return explanation1.getNode().getId().compareTo(explanation2.getNode().getId());
-                });
-                for (Map.Entry<String, ? extends NodeAllocationResult> entry : entries) {
-                    NodeAllocationResult explanation = nodeDecisions.get(entry.getKey());
-                    explanation.toXContent(builder, params);
-                }
-            }
-            builder.endObject();
-        }
-        return builder;
     }
 
 }

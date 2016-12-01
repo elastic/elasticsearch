@@ -28,10 +28,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.nodeDecisionsToXContent;
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.nodeDecisionsToXContent;
+import static org.elasticsearch.cluster.routing.allocation.DecisionUtils.sortNodeDecisions;
 
 /**
  * Represents a decision to move a started shard because it is no longer allowed to remain on its current node.
@@ -52,17 +52,13 @@ public final class MoveDecision extends RelocationDecision {
                          DiscoveryNode assignedNode, Map<String, NodeAllocationResult> nodeDecisions) {
         super(finalDecision, assignedNode);
         this.canRemainDecision = canRemainDecision;
-        this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
+        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
     }
 
     public MoveDecision(StreamInput in) throws IOException {
         super(in);
         canRemainDecision = in.readOptionalWriteable(Decision::readFrom);
-        if (in.readBoolean()) {
-            nodeDecisions = Collections.unmodifiableMap(in.readMap(StreamInput::readString, NodeAllocationResult::new));
-        } else {
-            nodeDecisions = null;
-        }
+        nodeDecisions = in.readBoolean() ? sortNodeDecisions(in.readMap(StreamInput::readString, NodeAllocationResult::new)) : null;
     }
 
     @Override

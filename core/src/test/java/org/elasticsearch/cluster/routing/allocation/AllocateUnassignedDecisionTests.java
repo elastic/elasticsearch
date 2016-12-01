@@ -90,6 +90,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
             assertEquals("cannot allocate because allocation is not permitted to any of the nodes", noDecision.getExplanation());
         }
         assertEquals(nodeDecisions, noDecision.getNodeDecisions());
+        // node1 should be sorted first b/c of better weight ranking
+        assertEquals("node1", noDecision.getNodeDecisions().keySet().iterator().next());
         assertNull(noDecision.getAssignedNode());
         assertNull(noDecision.getAllocationId());
 
@@ -107,24 +109,28 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), startsWith("allocation temporarily throttled"));
         assertEquals(nodeDecisions, throttleDecision.getNodeDecisions());
+        // node2 should be sorted first b/c a THROTTLE is higher than a NO decision
+        assertEquals("node2", throttleDecision.getNodeDecisions().keySet().iterator().next());
         assertNull(throttleDecision.getAssignedNode());
         assertNull(throttleDecision.getAllocationId());
     }
 
     public void testYesDecision() {
         Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.YES, 1));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.NO, 2));
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 1));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.YES, 2));
         String allocId = randomBoolean() ? "allocId" : null;
         AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(
-            node1, allocId, nodeDecisions, randomBoolean());
+            node2, allocId, nodeDecisions, randomBoolean());
         assertTrue(yesDecision.isDecisionTaken());
         assertEquals(Decision.Type.YES, yesDecision.getDecision());
         assertNull(yesDecision.getAllocationStatus());
         assertEquals("can allocate the shard", yesDecision.getExplanation());
         assertEquals(nodeDecisions, yesDecision.getNodeDecisions());
-        assertEquals("node1", yesDecision.getAssignedNode().getId());
+        assertEquals("node2", yesDecision.getAssignedNode().getId());
         assertEquals(allocId, yesDecision.getAllocationId());
+        // node1 should be sorted first b/c YES decisions are the highest
+        assertEquals("node2", yesDecision.getNodeDecisions().keySet().iterator().next());
     }
 
     public void testCachedDecisions() {

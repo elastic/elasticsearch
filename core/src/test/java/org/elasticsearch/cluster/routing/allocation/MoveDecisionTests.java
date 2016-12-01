@@ -86,13 +86,15 @@ public class MoveDecisionTests extends ESTestCase {
         Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 2));
+        nodeDecisions.put("node1", new NodeAllocationResult(node1, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 2));
+        nodeDecisions.put("node2", new NodeAllocationResult(node2, randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
         MoveDecision decision = MoveDecision.decision(Decision.NO, Type.NO, null, nodeDecisions);
         assertNotNull(decision.getFinalDecisionType());
         assertNotNull(decision.getExplanation());
         assertNotNull(decision.getNodeDecisions());
         assertEquals(2, decision.getNodeDecisions().size());
+        // both nodes have the same decision type but node2 has a higher weight ranking, so node2 comes first
+        assertEquals("node2", decision.getNodeDecisions().keySet().iterator().next());
 
         decision = MoveDecision.decision(Decision.NO, Type.YES, node2, null);
         assertEquals("node2", decision.getAssignedNode().getId());

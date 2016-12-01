@@ -82,9 +82,9 @@ public abstract class Decision implements ToXContent, Writeable {
      * possible types of decisions
      */
     public enum Type implements Writeable {
-        NO(0),
         YES(1),
-        THROTTLE(2);
+        THROTTLE(2),
+        NO(0);
 
         private final int id;
 
@@ -116,25 +116,14 @@ public abstract class Decision implements ToXContent, Writeable {
         }
 
         public boolean higherThan(Type other) {
-            return compare(other) < 0;
-        }
-
-        /**
-         * Compares two instances of {@link Type}.  Returns -1 if this Type comes before the passed in Type, returns 0 if
-         * they are the same, and returns 1 if this type comes after the passed in Type.  The order of precedence is that
-         * YES is first in order, THROTTLE is next, and NO is last.
-         */
-        public int compare(Type other) {
-            switch (this) {
-                case NO:
-                    return other == NO ? 0 : 1;
-                case THROTTLE:
-                    return other == NO ? -1 : (other == THROTTLE ? 0 : 1);
-                case YES:
-                    return other == YES ? 0 : -1;
-                default:
-                    throw new IllegalArgumentException("Unhandled Type [" + this + "]");
+            if (this == NO) {
+                return false;
+            } else if (other == NO) {
+                return true;
+            } else if (other == THROTTLE && this == YES) {
+                return true;
             }
+            return false;
         }
 
     }

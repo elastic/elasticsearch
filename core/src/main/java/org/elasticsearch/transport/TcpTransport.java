@@ -150,7 +150,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
 
-    protected final TimeValue connectTimeout;
     protected final boolean blockingClient;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
@@ -190,9 +189,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
-
-
-        this.connectTimeout = TCP_CONNECT_TIMEOUT.get(settings);
         this.blockingClient = TCP_BLOCKING_CLIENT.get(settings);
         defaultConnectionProfile = buildDefaultConnectionProfile(settings);
     }
@@ -204,6 +200,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         int connectionsPerNodeState = CONNECTIONS_PER_NODE_STATE.get(settings);
         int connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.setConnectTimeout(TCP_CONNECT_TIMEOUT.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not master eligible we don't need a dedicated channel to publish the state

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -27,6 +28,11 @@ public class ConnectionProfileTests extends ESTestCase {
 
     public void testBuildConnectionProfile() {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        TimeValue connectTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        final boolean setConnectTimeout = randomBoolean();
+        if (setConnectTimeout) {
+            builder.setConnectTimeout(connectTimeout);
+        }
         builder.addConnections(1, TransportRequestOptions.Type.BULK);
         builder.addConnections(2, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(3, TransportRequestOptions.Type.PING);
@@ -39,6 +45,11 @@ public class ConnectionProfileTests extends ESTestCase {
         builder.addConnections(4, TransportRequestOptions.Type.REG);
         ConnectionProfile build = builder.build();
         assertEquals(10, build.getNumConnections());
+        if (setConnectTimeout) {
+            assertEquals(connectTimeout, build.getConnectTimeout());
+        } else {
+            assertNull(build.getConnectTimeout());
+        }
         Integer[] array = new Integer[10];
         for (int i = 0; i < array.length; i++) {
             array[i] = i;

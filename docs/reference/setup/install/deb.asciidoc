@@ -96,6 +96,7 @@ Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the dup
 
 endif::[]
 
+include::skip-set-kernel-parameters.asciidoc[]
 
 [[install-deb]]
 ==== Download and install the Debian package manually

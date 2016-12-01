@@ -150,6 +150,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     @After
     public void tearDown() throws Exception {
+        super.tearDown();
         esIn.close();
     }
 

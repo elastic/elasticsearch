@@ -62,7 +62,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     @After
-    public void shutDown() throws Exception {
+    public void shutdown() throws Exception {
         webServer.shutdown();
     }
 

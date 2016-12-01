@@ -19,16 +19,20 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 
@@ -64,6 +68,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         protected String nullValue = Defaults.NULL_VALUE;
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
+        private NamedAnalyzer normalizer;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -92,11 +97,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             return builder;
         }
 
+        public Builder normalizer(NamedAnalyzer normalizer) {
+            fieldType.setSearchAnalyzer(normalizer);
+            this.normalizer = normalizer;
+            return builder;
+        }
+
         @Override
         public KeywordFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new KeywordFieldMapper(
-                    name, fieldType, defaultFieldType, ignoreAbove, includeInAll,
+                    name, fieldType, defaultFieldType, ignoreAbove, includeInAll, normalizer,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -125,6 +136,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                 } else if (propName.equals("eager_global_ordinals")) {
                     builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode));
                     iterator.remove();
+                } else if (propName.equals("normalizer")) {
+                    if (propNode != null) {
+                        NamedAnalyzer normalizer = parserContext.getIndexAnalyzers().getNormalizer(propNode.toString());
+                        if (normalizer == null) {
+                            throw new MapperParsingException("normalizer [" + propNode.toString() + "] not found for field [" + name + "]");
+                        }
+                        builder.normalizer(normalizer);
+                    }
+                    iterator.remove();
                 }
             }
             return builder;
@@ -133,7 +153,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class KeywordFieldType extends StringFieldType {
 
-        public KeywordFieldType() {}
+        public KeywordFieldType() {
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+        }
 
         protected KeywordFieldType(KeywordFieldType ref) {
             super(ref);
@@ -171,17 +194,31 @@ public final class KeywordFieldMapper extends FieldMapper {
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
         }
+
+        @Override
+        protected BytesRef indexedValueForSearch(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof BytesRef) {
+                value = ((BytesRef) value).utf8ToString();
+            }
+            return searchAnalyzer().normalize(name(), value.toString());
+        }
     }
 
     private Boolean includeInAll;
     private int ignoreAbove;
+    NamedAnalyzer normalizer; // pkg-private for testing
 
     protected KeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int ignoreAbove, Boolean includeInAll, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                                int ignoreAbove, Boolean includeInAll, NamedAnalyzer normalizer,
+                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
         this.includeInAll = includeInAll;
+        this.normalizer = normalizer;
     }
 
     /** Values that have more chars than the return value of this method will
@@ -203,7 +240,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        final String value;
+        String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
         } else {
@@ -217,6 +254,26 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value == null || value.length() > ignoreAbove) {
             return;
+        }
+
+        if (normalizer != null) {
+            try (final TokenStream ts = normalizer.tokenStream(name(), value)) {
+                final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+                ts.reset();
+                if (ts.incrementToken() == false) {
+                  throw new IllegalStateException("The normalization token stream is "
+                      + "expected to produce exactly 1 token, but got 0 for analyzer "
+                      + normalizer + " and input \"" + value + "\"");
+                }
+                final String newValue = termAtt.toString();
+                if (ts.incrementToken()) {
+                  throw new IllegalStateException("The normalization token stream is "
+                      + "expected to produce exactly 1 token, but got 2+ for analyzer "
+                      + normalizer + " and input \"" + value + "\"");
+                }
+                ts.end();
+                value = newValue;
+            }
         }
 
         if (context.includeInAll(includeInAll, this)) {
@@ -244,6 +301,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         super.doMerge(mergeWith, updateAllTypes);
         this.includeInAll = ((KeywordFieldMapper) mergeWith).includeInAll;
         this.ignoreAbove = ((KeywordFieldMapper) mergeWith).ignoreAbove;
+        this.normalizer = ((KeywordFieldMapper) mergeWith).normalizer;
     }
 
     @Override
@@ -262,6 +320,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
+        }
+
+        if (normalizer != null) {
+            builder.field("normalizer", normalizer.name());
+        } else if (includeDefaults) {
+            builder.nullField("normalizer");
         }
     }
 }

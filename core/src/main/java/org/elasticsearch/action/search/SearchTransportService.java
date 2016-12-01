@@ -202,6 +202,8 @@ public class SearchTransportService extends AbstractComponent {
         transportService.disconnectFromNode(remoteNode); // disconnect the light connection
         // now go and do a real connection with the updated version of the node
         transportService.connectToNode(discoveryNode);
+        //TODO at the moment the configured cluster names are really just labels. We should validate that all the nodes
+        //belong to the same cluster, also validate the cluster name against the configured label and make sure they match
         return discoveryNode;
     }
 

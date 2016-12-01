@@ -13,12 +13,37 @@ boolean isWindows = OperatingSystem.current().isWindows()
 boolean isLinux = OperatingSystem.current().isLinux()
 boolean isMacOsX = OperatingSystem.current().isMacOsX()
 
+project.ext.bash = isWindows ? "C:\\Program Files\\Git\\bin\\bash" : "/bin/bash"
+
+// norelease: replace with something else when we become part of x-plugins
 project.ext.nasDirectory = isWindows ? "\\\\prelert-nas\\builds\\6.5.0\\" :
     (isMacOsX ? "/Volumes/builds/6.5.0/" : "/export/builds/6.5.0/")
 // norelease: replace with something else when we become part of x-plugins
 project.ext.nasExtension = '_' + (System.getenv()['GIT_COMMIT'] ?: 'xxxxxxxxxxxxxx').substring(0, 14) +
     (isWindows ? "_windows-x86_64.zip" : (isMacOsX ? "_darwin-x86_64.zip" :
     (isLinux ? "_linux-x86_64.zip" : "_sunos-x86_64.zip")))
+
+// C++ build can be explicitly enabled or disabled, or if neither is chosen
+// it will be enabled if the necessary 3rd party dependencies are present
+String cppEnabledStr = properties.get('xpack.cpp.build', 'auto')
+if (['true', 'false', 'auto'].contains(cppEnabledStr) == false) {
+  throw new GradleException("xpack.cpp.build must be true or false, got ${cppEnabledStr}")
+}
+project.ext.cppEnabled = cppEnabledStr == 'true'
+if (cppEnabledStr == 'auto') {
+    // Disable the C++ build if the 3rd party tools/libraries aren't available
+    String[] cmdArray = [ project.ext.bash, '-c', 'source cpp/set_env.sh && 3rd_party/3rd_party.sh --check' ]
+    Process checkProcess = Runtime.getRuntime().exec(cmdArray, null, rootDir)
+    StringBuffer checkOutput = new StringBuffer()
+    checkProcess.consumeProcessOutputStream(checkOutput)
+    if (checkProcess.waitFor() == 0) {
+        project.ext.cppEnabled = true
+    } else {
+        println 'C++ dependencies not available - disabling C++ build'
+        println checkOutput
+        project.ext.cppEnabled = false
+    }
+}
 
 configurations.all {
     // check for updates every build

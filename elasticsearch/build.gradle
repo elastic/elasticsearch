@@ -40,7 +40,18 @@ integTest {
 integTest.mustRunAfter noBootstrapTest
 
 bundlePlugin {
-  from { zipTree(project(':cpp').buildZip.outputs.files.singleFile) }
+  if (project.cppEnabled) {
+    from { zipTree(project(':cpp').buildZip.outputs.files.singleFile) }
+  } else {
+    from("${rootDir}/cppdistribution") {
+      into '.'
+      // Don't copy Windows import libraries
+      exclude "**/*.lib"
+      // Don't copy the test support library
+      exclude "**/libPreTest.*"
+      includeEmptyDirs = false
+    }
+  }
 }
 
 bundlePlugin.dependsOn(':cpp:buildZip')

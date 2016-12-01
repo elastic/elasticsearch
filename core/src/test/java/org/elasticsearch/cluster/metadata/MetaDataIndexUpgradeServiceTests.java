@@ -60,11 +60,11 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
         assertFalse(service.isUpgraded(src));
-        src = service.upgradeIndexMetaData(src);
+        src = service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion());
         assertTrue(service.isUpgraded(src));
         assertEquals("-200", src.getSettings().get("archived.index.refresh_interval"));
         assertNull(src.getSettings().get("index.refresh_interval"));
-        assertSame(src, service.upgradeIndexMetaData(src)); // no double upgrade
+        assertSame(src, service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion())); // no double upgrade
     }
 
     public void testIsUpgraded() {
@@ -87,16 +87,17 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("2.4.0"))
             .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE,
             Version.CURRENT.luceneVersion.toString()).build());
-        String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(metaData)).getMessage();
-        assertEquals(message, "The index [[foo/BOOM]] was created before v2.0.0.beta1. It should be reindexed in Elasticsearch 2.x " +
-            "before upgrading to " + Version.CURRENT.toString() + ".");
+        String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(metaData,
+            Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
+        assertEquals(message, "The index [[foo/BOOM]] was created with version [2.4.0] but the minimum compatible version is [5.0.0]." +
+            " It should be re-indexed in Elasticsearch 5.x before upgrading to " + Version.CURRENT.toString() + ".");
 
         IndexMetaData goodMeta = newIndexMeta("foo", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("5.1.0"))
             .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE,
                 Version.CURRENT.luceneVersion.toString()).build());
-        service.upgradeIndexMetaData(goodMeta);
+        service.upgradeIndexMetaData(goodMeta, Version.V_5_0_0.minimumIndexCompatibilityVersion());
     }
 
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {

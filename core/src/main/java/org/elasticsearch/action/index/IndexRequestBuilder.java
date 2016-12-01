@@ -149,40 +149,12 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Constructs a simple document with a field and a value.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1) {
-        request.source(field1, value1);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2) {
-        request.source(field1, value1, field2, value2);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
-        request.source(field1, value1, field2, value2, field3, value3);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
-        request.source(field1, value1, field2, value2, field3, value3, field4, value4);
-        return this;
-    }
-
-    /**
      * Constructs a simple document with a field name and value pairs.
-     * <b>Note: the number of objects passed to this method must be an even number.</b>
+     * <p>
+     * <b>Note: the number of objects passed to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
      */
     public IndexRequestBuilder setSource(Object... source) {
         request.source(source);

@@ -27,8 +27,10 @@ import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +42,7 @@ import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
@@ -60,7 +63,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
                     "long", "type=long",
                     "integer", "type=integer",
                     "short", "type=short",
-                    "byte", "type=byte"));
+                    "byte", "type=byte",
+                    "location", "type=geo_point"));
         ensureGreen("test");
 
         // index=false
@@ -74,7 +78,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             "long", "type=long,index=false",
             "integer", "type=integer,index=false",
             "short", "type=short,index=false",
-            "byte", "type=byte,index=false"
+            "byte", "type=byte,index=false",
+            "location", "type=geo_point,index=false"
         ));
         ensureGreen("test1");
 
@@ -89,7 +94,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             "long", "type=long,index=false",
             "integer", "type=integer,index=false",
             "short", "type=short,index=false",
-            "byte", "type=byte,index=false"
+            "byte", "type=byte,index=false",
+            "location", "type=geo_point,index=false"
         ));
         ensureGreen("test3");
 
@@ -107,6 +113,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         double maxFloat = Double.NEGATIVE_INFINITY;
         double minDouble = Double.POSITIVE_INFINITY;
         double maxDouble = Double.NEGATIVE_INFINITY;
+        GeoPoint minLoc = new GeoPoint(90, 180);
+        GeoPoint maxLoc = new GeoPoint(-90, -180);
         String minString = new String(Character.toChars(1114111));
         String maxString = "0";
 
@@ -135,6 +143,9 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             double d = randomDouble();
             minDouble = Math.min(minDouble, d);
             maxDouble = Math.max(maxDouble, d);
+            GeoPoint loc = RandomGeoGenerator.randomPoint(random());
+            minLoc.reset(Math.min(loc.lat(), minLoc.lat()), Math.min(loc.lon(), minLoc.lon()));
+            maxLoc.reset(Math.max(loc.lat(), maxLoc.lat()), Math.max(loc.lon(), maxLoc.lon()));
             String str = randomRealisticUnicodeOfLength(3);
             if (str.compareTo(minString) < 0) {
                 minString = str;
@@ -151,6 +162,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
                                 "half_float", hf,
                                 "float", f,
                                 "double", d,
+                                "location", loc,
                                 "string", str)
             );
         }
@@ -158,7 +170,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
 
         FieldStatsResponse response = client()
             .prepareFieldStats()
-            .setFields("byte", "short", "integer", "long", "half_float", "float", "double", "string").get();
+            .setFields("byte", "short", "integer", "long", "half_float", "float", "double", "location", "string").get();
         assertAllSuccessful(response);
 
         for (FieldStats<?> stats : response.getAllFieldStats().values()) {
@@ -188,6 +200,11 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getAllFieldStats().get("double").getMinValue(), equalTo(minDouble));
         assertThat(response.getAllFieldStats().get("double").getMaxValue(), equalTo(maxDouble));
         assertThat(response.getAllFieldStats().get("double").getDisplayType(), equalTo("float"));
+        assertThat(((GeoPoint)response.getAllFieldStats().get("location").getMinValue()).lat(), closeTo(minLoc.lat(), 1E-5));
+        assertThat(((GeoPoint)response.getAllFieldStats().get("location").getMinValue()).lon(), closeTo(minLoc.lon(), 1E-5));
+        assertThat(((GeoPoint)response.getAllFieldStats().get("location").getMaxValue()).lat(), closeTo(maxLoc.lat(), 1E-5));
+        assertThat(((GeoPoint)response.getAllFieldStats().get("location").getMaxValue()).lon(), closeTo(maxLoc.lon(), 1E-5));
+        assertThat(response.getAllFieldStats().get("location").getDisplayType(), equalTo("geo_point"));
     }
 
     public void testFieldStatsIndexLevel() throws Exception {
@@ -520,6 +537,25 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         fieldStats = client().prepareFieldStats().setFields("value").get();
         assertEquals(200, fieldStats.getAllFieldStats().get("value").getDocCount());
         assertEquals(oldHitCount, indexStats.getHitCount());
+    }
+
+    public void testGeoPointNotIndexed() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("test", "value", "type=long", "location", "type=geo_point,index=no"));
+        ensureGreen("test");
+        client().prepareIndex("test", "test").setSource("value", 1L, "location", new GeoPoint(32, -132)).get();
+        client().prepareIndex("test", "test").setSource("value", 2L).get();
+        client().prepareIndex("test", "test").setSource("value", 3L).get();
+        client().prepareIndex("test", "test").setSource("value", 4L).get();
+        refresh();
+
+        FieldStatsResponse response = client().prepareFieldStats().setFields("value", "location").get();
+        assertAllSuccessful(response);
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getAllFieldStats().get("location").getMinValue(), equalTo(null));
+        assertThat(response.getAllFieldStats().get("location").getMaxValue(), equalTo(null));
+        assertThat(response.getAllFieldStats().get("location").isAggregatable(), equalTo(true));
+        assertThat(response.getAllFieldStats().get("location").isSearchable(), equalTo(false));
+
     }
 
     private void indexRange(String index, long from, long to) throws Exception {

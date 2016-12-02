@@ -35,16 +35,19 @@ import java.util.Map;
  */
 public final class RebalanceDecision extends AbstractAllocationDecision {
     /** a constant representing no decision taken */
-    public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, 0, null, false);
+    public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, null, 0, null, false);
 
+    @Nullable
+    private final DiscoveryNode currentNode;
     @Nullable
     private final Decision canRebalanceDecision;
     private final boolean fetchPending;
     private final int currentNodeRanking;
 
-    private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
+    private RebalanceDecision(DiscoveryNode currentNode, Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
                               int currentNodeRanking, Map<String, NodeAllocationResult> nodeDecisions, boolean fetchPending) {
         super(finalDecision, assignedNode, nodeDecisions);
+        this.currentNode = currentNode;
         this.canRebalanceDecision = canRebalanceDecision;
         this.currentNodeRanking = currentNodeRanking;
         this.fetchPending = fetchPending;
@@ -52,6 +55,7 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
 
     public RebalanceDecision(StreamInput in) throws IOException {
         super(in);
+        currentNode = in.readOptionalWriteable(DiscoveryNode::new);
         canRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
         currentNodeRanking = in.readVInt();
         fetchPending = in.readBoolean();
@@ -60,6 +64,7 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeOptionalWriteable(currentNode);
         out.writeOptionalWriteable(canRebalanceDecision);
         out.writeVInt(currentNodeRanking);
         out.writeBoolean(fetchPending);
@@ -68,17 +73,27 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
     /**
      * Creates a new NO {@link RebalanceDecision}.
      */
-    public static RebalanceDecision no(Decision canRebalanceDecision, int currentNodeRanking,
+    public static RebalanceDecision no(DiscoveryNode currentNode, Decision canRebalanceDecision, int currentNodeRanking,
                                        Map<String, NodeAllocationResult> nodeDecisions, boolean fetchPending) {
-        return new RebalanceDecision(canRebalanceDecision, Type.NO, null, currentNodeRanking, nodeDecisions, fetchPending);
+        return new RebalanceDecision(currentNode, canRebalanceDecision, Type.NO, null, currentNodeRanking, nodeDecisions, fetchPending);
     }
 
     /**
      * Creates a new {@link RebalanceDecision}.
      */
-    public static RebalanceDecision decision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
-                                             int currentNodeRanking, Map<String, NodeAllocationResult> nodeDecisions) {
-        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNode, currentNodeRanking, nodeDecisions, false);
+    public static RebalanceDecision decision(DiscoveryNode currentNode, Decision canRebalanceDecision, Type finalDecision,
+                                             DiscoveryNode assignedNode, int currentNodeRanking,
+                                             Map<String, NodeAllocationResult> nodeDecisions) {
+        return new RebalanceDecision(currentNode, canRebalanceDecision, finalDecision, assignedNode, currentNodeRanking,
+                                        nodeDecisions, false);
+    }
+
+    /**
+     * Gets the current node to which the shard is assigned.
+     */
+    @Nullable
+    public DiscoveryNode getCurrentNode() {
+        return currentNode;
     }
 
     /**
@@ -122,13 +137,32 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
     }
 
     @Override
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("current_node_ranking", currentNodeRanking);
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (isDecisionTaken() == false) {
+            // no decision taken, so nothing meaningful to output
+            return builder;
+        }
+        assert currentNode != null : "current node should only be null if the decision was not taken";
+        builder.startObject("current_node");
+        {
+            discoveryNodeToXContent(currentNode, builder, params);
+            builder.field("weight_ranking", currentNodeRanking);
+        }
+        builder.endObject();
+        builder.field("decision", getDecisionType().toString());
+        builder.field("explanation", getExplanation());
+        if (getAssignedNode() != null) {
+            builder.startObject("assigned_node");
+            discoveryNodeToXContent(getAssignedNode(), builder, params);
+            builder.endObject();
+        }
         builder.startObject("can_rebalance_decision");
         {
             builder.field("decision", canRebalanceDecision.type().toString());
             canRebalanceDecision.toXContent(builder, params);
         }
         builder.endObject();
+        nodeDecisionsToXContent(getNodeDecisions(), builder, params);
+        return builder;
     }
 }

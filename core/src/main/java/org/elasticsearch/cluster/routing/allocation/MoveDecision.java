@@ -35,38 +35,43 @@ import java.util.Map;
  */
 public final class MoveDecision extends AbstractAllocationDecision {
     /** a constant representing no decision taken */
-    public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, null, null);
+    public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, null, null, null);
     /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
-    private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(Decision.YES, Type.NO, null, null);
-    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(Decision.NO, Type.NO, null, null);
+    private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(null, Decision.YES, Type.NO, null, null);
+    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(null, Decision.NO, Type.NO, null, null);
 
+    @Nullable
+    private final DiscoveryNode currentNode;
     @Nullable
     private final Decision canRemainDecision;
 
-    private MoveDecision(Decision canRemainDecision, Type finalDecision,
+    private MoveDecision(DiscoveryNode currentNode, Decision canRemainDecision, Type finalDecision,
                          DiscoveryNode assignedNode, Map<String, NodeAllocationResult> nodeDecisions) {
         super(finalDecision, assignedNode, nodeDecisions);
+        this.currentNode = currentNode;
         this.canRemainDecision = canRemainDecision;
     }
 
     public MoveDecision(StreamInput in) throws IOException {
         super(in);
+        currentNode = in.readOptionalWriteable(DiscoveryNode::new);
         canRemainDecision = in.readOptionalWriteable(Decision::readFrom);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeOptionalWriteable(currentNode);
         out.writeOptionalWriteable(canRemainDecision);
     }
 
     /**
      * Creates a move decision for the shard being able to remain on its current node, so not moving.
      */
-    public static MoveDecision stay(Decision canRemainDecision) {
+    public static MoveDecision stay(DiscoveryNode currentNode, Decision canRemainDecision) {
         if (canRemainDecision != null) {
             assert canRemainDecision.type() != Type.NO;
-            return new MoveDecision(canRemainDecision, Type.NO, null, null);
+            return new MoveDecision(currentNode, canRemainDecision, Type.NO, null, null);
         } else {
             return CACHED_STAY_DECISION;
         }
@@ -75,14 +80,15 @@ public final class MoveDecision extends AbstractAllocationDecision {
     /**
      * Creates a move decision for the shard not being able to remain on its current node.
      *
+     * @param currentNode the current node on which the shard resides
      * @param canRemainDecision the decision for whether the shard is allowed to remain on its current node
      * @param finalDecision the decision of whether to move the shard to another node
      * @param assignedNode the node for where the shard can move to
      * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
      * @return the {@link MoveDecision} for moving the shard to another node
      */
-    public static MoveDecision decision(Decision canRemainDecision, Type finalDecision, DiscoveryNode assignedNode,
-                                        Map<String, NodeAllocationResult> nodeDecisions) {
+    public static MoveDecision decision(DiscoveryNode currentNode, Decision canRemainDecision, Type finalDecision,
+                                        DiscoveryNode assignedNode, Map<String, NodeAllocationResult> nodeDecisions) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
         if (nodeDecisions == null && finalDecision == Type.NO) {
@@ -90,8 +96,16 @@ public final class MoveDecision extends AbstractAllocationDecision {
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
             assert ((assignedNode == null) == (finalDecision != Type.YES));
-            return new MoveDecision(canRemainDecision, finalDecision, assignedNode, nodeDecisions);
+            return new MoveDecision(currentNode, canRemainDecision, finalDecision, assignedNode, nodeDecisions);
         }
+    }
+
+    /**
+     * Gets the current node to which the shard is assigned.
+     */
+    @Nullable
+    public DiscoveryNode getCurrentNode() {
+        return currentNode;
     }
 
     /**
@@ -128,13 +142,32 @@ public final class MoveDecision extends AbstractAllocationDecision {
     }
 
     @Override
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (isDecisionTaken() == false) {
+            // no decision taken, so nothing meaningful to output
+            return builder;
+        }
+        assert currentNode != null : "current node should only be null if the decision was not taken";
+        builder.startObject("current_node");
+        {
+            discoveryNodeToXContent(currentNode, builder, params);
+        }
+        builder.endObject();
+        builder.field("decision", getDecisionType().toString());
+        builder.field("explanation", getExplanation());
+        if (getAssignedNode() != null) {
+            builder.startObject("assigned_node");
+            discoveryNodeToXContent(getAssignedNode(), builder, params);
+            builder.endObject();
+        }
         builder.startObject("can_remain_decision");
         {
             builder.field("decision", canRemainDecision.type().toString());
             canRemainDecision.toXContent(builder, params);
         }
         builder.endObject();
+        nodeDecisionsToXContent(getNodeDecisions(), builder, params);
+        return builder;
     }
 
 }

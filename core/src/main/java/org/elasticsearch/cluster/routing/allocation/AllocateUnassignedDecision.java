@@ -252,7 +252,18 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     }
 
     @Override
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (isDecisionTaken() == false) {
+            // no decision taken, so nothing meaningful to output
+            return builder;
+        }
+        builder.field("decision", getDecisionType().toString());
+        builder.field("explanation", getExplanation());
+        if (getAssignedNode() != null) {
+            builder.startObject("assigned_node");
+            discoveryNodeToXContent(getAssignedNode(), builder, params);
+            builder.endObject();
+        }
         if (allocationStatus != null) {
             builder.field("allocation_status", allocationStatus.value());
         }
@@ -263,6 +274,8 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayInMillis));
             builder.timeValueField("total_delay_in_millis", "total_delay", TimeValue.timeValueMillis(totalDelayInMillis));
         }
+        nodeDecisionsToXContent(getNodeDecisions(), builder, params);
+        return builder;
     }
 
     @Override

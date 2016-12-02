@@ -7,7 +7,10 @@
 
 ==== Stored scripts
 
-Use the parameter 'stored' in place of 'id' when using stored scripts in a query.
+Using `id` to refer to a stored script has been deprecated. Use `stored` instead.
+
+"script": { "lang": "painless", "stored": "my-stored-script-id" }
+
 See <<modules-scripting-stored-scripts,stored scripts>> for examples.
 
 [[breaking_51_index_api_changes]]

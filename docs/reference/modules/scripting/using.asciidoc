@@ -54,10 +54,10 @@ GET my_index/_search
     setting `script.default_lang` to the appropriate language.
 
 
-`inline`, `id`, `file`::
+`inline`, `stored`, `file`::
 
     Specifies the source of the script.  An `inline` script is specified
-    `inline` as in the example above, a stored script with the specified `id`
+    `inline` as in the example above, a stored script with the specified `stored`
     is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>),
     and a `file` script is retrieved from a file in the `config/scripts`
     directory (see <<modules-scripting-file-scripts, File Scripts>>).

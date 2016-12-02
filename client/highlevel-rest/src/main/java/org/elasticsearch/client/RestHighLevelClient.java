@@ -19,39 +19,31 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RestHighLevelClient implements Closeable {
+/**
+ * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
+ * The provided {@link RestClient} is externally built and closed.
+ */
+public final class RestHighLevelClient {
 
-    private RestClient restClient;
+    private final RestClient client;
 
-    public RestHighLevelClient(String host, int port) {
-        this.restClient = RestClient.builder(new HttpHost(host, port)).build();
-    }
-
-    public RestHighLevelClient(RestClient restClient) {
-        this.restClient = Objects.requireNonNull(restClient);
-    }
-
-    @Override
-    public void close() throws IOException {
-        this.restClient.close();
-        this.restClient = null;
+    public RestHighLevelClient(RestClient client) {
+        this.client = Objects.requireNonNull(client);
     }
 
     public SearchResponse performSearchRequest(SearchRequest request) throws IOException {
         StringEntity entity = new StringEntity(request.searchSource().toString());
-        return new SearchResponse(this.restClient.performRequest("GET", buildSearchEndpoint(request), request.urlParams, entity));
+        return new SearchResponse(this.client.performRequest("GET", buildSearchEndpoint(request), request.urlParams, entity));
     }
 
     public void performSearchRequestAsync(SearchRequest request, ResponseListener responseListener) throws IOException {
         StringEntity entity = new StringEntity(request.searchSource().toString());
-        this.restClient.performRequestAsync("GET", buildSearchEndpoint(request), request.urlParams, entity, responseListener);
+        this.client.performRequestAsync("GET", buildSearchEndpoint(request), request.urlParams, entity, responseListener);
     }
 
     private static String buildSearchEndpoint(SearchRequest request) {

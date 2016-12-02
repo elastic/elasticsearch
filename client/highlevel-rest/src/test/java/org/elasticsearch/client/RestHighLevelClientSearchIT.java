@@ -30,7 +30,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,11 +42,11 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class RestHighLevelClientSearchIT extends ESRestTestCase {
 
-    private RestHighLevelClient aClient;
+    private RestHighLevelClient highLevelClient;
 
     @Before
     public void init() {
-        this.aClient =  new RestHighLevelClient(client());
+        this.highLevelClient = new RestHighLevelClient(client());
     }
 
     private static void createTestDoc() throws IOException {
@@ -87,7 +86,7 @@ public class RestHighLevelClientSearchIT extends ESRestTestCase {
 
     public void testSearch() throws IOException {
         createTestDoc();
-        SearchResponse searchResponse = aClient.performSearchRequest(new SearchRequest(
+        SearchResponse searchResponse = highLevelClient.performSearchRequest(new SearchRequest(
                 new SearchSourceBuilder()
                 .query(new MatchQueryBuilder("content", "buzz").queryName("buzz_query"))
                 .version(true)
@@ -129,10 +128,5 @@ public class RestHighLevelClientSearchIT extends ESRestTestCase {
         //only string based formats are supported, no cbor nor smile
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
         return XContentBuilder.builder(XContentFactory.xContent(xContentType));
-    }
-
-    @After
-    public void shutDown() throws IOException {
-        this.aClient.close();
     }
 }

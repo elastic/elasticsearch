@@ -345,7 +345,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
         final NodeChannels nodeChannels = new NodeChannels(channels, profile);
         boolean success = false;
         try {
-            final int numConnections = channels.length;
             final TimeValue connectTimeout;
             final Bootstrap bootstrap;
             final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
@@ -357,9 +356,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 connectTimeout = defaultConnectTimeout;
                 bootstrap = this.bootstrap;
             }
-            final ArrayList<ChannelFuture> connections = new ArrayList<>(numConnections);
+            final ArrayList<ChannelFuture> connections = new ArrayList<>(channels.length);
             final InetSocketAddress address = node.getAddress().address();
-            for (int i = 0; i < numConnections; i++) {
+            for (int i = 0; i < channels.length; i++) {
                 connections.add(bootstrap.connect(address));
             }
             final Iterator<ChannelFuture> iterator = connections.iterator();
@@ -374,6 +373,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                     channels[i] = future.channel();
                     channels[i].closeFuture().addListener(new ChannelCloseListener(node));
                 }
+                assert iterator.hasNext() == false : "not all created connection have been consumed";
             } catch (final RuntimeException e) {
                 for (final ChannelFuture future : Collections.unmodifiableList(connections)) {
                     FutureUtils.cancel(future);

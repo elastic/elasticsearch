@@ -21,8 +21,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -119,6 +124,26 @@ public class LatLonPointFieldMapper extends BaseGeoPointFieldMapper {
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
                 + name() + "]");
+        }
+
+        @Override
+        public FieldStats.GeoPoint stats(IndexReader reader) throws IOException {
+            String field = name();
+            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+            if (fi == null) {
+                return null;
+            }
+            final long size = PointValues.size(reader, field);
+            if (size == 0) {
+                return new FieldStats.GeoPoint(reader.maxDoc(), -1L, -1L, -1L, isSearchable(), isAggregatable());
+            }
+            final int docCount = PointValues.getDocCount(reader, field);
+            byte[] min = PointValues.getMinPackedValue(reader, field);
+            byte[] max = PointValues.getMaxPackedValue(reader, field);
+            GeoPoint minPt = new GeoPoint(GeoEncodingUtils.decodeLatitude(min, 0), GeoEncodingUtils.decodeLongitude(min, Integer.BYTES));
+            GeoPoint maxPt = new GeoPoint(GeoEncodingUtils.decodeLatitude(max, 0), GeoEncodingUtils.decodeLongitude(max, Integer.BYTES));
+            return new FieldStats.GeoPoint(reader.maxDoc(), docCount, -1L, size, isSearchable(), isAggregatable(),
+                minPt, maxPt);
         }
     }
 

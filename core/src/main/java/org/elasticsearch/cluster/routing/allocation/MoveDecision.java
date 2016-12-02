@@ -153,11 +153,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
             discoveryNodeToXContent(currentNode, builder, params);
         }
         builder.endObject();
-        builder.field("decision", getDecisionType().toString());
+        builder.field("decision", decision.toString());
         builder.field("explanation", getExplanation());
-        if (getAssignedNode() != null) {
+        if (assignedNode != null) {
             builder.startObject("assigned_node");
-            discoveryNodeToXContent(getAssignedNode(), builder, params);
+            discoveryNodeToXContent(assignedNode, builder, params);
             builder.endObject();
         }
         builder.startObject("can_remain_decision");
@@ -166,7 +166,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             canRemainDecision.toXContent(builder, params);
         }
         builder.endObject();
-        nodeDecisionsToXContent(getNodeDecisions(), builder, params);
+        nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;
     }
 

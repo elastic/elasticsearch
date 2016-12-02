@@ -257,11 +257,11 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             // no decision taken, so nothing meaningful to output
             return builder;
         }
-        builder.field("decision", getDecisionType().toString());
+        builder.field("decision", decision.toString());
         builder.field("explanation", getExplanation());
-        if (getAssignedNode() != null) {
+        if (assignedNode != null) {
             builder.startObject("assigned_node");
-            discoveryNodeToXContent(getAssignedNode(), builder, params);
+            discoveryNodeToXContent(assignedNode, builder, params);
             builder.endObject();
         }
         if (allocationStatus != null) {
@@ -274,7 +274,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayInMillis));
             builder.timeValueField("total_delay_in_millis", "total_delay", TimeValue.timeValueMillis(totalDelayInMillis));
         }
-        nodeDecisionsToXContent(getNodeDecisions(), builder, params);
+        nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;
     }
 

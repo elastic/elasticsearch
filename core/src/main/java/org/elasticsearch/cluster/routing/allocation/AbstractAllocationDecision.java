@@ -43,11 +43,11 @@ import java.util.stream.Collectors;
 public abstract class AbstractAllocationDecision implements ToXContent, Writeable {
 
     @Nullable
-    private final Type decision;
+    protected final Type decision;
     @Nullable
-    private final DiscoveryNode assignedNode;
+    protected final DiscoveryNode assignedNode;
     @Nullable
-    private final Map<String, NodeAllocationResult> nodeDecisions;
+    protected final Map<String, NodeAllocationResult> nodeDecisions;
 
     public AbstractAllocationDecision(@Nullable Type decision, @Nullable DiscoveryNode assignedNode,
                                       @Nullable Map<String, NodeAllocationResult> nodeDecisions) {

@@ -17,3 +17,11 @@
         type: not_test_type
  
   - match: { '': {}}
+
+---
+"Type missing when no types exist":
+  - do:
+      catch: missing
+      indices.get_mapping:
+        type: not_test_type
+ 

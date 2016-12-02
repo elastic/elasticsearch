@@ -54,19 +54,29 @@ public final class InetSocketTransportAddress implements TransportAddress {
      * Read from a stream.
      */
     public InetSocketTransportAddress(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    /**
+     * Read from a stream and use the {@code hostString} when creating the InetAddress if the input comes from a version prior
+     * {@link Version#V_5_0_3} as the hostString was not serialized
+     */
+    public InetSocketTransportAddress(StreamInput in, String hostString) throws IOException {
         final int len = in.readByte();
         final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
         in.readFully(a);
         final InetAddress inetAddress;
         if (in.getVersion().onOrAfter(Version.V_5_0_3)) {
             String host = in.readString();
-            inetAddress = InetAddress.getByAddress(host, a);
+            inetAddress = InetAddress.getByAddress(host, a); // the host string was serialized so we can ignore the passed in value
         } else {
-            inetAddress = InetAddress.getByAddress(a);
+            // prior to this version, we did not serialize the host string so we used the passed in value
+            inetAddress = InetAddress.getByAddress(hostString, a);
         }
         int port = in.readInt();
         this.address = new InetSocketAddress(inetAddress, port);
     }
+
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

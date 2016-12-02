@@ -174,11 +174,7 @@ public class InternalEngine extends Engine {
                     default:
                         throw new IllegalArgumentException(openMode.toString());
                 }
-                logger.trace(
-                    "recovered max sequence number: [{}], local checkpoint: [{}], global checkpoint: [{}]",
-                    seqNoStats.getMaxSeqNo(),
-                    seqNoStats.getLocalCheckpoint(),
-                    seqNoStats.getGlobalCheckpoint());
+                logger.trace("recovered [{}]", seqNoStats);
                 indexWriter = writer;
                 seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
                 translog = openTranslog(engineConfig, writer, seqNoService::getGlobalCheckpoint);

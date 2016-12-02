@@ -121,11 +121,11 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
         builder.field("explanation", getExplanation());
         if (assignedNode != null) {
             builder.startObject("assigned_node");
-            discoveryNodeToXContent(builder, params, assignedNode);
+            discoveryNodeToXContent(assignedNode, builder, params);
             builder.endObject();
         }
         innerToXContent(builder, params);
-        nodeDecisionsToXContent(builder, params, nodeDecisions);
+        nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;
     }
 
@@ -159,7 +159,7 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
      * Generates X-Content for a {@link DiscoveryNode} that leaves off some of the non-critical fields,
      * and assumes the outer object is created outside of this method call.
      */
-    public static XContentBuilder discoveryNodeToXContent(XContentBuilder builder, ToXContent.Params params, DiscoveryNode node)
+    public static XContentBuilder discoveryNodeToXContent(DiscoveryNode node, XContentBuilder builder, Params params)
         throws IOException {
 
         builder.field("id", node.getId());
@@ -191,8 +191,9 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
      * Generates X-Content for the node-level decisions, creating the outer "node_decisions" object
      * in which they are serialized.
      */
-    public XContentBuilder nodeDecisionsToXContent(XContentBuilder builder, ToXContent.Params params,
-                                                   Map<String, NodeAllocationResult> nodeDecisions) throws IOException {
+    public XContentBuilder nodeDecisionsToXContent(Map<String, NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
+        throws IOException {
+
         if (nodeDecisions != null) {
             builder.startObject("node_decisions");
             {

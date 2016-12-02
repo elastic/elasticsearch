@@ -147,7 +147,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         {
             builder.startObject("node_info");
             {
-                discoveryNodeToXContent(builder, params, node);
+                discoveryNodeToXContent(node, builder, params);
             }
             builder.endObject(); // end node_info
             builder.field("node_decision", getNodeDecisionType());

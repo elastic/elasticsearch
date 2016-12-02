@@ -105,6 +105,20 @@ public class XContentAccessorTests extends ESTestCase {
         assertThat(object, equalTo(3.55));
     }
 
+    public void testEvaluateBoolean() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.field("field2", true);
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        XContentAccessor objectPath = XContentAccessor.createFromXContent(xContentBuilder.contentType().xContent(),
+                xContentBuilder.string());
+        Object object = objectPath.evaluate("field1.field2");
+        assertThat(object, instanceOf(Boolean.class));
+        assertThat(object, equalTo(true));
+    }
+
     public void testEvaluateArray() throws Exception {
         XContentBuilder xContentBuilder = randomXContentBuilder();
         xContentBuilder.startObject();

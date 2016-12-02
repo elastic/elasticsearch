@@ -94,6 +94,13 @@ public class XContentAccessor {
     }
 
     /**
+     * Returns the Boolean value corresponding to the provided path if present, null otherwise.
+     */
+    public Boolean evaluateBoolean(String path) {
+        return (Boolean) evaluate(path);
+    }
+
+    /**
      * Returns the object corresponding to the provided path if present, null
      * otherwise. If the object it an {@link Integer}, its long value is
      * returned. If it is neither {@link Integer}, {@link Long} or <tt>null</tt>

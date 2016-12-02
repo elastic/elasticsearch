@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client.highlevel;
 
-import com.fasterxml.jackson.jr.ob.JSON;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -31,9 +31,11 @@ import org.elasticsearch.client.highlevel.get.GetRestRequest;
 import org.elasticsearch.client.highlevel.get.GetRestResponse;
 import org.elasticsearch.client.highlevel.search.SearchRequest;
 import org.elasticsearch.client.highlevel.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -119,11 +121,13 @@ public class HighlevelClient implements Closeable {
     }
 
     public static DeleteRestResponse toDeleteRestResponse(Response response) throws IOException {
-        // Read from the map as we don't want to use reflection
-        Map<String, Object> map = toMap(response);
+        String contentType = response.getHeader("Content-Type");
+        String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
+        XContentAccessor accessor = XContentAccessor.createFromXContent(xContentType.xContent(), body);
+
         DeleteRestResponse restResponse = new DeleteRestResponse();
-        boolean found = (boolean) map.get("found");
-        restResponse.setFound(found);
+        restResponse.setFound(accessor.evaluateBoolean("found"));
         return restResponse;
     }
 
@@ -176,21 +180,20 @@ public class HighlevelClient implements Closeable {
 
     @SuppressWarnings("unchecked")
     public static GetRestResponse toGetRestResponse(Response response) throws IOException {
-        // Read from the map as we don't want to use reflection
-        Map<String, Object> map = toMap(response);
-        GetRestResponse restResponse = new GetRestResponse();
-        restResponse.setFound((boolean) map.get("found"));
-        Object objSource = map.get("_source");
-        restResponse.setSource((Map<String, Object>) objSource);
-        restResponse.setIndex((String) map.get("_index"));
-        restResponse.setType((String) map.get("_type"));
-        restResponse.setId((String) map.get("_id"));
-        restResponse.setVersion((Integer) map.get("_version"));
-        return restResponse;
-    }
+        String contentType = response.getHeader("Content-Type");
+        String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
+        XContentAccessor accessor = XContentAccessor.createFromXContent(xContentType.xContent(), body);
 
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return JSON.std.mapFrom(response.getEntity().getContent());
+        GetRestResponse restResponse = new GetRestResponse();
+        restResponse.setFound(accessor.evaluateBoolean("found"));
+        Object objSource = accessor.evaluate("_source");
+        restResponse.setSource((Map<String, Object>) objSource);
+        restResponse.setIndex(accessor.evaluateString("_index"));
+        restResponse.setType(accessor.evaluateString("_type"));
+        restResponse.setId(accessor.evaluateString("_id"));
+        restResponse.setVersion(accessor.evaluateInteger("_version"));
+        return restResponse;
     }
 
     private static String buildSearchEndpoint(SearchRequest request) {

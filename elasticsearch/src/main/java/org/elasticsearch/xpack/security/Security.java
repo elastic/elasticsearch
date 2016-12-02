@@ -100,7 +100,7 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.security.rest.SecurityRestModule;
+import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
@@ -134,6 +134,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -165,6 +166,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
      * an instance of TransportInterceptor way earlier before createComponents is called. */
     private final SetOnce<TransportInterceptor> securityIntercepter = new SetOnce<>();
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
+    private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService) throws IOException {
         this.settings = settings;
@@ -225,7 +227,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                 b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
             }
         });
-        modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));
         return modules;
     }
@@ -310,9 +311,9 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }
 
-        final AuthenticationService authcService = new AuthenticationService(settings, realms, auditTrailService,
-            cryptoService, failureHandler, threadPool, anonymousUser);
-        components.add(authcService);
+        authcService.set(new AuthenticationService(settings, realms, auditTrailService,
+            cryptoService, failureHandler, threadPool, anonymousUser));
+        components.add(authcService.get());
 
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService);
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client);
@@ -332,7 +333,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
         components.add(ipFilter.get());
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        securityIntercepter.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService, authzService, licenseState,
+        securityIntercepter.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
                 sslService, securityContext, destructiveOperations));
         return components;
     }
@@ -723,6 +724,14 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
                 ipFilter.get(), sslService,
                 threadPool));
+    }
+
+    @Override
+    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+        if (enabled == false || transportClientMode) {
+            return null;
+        }
+        return handler -> new SecurityRestFilter(settings, licenseState, sslService, threadContext, authcService.get(), handler);
     }
 
 }

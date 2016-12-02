@@ -27,15 +27,12 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CompiledScript;
@@ -133,16 +130,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
         request.setParent(doc.getParent());
         copyRouting(request, doc.getRouting());
-
-        // Comes back as a Long but needs to be a string
-        Long timestamp = doc.getTimestamp();
-        if (timestamp != null) {
-            request.setTimestamp(timestamp.toString());
-        }
-        Long ttl = doc.getTTL();
-        if (ttl != null) {
-            request.setTtl(ttl);
-        }
         return request;
     }
 
@@ -183,10 +170,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         void setRouting(String routing);
 
         String getRouting();
-
-        void setTimestamp(String timestamp);
-
-        void setTtl(Long ttl);
 
         void setSource(Map<String, Object> source);
 
@@ -269,20 +252,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         @Override
         public String getRouting() {
             return request.routing();
-        }
-
-        @Override
-        public void setTimestamp(String timestamp) {
-            request.timestamp(timestamp);
-        }
-
-        @Override
-        public void setTtl(Long ttl) {
-            if (ttl == null) {
-                request.ttl((TimeValue) null);
-            } else {
-                request.ttl(ttl);
-            }
         }
 
         @Override
@@ -385,16 +354,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         }
 
         @Override
-        public void setTimestamp(String timestamp) {
-            throw new UnsupportedOperationException("unable to set [timestamp] on action request [" + request.getClass() + "]");
-        }
-
-        @Override
-        public void setTtl(Long ttl) {
-            throw new UnsupportedOperationException("unable to set [ttl] on action request [" + request.getClass() + "]");
-        }
-
-        @Override
         public Map<String, Object> getSource() {
             throw new UnsupportedOperationException("unable to get source from action request [" + request.getClass() + "]");
         }
@@ -463,10 +422,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             context.put(ParentFieldMapper.NAME, oldParent);
             String oldRouting = doc.getRouting();
             context.put(RoutingFieldMapper.NAME, oldRouting);
-            Long oldTimestamp = doc.getTimestamp();
-            context.put(TimestampFieldMapper.NAME, oldTimestamp);
-            Long oldTTL = doc.getTTL();
-            context.put(TTLFieldMapper.NAME, oldTTL);
             context.put(SourceFieldMapper.NAME, request.getSource());
 
             OpType oldOpType = OpType.INDEX;
@@ -515,14 +470,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             if (false == Objects.equals(oldRouting, newValue)) {
                 scriptChangedRouting(request, newValue);
             }
-            newValue = resultCtx.remove(TimestampFieldMapper.NAME);
-            if (false == Objects.equals(oldTimestamp, newValue)) {
-                scriptChangedTimestamp(request, newValue);
-            }
-            newValue = resultCtx.remove(TTLFieldMapper.NAME);
-            if (false == Objects.equals(oldTTL, newValue)) {
-                scriptChangedTTL(request, newValue);
-            }
 
             OpType newOpType = OpType.fromString(newOp);
             if (newOpType != oldOpType) {
@@ -563,10 +510,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
 
         protected abstract void scriptChangedParent(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedTimestamp(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedTTL(RequestWrapper<?> request, Object to);
 
     }
 

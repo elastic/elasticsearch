@@ -62,7 +62,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -539,14 +538,14 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl,
+    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing,
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         Field seqNoField = new NumericDocValuesField("_seq_no", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(versionField, seqNoField, id, type, routing, Arrays.asList(document), source, mappingUpdate);
     }
 
     public void testIndexingOperationsListeners() throws IOException {
@@ -608,7 +607,7 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         recoveryShardFromStore(shard);
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(),
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, new ParseContext.Document(),
             new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);

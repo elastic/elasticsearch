@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -49,7 +49,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
+import org.elasticsearch.index.mapper.NumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -364,7 +364,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         final boolean includeInAll = context.includeInAll(this.includeInAll, this);
 
         XContentParser parser = context.parser();

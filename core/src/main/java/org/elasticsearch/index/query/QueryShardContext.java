@@ -19,16 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import static java.util.Collections.unmodifiableMap;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.function.LongSupplier;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
@@ -66,6 +56,16 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
@@ -280,15 +280,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public Version indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
-    }
-
-    public boolean matchesIndices(String... indices) {
-        for (String index : indices) {
-            if (indexSettings.matchesIndexName(index)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public ParsedQuery toFilter(QueryBuilder queryBuilder) {

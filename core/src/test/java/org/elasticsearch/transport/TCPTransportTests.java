@@ -238,4 +238,38 @@ public class TCPTransportTests extends ESTestCase {
         }
     }
 
+    public void testDefaultConnectionProfile() {
+        ConnectionProfile profile = TcpTransport.buildDefaultConnectionProfile(Settings.EMPTY);
+        assertEquals(13, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+
+        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
+        assertEquals(12, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+
+        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
+        assertEquals(11, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+
+        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).put("node.master", false).build());
+        assertEquals(10, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
+        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
+        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+    }
+
 }

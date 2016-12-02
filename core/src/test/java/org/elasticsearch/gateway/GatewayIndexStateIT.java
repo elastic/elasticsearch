@@ -414,7 +414,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         IndexMetaData metaData = state.getMetaData().index("test");
         for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0_beta1.id)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
                  // this is invalid but should be archived
                 .put("index.similarity.BM25.type", "classic")
                  // this one is not validated ahead of time and breaks allocation

@@ -98,7 +98,6 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -542,7 +541,6 @@ public class Node implements Closeable {
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
-        injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
         injector.getInstance(RoutingService.class).start();
@@ -591,11 +589,13 @@ public class Node implements Closeable {
         discovery.start();
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-        // tribe nodes don't have a master so we shouldn't register an observer
-        if (DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis() > 0) {
+        // tribe nodes don't have a master so we shouldn't register an observer         s
+        final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
+        if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
             if (observer.observedState().getClusterState().nodes().getMasterNodeId() == null) {
+                logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -609,10 +609,10 @@ public class Node implements Closeable {
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         logger.warn("timed out while waiting for initial discovery state - timeout: {}",
-                            DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                            initialStateTimeout);
                         latch.countDown();
                     }
-                }, MasterNodeChangePredicate.INSTANCE, DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                }, MasterNodeChangePredicate.INSTANCE, initialStateTimeout);
 
                 try {
                     latch.await();
@@ -664,7 +664,6 @@ public class Node implements Closeable {
         // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
         injector.getInstance(Discovery.class).stop();
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
@@ -715,7 +714,6 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
         toClose.add(injector.getInstance(IndicesClusterStateService.class));
         toClose.add(() -> stopWatch.stop().start("indices"));
-        toClose.add(injector.getInstance(IndicesTTLService.class));
         toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));

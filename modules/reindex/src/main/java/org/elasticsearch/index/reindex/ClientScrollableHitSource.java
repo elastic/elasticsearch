@@ -39,8 +39,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -235,16 +233,6 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         @Override
         public String getRouting() {
             return fieldValue(RoutingFieldMapper.NAME);
-        }
-
-        @Override
-        public Long getTimestamp() {
-            return fieldValue(TimestampFieldMapper.NAME);
-        }
-
-        @Override
-        public Long getTTL() {
-            return fieldValue(TTLFieldMapper.NAME);
         }
 
         private <T> T fieldValue(String fieldName) {

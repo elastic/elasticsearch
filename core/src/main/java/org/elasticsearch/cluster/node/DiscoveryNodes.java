@@ -56,10 +56,13 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     private final String masterNodeId;
     private final String localNodeId;
     private final Version minNonClientNodeVersion;
+    private final Version maxNodeVersion;
+    private final Version minNodeVersion;
 
     private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes,
                            ImmutableOpenMap<String, DiscoveryNode> masterNodes, ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
-                           String masterNodeId, String localNodeId, Version minNonClientNodeVersion) {
+                           String masterNodeId, String localNodeId, Version minNonClientNodeVersion, Version maxNodeVersion,
+                           Version minNodeVersion) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
@@ -67,6 +70,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         this.masterNodeId = masterNodeId;
         this.localNodeId = localNodeId;
         this.minNonClientNodeVersion = minNonClientNodeVersion;
+        this.minNodeVersion = minNodeVersion;
+        this.maxNodeVersion = maxNodeVersion;
     }
 
     @Override
@@ -233,6 +238,24 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      */
     public Version getSmallestNonClientNodeVersion() {
         return minNonClientNodeVersion;
+    }
+
+    /**
+     * Returns the version of the node with the oldest version in the cluster.
+     *
+     * @return the oldest version in the cluster
+     */
+    public Version getMinNodeVersion() {
+        return minNodeVersion;
+    }
+
+    /**
+     * Returns the version of the node with the yougest version in the cluster
+     *
+     * @return the oldest version in the cluster
+     */
+    public Version getMaxNodeVersion() {
+        return maxNodeVersion;
     }
 
     /**
@@ -631,25 +654,27 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> ingestNodesBuilder = ImmutableOpenMap.builder();
             Version minNodeVersion = Version.CURRENT;
+            Version maxNodeVersion = Version.CURRENT;
             Version minNonClientNodeVersion = Version.CURRENT;
             for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
                 if (nodeEntry.value.isDataNode()) {
                     dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
-                    minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.getVersion());
+                    minNonClientNodeVersion = Version.min(minNonClientNodeVersion, nodeEntry.value.getVersion());
                 }
                 if (nodeEntry.value.isMasterNode()) {
                     masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
-                    minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.getVersion());
+                    minNonClientNodeVersion = Version.min(minNonClientNodeVersion, nodeEntry.value.getVersion());
                 }
                 if (nodeEntry.value.isIngestNode()) {
                     ingestNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
-                minNodeVersion = Version.smallest(minNodeVersion, nodeEntry.value.getVersion());
+                minNodeVersion = Version.min(minNodeVersion, nodeEntry.value.getVersion());
+                maxNodeVersion = Version.max(maxNodeVersion, nodeEntry.value.getVersion());
             }
 
             return new DiscoveryNodes(
                 nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), ingestNodesBuilder.build(),
-                masterNodeId, localNodeId, minNonClientNodeVersion
+                masterNodeId, localNodeId, minNonClientNodeVersion, maxNodeVersion, minNodeVersion
             );
         }
 

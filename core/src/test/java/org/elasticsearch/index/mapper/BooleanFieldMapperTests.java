@@ -24,36 +24,27 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.hamcrest.Matchers.containsString;
 
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
@@ -62,7 +53,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
     }
@@ -179,44 +170,16 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
         Document doc = parsedDoc.rootDoc();
-        assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool1"));
-        assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool2"));
-        assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool3"));
-    }
-
-    public void testBwCompatDocValues() throws Exception {
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_2_0).build();
-        indexService = createIndex("test_old", oldIndexSettings);
-        parser = indexService.mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .startObject("bool1")
-                    .field("type", "boolean")
-                .endObject()
-                .startObject("bool2")
-                    .field("type", "boolean")
-                    .field("index", "no")
-                .endObject()
-                .startObject("bool3")
-                    .field("type", "boolean")
-                    .field("index", "not_analyzed")
-                .endObject()
-                .endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper defaultMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("bool1", true)
-                .field("bool2", true)
-                .field("bool3", true)
-                .endObject()
-                .bytes());
-        Document doc = parsedDoc.rootDoc();
-        assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool1"));
-        assertEquals(DocValuesType.NONE, LegacyStringMappingTests.docValuesType(doc, "bool2"));
-        assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool3"));
+        IndexableField[] fields = doc.getFields("bool1");
+        assertEquals(2, fields.length);
+        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        fields = doc.getFields("bool2");
+        assertEquals(1, fields.length);
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields[0].fieldType().docValuesType());
+        fields = doc.getFields("bool3");
+        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
     }
 
     public void testEmptyName() throws IOException {
@@ -229,14 +192,5 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // before 5.x
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        indexService = createIndex("test_old", oldIndexSettings);
-        parser = indexService.mapperService().documentMapperParser();
-
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, defaultMapper.mappingSource().string());
     }
 }

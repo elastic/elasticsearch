@@ -119,7 +119,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         Function<String, String> mapping = type -> {
             try {
                 return XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
-                    .startObject("field1").field("type", "string")
+                    .startObject("field1").field("type", "keyword")
                     .endObject().endObject().endObject().endObject().string();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

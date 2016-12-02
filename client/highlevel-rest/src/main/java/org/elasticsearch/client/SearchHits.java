@@ -24,17 +24,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class ClientSearchHits implements Iterable<ClientSearchHit> {
+public class SearchHits implements Iterable<SearchHit> {
 
     private final XContentAccessor objectPath;
-    private ClientSearchHit[] hitsArray;
+    private SearchHit[] hitsArray;
 
-    public ClientSearchHits(Map<String, Object> hitsSection) {
+    public SearchHits(Map<String, Object> hitsSection) {
         this.objectPath = new XContentAccessor(hitsSection);
     }
 
     @Override
-    public Iterator<ClientSearchHit> iterator() {
+    public Iterator<SearchHit> iterator() {
         return Arrays.asList(getHits()).iterator();
     }
 
@@ -47,21 +47,21 @@ public class ClientSearchHits implements Iterable<ClientSearchHit> {
     }
 
     @SuppressWarnings("unchecked")
-    public ClientSearchHit[] getHits() {
+    public SearchHit[] getHits() {
         //TODO won't this cause concurrency issues?
         if (this.hitsArray == null) {
             List<Object> hits = (List<Object>) this.objectPath.evaluate("hits");
-            this.hitsArray = new ClientSearchHit[hits.size()];
+            this.hitsArray = new SearchHit[hits.size()];
             int i = 0;
             for (Object hit : hits) {
-                hitsArray[i] = new ClientSearchHit((Map<String, Object>) hit);
+                hitsArray[i] = new SearchHit((Map<String, Object>) hit);
                 i++;
             }
         }
         return this.hitsArray;
     }
 
-    public ClientSearchHit getAt(int position) {
+    public SearchHit getAt(int position) {
         return getHits()[position];
     }
 }

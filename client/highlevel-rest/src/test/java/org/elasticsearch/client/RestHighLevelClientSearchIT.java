@@ -99,10 +99,10 @@ public class RestHighLevelClientSearchIT extends ESRestTestCase {
         assertEquals(5, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(0, searchResponse.getFailedShards());
-        ClientSearchHits hits = searchResponse.getHits();
+        SearchHits hits = searchResponse.getHits();
         assertEquals(1, hits.getTotalHits());
         assertThat(hits.getMaxScore(), greaterThan(0.0f));
-        ClientSearchHit searchHit = hits.getAt(0);
+        SearchHit searchHit = hits.getAt(0);
         assertEquals("some title", searchHit.getSourceAsMap().get("title"));
         assertEquals("test", searchHit.getIndex());
         assertEquals("type", searchHit.getType());

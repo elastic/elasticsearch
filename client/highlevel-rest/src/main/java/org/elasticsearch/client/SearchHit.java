@@ -36,11 +36,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public class ClientSearchHit implements Iterable<SearchHitField> {
+public class SearchHit implements Iterable<SearchHitField> {
 
     private final XContentAccessor objectPath;
 
-    public ClientSearchHit(Map<String, Object> hit) {
+    public SearchHit(Map<String, Object> hit) {
         this.objectPath = new XContentAccessor(hit);
     }
 
@@ -150,11 +150,11 @@ public class ClientSearchHit implements Iterable<SearchHitField> {
     }
 
     @SuppressWarnings("unchecked")
-    public Map<String, ClientSearchHits> getInnerHits() {
+    public Map<String, SearchHits> getInnerHits() {
         Map<String, Object> originalMap = (Map<String, Object>) this.objectPath.evaluate("inner_hits");
-        Map<String, ClientSearchHits> innerHits = new HashMap<>(originalMap.size());
+        Map<String, SearchHits> innerHits = new HashMap<>(originalMap.size());
         for (Entry<String, Object> original : originalMap.entrySet()) {
-            ClientSearchHits hits = new ClientSearchHits((Map<String, Object>) original.getValue());
+            SearchHits hits = new SearchHits((Map<String, Object>) original.getValue());
             innerHits.put(original.getKey(), hits);
         }
         return innerHits;

@@ -85,7 +85,7 @@ public class SearchResponse {
      * The search hits.
      */
     @SuppressWarnings("unchecked")
-    public ClientSearchHits getHits() {
-        return new ClientSearchHits((Map<String, Object>) this.object.evaluate("hits"));
+    public SearchHits getHits() {
+        return new SearchHits((Map<String, Object>) this.object.evaluate("hits"));
     }
 }

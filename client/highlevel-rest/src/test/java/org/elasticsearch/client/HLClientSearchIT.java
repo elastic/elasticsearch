@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.highlevel.ESHighLevelTestCase;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -31,9 +32,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,14 +41,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class HLClientSearchIT extends ESRestTestCase {
-
-    private HighlevelClient aClient;
-
-    @Before
-    public void init() {
-        this.aClient =  new HighlevelClient(client());
-    }
+public class HLClientSearchIT extends ESHighLevelTestCase {
 
     public void createTestDoc() throws IOException {
         XContentBuilder mappingsBuilder = randomXContentBuilder();
@@ -135,8 +126,4 @@ public class HLClientSearchIT extends ESRestTestCase {
         return XContentBuilder.builder(XContentFactory.xContent(xContentType));
     }
 
-    @After
-    public void shutDown() throws IOException {
-        this.aClient.close();
-    }
 }

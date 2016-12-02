@@ -22,10 +22,9 @@ package org.elasticsearch.client.highlevel.get;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.client.HighlevelClient;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.highlevel.ESHighLevelTestCase;
 import org.elasticsearch.client.highlevel.RequestTestUtil;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,15 +35,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GetApiIT extends ESRestTestCase {
+public class GetApiIT extends ESHighLevelTestCase {
 
     public void testGetRequest() throws IOException {
-        HighlevelClient client = new HighlevelClient(client());
-
         client().performRequest("PUT", "foo");
 
         try {
-            client.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
+            aClient.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
             fail("A 404 ResponseException should have been raised.");
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
@@ -61,7 +58,7 @@ public class GetApiIT extends ESRestTestCase {
         client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
             new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
 
-        GetRestResponse response = client.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
+        GetRestResponse response = aClient.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
         assertThat(response.isFound(), is(true));
         assertThat(response.getIndex(), is("foo"));
         assertThat(response.getType(), is("bar"));
@@ -72,11 +69,10 @@ public class GetApiIT extends ESRestTestCase {
 
     public void testGetRequestAsync() throws IOException, InterruptedException {
         client().performRequest("PUT", "foo");
-        HighlevelClient client = new HighlevelClient(client());
 
         RequestTestUtil.MockConsumer<GetRestResponse> listenerResponse2 = new RequestTestUtil.MockConsumer<>();
         RequestTestUtil.MockConsumer<Exception> listenerException2 = new RequestTestUtil.MockConsumer<>();
-        client.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse2, listenerException2);
+        aClient.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse2, listenerException2);
 
         awaitBusy(() -> listenerException2.get() != null);
         Exception exception = listenerException2.get();
@@ -88,7 +84,7 @@ public class GetApiIT extends ESRestTestCase {
 
         RequestTestUtil.MockConsumer<GetRestResponse> listenerResponse1 = new RequestTestUtil.MockConsumer<>();
         RequestTestUtil.MockConsumer<Exception> listenerException1 = new RequestTestUtil.MockConsumer<>();
-        client.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse1, listenerException1);
+        aClient.get(GetRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse1, listenerException1);
 
         awaitBusy(() -> listenerResponse1.get() != null);
         assertThat(listenerException1.get(), nullValue());

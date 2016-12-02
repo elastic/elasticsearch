@@ -22,10 +22,9 @@ package org.elasticsearch.client.highlevel.delete;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.client.HighlevelClient;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.highlevel.ESHighLevelTestCase;
 import org.elasticsearch.client.highlevel.RequestTestUtil;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,19 +34,18 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DeleteApiIT extends ESRestTestCase {
+public class DeleteApiIT extends ESHighLevelTestCase {
 
     public void testDeleteRequest() throws IOException {
         client().performRequest("PUT", "foo");
         client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
             new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
 
-        HighlevelClient client = new HighlevelClient(client());
-        DeleteRestResponse delete = client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
+        DeleteRestResponse delete = aClient.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
         assertThat(delete.isFound(), is(true));
 
         try {
-            client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
+            aClient.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
             fail("A 404 ResponseException should have been raised.");
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
@@ -62,10 +60,9 @@ public class DeleteApiIT extends ESRestTestCase {
         client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
             new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
 
-        HighlevelClient client = new HighlevelClient(client());
         RequestTestUtil.MockConsumer<DeleteRestResponse> listenerResponse1 = new RequestTestUtil.MockConsumer<>();
         RequestTestUtil.MockConsumer<Exception> listenerException1 = new RequestTestUtil.MockConsumer<>();
-        client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse1, listenerException1);
+        aClient.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse1, listenerException1);
 
         awaitBusy(() -> listenerResponse1.get() != null);
         assertThat(listenerException1.get(), nullValue());
@@ -75,7 +72,7 @@ public class DeleteApiIT extends ESRestTestCase {
 
         RequestTestUtil.MockConsumer<DeleteRestResponse> listenerResponse2 = new RequestTestUtil.MockConsumer<>();
         RequestTestUtil.MockConsumer<Exception> listenerException2 = new RequestTestUtil.MockConsumer<>();
-        client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse2, listenerException2);
+        aClient.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse2, listenerException2);
 
         awaitBusy(() -> listenerException2.get() != null);
         Exception exception = listenerException2.get();

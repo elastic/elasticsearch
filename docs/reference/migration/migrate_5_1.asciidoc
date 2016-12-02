@@ -5,6 +5,7 @@
 [float]
 === Indices API changes
 
+[float]
 ==== Alias names are validated against (most of) the rules for index names
 
 Alias names are now validated against almost the same set of rules that validate
@@ -25,6 +26,7 @@ aliases with invalid names is also no longer supported.
 [float]
 === Java API changes
 
+[float]
 ==== Log4j dependency has been upgraded
 
 The Log4j dependency has been upgraded from version 2.6.2 to version 2.7. If you're using the transport client in your
@@ -34,14 +36,17 @@ application, you should update your Log4j dependencies accordingly.
 [float]
 === Plugin API changes
 
+[float]
 ==== UnicastHostsProvider now pull based
 
 Plugging in a `UnicastHostsProvider` for zen discovery is now pull based. Implement a `DiscoveryPlugin` and override the `getZenHostsProviders` method. Selecting a hosts provider is also now done with a separate setting, `discovery.zen.hosts_provider`.
 
+[float]
 ==== ZenPing and MasterElectService pluggability removed
 
 These classes are no longer pluggable. Either implement your own discovery, or extend from ZenDiscovery and customize as necessary.
 
+[float]
 ==== onModule support removed
 
 Plugins could formerly implement methods of the name `onModule` which took a single
@@ -52,6 +57,7 @@ converted to pull based plugins, and hooks for onModule have been removed.
 [float]
 === Other API changes
 
+[float]
 ==== Indices stats and node stats API unrecognized metrics
 
 The indices stats and node stats APIs allow querying Elasticsearch for a variety of metrics. Previous versions of

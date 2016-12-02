@@ -129,3 +129,11 @@ setup:
   - is_false: jobs.0.model_size_stats
   - match: { jobs.0.scheduler_state.status: STOPPED }
 
+---
+"Test bad metric":
+  - do:
+      catch: request
+      xpack.prelert.get_jobs:
+        job_id: "job-stats-test"
+        metric: "foobar"
+

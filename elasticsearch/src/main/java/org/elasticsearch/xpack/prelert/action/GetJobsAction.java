@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -62,11 +64,15 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
     public static final GetJobsAction INSTANCE = new GetJobsAction();
     public static final String NAME = "cluster:admin/prelert/jobs/get";
 
+    private static final String ALL = "_all";
     private static final String CONFIG = "config";
     private static final String DATA_COUNTS = "data_counts";
     private static final String MODEL_SIZE_STATS = "model_size_stats";
     private static final String SCHEDULER_STATE = "scheduler_state";
     private static final String STATUS = "status";
+
+    private static final List<String> METRIC_WHITELIST = Arrays.asList(ALL, CONFIG, DATA_COUNTS,
+            MODEL_SIZE_STATS, SCHEDULER_STATE, STATUS);
 
     private GetJobsAction() {
         super(NAME);
@@ -86,6 +92,8 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
         public static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
         public static final ParseField METRIC = new ParseField("metric");
+
+
 
         static {
             PARSER.declareString(Request::setJobId, Job.ID);
@@ -171,7 +179,13 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
         }
 
         public void setStats(Set<String> stats) {
-            if (stats.contains("_all")) {
+            for (String s : stats) {
+                if (!METRIC_WHITELIST.contains(s)) {
+                    throw new ElasticsearchStatusException("Metric [" + s + "] is not a valid metric.  "
+                            + "Accepted metrics are: [" + METRIC_WHITELIST + "]", RestStatus.BAD_REQUEST);
+                }
+            }
+            if (stats.contains(ALL)) {
                 all();
             } else {
                 config(stats.contains(CONFIG));

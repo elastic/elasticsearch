@@ -17,9 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.highlevel.search;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.highlevel.XContentAccessor;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHits;

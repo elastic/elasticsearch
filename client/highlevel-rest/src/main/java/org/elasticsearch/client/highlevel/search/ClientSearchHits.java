@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.highlevel.search;
 
+import org.elasticsearch.client.highlevel.XContentAccessor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;

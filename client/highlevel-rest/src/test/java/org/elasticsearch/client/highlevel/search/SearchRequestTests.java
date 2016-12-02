@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.highlevel.search;
 
+import org.elasticsearch.client.highlevel.search.SearchRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 

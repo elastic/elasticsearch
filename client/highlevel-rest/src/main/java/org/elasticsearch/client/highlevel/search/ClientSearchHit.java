@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.highlevel.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.client.highlevel.XContentAccessor;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;

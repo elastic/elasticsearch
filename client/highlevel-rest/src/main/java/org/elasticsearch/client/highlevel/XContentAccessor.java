@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client;
+package org.elasticsearch.client.highlevel;
 
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,7 +44,7 @@ public class XContentAccessor {
         }
     }
 
-    XContentAccessor(Map<String, Object> map) {
+    public XContentAccessor(Map<String, Object> map) {
         this.object = map;
     }
 

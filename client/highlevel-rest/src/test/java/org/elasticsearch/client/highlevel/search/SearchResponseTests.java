@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.highlevel.search;
 
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -29,11 +29,15 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.highlevel.search.SearchResponse;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+
+import static org.elasticsearch.client.RestClientTestUtil.mockResponse;
 
 public class SearchResponseTests extends ESTestCase {
 
@@ -54,15 +58,4 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(4, response.getSuccessfulShards());
         assertEquals(1, response.getFailedShards());
     }
-
-    private static Response mockResponse(String responseBody) {
-        ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
-        RequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
-        StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "OK");
-        HttpResponse httpResponse = new BasicHttpResponse(statusLine);
-        httpResponse.setEntity(new StringEntity(responseBody, StandardCharsets.UTF_8));
-        httpResponse.addHeader("Content-Type", ContentType.APPLICATION_JSON.getMimeType());
-        return new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
-    }
-
 }

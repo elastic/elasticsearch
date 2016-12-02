@@ -17,10 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.highlevel;
 
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.highlevel.ESHighLevelTestCase;
+import org.elasticsearch.client.highlevel.search.SearchRequest;
+import org.elasticsearch.client.highlevel.search.SearchResponse;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

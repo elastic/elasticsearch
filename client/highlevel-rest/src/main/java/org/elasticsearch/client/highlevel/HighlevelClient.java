@@ -17,15 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.highlevel;
 
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.highlevel.delete.DeleteRestRequest;
 import org.elasticsearch.client.highlevel.delete.DeleteRestResponse;
 import org.elasticsearch.client.highlevel.get.GetRestRequest;
 import org.elasticsearch.client.highlevel.get.GetRestResponse;
+import org.elasticsearch.client.highlevel.search.SearchRequest;
+import org.elasticsearch.client.highlevel.search.SearchResponse;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -57,12 +62,12 @@ public class HighlevelClient implements Closeable {
 
     public SearchResponse performSearchRequest(SearchRequest request) throws IOException {
         StringEntity entity = new StringEntity(request.searchSource().toString());
-        return new SearchResponse(this.restClient.performRequest("GET", buildSearchEndpoint(request), request.urlParams, entity));
+        return new SearchResponse(this.restClient.performRequest("GET", buildSearchEndpoint(request), request.params(), entity));
     }
 
     public void performSearchRequestAsync(SearchRequest request, ResponseListener responseListener) throws IOException {
         StringEntity entity = new StringEntity(request.searchSource().toString());
-        this.restClient.performRequestAsync("GET", buildSearchEndpoint(request), request.urlParams, entity, responseListener);
+        this.restClient.performRequestAsync("GET", buildSearchEndpoint(request), request.params(), entity, responseListener);
     }
 
     /**

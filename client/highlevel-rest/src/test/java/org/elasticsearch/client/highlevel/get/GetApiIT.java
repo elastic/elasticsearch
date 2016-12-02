@@ -29,7 +29,7 @@ import org.elasticsearch.client.highlevel.RequestTestUtil;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.client.HighlevelClient.toGetRestResponse;
+import static org.elasticsearch.client.highlevel.HighlevelClient.toGetRestResponse;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

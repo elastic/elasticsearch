@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.highlevel;
 
-import org.elasticsearch.client.HighlevelClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.Before;

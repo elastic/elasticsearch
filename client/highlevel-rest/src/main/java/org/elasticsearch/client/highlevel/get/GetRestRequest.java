@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.highlevel.get;
 
-import org.elasticsearch.client.highlevel.Strings;
+import org.elasticsearch.common.Strings;
 
 /**
  * Delete a document request

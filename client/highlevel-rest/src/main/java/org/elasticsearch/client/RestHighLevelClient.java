@@ -37,21 +37,21 @@ public final class RestHighLevelClient {
     }
 
     public SearchResponse performSearchRequest(SearchRequest request) throws IOException {
-        StringEntity entity = new StringEntity(request.searchSource().toString());
+        StringEntity entity = new StringEntity(request.getSearchSource().toString());
         return new SearchResponse(this.client.performRequest("GET", buildSearchEndpoint(request), request.urlParams, entity));
     }
 
     public void performSearchRequestAsync(SearchRequest request, ResponseListener responseListener) throws IOException {
-        StringEntity entity = new StringEntity(request.searchSource().toString());
+        StringEntity entity = new StringEntity(request.getSearchSource().toString());
         this.client.performRequestAsync("GET", buildSearchEndpoint(request), request.urlParams, entity, responseListener);
     }
 
     private static String buildSearchEndpoint(SearchRequest request) {
-        String indices = String.join(",", request.indices());
+        String indices = String.join(",", request.getIndices());
         if (indices.length() > 0) {
             indices = indices + "/";
         }
-        String types = String.join(",", request.types());
+        String types = String.join(",", request.getTypes());
         if (types.length() > 0) {
             indices = indices + "/";
         }

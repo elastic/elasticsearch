@@ -32,7 +32,7 @@ import java.util.Objects;
  */
 public class SearchRequest {
 
-    private SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+    private final SearchSourceBuilder searchSourceBuilder;
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
     Map<String, String> urlParams = Collections.emptyMap();
@@ -48,7 +48,7 @@ public class SearchRequest {
     /**
      * Set the indices this request runs on
      */
-    public SearchRequest indices(String... indices) {
+    public SearchRequest setIndices(String... indices) {
         this.indices = Objects.requireNonNull(indices);
         return this;
     }
@@ -56,7 +56,7 @@ public class SearchRequest {
     /**
      * Set the types this request runs on
      */
-    public SearchRequest types(String... types) {
+    public SearchRequest setTypes(String... types) {
         this.types = Objects.requireNonNull(types);
         return this;
     }
@@ -72,21 +72,21 @@ public class SearchRequest {
     /**
      * Get the underlying {@link SearchSourceBuilder}
      */
-    public SearchSourceBuilder searchSource() {
+    public SearchSourceBuilder getSearchSource() {
         return this.searchSourceBuilder;
     }
 
     /**
      * Get the indices this request runs on
      */
-    public String[] indices() {
+    public String[] getIndices() {
         return this.indices;
     }
 
     /**
      * Get the types this request runs on
      */
-    public String[] types() {
+    public String[] getTypes() {
         return this.types;
     }
 

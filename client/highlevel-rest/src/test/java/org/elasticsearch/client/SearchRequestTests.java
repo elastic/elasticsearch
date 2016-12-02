@@ -35,9 +35,9 @@ public class SearchRequestTests extends ESTestCase {
         SearchRequest request = new SearchRequest(new SearchSourceBuilder());
         Map<String, String> params = new HashMap<>();
         params.put("foo", "bar");
-        request.indices("aaa", "bbb").types("ccc", "ddd").params(params);
-        assertThat(Arrays.asList(request.indices()), contains("aaa", "bbb"));
-        assertThat(Arrays.asList(request.types()), contains("ccc", "ddd"));
+        request.setIndices("aaa", "bbb").setTypes("ccc", "ddd").params(params);
+        assertThat(Arrays.asList(request.getIndices()), contains("aaa", "bbb"));
+        assertThat(Arrays.asList(request.getTypes()), contains("ccc", "ddd"));
         assertThat(request.params().size(), equalTo(1));
         assertThat(request.params().get("foo"), equalTo("bar"));
     }

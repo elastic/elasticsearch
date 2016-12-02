@@ -32,21 +32,20 @@ public final class ScriptCondition extends Condition {
     private static final Result UNMET = new Result(null, TYPE, false);
 
     private final ScriptService scriptService;
-    private final CompiledScript compiledScript;
     private final Script script;
 
     public ScriptCondition(Script script) {
         super(TYPE);
         this.script = script;
         scriptService = null;
-        compiledScript = null;
     }
 
     ScriptCondition(Script script, ScriptService scriptService) {
         super(TYPE);
         this.scriptService = scriptService;
         this.script = script;
-        compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
+        // try to compile so we catch syntax errors early
+        scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
     }
 
     public Script getScript() {
@@ -73,6 +72,7 @@ public final class ScriptCondition extends Condition {
         if (script.getParams() != null && !script.getParams().isEmpty()) {
             parameters.putAll(script.getParams());
         }
+        CompiledScript compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
         ExecutableScript executable = scriptService.executable(compiledScript, parameters);
         Object value = executable.run();
         if (value instanceof Boolean) {

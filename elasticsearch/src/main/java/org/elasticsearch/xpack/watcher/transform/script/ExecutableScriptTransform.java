@@ -28,13 +28,13 @@ import static org.elasticsearch.xpack.watcher.transform.script.ScriptTransform.T
 public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransform, ScriptTransform.Result> {
 
     private final ScriptService scriptService;
-    private final CompiledScript compiledScript;
 
     public ExecutableScriptTransform(ScriptTransform transform, Logger logger, ScriptService scriptService) {
         super(transform, logger);
         this.scriptService = scriptService;
         Script script = transform.getScript();
-        compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
+        // try to compile so we catch syntax errors early
+        scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
     }
 
     @Override
@@ -47,7 +47,6 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         }
     }
 
-
     ScriptTransform.Result doExecute(WatchExecutionContext ctx, Payload payload) throws IOException {
         Script script = transform.getScript();
         Map<String, Object> model = new HashMap<>();
@@ -55,6 +54,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
             model.putAll(script.getParams());
         }
         model.putAll(createCtxModel(ctx, payload));
+        CompiledScript compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
         ExecutableScript executable = scriptService.executable(compiledScript, model);
         Object value = executable.run();
         if (value instanceof Map) {

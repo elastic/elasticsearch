@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,12 +49,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ScriptTransformTests extends ESTestCase {
-    ThreadPool tp = null;
 
-    @Before
-    public void init() {
-        tp = new TestThreadPool(ThreadPool.Names.SAME);
-    }
+    private final ThreadPool tp = new TestThreadPool(ThreadPool.Names.SAME);
 
     @After
     public void cleanup() {

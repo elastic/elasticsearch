@@ -66,8 +66,8 @@ public final class QueryPage<T extends ToXContent & Writeable> extends ToXConten
     }
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(resultsField.getPreferredName(), results);
         builder.field(COUNT.getPreferredName(), count);
+        builder.field(resultsField.getPreferredName(), results);
         return builder;
     }
 

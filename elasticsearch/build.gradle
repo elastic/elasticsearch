@@ -46,8 +46,12 @@ task downloadCppDist(type: DownloadS3Task) {
   bucket 'prelert-artifacts'
   destDir file("${buildDir}/cppDist")
   flatten true
-  download "maven/${project.group}/prelert-cpp/${elasticsearchVersion}/prelert-cpp-darwin-x86_64-${elasticsearchVersion}.zip"
+  download "maven/${project.group}/prelert-cpp/${elasticsearchVersion}/prelert-cpp-windows-x86_64-${elasticsearchVersion}.zip"
+  download  "maven/${project.group}/prelert-cpp/${elasticsearchVersion}/prelert-cpp-linux-x86_64-${elasticsearchVersion}.zip"
+  download  "maven/${project.group}/prelert-cpp/${elasticsearchVersion}/prelert-cpp-darwin-x86_64-${elasticsearchVersion}.zip"
+  outputs.file(file("${buildDir}/cppDist/prelert-cpp-windows-x86_64-${elasticsearchVersion}.zip"))
   outputs.file(file("${buildDir}/cppDist/prelert-cpp-darwin-x86_64-${elasticsearchVersion}.zip"))
+  outputs.file(file("${buildDir}/cppDist/prelert-cpp-linux-x86_64-${elasticsearchVersion}.zip"))
 }
 
 bundlePlugin {
@@ -55,8 +59,8 @@ bundlePlugin {
     from { zipTree(project(':cpp').buildZip.outputs.files.singleFile) }
     dependsOn ':cpp:buildZip'
   } else {
-    for (file in downloadCppDist.outputs.files) {
-      from{ zipTree(file) }
+    for (outputFile in downloadCppDist.outputs.files) {
+      from(zipTree(outputFile))
     }
     dependsOn 'downloadCppDist'
   }

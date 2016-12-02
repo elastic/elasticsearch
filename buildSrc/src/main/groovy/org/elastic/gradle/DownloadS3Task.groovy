@@ -72,15 +72,19 @@ class DownloadS3Task extends DefaultTask {
 
     /** Download a single file */
     private void downloadFile(AmazonS3Client client, ProgressLogger progressLogger, File destDir, String key) {
+        File destPath = getDestinationPath(destDir, key, flatten)
+        logger.info("Downloading ${destPath} from ${bucket}")
+        progressLogger.progress("downloading ${destPath}")
+        client.getObject(new GetObjectRequest(bucket, key), destPath)
+    }
+
+    private File getDestinationPath(File destDir, String key, boolean flatten) {
         String destPath
         if (flatten) {
             destPath = key.substring(key.lastIndexOf('/') + 1)
         } else {
             destPath = key
         }
-        logger.info("Downloading ${destPath} from ${bucket}")
-        progressLogger.progress("downloading ${destPath}")
-        client.getObject(new GetObjectRequest(bucket, key),
-                         new File(destDir, destPath))
+        return new File(destDir, destPath)
     }
 }

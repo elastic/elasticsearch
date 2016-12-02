@@ -26,15 +26,15 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class HighlevelClient implements Closeable {
+public class RestHighLevelClient implements Closeable {
 
     private RestClient restClient;
 
-    public HighlevelClient(String host, int port) {
+    public RestHighLevelClient(String host, int port) {
         this.restClient = RestClient.builder(new HttpHost(host, port)).build();
     }
 
-    public HighlevelClient(RestClient restClient) {
+    public RestHighLevelClient(RestClient restClient) {
         this.restClient = Objects.requireNonNull(restClient);
     }
 

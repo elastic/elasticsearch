@@ -41,13 +41,13 @@ import java.util.Map;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class HLClientSearchIT extends ESRestTestCase {
+public class RestHighLevelClientSearchIT extends ESRestTestCase {
 
-    private HighlevelClient aClient;
+    private RestHighLevelClient aClient;
 
     @Before
     public void init() {
-        this.aClient =  new HighlevelClient(client());
+        this.aClient =  new RestHighLevelClient(client());
     }
 
     private static void createTestDoc() throws IOException {

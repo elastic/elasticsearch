@@ -18,6 +18,11 @@
  */
 package org.elasticsearch.plugins;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -27,11 +32,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * Plugin for extending network and transport related classes
@@ -56,6 +56,7 @@ public interface NetworkPlugin {
                                                            NetworkService networkService) {
         return Collections.emptyMap();
     }
+
     /**
      * Returns a map of {@link HttpServerTransport} suppliers.
      * See {@link org.elasticsearch.common.network.NetworkModule#HTTP_TYPE_SETTING} to configure a specific implementation.

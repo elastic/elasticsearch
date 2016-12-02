@@ -22,7 +22,7 @@ public class AllocationTests extends AbstractSerializingTestCase<Allocation> {
         boolean ignoreDowntime = randomBoolean();
         JobStatus jobStatus = randomFrom(JobStatus.values());
         String statusReason = randomBoolean() ? randomAsciiOfLength(10) : null;
-        SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTING, randomPositiveLong(), randomPositiveLong());
+        SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STOPPED, randomPositiveLong(), randomPositiveLong());
         return new Allocation(nodeId, jobId, ignoreDowntime, jobStatus, statusReason, schedulerState);
     }
 

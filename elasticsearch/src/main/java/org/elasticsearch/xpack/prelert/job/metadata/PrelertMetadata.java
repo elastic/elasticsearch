@@ -208,12 +208,7 @@ public class PrelertMetadata implements MetaData.Custom {
 
             Allocation allocation = allocations.get(job.getId());
             if (allocation == null) {
-                Allocation.Builder builder = new Allocation.Builder();
-                builder.setJobId(job.getId());
-                boolean addSchedulderState = job.getSchedulerConfig() != null;
-                if (addSchedulderState) {
-                    builder.setSchedulerState(new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
-                }
+                Allocation.Builder builder = new Allocation.Builder(job);
                 builder.setStatus(JobStatus.CLOSED);
                 allocations.put(job.getId(), builder.build());
             }

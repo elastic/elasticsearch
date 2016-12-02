@@ -16,7 +16,7 @@ public class StartJobSchedulerActionRequestTests extends AbstractStreamableXCont
 
     @Override
     protected Request createTestInstance() {
-        SchedulerState state = new SchedulerState(JobSchedulerStatus.STARTING, randomLong(), randomLong());
+        SchedulerState state = new SchedulerState(JobSchedulerStatus.STARTED, randomLong(), randomLong());
         return new Request(randomAsciiOfLengthBetween(1, 20), state);
     }
 

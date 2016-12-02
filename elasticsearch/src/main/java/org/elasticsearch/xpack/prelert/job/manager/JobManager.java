@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
-import org.elasticsearch.xpack.prelert.action.StopJobSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
@@ -276,41 +274,6 @@ public class JobManager extends AbstractComponent {
         return newState.build();
     }
 
-    public void startJobScheduler(StartJobSchedulerAction.Request request,
-            ActionListener<StartJobSchedulerAction.Response> actionListener) {
-        clusterService.submitStateUpdateTask("start-scheduler-job-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<StartJobSchedulerAction.Response>(request, actionListener) {
-
-            @Override
-            protected StartJobSchedulerAction.Response newResponse(boolean acknowledged) {
-                return new StartJobSchedulerAction.Response(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                long startTime = request.getSchedulerState().getStartTimeMillis();
-                Long endTime = request.getSchedulerState().getEndTimeMillis();
-                return innerUpdateSchedulerState(currentState, request.getJobId(), JobSchedulerStatus.STARTING, startTime, endTime);
-            }
-        });
-    }
-
-    public void stopJobScheduler(StopJobSchedulerAction.Request request, ActionListener<StopJobSchedulerAction.Response> actionListener) {
-        clusterService.submitStateUpdateTask("stop-scheduler-job-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<StopJobSchedulerAction.Response>(request, actionListener) {
-
-            @Override
-            protected StopJobSchedulerAction.Response newResponse(boolean acknowledged) {
-                return new StopJobSchedulerAction.Response(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerUpdateSchedulerState(currentState, request.getJobId(), JobSchedulerStatus.STOPPING, null, null);
-            }
-        });
-    }
-
     private void checkJobIsScheduled(Job job) {
         if (job.getSchedulerConfig() == null) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_SCHEDULER_NO_SUCH_SCHEDULED_JOB, job.getId()));
@@ -352,7 +315,7 @@ public class JobManager extends AbstractComponent {
         checkJobIsScheduled(job);
 
         Allocation allocation = getAllocation(currentState, jobId);
-        if (allocation.getSchedulerState() == null && status != JobSchedulerStatus.STARTING) {
+        if (allocation.getSchedulerState() == null && status != JobSchedulerStatus.STARTED) {
             throw new IllegalArgumentException("Can't change status to [" + status + "], because job's [" + jobId +
                     "] scheduler never started");
         }

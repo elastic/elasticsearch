@@ -79,7 +79,7 @@ public class TooManyJobsIT extends ESIntegTestCase {
                         "[failed to open, max running job capacity [" + maxRunningJobsPerNode + "] reached]", cause.getMessage());
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
-                // now manually clean things up and see if we can succeed to start one new job
+                // now manually clean things up and see if we can succeed to run one new job
                 clearPrelertMetadata();
                 putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
                 assertTrue(putJobResponse.isAcknowledged());

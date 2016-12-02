@@ -7,18 +7,14 @@ package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,12 +24,17 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
+import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
+import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public class StartJobSchedulerAction
 extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response, StartJobSchedulerAction.RequestBuilder> {
 
     public static final StartJobSchedulerAction INSTANCE = new StartJobSchedulerAction();
-    public static final String NAME = "cluster:admin/prelert/job/scheduler/start";
+    public static final String NAME = "cluster:admin/prelert/job/scheduler/run";
 
     private StartJobSchedulerAction() {
         super(NAME);
@@ -59,7 +60,7 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
+    public static class Request extends ActionRequest implements ToXContent {
 
         public static ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -85,9 +86,9 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         public Request(String jobId, SchedulerState schedulerState) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             this.schedulerState = ExceptionsHelper.requireNonNull(schedulerState, SchedulerState.TYPE_FIELD.getPreferredName());
-            if (schedulerState.getStatus() != JobSchedulerStatus.STARTING) {
+            if (schedulerState.getStatus() != JobSchedulerStatus.STARTED) {
                 throw new IllegalStateException(
-                        "Start job scheduler action requires the scheduler status to be [" + JobSchedulerStatus.STARTING + "]");
+                        "Start job scheduler action requires the scheduler status to be [" + JobSchedulerStatus.STARTED + "]");
             }
         }
 
@@ -105,6 +106,11 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new SchedulerTask(id, type, action, parentTaskId, jobId);
         }
 
         @Override
@@ -148,65 +154,77 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         }
     }
 
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, StartJobSchedulerAction action) {
             super(client, action, new Request());
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
+    public static class Response extends ActionResponse {
 
-        public Response(boolean acknowledged) {
-            super(acknowledged);
+        Response() {
         }
 
-        private Response() {
+    }
+
+    public static class SchedulerTask extends CancellableTask {
+
+        private volatile ScheduledJobRunner.Holder holder;
+
+        public SchedulerTask(long id, String type, String action, TaskId parentTaskId, String jobId) {
+            super(id, type, action, "job-scheduler-" + jobId, parentTaskId);
+        }
+
+        public void setHolder(ScheduledJobRunner.Holder holder) {
+            this.holder = holder;
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
+        protected void onCancelled() {
+            stop();
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
+        /* public for testing */
+        public void stop() {
+            if (holder != null) {
+                holder.stop();
+            }
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final JobManager jobManager;
+        private final ScheduledJobRunner scheduledJobRunner;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager) {
-            super(settings, StartJobSchedulerAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               JobManager jobManager, ScheduledJobRunner scheduledJobRunner) {
+            super(settings, StartJobSchedulerAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+                    Request::new);
             this.jobManager = jobManager;
+            this.scheduledJobRunner = scheduledJobRunner;
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            SchedulerTask schedulerTask = (SchedulerTask) task;
+            Job job = jobManager.getJobOrThrowIfUnknown(request.jobId);
+            Allocation allocation = jobManager.getJobAllocation(job.getId());
+            scheduledJobRunner.run(job, request.getSchedulerState(), allocation, schedulerTask, (error) -> {
+                if (error != null) {
+                    listener.onFailure(error);
+                } else {
+                    listener.onResponse(new Response());
+                }
+            });
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
-        }
-
-        @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.startJobScheduler(request, listener);
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        protected void doExecute(Request request, ActionListener<Response> listener) {
+            throw new UnsupportedOperationException("the task parameter is required");
         }
     }
 }

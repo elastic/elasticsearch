@@ -5,24 +5,28 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.Job;
@@ -52,7 +56,7 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends ActionRequest {
 
         private String jobId;
 
@@ -102,7 +106,7 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
         }
     }
 
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, StopJobSchedulerAction action) {
             super(client, action, new Request());
@@ -111,56 +115,72 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
 
     public static class Response extends AcknowledgedResponse {
 
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
         private Response() {
+            super(true);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            readAcknowledged(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final JobManager jobManager;
+        private final TransportCancelTasksAction cancelTasksAction;
+        private final TransportListTasksAction listTasksAction;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager) {
-            super(settings, StopJobSchedulerAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               TransportCancelTasksAction cancelTasksAction, TransportListTasksAction listTasksAction) {
+            super(settings, StopJobSchedulerAction.NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.jobManager = jobManager;
+            this.cancelTasksAction = cancelTasksAction;
+            this.listTasksAction = listTasksAction;
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
+        protected void doExecute(Request request, ActionListener<Response> listener) {
+            String jobId = request.getJobId();
+            ListTasksRequest listTasksRequest = new ListTasksRequest();
+            listTasksRequest.setActions(StartJobSchedulerAction.NAME);
+            listTasksRequest.setDetailed(true);
+            listTasksAction.execute(listTasksRequest, new ActionListener<ListTasksResponse>() {
+                @Override
+                public void onResponse(ListTasksResponse listTasksResponse) {
+                    String expectedJobDescription = "job-scheduler-" + jobId;
+                    for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
+                        if (expectedJobDescription.equals(taskInfo.getDescription())) {
+                            CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                            cancelTasksRequest.setTaskId(taskInfo.getTaskId());
+                            cancelTasksAction.execute(cancelTasksRequest, new ActionListener<CancelTasksResponse>() {
+                                @Override
+                                public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                                    listener.onResponse(new Response());
+                                }
 
-        @Override
-        protected Response newResponse() {
-            return new Response();
-        }
+                                @Override
+                                public void onFailure(Exception e) {
+                                    listener.onFailure(e);
+                                }
+                            });
+                            return;
+                        }
+                    }
+                    listener.onFailure(new ResourceNotFoundException("No scheduler running for job [" + jobId + "]"));
+                }
 
-        @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.stopJobScheduler(request, listener);
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 }

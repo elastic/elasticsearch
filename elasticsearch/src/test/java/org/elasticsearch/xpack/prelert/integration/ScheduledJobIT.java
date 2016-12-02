@@ -45,7 +45,36 @@ public class ScheduledJobIT extends ESRestTestCase {
                 () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         String responseAsString = responseEntityToString(e.getResponse());
-        assertThat(responseAsString, containsString("\"reason\":\"There is no job '" + jobId + "' with a scheduler configured\""));
+        assertThat(responseAsString, containsString("\"reason\":\"job [" + jobId + "] is not a scheduled job\""));
+    }
+
+    public void testStartJobScheduler_jobNotOpened() throws Exception {
+        String jobId = "_id1";
+        createScheduledJob(jobId);
+
+        ResponseException e = expectThrows(ResponseException.class,
+                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        String responseAsString = responseEntityToString(e.getResponse());
+        assertThat(responseAsString, containsString("\"reason\":\"cannot start scheduler, expected job status [OPENED], " +
+                "but got [CLOSED]\""));
+    }
+
+    public void testStartJobScheduler_schedulerAlreadyStarted() throws Exception {
+        String jobId = "_id1";
+        createScheduledJob(jobId);
+        openJob(client(), jobId);
+        Response startSchedulerRequest = client().performRequest("post",
+                PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start?start=2016-06-01T00:00:00Z");
+        assertThat(startSchedulerRequest.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(responseEntityToString(startSchedulerRequest), containsString("{\"task\":\""));
+
+        ResponseException e = expectThrows(ResponseException.class,
+                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        String responseAsString = responseEntityToString(e.getResponse());
+        assertThat(responseAsString, containsString("\"reason\":\"scheduler already started, expected scheduler status " +
+                "[STOPPED], but got [STARTED]\""));
     }
 
     public void testStartJobScheduler_GivenLookbackOnly() throws Exception {
@@ -57,9 +86,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         Response startSchedulerRequest = client().performRequest("post",
                 PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z");
         assertThat(startSchedulerRequest.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(responseEntityToString(startSchedulerRequest), equalTo("{\"acknowledged\":true}"));
-        waitForSchedulerStartedState(jobId);
-
+        assertThat(responseEntityToString(startSchedulerRequest), containsString("{\"task\":\""));
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/" + jobId + "/_stats",
@@ -69,7 +96,6 @@ public class ScheduledJobIT extends ESRestTestCase {
                 throw new RuntimeException(e);
             }
         });
-
         waitForSchedulerStoppedState(client(), jobId);
     }
 
@@ -82,8 +108,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         Response response = client().performRequest("post",
                 PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start?start=2016-06-01T00:00:00Z");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
-        waitForSchedulerStartedState(jobId);
+        assertThat(responseEntityToString(response), containsString("{\"task\":\""));
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/" + jobId + "/_stats",
@@ -172,23 +197,6 @@ public class ScheduledJobIT extends ESRestTestCase {
         } catch (AssertionError e) {
             Response response = client.performRequest("get", "/_nodes/hotthreads");
             Logger logger = Loggers.getLogger(ScheduledJobIT.class);
-            logger.info("hot_threads: {}", responseEntityToString(response));
-        }
-    }
-
-    private void waitForSchedulerStartedState(String jobId) throws Exception {
-        try {
-            assertBusy(() -> {
-                try {
-                    Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/" + jobId + "/_stats",
-                            Collections.singletonMap("metric", "scheduler_state"));
-                    assertThat(responseEntityToString(getJobResponse), containsString("\"status\":\"STARTED\""));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        } catch (AssertionError e) {
-            Response response = client().performRequest("get", "/_nodes/hotthreads");
             logger.info("hot_threads: {}", responseEntityToString(response));
         }
     }

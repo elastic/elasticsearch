@@ -37,9 +37,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class ScheduledJobsIT extends ESIntegTestCase {
@@ -75,11 +77,9 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertTrue(openJobResponse.isAcknowledged());
 
-        SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTING, 0L, now);
+        SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTED, 0L, now);
         StartJobSchedulerAction.Request startSchedulerRequest = new StartJobSchedulerAction.Request("_job_id", schedulerState);
-        StartJobSchedulerAction.Response startJobResponse = client().execute(StartJobSchedulerAction.INSTANCE, startSchedulerRequest)
-                .get();
-        assertTrue(startJobResponse.isAcknowledged());
+        client().execute(StartJobSchedulerAction.INSTANCE, startSchedulerRequest).get();
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts("_job_id");
             assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs));
@@ -107,11 +107,18 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertTrue(openJobResponse.isAcknowledged());
 
-        SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTING, 0L, null);
-        StartJobSchedulerAction.Request startSchedulerRequest = new StartJobSchedulerAction.Request("_job_id", schedulerState);
-        StartJobSchedulerAction.Response startJobResponse = client().execute(StartJobSchedulerAction.INSTANCE, startSchedulerRequest)
-                .get();
-        assertTrue(startJobResponse.isAcknowledged());
+        AtomicReference<Throwable> errorHolder = new AtomicReference<>();
+        Thread t = new Thread(() -> {
+            try {
+                SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTED, 0L, null);
+                StartJobSchedulerAction.Request startSchedulerRequest =
+                        new StartJobSchedulerAction.Request("_job_id", schedulerState);
+                client().execute(StartJobSchedulerAction.INSTANCE, startSchedulerRequest).get();
+            } catch (Exception | AssertionError e) {
+                errorHolder.set(e);
+            }
+        });
+        t.start();
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts("_job_id");
             assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs1));
@@ -126,14 +133,15 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         StopJobSchedulerAction.Request stopSchedulerRequest = new StopJobSchedulerAction.Request("_job_id");
-        client().execute(StopJobSchedulerAction.INSTANCE, stopSchedulerRequest).get();
-        assertTrue(startJobResponse.isAcknowledged());
+        StopJobSchedulerAction.Response stopJobResponse = client().execute(StopJobSchedulerAction.INSTANCE, stopSchedulerRequest).get();
+        assertTrue(stopJobResponse.isAcknowledged());
         assertBusy(() -> {
             PrelertMetadata prelertMetadata = client().admin().cluster().prepareState().all().get()
                     .getState().metaData().custom(PrelertMetadata.TYPE);
             assertThat(prelertMetadata.getAllocations().get("_job_id").getSchedulerState().getStatus(),
                     equalTo(JobSchedulerStatus.STOPPED));
         });
+        assertThat(errorHolder.get(), nullValue());
     }
 
     private void indexDocs(long numDocs, long start, long end) {

@@ -140,7 +140,7 @@ public class UpdateJobSchedulerStatusAction extends Action<UpdateJobSchedulerSta
             super(acknowledged);
         }
 
-        private Response() {}
+        public Response() {}
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

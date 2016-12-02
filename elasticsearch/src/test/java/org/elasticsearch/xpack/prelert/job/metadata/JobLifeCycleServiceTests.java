@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
-import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobService;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
@@ -40,11 +39,9 @@ public class JobLifeCycleServiceTests extends ESTestCase {
     @Before
     public void instantiateJobAllocator() {
         ClusterService clusterService = mock(ClusterService.class);
-        ScheduledJobService scheduledJobService = mock(ScheduledJobService.class);
         dataProcessor = mock(DataProcessor.class);
         client = mock(Client.class);
-        jobLifeCycleService = new JobLifeCycleService(Settings.EMPTY, client, clusterService, scheduledJobService, dataProcessor,
-                Runnable::run);
+        jobLifeCycleService = new JobLifeCycleService(Settings.EMPTY, client, clusterService, dataProcessor, Runnable::run);
     }
 
     public void testStartStop() {

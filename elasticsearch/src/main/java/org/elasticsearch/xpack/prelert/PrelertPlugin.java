@@ -68,7 +68,7 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessF
 import org.elasticsearch.xpack.prelert.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.NativeAutodetectProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
-import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobService;
+import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
 import org.elasticsearch.xpack.prelert.job.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
@@ -168,7 +168,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, processFactory, clusterService.getClusterSettings());
-        ScheduledJobService scheduledJobService = new ScheduledJobService(threadPool, client, jobProvider, dataProcessor,
+        ScheduledJobRunner scheduledJobRunner = new ScheduledJobRunner(threadPool, client, jobProvider, dataProcessor,
                 // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
                 new HttpDataExtractorFactory(client),
                 System::currentTimeMillis);
@@ -176,11 +176,12 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 jobProvider,
                 jobManager,
                 new JobAllocator(settings, clusterService, threadPool),
-                new JobLifeCycleService(settings, client, clusterService, scheduledJobService, dataProcessor, threadPool.generic()),
+                new JobLifeCycleService(settings, client, clusterService, dataProcessor, threadPool.generic()),
                 new JobDataDeleterFactory(client), //NORELEASE: this should use Delete-by-query
                 dataProcessor,
                 new PrelertInitializationService(settings, threadPool, clusterService, jobProvider),
-                jobDataCountsPersister
+                jobDataCountsPersister,
+                scheduledJobRunner
                 );
     }
 
@@ -258,7 +259,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         FixedExecutorBuilder prelert = new FixedExecutorBuilder(settings, THREAD_POOL_NAME,
                 maxNumberOfJobs, 1000, "xpack.prelert.thread_pool");
 
-        // fail quick to start autodetect process / scheduler, so no queues
+        // fail quick to run autodetect process / scheduler, so no queues
         // 4 threads: for c++ logging, result processing, state processing and restore state
         FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_PROCESS_THREAD_POOL_NAME,
                 maxNumberOfJobs * 4, 4, "xpack.prelert.autodetect_process_thread_pool");

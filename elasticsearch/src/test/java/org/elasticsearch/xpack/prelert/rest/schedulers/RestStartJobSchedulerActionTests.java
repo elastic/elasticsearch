@@ -7,22 +7,37 @@ package org.elasticsearch.xpack.prelert.rest.schedulers;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
+import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerState;
+import org.elasticsearch.xpack.prelert.job.manager.JobManager;
+import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
+import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTests;
 
 import java.util.Collections;
 
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RestStartJobSchedulerActionTests extends ESTestCase {
 
     public void testPrepareRequest() throws Exception {
+        JobManager jobManager = mock(JobManager.class);
+        Job.Builder job = ScheduledJobRunnerTests.createScheduledJob();
+        when(jobManager.getJobOrThrowIfUnknown(anyString())).thenReturn(job.build());
+        Allocation allocation =
+                new Allocation(null, "foo", false, JobStatus.OPENED, null, new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
+        when(jobManager.getJobAllocation(anyString())).thenReturn(allocation);
         RestStartJobSchedulerAction action = new RestStartJobSchedulerAction(Settings.EMPTY, mock(RestController.class),
-                mock(StartJobSchedulerAction.TransportAction.class));
+                jobManager, mock(ClusterService.class));
 
         RestRequest restRequest1 = new FakeRestRequest.Builder().withParams(Collections.singletonMap("start", "not-a-date")).build();
         ElasticsearchParseException e =  expectThrows(ElasticsearchParseException.class,

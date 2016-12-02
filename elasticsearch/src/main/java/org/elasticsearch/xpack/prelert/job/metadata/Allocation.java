@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
@@ -179,6 +180,13 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         public Builder() {
         }
 
+        public Builder(Job job) {
+            this.jobId = job.getId();
+            if (job.getSchedulerConfig() != null) {
+                schedulerState = new SchedulerState(JobSchedulerStatus.STOPPED, null, null);
+            }
+        }
+
         public Builder(Allocation allocation) {
             this.nodeId = allocation.nodeId;
             this.jobId = allocation.jobId;
@@ -229,41 +237,30 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
             this.statusReason = statusReason;
         }
 
-        public void setSchedulerState(SchedulerState schedulerState) {
-            JobSchedulerStatus currentSchedulerStatus = this.schedulerState == null ?
-                    JobSchedulerStatus.STOPPED : this.schedulerState.getStatus();
-            JobSchedulerStatus newSchedulerStatus = schedulerState.getStatus();
-            switch (newSchedulerStatus) {
-            case STARTING:
-                if (currentSchedulerStatus != JobSchedulerStatus.STOPPED) {
-                    String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_START, jobId, newSchedulerStatus);
-                    throw ExceptionsHelper.conflictStatusException(msg);
+        public void setSchedulerState(SchedulerState newSchedulerState) {
+            if (this.schedulerState != null){
+                JobSchedulerStatus currentSchedulerStatus = this.schedulerState.getStatus();
+                JobSchedulerStatus newSchedulerStatus = newSchedulerState.getStatus();
+                switch (newSchedulerStatus) {
+                    case STARTED:
+                        if (currentSchedulerStatus != JobSchedulerStatus.STOPPED) {
+                            String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_START, jobId, newSchedulerStatus);
+                            throw ExceptionsHelper.conflictStatusException(msg);
+                        }
+                        break;
+                    case STOPPED:
+                        if (currentSchedulerStatus != JobSchedulerStatus.STARTED) {
+                            String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, jobId,
+                                    newSchedulerStatus);
+                            throw ExceptionsHelper.conflictStatusException(msg);
+                        }
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Invalid requested job scheduler status: " + newSchedulerStatus);
                 }
-                break;
-            case STARTED:
-                if (currentSchedulerStatus != JobSchedulerStatus.STARTING) {
-                    String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_START, jobId, newSchedulerStatus);
-                    throw ExceptionsHelper.conflictStatusException(msg);
-                }
-                break;
-            case STOPPING:
-                if (currentSchedulerStatus != JobSchedulerStatus.STARTED) {
-                    String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, jobId, newSchedulerStatus);
-                    throw ExceptionsHelper.conflictStatusException(msg);
-                }
-                break;
-            case STOPPED:
-                if ((currentSchedulerStatus != JobSchedulerStatus.STOPPED ||
-                currentSchedulerStatus != JobSchedulerStatus.STOPPING) == false) {
-                    String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, jobId, newSchedulerStatus);
-                    throw ExceptionsHelper.conflictStatusException(msg);
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid requested job scheduler status: " + newSchedulerStatus);
             }
 
-            this.schedulerState = schedulerState;
+            this.schedulerState = newSchedulerState;
         }
 
         public Allocation build() {

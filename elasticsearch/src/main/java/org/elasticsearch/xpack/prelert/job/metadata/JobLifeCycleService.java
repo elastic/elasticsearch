@@ -16,9 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
-import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobService;
 
 import java.util.HashSet;
 import java.util.Objects;
@@ -29,16 +27,14 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
 
     volatile Set<String> localAssignedJobs = new HashSet<>();
     private final Client client;
-    private final ScheduledJobService scheduledJobService;
     private final DataProcessor dataProcessor;
     private final Executor executor;
 
-    public JobLifeCycleService(Settings settings, Client client, ClusterService clusterService, ScheduledJobService scheduledJobService,
-                               DataProcessor dataProcessor, Executor executor) {
+    public JobLifeCycleService(Settings settings, Client client, ClusterService clusterService, DataProcessor dataProcessor,
+                               Executor executor) {
         super(settings);
         clusterService.add(this);
         this.client = Objects.requireNonNull(client);
-        this.scheduledJobService = Objects.requireNonNull(scheduledJobService);
         this.dataProcessor = Objects.requireNonNull(dataProcessor);
         this.executor = Objects.requireNonNull(executor);
     }
@@ -78,28 +74,6 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
         if (localAssignedJobs.contains(allocation.getJobId()) == false) {
             if (allocation.getStatus() == JobStatus.OPENING) {
                 startJob(allocation);
-            }
-        }
-
-        handleSchedulerStatusChange(job, allocation);
-    }
-
-    private void handleSchedulerStatusChange(Job job, Allocation allocation) {
-        SchedulerState schedulerState = allocation.getSchedulerState();
-        if (schedulerState != null) {
-            switch (schedulerState.getStatus()) {
-                case STARTING:
-                    executor.execute(() -> scheduledJobService.start(job, allocation));
-                    break;
-                case STARTED:
-                    break;
-                case STOPPING:
-                    executor.execute(() -> scheduledJobService.stop(allocation));
-                    break;
-                case STOPPED:
-                    break;
-                default:
-                    throw new IllegalStateException("Unhandled scheduler state [" + schedulerState.getStatus() + "]");
             }
         }
     }

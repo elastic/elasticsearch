@@ -162,6 +162,7 @@ final class BootstrapCheck {
         }
         checks.add(new ClientJvmCheck());
         checks.add(new UseSerialGCCheck());
+        checks.add(new SystemCallFilterCheck(BootstrapSettings.SECCOMP_SETTING.get(settings)));
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new G1GCCheck());
@@ -470,16 +471,44 @@ final class BootstrapCheck {
 
     }
 
-    abstract static class MightForkCheck implements BootstrapCheck.Check {
-
-        @Override
-        public boolean check() {
-            return isSeccompInstalled() && mightFork();
-        }
+    abstract static class IsSeccompInstalledCheck implements BootstrapCheck.Check {
 
         // visible for testing
         boolean isSeccompInstalled() {
             return Natives.isSeccompInstalled();
+        }
+
+    }
+
+    /**
+     * Bootstrap check that if system call filters are enabled, then system call filters must have installed successfully.
+     */
+    static class SystemCallFilterCheck extends IsSeccompInstalledCheck {
+
+        private final boolean areSystemCallFiltersEnabled;
+
+        SystemCallFilterCheck(final boolean areSystemCallFiltersEnabled) {
+            this.areSystemCallFiltersEnabled = areSystemCallFiltersEnabled;
+        }
+
+        @Override
+        public boolean check() {
+            return areSystemCallFiltersEnabled && !isSeccompInstalled();
+        }
+
+        @Override
+        public String errorMessage() {
+            return "system call filters failed to install; " +
+                "check the logs and fix your configuration or disable system call filters at your own risk";
+        }
+
+    }
+
+    abstract static class MightForkCheck extends IsSeccompInstalledCheck {
+
+        @Override
+        public boolean check() {
+            return isSeccompInstalled() && mightFork();
         }
 
         // visible for testing

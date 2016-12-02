@@ -50,45 +50,22 @@ class InternalOrder extends Terms.Order {
     /**
      * Order by the (higher) count of each term.
      */
-    public static final InternalOrder COUNT_DESC = new InternalOrder(COUNT_DESC_ID, "_count", false, new Comparator<Terms.Bucket>() {
-        @Override
-        public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return  Long.compare(o2.getDocCount(), o1.getDocCount());
-        }
-    });
+    public static final InternalOrder COUNT_DESC = new InternalOrder(COUNT_DESC_ID, "_count", false, (o1, o2) -> Long.compare(o2.getDocCount(), o1.getDocCount()));
 
     /**
      * Order by the (lower) count of each term.
      */
-    public static final InternalOrder COUNT_ASC = new InternalOrder(COUNT_ASC_ID, "_count", true, new Comparator<Terms.Bucket>() {
-
-        @Override
-        public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return Long.compare(o1.getDocCount(), o2.getDocCount());
-        }
-    });
+    public static final InternalOrder COUNT_ASC = new InternalOrder(COUNT_ASC_ID, "_count", true, (o1, o2) -> Long.compare(o1.getDocCount(), o2.getDocCount()));
 
     /**
      * Order by the terms.
      */
-    public static final InternalOrder TERM_DESC = new InternalOrder(TERM_DESC_ID, "_term", false, new Comparator<Terms.Bucket>() {
-
-        @Override
-        public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return o2.compareTerm(o1);
-        }
-    });
+    public static final InternalOrder TERM_DESC = new InternalOrder(TERM_DESC_ID, "_term", false, (o1, o2) -> o2.compareTerm(o1));
 
     /**
      * Order by the terms.
      */
-    public static final InternalOrder TERM_ASC = new InternalOrder(TERM_ASC_ID, "_term", true, new Comparator<Terms.Bucket>() {
-
-        @Override
-        public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return o1.compareTerm(o2);
-        }
-    });
+    public static final InternalOrder TERM_ASC = new InternalOrder(TERM_ASC_ID, "_term", true, Bucket::compareTerm);
 
     public static boolean isCountDesc(Terms.Order order) {
         if (order == COUNT_DESC) {
@@ -193,14 +170,11 @@ class InternalOrder extends Terms.Order {
 
             if (aggregator instanceof SingleBucketAggregator) {
                 assert key == null : "this should be picked up before the aggregation is executed - on validate";
-                return new Comparator<Terms.Bucket>() {
-                    @Override
-                    public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                        int mul = asc ? 1 : -1;
-                        int v1 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o1).bucketOrd);
-                        int v2 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o2).bucketOrd);
-                        return mul * (v1 - v2);
-                    }
+                return (o1, o2) -> {
+                    int mul = asc ? 1 : -1;
+                    int v1 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o1).bucketOrd);
+                    int v2 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o2).bucketOrd);
+                    return mul * (v1 - v2);
                 };
             }
 
@@ -209,28 +183,22 @@ class InternalOrder extends Terms.Order {
 
             if (aggregator instanceof NumericMetricsAggregator.MultiValue) {
                 assert key != null : "this should be picked up before the aggregation is executed - on validate";
-                return new Comparator<Terms.Bucket>() {
-                    @Override
-                    public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                        double v1 = ((NumericMetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o1).bucketOrd);
-                        double v2 = ((NumericMetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o2).bucketOrd);
-                        // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
-                        // the bottom
-                        return Comparators.compareDiscardNaN(v1, v2, asc);
-                    }
+                return (o1, o2) -> {
+                    double v1 = ((NumericMetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o1).bucketOrd);
+                    double v2 = ((NumericMetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o2).bucketOrd);
+                    // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
+                    // the bottom
+                    return Comparators.compareDiscardNaN(v1, v2, asc);
                 };
             }
 
             // single-value metrics agg
-            return new Comparator<Terms.Bucket>() {
-                @Override
-                public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                    double v1 = ((NumericMetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o1).bucketOrd);
-                    double v2 = ((NumericMetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o2).bucketOrd);
-                    // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
-                    // the bottom
-                    return Comparators.compareDiscardNaN(v1, v2, asc);
-                }
+            return (o1, o2) -> {
+                double v1 = ((NumericMetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o1).bucketOrd);
+                double v2 = ((NumericMetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o2).bucketOrd);
+                // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
+                // the bottom
+                return Comparators.compareDiscardNaN(v1, v2, asc);
             };
         }
     }

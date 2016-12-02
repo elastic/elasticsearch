@@ -29,7 +29,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -56,12 +55,7 @@ public class RestFilterChainTests extends ESTestCase {
         }
 
         ArrayList<RestFilter> restFiltersByOrder = new ArrayList<>(filters);
-        Collections.sort(restFiltersByOrder, new Comparator<RestFilter>() {
-            @Override
-            public int compare(RestFilter o1, RestFilter o2) {
-                return Integer.compare(o1.order(), o2.order());
-            }
-        });
+        Collections.sort(restFiltersByOrder, (o1, o2) -> Integer.compare(o1.order(), o2.order()));
 
         List<RestFilter> expectedRestFilters = new ArrayList<>();
         for (RestFilter filter : restFiltersByOrder) {
@@ -86,12 +80,7 @@ public class RestFilterChainTests extends ESTestCase {
         for (RestFilter restFilter : filters) {
             testFiltersByLastExecution.add((TestFilter)restFilter);
         }
-        Collections.sort(testFiltersByLastExecution, new Comparator<TestFilter>() {
-            @Override
-            public int compare(TestFilter o1, TestFilter o2) {
-                return Long.compare(o1.executionToken, o2.executionToken);
-            }
-        });
+        Collections.sort(testFiltersByLastExecution, (o1, o2) -> Long.compare(o1.executionToken, o2.executionToken));
 
         ArrayList<TestFilter> finalTestFilters = new ArrayList<>();
         for (RestFilter filter : testFiltersByLastExecution) {
@@ -124,12 +113,7 @@ public class RestFilterChainTests extends ESTestCase {
         RestController restController = new RestController(Settings.EMPTY, Collections.emptySet());
         restController.registerFilter(testFilter);
 
-        restController.registerHandler(RestRequest.Method.GET, "/", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new TestResponse());
-            }
-        });
+        restController.registerHandler(RestRequest.Method.GET, "/", (request, channel, client) -> channel.sendResponse(new TestResponse()));
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), additionalContinueCount + 1);

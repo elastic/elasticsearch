@@ -41,8 +41,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -79,12 +77,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         };
 
         ArrayList<ActionFilter> actionFiltersByOrder = new ArrayList<>(filters);
-        Collections.sort(actionFiltersByOrder, new Comparator<ActionFilter>() {
-            @Override
-            public int compare(ActionFilter o1, ActionFilter o2) {
-                return Integer.compare(o1.order(), o2.order());
-            }
-        });
+        Collections.sort(actionFiltersByOrder, (o1, o2) -> Integer.compare(o1.order(), o2.order()));
 
         List<ActionFilter> expectedActionFilters = new ArrayList<>();
         boolean errorExpected = false;
@@ -159,12 +152,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         };
 
         ArrayList<ActionFilter> actionFiltersByOrder = new ArrayList<>(filters);
-        Collections.sort(actionFiltersByOrder, new Comparator<ActionFilter>() {
-            @Override
-            public int compare(ActionFilter o1, ActionFilter o2) {
-                return Integer.compare(o2.order(), o1.order());
-            }
-        });
+        Collections.sort(actionFiltersByOrder, (o1, o2) -> Integer.compare(o2.order(), o1.order()));
 
         List<ActionFilter> expectedActionFilters = new ArrayList<>();
         boolean errorExpected = false;
@@ -192,12 +180,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         for (ActionFilter actionFilter : actionFilters.filters()) {
             testFiltersByLastExecution.add((ResponseTestFilter) actionFilter);
         }
-        Collections.sort(testFiltersByLastExecution, new Comparator<ResponseTestFilter>() {
-            @Override
-            public int compare(ResponseTestFilter o1, ResponseTestFilter o2) {
-                return Integer.compare(o1.executionToken, o2.executionToken);
-            }
-        });
+        Collections.sort(testFiltersByLastExecution, (o1, o2) -> Integer.compare(o1.executionToken, o2.executionToken));
 
         ArrayList<ResponseTestFilter> finalTestFilters = new ArrayList<>();
         for (ActionFilter filter : testFiltersByLastExecution) {

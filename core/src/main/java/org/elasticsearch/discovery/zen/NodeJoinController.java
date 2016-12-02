@@ -256,7 +256,7 @@ public class NodeJoinController extends AbstractComponent {
 
         private Map<DiscoveryNode, ClusterStateTaskListener> getPendingAsTasks() {
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = new HashMap<>();
-            joinRequestAccumulator.entrySet().stream().forEach(e -> tasks.put(e.getKey(), new JoinTaskListener(e.getValue(), logger)));
+            joinRequestAccumulator.entrySet().forEach(e -> tasks.put(e.getKey(), new JoinTaskListener(e.getValue(), logger)));
             return tasks;
         }
 

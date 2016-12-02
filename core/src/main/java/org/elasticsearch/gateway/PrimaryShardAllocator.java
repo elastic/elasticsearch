@@ -47,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -91,7 +90,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             Property.Dynamic, Property.NodeScope);
     @Deprecated
     public static final Setting<String> INDEX_RECOVERY_INITIAL_SHARDS_SETTING =
-        new Setting<>("index.recovery.initial_shards", (settings) -> NODE_INITIAL_SHARDS_SETTING.get(settings) , INITIAL_SHARDS_PARSER,
+        new Setting<>("index.recovery.initial_shards", NODE_INITIAL_SHARDS_SETTING::get, INITIAL_SHARDS_PARSER,
             Property.Dynamic, Property.IndexScope);
 
     public PrimaryShardAllocator(Settings settings) {

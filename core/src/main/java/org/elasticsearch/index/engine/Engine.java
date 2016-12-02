@@ -714,12 +714,7 @@ public abstract class Engine implements Closeable {
         }
 
         Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
-        Arrays.sort(segmentsArr, new Comparator<Segment>() {
-            @Override
-            public int compare(Segment o1, Segment o2) {
-                return (int) (o1.getGeneration() - o2.getGeneration());
-            }
-        });
+        Arrays.sort(segmentsArr, (o1, o2) -> (int) (o1.getGeneration() - o2.getGeneration()));
 
         return segmentsArr;
     }

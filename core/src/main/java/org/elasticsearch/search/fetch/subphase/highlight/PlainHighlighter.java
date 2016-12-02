@@ -43,7 +43,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -138,12 +137,7 @@ public class PlainHighlighter implements Highlighter {
             }
         }
         if (field.fieldOptions().scoreOrdered()) {
-            CollectionUtil.introSort(fragsList, new Comparator<TextFragment>() {
-                @Override
-                public int compare(TextFragment o1, TextFragment o2) {
-                    return Math.round(o2.getScore() - o1.getScore());
-                }
-            });
+            CollectionUtil.introSort(fragsList, (o1, o2) -> Math.round(o2.getScore() - o1.getScore()));
         }
         String[] fragments;
         // number_of_fragments is set to 0 but we have a multivalued field

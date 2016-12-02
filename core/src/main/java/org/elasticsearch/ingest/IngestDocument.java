@@ -509,7 +509,7 @@ public final class IngestDocument {
     private static void appendValues(List<Object> list, Object value) {
         if (value instanceof List) {
             List<?> valueList = (List<?>) value;
-            valueList.stream().forEach(list::add);
+            valueList.forEach(list::add);
         } else {
             list.add(value);
         }

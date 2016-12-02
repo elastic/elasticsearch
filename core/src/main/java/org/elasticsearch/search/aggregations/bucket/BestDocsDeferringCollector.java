@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -138,15 +137,12 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
 
         // Sort the top matches by docID for the benefit of deferred collector
         ScoreDoc[] docsArr = allDocs.toArray(new ScoreDoc[allDocs.size()]);
-        Arrays.sort(docsArr, new Comparator<ScoreDoc>() {
-             @Override
-             public int compare(ScoreDoc o1, ScoreDoc o2) {
-                 if(o1.doc == o2.doc){
-                     return o1.shardIndex - o2.shardIndex;
-                 }
-                 return o1.doc - o2.doc;
-             }
-         });
+        Arrays.sort(docsArr, (o1, o2) -> {
+            if(o1.doc == o2.doc){
+                return o1.shardIndex - o2.shardIndex;
+            }
+            return o1.doc - o2.doc;
+        });
         try {
             for (PerSegmentCollects perSegDocs : entries) {
                 perSegDocs.replayRelatedMatches(docsArr);

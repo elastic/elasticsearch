@@ -38,7 +38,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils.Encoders
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -114,12 +113,7 @@ public class PostingsHighlighter implements Highlighter {
 
         if (field.fieldOptions().scoreOrdered()) {
             //let's sort the snippets by score if needed
-            CollectionUtil.introSort(snippets, new Comparator<Snippet>() {
-                @Override
-                public int compare(Snippet o1, Snippet o2) {
-                    return (int) Math.signum(o2.getScore() - o1.getScore());
-                }
-            });
+            CollectionUtil.introSort(snippets, (o1, o2) -> (int) Math.signum(o2.getScore() - o1.getScore()));
         }
 
         String[] fragments = new String[snippets.size()];

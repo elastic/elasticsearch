@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -55,12 +54,7 @@ public final class Mapping implements ToXContent {
         }
         this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
-        Arrays.sort(metadataMappers, new Comparator<Mapper>() {
-            @Override
-            public int compare(Mapper o1, Mapper o2) {
-                return o1.name().compareTo(o2.name());
-            }
-        });
+        Arrays.sort(metadataMappers, (o1, o2) -> o1.name().compareTo(o2.name()));
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.meta = meta;
     }

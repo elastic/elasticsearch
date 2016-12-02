@@ -1533,13 +1533,7 @@ public final class InternalTestCluster extends TestCluster {
             nodeAndClient.recreateNodeOnRestart(callback, false, autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1);
         }
 
-        for (NodeAndClient nodeAndClient : startUpOrder) {
-            logger.info("starting node [{}] ", nodeAndClient.name);
-            nodeAndClient.startNode();
-            if (activeDisruptionScheme != null) {
-                activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
-            }
-        }
+        startAndPublishNodesAndClients(startUpOrder);
 
         if (callback.validateClusterForming()) {
             validateClusterFormed();

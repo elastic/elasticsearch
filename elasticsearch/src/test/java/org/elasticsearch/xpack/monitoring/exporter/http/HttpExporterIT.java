@@ -82,6 +82,11 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         webServer.shutdown();
     }
 
+    @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
+    }
+
     public void testExport() throws Exception {
         final boolean templatesExistsAlready = randomBoolean();
         final boolean pipelineExistsAlready = randomBoolean();

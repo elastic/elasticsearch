@@ -49,6 +49,11 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
     private List<String> dataFiles;
 
     @Override
+    protected final boolean ignoreExternalCluster() {
+        return true;
+    }
+
+    @Override
     protected boolean shouldAssertXPackIsInstalled() {
         return false; // Skip asserting that the xpack is installed because it tries to start the cluter.
     }

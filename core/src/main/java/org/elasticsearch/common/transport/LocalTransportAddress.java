@@ -53,6 +53,13 @@ public final class LocalTransportAddress implements TransportAddress {
         id = in.readString();
     }
 
+    /**
+     * Same as {@link LocalTransportAddress(StreamInput)} but accepts the second argument
+     */
+    public LocalTransportAddress(StreamInput in, String hostString) throws IOException {
+        this(in);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);

@@ -42,6 +42,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -1731,6 +1732,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testTimeoutPerConnection() throws IOException {
         assumeTrue("Works only on BSD network stacks and apparently windows",
             Constants.MAC_OS_X || Constants.FREE_BSD || Constants.WINDOWS);
+        assumeFalse("This test does not work for the local transport as it uses different address types",
+            serviceA.original() instanceof LocalTransport || serviceB.original() instanceof LocalTransport);
         try (ServerSocket socket = new ServerSocket()) {
             // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
             // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which

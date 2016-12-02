@@ -31,6 +31,11 @@ import java.util.Collection;
 public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
 
     @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
+    }
+
+    @Override
     protected boolean addMockTransportService() {
         return false;
     }

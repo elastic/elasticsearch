@@ -471,19 +471,10 @@ final class BootstrapCheck {
 
     }
 
-    abstract static class IsSeccompInstalledCheck implements BootstrapCheck.Check {
-
-        // visible for testing
-        boolean isSeccompInstalled() {
-            return Natives.isSeccompInstalled();
-        }
-
-    }
-
     /**
      * Bootstrap check that if system call filters are enabled, then system call filters must have installed successfully.
      */
-    static class SystemCallFilterCheck extends IsSeccompInstalledCheck {
+    static class SystemCallFilterCheck implements BootstrapCheck.Check {
 
         private final boolean areSystemCallFiltersEnabled;
 
@@ -496,6 +487,11 @@ final class BootstrapCheck {
             return areSystemCallFiltersEnabled && !isSeccompInstalled();
         }
 
+        // visible for testing
+        boolean isSeccompInstalled() {
+            return Natives.isSeccompInstalled();
+        }
+
         @Override
         public String errorMessage() {
             return "system call filters failed to install; " +
@@ -504,11 +500,16 @@ final class BootstrapCheck {
 
     }
 
-    abstract static class MightForkCheck extends IsSeccompInstalledCheck {
+    abstract static class MightForkCheck implements BootstrapCheck.Check {
 
         @Override
         public boolean check() {
             return isSeccompInstalled() && mightFork();
+        }
+
+        // visible for testing
+        boolean isSeccompInstalled() {
+            return Natives.isSeccompInstalled();
         }
 
         // visible for testing

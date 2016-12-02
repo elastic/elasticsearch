@@ -1,6 +1,15 @@
 [[breaking-changes-5.1]]
 == Breaking changes in 5.1
 
+[[breaking_51_scripting_api_changes]]
+[float]
+=== Scripting API changes
+
+==== Stored scripts
+
+Use the parameter 'stored' in place of 'id' when using stored scripts in a query.
+See <<modules-scripting-stored-scripts,stored scripts>> for examples.
+
 [[breaking_51_index_api_changes]]
 [float]
 === Indices API changes

@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -138,6 +139,11 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             "cannot rebalance as no target node node exists that can both allocate this shard and improve the cluster balance"));
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getAssignedNode());
+        int prevRanking = 0;
+        for (NodeAllocationResult result : rebalanceDecision.getNodeDecisions().values()) {
+            assertThat(result.getWeightRanking(), greaterThanOrEqualTo(prevRanking));
+            prevRanking = result.getWeightRanking();
+        }
     }
 
     public void testDontBalanceShardWhenThresholdNotMet() {
@@ -157,6 +163,11 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertNotNull(rebalanceDecision.getExplanation());
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getAssignedNode());
+        int prevRanking = 0;
+        for (NodeAllocationResult result : rebalanceDecision.getNodeDecisions().values()) {
+            assertThat(result.getWeightRanking(), greaterThanOrEqualTo(prevRanking));
+            prevRanking = result.getWeightRanking();
+        }
     }
 
     public void testSingleShardBalanceProducesSameResultsAsBalanceStep() {

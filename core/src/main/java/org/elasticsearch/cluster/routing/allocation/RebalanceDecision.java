@@ -35,22 +35,25 @@ import java.util.Map;
  */
 public final class RebalanceDecision extends AbstractAllocationDecision {
     /** a constant representing no decision taken */
-    public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, null, false);
+    public static final RebalanceDecision NOT_TAKEN = new RebalanceDecision(null, null, null, 0, null, false);
 
     @Nullable
     private final Decision canRebalanceDecision;
     private final boolean fetchPending;
+    private final int currentNodeRanking;
 
     private RebalanceDecision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
-                              Map<String, NodeAllocationResult> nodeDecisions, boolean fetchPending) {
+                              int currentNodeRanking, Map<String, NodeAllocationResult> nodeDecisions, boolean fetchPending) {
         super(finalDecision, assignedNode, nodeDecisions);
         this.canRebalanceDecision = canRebalanceDecision;
+        this.currentNodeRanking = currentNodeRanking;
         this.fetchPending = fetchPending;
     }
 
     public RebalanceDecision(StreamInput in) throws IOException {
         super(in);
         canRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
+        currentNodeRanking = in.readVInt();
         fetchPending = in.readBoolean();
     }
 
@@ -58,23 +61,24 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(canRebalanceDecision);
+        out.writeVInt(currentNodeRanking);
         out.writeBoolean(fetchPending);
     }
 
     /**
      * Creates a new NO {@link RebalanceDecision}.
      */
-    public static RebalanceDecision no(Decision canRebalanceDecision, Map<String, NodeAllocationResult> nodeDecisions,
-                                       boolean fetchPending) {
-        return new RebalanceDecision(canRebalanceDecision, Type.NO, null, nodeDecisions, fetchPending);
+    public static RebalanceDecision no(Decision canRebalanceDecision, int currentNodeRanking,
+                                       Map<String, NodeAllocationResult> nodeDecisions, boolean fetchPending) {
+        return new RebalanceDecision(canRebalanceDecision, Type.NO, null, currentNodeRanking, nodeDecisions, fetchPending);
     }
 
     /**
      * Creates a new {@link RebalanceDecision}.
      */
     public static RebalanceDecision decision(Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
-                                             Map<String, NodeAllocationResult> nodeDecisions) {
-        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNode, nodeDecisions, false);
+                                             int currentNodeRanking, Map<String, NodeAllocationResult> nodeDecisions) {
+        return new RebalanceDecision(canRebalanceDecision, finalDecision, assignedNode, currentNodeRanking, nodeDecisions, false);
     }
 
     /**
@@ -83,6 +87,14 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
     @Nullable
     public Decision getCanRebalanceDecision() {
         return canRebalanceDecision;
+    }
+
+    /**
+     * Gets the current ranking of the node to which the shard is currently assigned, relative to the
+     * other nodes in the cluster as reported in {@link NodeAllocationResult#getWeightRanking()}.
+     */
+    public int getCurrentNodeRanking() {
+        return currentNodeRanking;
     }
 
     @Override
@@ -111,7 +123,7 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
 
     @Override
     public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toXContent(builder, params);
+        builder.field("current_node_ranking", currentNodeRanking);
         builder.startObject("can_rebalance_decision");
         {
             builder.field("decision", canRebalanceDecision.type().toString());

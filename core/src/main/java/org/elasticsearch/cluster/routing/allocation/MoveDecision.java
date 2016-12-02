@@ -129,7 +129,6 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     @Override
     public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toXContent(builder, params);
         builder.startObject("can_remain_decision");
         {
             builder.field("decision", canRemainDecision.type().toString());

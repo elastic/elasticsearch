@@ -364,6 +364,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             Type rebalanceDecisionType = Type.NO;
             ModelNode assignedNode = null;
             int weightRanking = 0;
+            int currentNodeWeightRanking = 0;
             for (ModelNode node : modelNodes) {
                 if (node == currentNode) {
                     continue; // skip over node we're currently allocated to
@@ -379,8 +380,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 // can make the balance of the cluster better, so we check for that here
                 final boolean betterWeightThanCurrent = nodeWeight <= currentWeight;
                 boolean rebalanceConditionsMet = false;
-                boolean deltaAboveThreshold = false;
-                boolean betterWeightWithShardAdded = false;
                 if (betterWeightThanCurrent) {
                     // get the delta between the weights of the node we are checking and the node that holds the shard
                     float currentDelta = absDelta(nodeWeight, currentWeight);
@@ -388,13 +387,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
-                    deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
+                    boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
                     // simulate the weight of the node if we were to relocate the shard to it
                     float weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
                     float proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
-                    betterWeightWithShardAdded = proposedDelta < currentDelta;
+                    boolean betterWeightWithShardAdded = proposedDelta < currentDelta;
                     rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
@@ -406,19 +405,31 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         assignedNode = node;
                     }
                 }
+                final int nodeRanking;
+                if (rebalanceConditionsMet || betterWeightThanCurrent == false) {
+                    // if the node meets the conditions for being a better balance than the current
+                    // for the given shard, or if the node has a worse weight than the current, then
+                    // increment the weight ranking
+                    nodeRanking = ++weightRanking;
+                } else {
+                    if (currentNodeWeightRanking == 0) {
+                        currentNodeWeightRanking = ++weightRanking;
+                    }
+                    nodeRanking = currentNodeWeightRanking;
+                }
                 nodeDecisions.put(node.getNodeId(), new NodeAllocationResult(
                     node.routingNode.node(),
                     rebalanceConditionsMet ? canAllocate.type() : Type.NO,
                     canAllocate,
-                    ++weightRanking)
+                    nodeRanking)
                 );
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                return RebalanceDecision.no(canRebalance, nodeDecisions, allocation.hasPendingAsyncFetch());
+                return RebalanceDecision.no(canRebalance, currentNodeWeightRanking, nodeDecisions, allocation.hasPendingAsyncFetch());
             } else {
                 return RebalanceDecision.decision(canRebalance, rebalanceDecisionType,
-                    assignedNode != null ? assignedNode.routingNode.node() : null, nodeDecisions);
+                    assignedNode != null ? assignedNode.routingNode.node() : null, currentNodeWeightRanking, nodeDecisions);
             }
         }
 

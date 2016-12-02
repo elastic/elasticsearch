@@ -21,109 +21,56 @@ package org.elasticsearch.client;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public class ClientSearchHit implements SearchHit {
+public class ClientSearchHit implements Iterable<SearchHitField> {
 
-    private Map<String, Object> hit;
-    private XContentAccessor objectPath;
+    private final XContentAccessor objectPath;
 
     public ClientSearchHit(Map<String, Object> hit) {
-        this.hit = hit;
-        this.objectPath = new XContentAccessor(this.hit);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.map(this.hit);
-        builder.endObject();
-        return builder;
+        this.objectPath = new XContentAccessor(hit);
     }
 
     @Override
     public Iterator<SearchHitField> iterator() {
-        return fields().values().iterator();
+        return getFields().values().iterator();
     }
 
-    @Override
-    public float score() {
+    public float getScore() {
         return this.objectPath.evaluateDouble("_score").floatValue();
     }
 
-    @Override
-    public float getScore() {
-        return score();
-    }
-
-    @Override
-    public String index() {
+    public String getIndex() {
         return this.objectPath.evaluateString("_index");
     }
 
-    @Override
-    public String getIndex() {
-        return index();
-    }
-
-    @Override
-    public String id() {
+    public String getId() {
         return this.objectPath.evaluateString("_id");
     }
 
-    @Override
-    public String getId() {
-        return id();
-    }
-
-    @Override
-    public String type() {
+    public String getType() {
         return this.objectPath.evaluateString("_type");
     }
 
-    @Override
-    public String getType() {
-        return type();
-    }
-
-    @Override
     public NestedIdentity getNestedIdentity() {
         // TODO
         return null;
     }
 
-    @Override
-    public long version() {
+    public long getVersion() {
         Long version = this.objectPath.evaluateLong("_version");
         if (version == null) {
             return -1L; // same as returned by InternalSearchHit if version not set
@@ -131,34 +78,13 @@ public class ClientSearchHit implements SearchHit {
         return version;
     }
 
-    @Override
-    public long getVersion() {
-        return version();
-    }
-
-    @Override
-    public BytesReference sourceRef() {
-        return new BytesArray(sourceAsString());
-    }
-
-    @Override
-    public BytesReference getSourceRef() {
-        return sourceRef();
-    }
-
-    @Override
-    public byte[] source() {
-        return BytesReference.toBytes(sourceRef());
-    }
-
-    @Override
+    //TODO add hasElement support to XContentAccessor?
     public boolean hasSource() {
         return this.objectPath.evaluate("_source") != null;
     }
 
     @SuppressWarnings("unchecked")
-    @Override
-    public Map<String, Object> getSource() {
+    public Map<String, Object> getSourceAsMap() {
         Object source = this.objectPath.evaluate("_source");
         if (source == null) {
             return null;
@@ -166,40 +92,26 @@ public class ClientSearchHit implements SearchHit {
         return (Map<String, Object>) source;
     }
 
-    @Override
-    public String sourceAsString() {
-        return mapToString(getSource());
-    }
-
-    @Override
+    //TODO all these getSourceAs* methods are a bit misleading as after all they are all based on the map that we have already parsed into
     public String getSourceAsString() {
-        return sourceAsString();
+        return mapToString(getSourceAsMap());
     }
 
-    @Override
-    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
-        return getSource();
+    public byte[] getSourceAsBytes() {
+        return getSourceAsString().getBytes(StandardCharsets.UTF_8);
     }
 
-    @Override
-    public Explanation explanation() {
+    public Explanation getExplanation() {
         // TODO
         return null;
     }
 
-    @Override
-    public Explanation getExplanation() {
-        return explanation();
+    public SearchHitField getField(String fieldName) {
+        return getFields().get(fieldName);
     }
 
-    @Override
-    public SearchHitField field(String fieldName) {
-        return fields().get(fieldName);
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
-    public Map<String, SearchHitField> fields() {
+    public Map<String, SearchHitField> getFields() {
         Map<String, Object> originalMap = (Map<String, Object>) this.objectPath.evaluate("fields");
         Map<String, SearchHitField> fields = new HashMap<>(originalMap.size());
         for (Entry<String, Object> original : originalMap.entrySet()) {
@@ -208,14 +120,9 @@ public class ClientSearchHit implements SearchHit {
         return fields;
     }
 
-    @Override
-    public Map<String, SearchHitField> getFields() {
-        return fields();
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
-    public Map<String, HighlightField> highlightFields() {
+    //TODO do we have to copy over HighlightField class, SearchFieldHit and so on? or do we reuse from core?
+    public Map<String, HighlightField> getHighlightFields() {
         Map<String, Object> originalMap = (Map<String, Object>) this.objectPath.evaluate("highlight");
         Map<String, HighlightField> fields = new HashMap<>(originalMap.size());
         for (Entry<String, Object> original : originalMap.entrySet()) {
@@ -231,52 +138,23 @@ public class ClientSearchHit implements SearchHit {
         return fields;
     }
 
-    @Override
-    public Map<String, HighlightField> getHighlightFields() {
-        return highlightFields();
-    }
-
     @SuppressWarnings("unchecked")
-    @Override
-    public Object[] sortValues() {
+    public Object[] getSortValues() {
         return ((List<Object>) this.objectPath.evaluate("sort")).toArray();
     }
 
-    @Override
-    public Object[] getSortValues() {
-        return sortValues();
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
-    public String[] matchedQueries() {
+    public String[] getMatchedQueries() {
         List<String> matched = (List<String>) this.objectPath.evaluate("matched_queries");
         return matched.toArray(new String[matched.size()]);
     }
 
-    @Override
-    public String[] getMatchedQueries() {
-        return matchedQueries();
-    }
-
-    @Override
-    public SearchShardTarget shard() {
-        // TODO, not sure this will work
-        return null;
-    }
-
-    @Override
-    public SearchShardTarget getShard() {
-        return shard();
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
-    public Map<String, SearchHits> getInnerHits() {
+    public Map<String, ClientSearchHits> getInnerHits() {
         Map<String, Object> originalMap = (Map<String, Object>) this.objectPath.evaluate("inner_hits");
-        Map<String, SearchHits> innerHits = new HashMap<>(originalMap.size());
+        Map<String, ClientSearchHits> innerHits = new HashMap<>(originalMap.size());
         for (Entry<String, Object> original : originalMap.entrySet()) {
-            SearchHits hits = new ClientSearchHits((Map<String, Object>) original.getValue());
+            ClientSearchHits hits = new ClientSearchHits((Map<String, Object>) original.getValue());
             innerHits.put(original.getKey(), hits);
         }
         return innerHits;
@@ -286,6 +164,7 @@ public class ClientSearchHit implements SearchHit {
         XContentBuilder builder;
         try {
             builder = XContentFactory.jsonBuilder();
+            //TODO do we need to pretty print?
             builder.prettyPrint();
             builder.map(map);
             return builder.string();

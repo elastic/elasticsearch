@@ -25,8 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -52,7 +50,7 @@ public class HLClientSearchIT extends ESRestTestCase {
         this.aClient =  new HighlevelClient(client());
     }
 
-    public void createTestDoc() throws IOException {
+    private static void createTestDoc() throws IOException {
         XContentBuilder mappingsBuilder = randomXContentBuilder();
         mappingsBuilder.startObject();
         mappingsBuilder.startObject("mappings");
@@ -102,31 +100,29 @@ public class HLClientSearchIT extends ESRestTestCase {
         assertEquals(5, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(0, searchResponse.getFailedShards());
-        SearchHits hits = searchResponse.getHits();
+        ClientSearchHits hits = searchResponse.getHits();
         assertEquals(1, hits.getTotalHits());
-        assertEquals(1, hits.totalHits());
-        assertThat(hits.maxScore(), greaterThan(0.0f));
         assertThat(hits.getMaxScore(), greaterThan(0.0f));
-        SearchHit searchHit = hits.hits()[0];
-        assertEquals("some title", searchHit.sourceAsMap().get("title"));
-        assertEquals("test", searchHit.index());
-        assertEquals("type", searchHit.type());
-        assertEquals("1", searchHit.id());
-        assertEquals(1, searchHit.version());
-        float score = searchHit.score();
+        ClientSearchHit searchHit = hits.getAt(0);
+        assertEquals("some title", searchHit.getSourceAsMap().get("title"));
+        assertEquals("test", searchHit.getIndex());
+        assertEquals("type", searchHit.getType());
+        assertEquals("1", searchHit.getId());
+        assertEquals(1, searchHit.getVersion());
+        float score = searchHit.getScore();
         assertThat(score, greaterThan(0.0f));
-        assertEquals(2, searchHit.fields().size());
-        assertThat(searchHit.field("content").getValues(), contains("buzz cola", "some buzz"));
-        assertEquals("some title", searchHit.field("title").getValue());
-        assertNull(searchHit.field("something"));
-        assertEquals(1, searchHit.highlightFields().size());
-        assertEquals("content", searchHit.highlightFields().get("content").name());
-        assertThat(Arrays.asList(searchHit.highlightFields().get("content").fragments()),
+        assertEquals(2, searchHit.getFields().size());
+        assertThat(searchHit.getField("content").getValues(), contains("buzz cola", "some buzz"));
+        assertEquals("some title", searchHit.getField("title").getValue());
+        assertNull(searchHit.getField("something"));
+        assertEquals(1, searchHit.getHighlightFields().size());
+        assertEquals("content", searchHit.getHighlightFields().get("content").name());
+        assertThat(Arrays.asList(searchHit.getHighlightFields().get("content").fragments()),
                 contains(new Text("<em>buzz</em> cola"), new Text("some <em>buzz</em>")));
-        assertEquals(1, searchHit.sortValues().length);
-        assertEquals(score, ((Double) searchHit.sortValues()[0]).floatValue(), Float.MIN_VALUE);
-        assertEquals(1, searchHit.matchedQueries().length);
-        assertEquals("buzz_query", searchHit.matchedQueries()[0]);
+        assertEquals(1, searchHit.getSortValues().length);
+        assertEquals(score, ((Double) searchHit.getSortValues()[0]).floatValue(), Float.MIN_VALUE);
+        assertEquals(1, searchHit.getMatchedQueries().length);
+        assertEquals("buzz_query", searchHit.getMatchedQueries()[0]);
     }
 
     private static XContentBuilder randomXContentBuilder() throws IOException {

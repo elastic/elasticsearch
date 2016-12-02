@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchRequestTests extends ESTestCase {
 
-    public void testContructor() {
+    public void testConstructor() {
         SearchRequest request = new SearchRequest(new SearchSourceBuilder());
         Map<String, String> params = new HashMap<>();
         params.put("foo", "bar");
@@ -41,5 +41,4 @@ public class SearchRequestTests extends ESTestCase {
         assertThat(request.params().size(), equalTo(1));
         assertThat(request.params().get("foo"), equalTo("bar"));
     }
-
 }

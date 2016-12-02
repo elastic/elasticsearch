@@ -44,7 +44,7 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals("baz", response.get("foo.bar"));
     }
 
-    public void testBasicProperties() throws IOException {
+    public void testShardsSection() throws IOException {
         Response restResponse = mockResponse(
                 "{ \"took\" : 63, \"timed_out\" : false, \"_shards\" : { \"total\" : 5, \"successful\" : 4, \"failed\" : 1 }}");
         SearchResponse response = new SearchResponse(restResponse);

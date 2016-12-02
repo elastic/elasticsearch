@@ -173,10 +173,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
     }
 
     public static final class Fields {
-        public static final String _SCROLL_ID = "_scroll_id";
-        public static final String TOOK = "took";
-        public static final String TIMED_OUT = "timed_out";
-        public static final String TERMINATED_EARLY = "terminated_early";
+        static final String _SCROLL_ID = "_scroll_id";
+        static final String TOOK = "took";
+        static final String TIMED_OUT = "timed_out";
+        static final String TERMINATED_EARLY = "terminated_early";
     }
 
     @Override

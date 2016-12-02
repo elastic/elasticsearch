@@ -20,9 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,10 +37,6 @@ public class SearchResponse {
         this.object = XContentAccessor.createFromXContent(xContentType.xContent(), body);
     }
 
-    public XContentAccessor getXContentAccess() {
-        return this.object;
-    }
-
     @SuppressWarnings("unchecked")
     public Map<String, Object> getMap() {
         return (Map<String, Object>) this.object.getObject();
@@ -56,21 +50,14 @@ public class SearchResponse {
      * Has the search operation timed out.
      */
     public boolean isTimedOut() {
-        return (Boolean) get(org.elasticsearch.action.search.SearchResponse.Fields.TIMED_OUT);
-    }
-
-    /**
-     * How long the search took.
-     */
-    public TimeValue getTook() {
-        return new TimeValue(getTookInMillis());
+        return (Boolean) get("timed_out");
     }
 
     /**
      * How long the search took in milliseconds.
      */
     public long getTookInMillis() {
-        return this.object.evaluateLong(org.elasticsearch.action.search.SearchResponse.Fields.TOOK);
+        return this.object.evaluateLong("took");
     }
 
     /**
@@ -98,7 +85,7 @@ public class SearchResponse {
      * The search hits.
      */
     @SuppressWarnings("unchecked")
-    public SearchHits getHits() {
+    public ClientSearchHits getHits() {
         return new ClientSearchHits((Map<String, Object>) this.object.evaluate("hits"));
     }
 }

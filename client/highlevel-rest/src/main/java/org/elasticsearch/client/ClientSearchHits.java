@@ -19,72 +19,36 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class ClientSearchHits implements SearchHits {
+public class ClientSearchHits implements Iterable<ClientSearchHit> {
 
-    private Map<String, Object> hitsSection;
-    private XContentAccessor objectPath;
+    private final XContentAccessor objectPath;
     private ClientSearchHit[] hitsArray;
 
     public ClientSearchHits(Map<String, Object> hitsSection) {
-        this.hitsSection = hitsSection;
-        this.objectPath = new XContentAccessor(this.hitsSection);
+        this.objectPath = new XContentAccessor(hitsSection);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException();
+    public Iterator<ClientSearchHit> iterator() {
+        return Arrays.asList(getHits()).iterator();
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("hits", hitsSection);
-    }
-
-    @Override
-    public Iterator<SearchHit> iterator() {
-        return Arrays.asList(hits()).iterator();
-    }
-
-    @Override
-    public long totalHits() {
+    public long getTotalHits() {
         return this.objectPath.evaluateLong("total");
     }
 
-    @Override
-    public long getTotalHits() {
-        return totalHits();
-    }
-
-    @Override
-    public float maxScore() {
+    public float getMaxScore() {
         return this.objectPath.evaluateDouble("max_score").floatValue();
     }
 
-    @Override
-    public float getMaxScore() {
-        return maxScore();
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
-    public SearchHit[] hits() {
+    public ClientSearchHit[] getHits() {
+        //TODO won't this cause concurrency issues?
         if (this.hitsArray == null) {
             List<Object> hits = (List<Object>) this.objectPath.evaluate("hits");
             this.hitsArray = new ClientSearchHit[hits.size()];
@@ -97,14 +61,7 @@ public class ClientSearchHits implements SearchHits {
         return this.hitsArray;
     }
 
-    @Override
-    public SearchHit getAt(int position) {
-        return hits()[position];
+    public ClientSearchHit getAt(int position) {
+        return getHits()[position];
     }
-
-    @Override
-    public SearchHit[] getHits() {
-        return hits();
-    }
-
 }

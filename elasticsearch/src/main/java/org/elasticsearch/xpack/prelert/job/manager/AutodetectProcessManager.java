@@ -123,7 +123,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     AutodetectCommunicator create(String jobId, boolean ignoreDowntime) {
         if (autoDetectCommunicatorByJob.size() == maxRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxRunningJobs + "] reached",
-                    RestStatus.TOO_MANY_REQUESTS);
+                    RestStatus.FORBIDDEN);
         }
 
         // TODO norelease, once we remove black hole process

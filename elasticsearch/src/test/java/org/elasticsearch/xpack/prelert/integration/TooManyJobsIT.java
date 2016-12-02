@@ -81,7 +81,7 @@ public class TooManyJobsIT extends ESIntegTestCase {
                     logger.warn("Unexpected cause", e);
                 }
                 assertEquals(ElasticsearchStatusException.class, cause.getClass());
-                assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) cause).status());
+                assertEquals(RestStatus.FORBIDDEN, ((ElasticsearchStatusException) cause).status());
                 logger.info("good news everybody --> reached threadpool capacity after starting {}th analytical process", i);
 
                 // now manually clean things up and see if we can succeed to start one new job

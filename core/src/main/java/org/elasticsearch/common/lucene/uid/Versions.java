@@ -60,6 +60,12 @@ public class Versions {
      */
     public static final long MATCH_DELETED = -4L;
 
+    /**
+     * used to indicate that the version field is not set. Should never be exposed to the engine but can be used internally by the
+     * request classes.
+     */
+    public static final long NOT_SET = -5L;
+
     // TODO: is there somewhere else we can store these?
     static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 

@@ -79,7 +79,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private OpType opType = OpType.INDEX;
 
-    private long version = Versions.MATCH_ANY;
+    private long version = Versions.NOT_SET;
     private VersionType versionType = VersionType.INTERNAL;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
@@ -140,9 +140,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("source is missing", validationException);
         }
 
+        final long resolvedVersion = resolveVersionDefaults();
         if (opType() == OpType.CREATE) {
-            if (versionType != VersionType.INTERNAL || version != Versions.MATCH_DELETED) {
-                validationException = addValidationError("create operations do not support versioning. use index instead", validationException);
+            if (versionType != VersionType.INTERNAL) {
+                validationException = addValidationError("create operations only support internal versioning. use index instead", validationException);
+                return validationException;
+            }
+
+            if (resolvedVersion != Versions.MATCH_DELETED) {
+                validationException = addValidationError("create operations do not support explicit versions. use index instead", validationException);
                 return validationException;
             }
         }
@@ -151,8 +157,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             addValidationError("an id is required for a " + opType() + " operation", validationException);
         }
 
-        if (!versionType.validateVersionForWrites(version)) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        if (!versionType.validateVersionForWrites(resolvedVersion)) {
+            validationException = addValidationError("illegal version value [" + resolvedVersion + "] for version type [" + versionType.name() + "]", validationException);
         }
 
         if (versionType == VersionType.FORCE) {
@@ -164,7 +170,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                             id.getBytes(StandardCharsets.UTF_8).length, validationException);
         }
 
-        if (id == null && (versionType == VersionType.INTERNAL && version == Versions.MATCH_ANY) == false) {
+        if (id == null && (versionType == VersionType.INTERNAL && resolvedVersion == Versions.MATCH_ANY) == false) {
             validationException = addValidationError("an id must be provided if version type or value are set", validationException);
         }
 
@@ -387,10 +393,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("opType must be 'create' or 'index', found: [" + opType + "]");
         }
         this.opType = opType;
-        if (opType == OpType.CREATE) {
-            version(Versions.MATCH_DELETED);
-            versionType(VersionType.INTERNAL);
-        }
         return this;
     }
 
@@ -435,7 +437,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public long version() {
-        return this.version;
+        return resolveVersionDefaults();
+    }
+
+    /**
+     * Resolves the version based on operation type {@link #opType()}. Not explicitly setting any version if OpType == CREATE corresponds
+     * to setting Versions.MATCH_DELETED and not explicitly setting any version if OpType == INDEX corresponds to setting Versions.MATCH_ANY
+     */
+    private long resolveVersionDefaults() {
+        if (version == Versions.NOT_SET) {
+            if (opType == OpType.CREATE) {
+                return Versions.MATCH_DELETED;
+            } else {
+                return Versions.MATCH_ANY;
+            }
+        } else {
+            return this.version;
+        }
     }
 
     @Override
@@ -512,7 +530,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
-        out.writeLong(version);
+        // ES versions below 5.1.1 don't know about Versions.NOT_SET but resolve the version eagerly (which messes with validation).
+        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+            out.writeLong(resolveVersionDefaults());
+        } else {
+            out.writeLong(version);
+        }
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);
         out.writeBoolean(isRetry);

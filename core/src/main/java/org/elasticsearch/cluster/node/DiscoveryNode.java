@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.TransportAddressSerializers;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -217,7 +218,14 @@ public class DiscoveryNode implements Writeable, ToXContent {
         this.ephemeralId = in.readString().intern();
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
-        this.address = TransportAddressSerializers.addressFromStream(in);
+        if (in.getVersion().onOrAfter(InetSocketTransportAddress.V_5_0_3_UNRELEASED)) {
+            this.address = TransportAddressSerializers.addressFromStream(in);
+        } else {
+            // we need to do this to preserve the host information during pinging and joining of a master. Since the version of the
+            // DiscoveryNode is set to Version#minimumCompatibilityVersion(), the host information gets lost as we do not serialize the
+            // hostString for the address
+            this.address = TransportAddressSerializers.addressFromStream(in, hostName);
+        }
         int size = in.readVInt();
         this.attributes = new HashMap<>(size);
         for (int i = 0; i < size; i++) {

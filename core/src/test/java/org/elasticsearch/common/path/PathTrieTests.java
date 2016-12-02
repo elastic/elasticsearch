@@ -28,6 +28,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+import org.elasticsearch.common.path.PathTrie.TrieMatchingMode;
+
 public class PathTrieTests extends ESTestCase {
 
     public static final PathTrie.Decoder NO_DECODER = new PathTrie.Decoder() {
@@ -112,6 +114,72 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("/b/a", params), equalTo("test4"));
         assertThat(trie.retrieve("/v/x", params), equalTo("test5"));
         assertThat(trie.retrieve("/v/x/c", params), equalTo("test6"));
+    }
+    
+    // https://github.com/elastic/elasticsearch/pull/17916
+    public void testWildcardMatchingModes() {
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
+        trie.insert("{testA}", "test1");
+        trie.insert("{testA}/{testB}", "test2");
+        trie.insert("a/{testA}", "test3");
+        trie.insert("{testA}/b", "test4");
+        trie.insert("{testA}/b/c", "test5");
+        trie.insert("a/{testB}/c", "test6");
+        trie.insert("a/b/{testC}", "test7");
+        trie.insert("{testA}/b/{testB}", "test8");
+        trie.insert("x/{testA}/z", "test9");
+        trie.insert("{testA}/{testB}/{testC}", "test10");
+
+        Map<String, String> params = new HashMap<>();
+        
+        assertThat(trie.retrieve("/a", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
+        assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test1"));
+        assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test1"));
+        assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test1"));
+        
+        assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
+        assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test4"));
+        assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test3"));
+        assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test3"));
+        
+        assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
+        assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test5"));
+        assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test7"));
+        assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test7"));
+        
+        assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
+        assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), nullValue());
+        assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), nullValue());
+        assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test9"));
+        
+        assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
+        assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), nullValue());
+        assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), nullValue());
+        assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test10"));
+    }
+    
+    // https://github.com/elastic/elasticsearch/pull/17916
+    public void testExplicitMatchingMode() {
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
+        trie.insert("{testA}", "test1");
+        trie.insert("a", "test2");
+        trie.insert("{testA}/{testB}", "test3");
+        trie.insert("a/{testB}", "test4");
+        trie.insert("{testB}/b", "test5");
+        trie.insert("a/b", "test6");
+        trie.insert("{testA}/b/{testB}", "test7");
+        trie.insert("x/{testA}/z", "test8");
+        trie.insert("{testA}/{testB}/{testC}", "test9");
+        trie.insert("a/b/c", "test10");
+
+        Map<String, String> params = new HashMap<>();
+        
+        assertThat(trie.retrieve("/a", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), equalTo("test2"));
+        assertThat(trie.retrieve("/x", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
+        assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), equalTo("test6"));
+        assertThat(trie.retrieve("/a/x", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
+        assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), equalTo("test10"));
+        assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
     }
 
     public void testSamePathConcreteResolution() {

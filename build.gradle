@@ -6,10 +6,6 @@ import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elastic.gradle.UploadS3Task
 
-import java.nio.file.Files
-import java.nio.file.Paths
-import java.nio.file.StandardCopyOption
-
 if (project.hasProperty("AWS_ACCESS_KEY")) {
   project.ext.awsAccessKey = AWS_ACCESS_KEY
 }

@@ -848,6 +848,16 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .get();
         assertThat(resp.isExists(), equalTo(true));
         checkBrownFoxTermVector(resp.getFields(), "field1", false);
+
+        // Since the index is empty, all of artificial document's "term_statistics" should be 0/absent
+        Terms terms = resp.getFields().terms("field1");
+        assertEquals("sumDocFreq should be 0 for a non-existing field!", 0, terms.getSumDocFreq());
+        assertEquals("sumTotalTermFreq should be 0 for a non-existing field!", 0, terms.getSumTotalTermFreq());
+        TermsEnum termsEnum = terms.iterator(); // we're guaranteed to receive terms for that field
+        while (termsEnum.next() != null) {
+            String term = termsEnum.term().utf8ToString();
+            assertEquals("term [" + term + "] does not exist in the index; ttf should be 0!", 0, termsEnum.totalTermFreq());
+        }
     }
 
     public void testPerFieldAnalyzer() throws IOException {

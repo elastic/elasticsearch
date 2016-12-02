@@ -268,6 +268,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static final String TESTS_CLIENT_RATIO = "tests.client.ratio";
 
     /**
+     * Key used to eventually switch to using an external cluster and provide its transport addresses
+     */
+    public static final String TESTS_CLUSTER = "tests.cluster";
+
+    /**
      * Key used to retrieve the index random seed from the index settings on a running node.
      * The value of this seed can be used to initialize a random context for a specific index.
      * It's set once per test via a generic index template.
@@ -1713,11 +1718,35 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
+    private ExternalTestCluster buildExternalCluster(String clusterAddresses) throws IOException {
+        String[] stringAddresses = clusterAddresses.split(",");
+        TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
+        int i = 0;
+        for (String stringAddress : stringAddresses) {
+            URL url = new URL("http://" + stringAddress);
+            InetAddress inetAddress = InetAddress.getByName(url.getHost());
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+        }
+        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
+    }
+
     protected Settings externalClusterClientSettings() {
         return Settings.EMPTY;
     }
 
+    protected boolean ignoreExternalCluster() {
+        return false;
+    }
+
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        String clusterAddresses = System.getProperty(TESTS_CLUSTER);
+        if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
+            if (scope == Scope.TEST) {
+                throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
+            }
+            return buildExternalCluster(clusterAddresses);
+        }
+
         final String nodePrefix;
         switch (scope) {
             case TEST:

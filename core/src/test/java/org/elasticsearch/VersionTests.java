@@ -92,9 +92,9 @@ public class VersionTests extends ESTestCase {
 
     public void testMinimumIndexCompatibilityVersion() {
         assertEquals(Version.V_5_0_0, Version.fromString("6.0.0").minimumIndexCompatibilityVersion());
-        assertEquals(Version.V_2_0_0, Version.V_5_0_0.minimumIndexCompatibilityVersion());
-        assertEquals(Version.V_2_0_0, Version.V_5_1_1_UNRELEASED.minimumIndexCompatibilityVersion());
-        assertEquals(Version.V_2_0_0, Version.V_5_0_0_alpha1.minimumIndexCompatibilityVersion());
+        assertEquals(Version.V_2_0_0_beta1, Version.V_5_0_0.minimumIndexCompatibilityVersion());
+        assertEquals(Version.V_2_0_0_beta1, Version.V_5_1_1_UNRELEASED.minimumIndexCompatibilityVersion());
+        assertEquals(Version.V_2_0_0_beta1, Version.V_5_0_0_alpha1.minimumIndexCompatibilityVersion());
     }
 
     public void testVersionConstantPresent() {

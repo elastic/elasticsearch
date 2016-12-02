@@ -340,8 +340,18 @@ public class Version {
         } else {
             bwcMajor = major - 1;
         }
-        final int bwcMinor = 0;
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+        final int bwcMinor;
+        if (bwcMajor <= 2) {
+            // we do support beta1 prior to 5.x
+            // this allows clusters that have upgraded to 5.0 with an index created in 2.0.0.beta1 to go to 5.2 etc.
+            // otherwise the upgrade will fail and that is really not what we want. from 5 onwards we are supporting only GA
+            // releases
+            bwcMinor = 01;
+        } else {
+            bwcMinor = 99;
+        }
+
+        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor));
     }
 
     @SuppressForbidden(reason = "System.out.*")

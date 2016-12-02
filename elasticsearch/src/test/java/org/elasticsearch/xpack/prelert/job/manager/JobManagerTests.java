@@ -217,7 +217,7 @@ public class JobManagerTests extends ESTestCase {
     private JobManager createJobManager() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         JobResultsPersister jobResultsPersister = mock(JobResultsPersister.class);
-        return new JobManager(settings, jobProvider, jobResultsPersister, jobDataCountsPersister, clusterService);
+        return new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
     }
 
     private ClusterState createClusterState() {

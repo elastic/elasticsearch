@@ -18,16 +18,10 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Date;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -157,7 +151,7 @@ public class StatusReporterTests extends ESTestCase {
 
             assertEquals(statusReporter.incrementalStats(), statusReporter.runningTotalStats());
 
-            verify(jobDataCountsPersister, never()).persistDataCounts(anyString(), any(DataCounts.class));
+            verify(jobDataCountsPersister, never()).persistDataCounts(anyString(), any(DataCounts.class), any());
         }
     }
 
@@ -262,7 +256,7 @@ public class StatusReporterTests extends ESTestCase {
             statusReporter.finishReporting();
 
             Mockito.verify(usageReporter, Mockito.times(1)).reportUsage();
-            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), eq(dc));
+            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), eq(dc), any());
             assertEquals(dc, statusReporter.incrementalStats());
         }
     }
@@ -284,12 +278,6 @@ public class StatusReporterTests extends ESTestCase {
             }
         });
 
-        ExecutorService executorService = mock(ExecutorService.class);
-        ArgumentCaptor<Runnable> persistTaskCapture = ArgumentCaptor.forClass(Runnable.class);
-        when(executorService.submit(persistTaskCapture.capture())).thenReturn(null);
-
-        when(mockThreadPool.generic()).thenReturn(executorService);
-
         try (StatusReporter statusReporter = new StatusReporter(mockThreadPool, settings, JOB_ID, new DataCounts(JOB_ID), usageReporter,
                 jobDataCountsPersister)) {
 
@@ -298,16 +286,10 @@ public class StatusReporterTests extends ESTestCase {
             statusReporter.reportRecordWritten(5, 2000);
             statusReporter.reportRecordWritten(5, 3000);
 
-            Mockito.verify(jobDataCountsPersister, Mockito.times(0)).persistDataCounts(eq("SR"), any());
+            Mockito.verify(jobDataCountsPersister, Mockito.times(0)).persistDataCounts(eq("SR"), any(), any());
             argumentCaptor.getValue().run();
             statusReporter.reportRecordWritten(5, 4000);
-            DataCounts dc = new DataCounts(JOB_ID, 2L, 6L, 0L, 10L, 0L, 0L, 0L, new Date(2000), new Date(4000));
-            // verify threadpool executor service to do the persistence is launched
-            Mockito.verify(mockThreadPool, Mockito.times(1)).generic();
-
-            // run the captured persist task
-            persistTaskCapture.getValue().run();
-            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), any());
+            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), any(), any());
         }
     }
 

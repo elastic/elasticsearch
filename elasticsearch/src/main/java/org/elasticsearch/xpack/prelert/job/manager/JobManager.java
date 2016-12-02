@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.StopJobSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
-import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
@@ -35,7 +34,6 @@ import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
-import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
@@ -71,19 +69,17 @@ public class JobManager extends AbstractComponent {
     private final JobProvider jobProvider;
     private final ClusterService clusterService;
     private final JobResultsPersister jobResultsPersister;
-    private final JobDataCountsPersister jobDataCountsPersister;
 
 
     /**
      * Create a JobManager
      */
     public JobManager(Settings settings, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-                      JobDataCountsPersister jobDataCountsPersister, ClusterService clusterService) {
+                      ClusterService clusterService) {
         super(settings);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.clusterService = clusterService;
         this.jobResultsPersister = jobResultsPersister;
-        this.jobDataCountsPersister = jobDataCountsPersister;
     }
 
     /**
@@ -441,11 +437,6 @@ public class JobManager extends AbstractComponent {
                 builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
                 if (request.getDeleteInterveningResults()) {
                     builder.setIgnoreDowntime(IgnoreDowntime.NEVER);
-                    DataCounts counts = jobProvider.dataCounts(request.getJobId());
-                    counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-                    // NORELEASE This update should be async. See #127
-                    jobDataCountsPersister.persistDataCounts(request.getJobId(), counts);
-
                 } else {
                     builder.setIgnoreDowntime(IgnoreDowntime.ONCE);
                 }

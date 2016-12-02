@@ -10,6 +10,8 @@ import java.util.Locale;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -44,18 +46,26 @@ public class JobDataCountsPersister extends AbstractComponent {
      *
      * @param jobId Job to update
      * @param counts The counts
+     * @param listener Action response listener
      */
-    public void persistDataCounts(String jobId, DataCounts counts) {
+    public void persistDataCounts(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         try {
             XContentBuilder content = serialiseCounts(counts);
-            client.prepareIndex(getJobIndexName(jobId), DataCounts.TYPE.getPreferredName(),
-                    jobId + DataCounts.DOCUMENT_SUFFIX)
-            .setSource(content).execute().actionGet();
+            client.prepareIndex(getJobIndexName(jobId), DataCounts.TYPE.getPreferredName(), jobId + DataCounts.DOCUMENT_SUFFIX)
+                    .setSource(content).execute(new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    listener.onResponse(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+
         } catch (IOException ioe) {
             logger.warn((Supplier<?>)() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
-        } catch (IndexNotFoundException e) {
-            String msg = String.format(Locale.ROOT, "[%s] Error writing status stats.", jobId);
-            logger.warn(msg, e);
         }
     }
 }

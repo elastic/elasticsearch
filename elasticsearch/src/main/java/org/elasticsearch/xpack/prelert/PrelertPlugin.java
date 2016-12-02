@@ -157,7 +157,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         ElasticsearchJobProvider jobProvider = new ElasticsearchJobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
-        JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, jobDataCountsPersister, clusterService);
+        JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
         AutodetectProcessFactory processFactory;
         if (USE_NATIVE_PROCESS_OPTION.get(settings)) {
             try {
@@ -182,7 +182,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new JobLifeCycleService(settings, client, clusterService, scheduledJobService, dataProcessor, threadPool.generic()),
                 new ElasticsearchBulkDeleterFactory(client), //NORELEASE: this should use Delete-by-query
                 dataProcessor,
-                new PrelertInitializationService(settings, threadPool, clusterService, jobProvider)
+                new PrelertInitializationService(settings, threadPool, clusterService, jobProvider),
+                jobDataCountsPersister
                 );
     }
 

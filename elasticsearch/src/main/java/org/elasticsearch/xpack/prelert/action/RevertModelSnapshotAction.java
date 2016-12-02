@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
@@ -44,11 +45,11 @@ import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.OldDataRemover;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.prelert.utils.SingleDocument;
 
 import java.io.IOException;
 import java.util.Date;
@@ -311,15 +312,18 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         private final JobManager jobManager;
         private final JobProvider jobProvider;
         private final ElasticsearchBulkDeleterFactory bulkDeleterFactory;
+        private final JobDataCountsPersister jobDataCountsPersister;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, ElasticsearchJobProvider jobProvider,
-                ClusterService clusterService, ElasticsearchBulkDeleterFactory bulkDeleterFactory) {
+                ClusterService clusterService, ElasticsearchBulkDeleterFactory bulkDeleterFactory,
+                JobDataCountsPersister jobDataCountsPersister) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;
             this.jobProvider = jobProvider;
             this.bulkDeleterFactory = bulkDeleterFactory;
+            this.jobDataCountsPersister = jobDataCountsPersister;
         }
 
         @Override
@@ -351,7 +355,8 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
             ModelSnapshot modelSnapshot = getModelSnapshot(request, jobProvider);
             if (request.getDeleteInterveningResults()) {
-                listener = wrapListener(listener, modelSnapshot, request.getJobId());
+                listener = wrapDeleteOldDataListener(listener, modelSnapshot, request.getJobId());
+                listener = wrapRevertDataCountsListener(listener, modelSnapshot, request.getJobId());
             }
             jobManager.revertSnapshot(request, listener, modelSnapshot);
         }
@@ -374,12 +379,12 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
             return modelSnapshot;
         }
 
-        private ActionListener<RevertModelSnapshotAction.Response> wrapListener(ActionListener<RevertModelSnapshotAction.Response> listener,
+        private ActionListener<RevertModelSnapshotAction.Response> wrapDeleteOldDataListener(
+                ActionListener<RevertModelSnapshotAction.Response> listener,
                 ModelSnapshot modelSnapshot, String jobId) {
 
             // If we need to delete buckets that occurred after the snapshot, we
-            // wrap
-            // the listener with one that invokes the OldDataRemover on
+            // wrap the listener with one that invokes the OldDataRemover on
             // acknowledged responses
             return ActionListener.wrap(response -> {
                 if (response.isAcknowledged()) {
@@ -404,6 +409,30 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                             listener.onFailure(e);
                         }
                     }, jobId, deleteAfter.getTime() + 1);
+                }
+            }, listener::onFailure);
+        }
+
+        private ActionListener<RevertModelSnapshotAction.Response> wrapRevertDataCountsListener(
+                ActionListener<RevertModelSnapshotAction.Response> listener,
+                ModelSnapshot modelSnapshot, String jobId) {
+
+
+            return ActionListener.wrap(response -> {
+                if (response.isAcknowledged()) {
+                    DataCounts counts = jobProvider.dataCounts(jobId);
+                    counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
+                    jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
+                        @Override
+                        public void onResponse(Boolean aBoolean) {
+                            listener.onResponse(response);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
                 }
             }, listener::onFailure);
         }

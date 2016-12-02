@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -135,7 +136,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {}
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {}
 
     @Override
     protected String contentType() {

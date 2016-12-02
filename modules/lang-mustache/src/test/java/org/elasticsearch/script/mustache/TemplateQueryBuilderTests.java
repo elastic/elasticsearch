@@ -104,7 +104,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     }
 
     @Before
-    public void before() {
+    public void setup() {
         templateBase = new MatchQueryBuilder("field", "some values");
     }
 

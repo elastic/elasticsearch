@@ -48,11 +48,6 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
                 .build();
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testThatErrorTraceParamReturns400() throws IOException {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));

@@ -69,7 +69,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
@@ -95,6 +94,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -446,8 +446,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating test template");
         assertThat(client.admin().indices().preparePutTemplate("test-template").setPatterns(Collections.singletonList("te*")).addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-            .startObject("field1").field("type", "string").field("store", "yes").endObject()
-            .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+            .startObject("field1").field("type", "text").field("store", "yes").endObject()
+            .startObject("field2").field("type", "keyword").field("store", "yes").endObject()
             .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
@@ -487,8 +487,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         if(testTemplate) {
             logger.info("-->  creating test template");
             assertThat(client.admin().indices().preparePutTemplate("test-template").setPatterns(Collections.singletonList("te*")).addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-                .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                .startObject("field1").field("type", "text").field("store", "yes").endObject()
+                .startObject("field2").field("type", "keyword").field("store", "yes").endObject()
                 .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
         }
 
@@ -1064,6 +1064,44 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+    }
+
+    public void testSnapshotWithMissingShardLevelIndexFile() throws Exception {
+        Path repo = randomRepoPath();
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
+            Settings.builder().put("location", repo).put("compress", false)));
+
+        createIndex("test-idx-1", "test-idx-2");
+        logger.info("--> indexing some data");
+        indexRandom(true,
+            client().prepareIndex("test-idx-1", "doc").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2", "doc").setSource("foo", "bar"));
+
+        logger.info("--> creating snapshot");
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+            .setWaitForCompletion(true).setIndices("test-idx-*").get();
+
+        logger.info("--> deleting shard level index file");
+        try (Stream<Path> files = Files.list(repo.resolve("indices"))) {
+            files.forEach(indexPath ->
+                IOUtils.deleteFilesIgnoringExceptions(indexPath.resolve("0").resolve("index-0"))
+            );
+        }
+
+        logger.info("--> creating another snapshot");
+        CreateSnapshotResponse createSnapshotResponse =
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
+                .setWaitForCompletion(true).setIndices("test-idx-1").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
+
+        logger.info("--> restoring the first snapshot, the repository should not have lost any shard data despite deleting index-N, " +
+                        "because it should have iterated over the snap-*.data files as backup");
+        client().admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
+        RestoreSnapshotResponse restoreSnapshotResponse =
+            client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).get();
+        assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
     }
 
     public void testSnapshotClosedIndex() throws Exception {

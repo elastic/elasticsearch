@@ -95,15 +95,18 @@ public class Version {
     public static final Version V_5_0_0 = new Version(V_5_0_0_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final int V_5_0_1_ID = 5000199;
     public static final Version V_5_0_1 = new Version(V_5_0_1_ID, org.apache.lucene.util.Version.LUCENE_6_2_1);
-    public static final int V_5_0_2_ID_UNRELEASED = 5000299;
-    public static final Version V_5_0_2_UNRELEASED = new Version(V_5_0_2_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_2_1);
-    public static final int V_5_1_0_ID_UNRELEASED = 5010099;
-    public static final Version V_5_1_0_UNRELEASED = new Version(V_5_1_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    public static final int V_5_0_2_ID = 5000299;
+    public static final Version V_5_0_2 = new Version(V_5_0_2_ID, org.apache.lucene.util.Version.LUCENE_6_2_1);
+    public static final int V_5_0_3_ID_UNRELEASED = 5000399;
+    public static final Version V_5_0_3_UNRELEASED = new Version(V_5_0_3_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    // no version constant for 5.1.0 due to inadvertent release
+    public static final int V_5_1_1_ID_UNRELEASED = 5010199;
+    public static final Version V_5_1_1_UNRELEASED = new Version(V_5_1_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
     public static final int V_5_2_0_ID_UNRELEASED = 5020099;
     public static final Version V_5_2_0_UNRELEASED = new Version(V_5_2_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
     public static final int V_6_0_0_alpha1_ID_UNRELEASED = 6000001;
     public static final Version V_6_0_0_alpha1_UNRELEASED =
-        new Version(V_6_0_0_alpha1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
+        new Version(V_6_0_0_alpha1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_0);
     public static final Version CURRENT = V_6_0_0_alpha1_UNRELEASED;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
@@ -123,10 +126,12 @@ public class Version {
                 return V_6_0_0_alpha1_UNRELEASED;
             case V_5_2_0_ID_UNRELEASED:
                 return V_5_2_0_UNRELEASED;
-            case V_5_1_0_ID_UNRELEASED:
-                return V_5_1_0_UNRELEASED;
-            case V_5_0_2_ID_UNRELEASED:
-                return V_5_0_2_UNRELEASED;
+            case V_5_1_1_ID_UNRELEASED:
+                return V_5_1_1_UNRELEASED;
+            case V_5_0_3_ID_UNRELEASED:
+                return V_5_0_3_UNRELEASED;
+            case V_5_0_2_ID:
+                return V_5_0_2;
             case V_5_0_1_ID:
                 return V_5_0_1;
             case V_5_0_0_ID:
@@ -213,11 +218,16 @@ public class Version {
     }
 
     /**
-     * Returns the smallest version between the 2.
+     * Returns the minimum version between the 2.
      */
-    public static Version smallest(Version version1, Version version2) {
+    public static Version min(Version version1, Version version2) {
         return version1.id < version2.id ? version1 : version2;
     }
+
+    /**
+     * Returns the maximum version between the 2
+     */
+    public static Version max(Version version1, Version version2) { return version1.id > version2.id ? version1 : version2; }
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
@@ -321,7 +331,22 @@ public class Version {
             bwcMajor = major;
             bwcMinor = 0;
         }
-        return Version.smallest(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+    }
+
+    /**
+     * Returns the minimum created index version that this version supports. Indices created with lower versions
+     * can't be used with this version.
+     */
+    public Version minimumIndexCompatibilityVersion() {
+        final int bwcMajor;
+        if (major == 5) {
+            bwcMajor = 2; // we jumped from 2 to 5
+        } else {
+            bwcMajor = major - 1;
+        }
+        final int bwcMinor = 0;
+        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
     }
 
     /**
@@ -409,5 +434,4 @@ public class Version {
     public boolean isRelease() {
         return build == 99;
     }
-
 }

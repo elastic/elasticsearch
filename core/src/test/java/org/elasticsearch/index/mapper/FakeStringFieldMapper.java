@@ -22,17 +22,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.mapper.StringFieldType;
 
 import java.io.IOException;
@@ -123,36 +122,30 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected StringFieldMapper clone() {
-        return (StringFieldMapper) super.clone();
-    }
-
-    @Override
     protected boolean customBoost() {
         return true;
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        StringFieldMapper.ValueAndBoost valueAndBoost = parseCreateFieldForString(context, fieldType().boost());
-        if (valueAndBoost.value() == null) {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+        String value;
+        if (context.externalValueSet()) {
+            value = context.externalValue().toString();
+        } else {
+            value = context.parser().textOrNull();
+        }
+        
+        if (value == null) {
             return;
         }
+
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), valueAndBoost.value(), fieldType());
+            Field field = new Field(fieldType().name(), value, fieldType());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(valueAndBoost.value())));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
         }
-    }
-
-    public static StringFieldMapper.ValueAndBoost parseCreateFieldForString(ParseContext context, float defaultBoost) throws IOException {
-        if (context.externalValueSet()) {
-            return new StringFieldMapper.ValueAndBoost(context.externalValue().toString(), defaultBoost);
-        }
-        XContentParser parser = context.parser();
-        return new StringFieldMapper.ValueAndBoost(parser.textOrNull(), defaultBoost);
     }
 
     @Override

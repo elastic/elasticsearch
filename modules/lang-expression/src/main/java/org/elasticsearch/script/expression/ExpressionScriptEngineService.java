@@ -34,7 +34,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ClassPermission;
@@ -200,8 +199,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         } else {
                             valueSource = GeoField.getMethod(fieldData, fieldname, methodname);
                         }
-                    } else if (fieldType instanceof LegacyDateFieldMapper.DateFieldType ||
-                            fieldType instanceof DateFieldMapper.DateFieldType) {
+                    } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
                         if (dateAccessor) {
                             // date object
                             if (methodname == null) {

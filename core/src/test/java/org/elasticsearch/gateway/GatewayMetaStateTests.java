@@ -396,7 +396,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
             this.upgrade = upgrade;
         }
         @Override
-        public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData) {
+        public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
             return upgrade ? IndexMetaData.builder(indexMetaData).build() : indexMetaData;
         }
     }

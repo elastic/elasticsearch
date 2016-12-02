@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -158,7 +159,7 @@ public class ClusterStateChanges extends AbstractComponent {
         MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, null, null) {
             // metaData upgrader should do nothing
             @Override
-            public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData) {
+            public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
                 return indexMetaData;
             }
         };

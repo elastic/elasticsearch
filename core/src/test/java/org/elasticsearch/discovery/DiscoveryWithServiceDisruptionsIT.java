@@ -628,7 +628,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
-        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(oldMasterNode, random(), 100, 200, 30000, 60000);
+        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(random(), oldMasterNode, 100, 200, 30000, 60000);
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         masterNodeDisruption.startDisrupting();
 

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -783,9 +784,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             strategy.reroute(clusterState, cmds, false, false);
             fail("should not have been able to reroute the shard");
         } catch (IllegalArgumentException e) {
-            assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
+            assertThat("can't be allocated because there isn't enough room: " + e.getMessage(),
                     e.getMessage(),
-                    containsString("the node is above the low watermark and has more than allowed [70.0%] used disk, free: [26.0%]"));
+                    containsString("the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=0.7], using " +
+                                   "more disk space than the maximum allowed [70.0%], actual free: [26.0%]"));
         }
 
     }
@@ -852,8 +854,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo,
                 System.nanoTime(), false);
+        routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
+        assertThat(((Decision.Single) decision).getExplanation(), containsString(
+            "the shard cannot remain on this node because it is above the high watermark " +
+            "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30.0%] free disk on node, " +
+            "actual free: [20.0%]"));
 
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
         firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
@@ -874,10 +881,22 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo, System.nanoTime(),
             false);
+        routingAllocation.debugDecision(true);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertEquals("there is enough disk on this node for the shard to remain, free: [60b]",
+            ((Decision.Single) decision).getExplanation());
         decision = diskThresholdDecider.canAllocate(fooRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
+        if (fooRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE) {
+            assertThat(((Decision.Single) decision).getExplanation(), containsString(
+                "the node is above the high watermark [cluster.routing.allocation.disk.watermark.high=70%], using more disk space than " +
+                "the maximum allowed [70.0%], actual free: [20.0%]"));
+        } else {
+            assertThat(((Decision.Single) decision).getExplanation(), containsString(
+                "the node is above the low watermark [cluster.routing.allocation.disk.watermark.low=60%], using more disk space than " +
+                "the maximum allowed [60.0%], actual free: [20.0%]"));
+        }
 
         // Creating AllocationService instance and the services it depends on...
         ClusterInfoService cis = new ClusterInfoService() {
@@ -972,10 +991,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo,
                 System.nanoTime(), false);
+        routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
 
         // Two shards should start happily
         assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(((Decision.Single) decision).getExplanation(), containsString("there is only a single data node present"));
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
@@ -1032,8 +1053,11 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(updateClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo, System.nanoTime(),
             false);
+        routingAllocation.debugDecision(true);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(((Decision.Single) decision).getExplanation(), containsString(
+            "there is enough disk on this node for the shard to remain, free: [60b]"));
 
         result = strategy.reroute(clusterState, "reroute");
         assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().state(), equalTo(STARTED));

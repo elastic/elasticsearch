@@ -72,7 +72,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
@@ -184,7 +183,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                     IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
-                    IndicesTTLService.INDICES_TTL_INTERVAL_SETTING,
                     MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
                     MetaData.SETTING_READ_ONLY_SETTING,
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,

@@ -150,7 +150,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
         }
-        queryStringQueryBuilder.splitOnWhitespace(randomBoolean());
+        if (queryStringQueryBuilder.autoGeneratePhraseQueries() == false) {
+            // setSplitOnWhitespace(false) is disallowed when getAutoGeneratePhraseQueries() == true
+            queryStringQueryBuilder.splitOnWhitespace(randomBoolean());
+        }
         return queryStringQueryBuilder;
     }
 
@@ -763,5 +766,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         e = expectThrows(ParsingException.class, () -> parseQuery(json2));
         assertThat(e.getMessage(),
                 containsString("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]"));
+    }
+
+    public void testInvalidCombo() throws IOException {
+        QueryStringQueryBuilder builder = new QueryStringQueryBuilder("foo bar");
+        builder.autoGeneratePhraseQueries(true);
+        builder.splitOnWhitespace(false);
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class, () -> builder.toQuery(createShardContext()));
+        assertEquals(exc.getMessage(),
+            "it is disallowed to disable [split_on_whitespace] if [auto_generate_phrase_queries] is activated");
     }
 }

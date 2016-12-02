@@ -44,9 +44,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
-import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.joda.time.DateTimeZone;
 
@@ -129,9 +127,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             ALLOWED_QUERY_MAPPER_TYPES.add(nt.typeName());
         }
         ALLOWED_QUERY_MAPPER_TYPES.add(ScaledFloatFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(StringFieldMapper.CONTENT_TYPE);
         ALLOWED_QUERY_MAPPER_TYPES.add(TextFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(TimestampFieldMapper.CONTENT_TYPE);
     }
 
     private final String queryString;
@@ -218,11 +214,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         autoGeneratePhraseQueries = in.readBoolean();
         allowLeadingWildcard = in.readOptionalBoolean();
         analyzeWildcard = in.readOptionalBoolean();
-        if (in.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
             in.readBoolean(); // lowercase_expanded_terms
         }
         enablePositionIncrements = in.readBoolean();
-        if (in.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
             in.readString(); // locale
         }
         fuzziness = new Fuzziness(in);
@@ -238,7 +234,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         timeZone = in.readOptionalTimeZone();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             splitOnWhitespace = in.readBoolean();
             useAllFields = in.readOptionalBoolean();
         } else {
@@ -262,11 +258,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeBoolean(this.autoGeneratePhraseQueries);
         out.writeOptionalBoolean(this.allowLeadingWildcard);
         out.writeOptionalBoolean(this.analyzeWildcard);
-        if (out.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
             out.writeBoolean(true); // lowercase_expanded_terms
         }
         out.writeBoolean(this.enablePositionIncrements);
-        if (out.getVersion().before(Version.V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
             out.writeString(Locale.ROOT.toLanguageTag()); // locale
         }
         this.fuzziness.writeTo(out);
@@ -282,7 +278,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalTimeZone(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        if (out.getVersion().onOrAfter(Version.V_5_1_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             out.writeBoolean(this.splitOnWhitespace);
             out.writeOptionalBoolean(this.useAllFields);
         }
@@ -937,6 +933,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     protected Query doToQuery(QueryShardContext context) throws IOException {
         //TODO would be nice to have all the settings in one place: some change though at query execution time
         //e.g. field names get expanded to concrete names, defaults get resolved sometimes to settings values etc.
+        if (splitOnWhitespace == false && autoGeneratePhraseQueries) {
+            throw new IllegalArgumentException("it is disallowed to disable [split_on_whitespace] " +
+                "if [auto_generate_phrase_queries] is activated");
+        }
         QueryParserSettings qpSettings;
         if (this.escape) {
             qpSettings = new QueryParserSettings(org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString));

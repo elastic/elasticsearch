@@ -19,14 +19,12 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -64,9 +62,7 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
@@ -1717,135 +1713,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("myindex").setQuery(matchQuery("_all", "foo")).get();
         assertNoFailures(response);
         assertHitCount(response, 0);
-    }
-
-    public void testIndicesQuery() throws Exception {
-        createIndex("index1", "index2", "index3");
-
-
-        client().prepareIndex("index1", "type1").setId("1").setSource("text", "value1").get();
-        client().prepareIndex("index2", "type2").setId("2").setSource("text", "value2").get();
-        client().prepareIndex("index3", "type3").setId("3").setSource("text", "value3").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
-                        .noMatchQuery(matchQuery("text", "value2"))).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "2");
-
-        //default no match query is match_all
-        searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")).get();
-        assertHitCount(searchResponse, 3L);
-        assertSearchHits(searchResponse, "1", "2", "3");
-        searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
-                        .noMatchQuery(QueryBuilders.matchAllQuery())).get();
-        assertHitCount(searchResponse, 3L);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
-        searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
-                        .noMatchQuery("none")).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("1"));
-    }
-
-    // See #2416
-    public void testIndicesQuerySkipParsing() throws Exception {
-        createIndex("simple");
-        assertAcked(prepareCreate("related")
-                .addMapping("child", jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent")
-                        .endObject().endObject().endObject()));
-
-        client().prepareIndex("simple", "lone").setId("1").setSource("text", "value1").get();
-        client().prepareIndex("related", "parent").setId("2").setSource("text", "parent").get();
-        client().prepareIndex("related", "child").setId("3").setParent("2").setSource("text", "value2").get();
-        refresh();
-
-        //has_child fails if executed on "simple" index
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("simple").setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get());
-        assertThat(e.shardFailures().length, greaterThan(0));
-        for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-            assertThat(shardSearchFailure.reason(), containsString("no mapping found for type [child]"));
-        }
-
-        //has_child doesn't get parsed for "simple" index
-        SearchResponse searchResponse = client().prepareSearch("related", "simple")
-                .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2"), ScoreMode.None), "related")
-                        .noMatchQuery(matchQuery("text", "value1"))).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "2");
-    }
-
-    public void testIndicesQueryMissingIndices() throws IOException, ExecutionException, InterruptedException {
-        createIndex("index1");
-        createIndex("index2");
-
-        indexRandom(true,
-                client().prepareIndex("index1", "type1", "1").setSource("field", "match"),
-                client().prepareIndex("index1", "type1", "2").setSource("field", "no_match"),
-                client().prepareIndex("index2", "type1", "10").setSource("field", "match"),
-                client().prepareIndex("index2", "type1", "20").setSource("field", "no_match"),
-                client().prepareIndex("index3", "type1", "100").setSource("field", "match"),
-                client().prepareIndex("index3", "type1", "200").setSource("field", "no_match"));
-
-        //all indices are missing
-        SearchResponse searchResponse = client().prepareSearch().setQuery(
-                indicesQuery(termQuery("field", "missing"), "test1", "test2", "test3")
-                        .noMatchQuery(termQuery("field", "match"))).get();
-
-        assertHitCount(searchResponse, 3L);
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            if ("index1".equals(hit.index())) {
-                assertThat(hit, hasId("1"));
-            } else if ("index2".equals(hit.index())) {
-                assertThat(hit, hasId("10"));
-            } else if ("index3".equals(hit.index())) {
-                assertThat(hit, hasId("100"));
-            } else {
-                fail("Returned documents should belong to either index1, index2 or index3");
-            }
-        }
-
-        //only one index specified, which is missing
-        searchResponse = client().prepareSearch().setQuery(
-                indicesQuery(termQuery("field", "missing"), "test1")
-                        .noMatchQuery(termQuery("field", "match"))).get();
-
-        assertHitCount(searchResponse, 3L);
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            if ("index1".equals(hit.index())) {
-                assertThat(hit, hasId("1"));
-            } else if ("index2".equals(hit.index())) {
-                assertThat(hit, hasId("10"));
-            } else if ("index3".equals(hit.index())) {
-                assertThat(hit, hasId("100"));
-            } else {
-                fail("Returned documents should belong to either index1, index2 or index3");
-            }
-        }
-
-        //more than one index specified, one of them is missing
-        searchResponse = client().prepareSearch().setQuery(
-                indicesQuery(termQuery("field", "missing"), "index1", "test1")
-                        .noMatchQuery(termQuery("field", "match"))).get();
-
-        assertHitCount(searchResponse, 2L);
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            if ("index2".equals(hit.index())) {
-                assertThat(hit, hasId("10"));
-            } else if ("index3".equals(hit.index())) {
-                assertThat(hit, hasId("100"));
-            } else {
-                fail("Returned documents should belong to either index2 or index3");
-            }
-        }
     }
 
     public void testMinScore() throws ExecutionException, InterruptedException {

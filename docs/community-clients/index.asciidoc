@@ -241,6 +241,9 @@ The following project appears to be abandoned:
 [[smalltalk]]
 == Smalltalk
 
+* https://github.com/newapplesho/elasticsearch-smalltalk[elasticsearch-smalltalk] -
+  Pharo Smalltalk client for Elasticsearch
+
 * http://ss3.gemstone.com/ss/Elasticsearch.html[Elasticsearch] -
   Smalltalk client for Elasticsearch
 

@@ -7,9 +7,11 @@ See {ref}/query-dsl-has-child-query.html[Has Child Query]
 --------------------------------------------------
 QueryBuilder qb = hasChildQuery(
     "blog_tag",                     <1>
-    termQuery("tag","something")    <2>
+    termQuery("tag","something"),   <2>
+    ScoreMode.Avg                   <3>
 );
 --------------------------------------------------
 <1> child type to query against
 <2> query
+<3> score mode can be `ScoreMode.Avg`, `ScoreMode.Max`, `ScoreMode.Min`, `ScoreMode.None` or `ScoreMode.Total`
 

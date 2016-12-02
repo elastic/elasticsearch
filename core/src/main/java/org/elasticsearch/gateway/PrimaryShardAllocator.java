@@ -50,11 +50,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -229,7 +226,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             throttled = true;
         }
 
-        Map<String, NodeAllocationResult> nodeResults = null;
+        List<NodeAllocationResult> nodeResults = null;
         if (explain) {
             nodeResults = buildNodeDecisions(nodesToAllocate, inSyncAllocationIds);
         }
@@ -247,15 +244,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Builds a map of nodes to the corresponding allocation decisions for those nodes.
      */
-    private static Map<String, NodeAllocationResult> buildNodeDecisions(NodesToAllocate nodesToAllocate, Set<String> inSyncAllocationIds) {
+    private static List<NodeAllocationResult> buildNodeDecisions(NodesToAllocate nodesToAllocate, Set<String> inSyncAllocationIds) {
         return Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
                    .flatMap(Collection::stream)
-                   .collect(Collectors.toMap(dnode -> dnode.nodeShardState.getNode().getId(),
-                       dnode -> new NodeAllocationResult(dnode.nodeShardState.getNode(),
-                                                         shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
-                                                         dnode.decision),
-                       (dnode1, dnode2) ->  { throw new IllegalStateException(String.format(Locale.ROOT, "Duplicate key %s", dnode1)); },
-                       LinkedHashMap::new));
+                   .map(dnode -> new NodeAllocationResult(dnode.nodeShardState.getNode(),
+                                                             shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
+                                                             dnode.decision))
+                   .collect(Collectors.toList());
     }
 
     private static final Comparator<NodeGatewayStartedShards> NO_STORE_EXCEPTION_FIRST_COMPARATOR =

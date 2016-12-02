@@ -164,14 +164,15 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.v2());
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
+                result.v2().values());
         }
 
         AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> shardStores = fetchData(unassignedShard, allocation);
         if (shardStores.hasData() == false) {
             logger.trace("{}: ignoring allocation, still fetching shard stores", unassignedShard);
             allocation.setHasPendingAsyncFetch();
-            Map<String, NodeAllocationResult> nodeDecisions = null;
+            List<NodeAllocationResult> nodeDecisions = null;
             if (explain) {
                 nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
             }
@@ -182,7 +183,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (primaryShard == null) {
             assert explain : "primary should only be null here if we are in explain mode, so we didn't " +
                                  "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.v2());
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
+                result.v2().values());
         }
 
         TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
@@ -198,9 +200,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         MatchingNodes matchingNodes = findMatchingNodes(unassignedShard, allocation, primaryStore, shardStores, explain);
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
+        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions));
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
         } else if (matchingNodes.getNodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before before on NO
@@ -209,12 +211,12 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store",
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
                 // we are throttling this, as we have enough other shards to allocate to this node, so ignore it for now
-                return AllocateUnassignedDecision.throttle(matchingNodes.nodeDecisions);
+                return AllocateUnassignedDecision.throttle(nodeDecisions);
             } else {
                 logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store",
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
                 // we found a match
-                return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, matchingNodes.nodeDecisions, true);
+                return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true);
             }
         } else if (matchingNodes.hasAnyData() == false && unassignedShard.unassignedInfo().isDelayed()) {
             // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
@@ -231,7 +233,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), indexMetaData.getSettings());
                 remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
             }
-            return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, matchingNodes.nodeDecisions);
+            return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
         }
 
         return AllocateUnassignedDecision.NOT_TAKEN;
@@ -241,11 +243,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * Builds decisions for all nodes in the cluster, so that the explain API can provide information on
      * allocation decisions for each node, while still waiting to allocate the shard (e.g. due to fetching shard data).
      */
-    private Map<String, NodeAllocationResult> buildDecisionsForAllNodes(ShardRouting shard, RoutingAllocation allocation) {
-        Map<String, NodeAllocationResult> results = new HashMap<>();
+    private List<NodeAllocationResult> buildDecisionsForAllNodes(ShardRouting shard, RoutingAllocation allocation) {
+        List<NodeAllocationResult> results = new ArrayList<>();
         for (RoutingNode node : allocation.routingNodes()) {
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
-            results.put(node.nodeId(), new NodeAllocationResult(node.node(), null, decision));
+            results.add(new NodeAllocationResult(node.node(), null, decision));
         }
         return results;
     }
@@ -291,17 +293,17 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * Takes the store info for nodes that have a shard store and adds them to the node decisions,
      * leaving the node explanations untouched for those nodes that do not have any store information.
      */
-    private Map<String, NodeAllocationResult> augmentExplanationsWithStoreInfo(Map<String, NodeAllocationResult> nodeDecisions,
-                                                                               Map<String, NodeAllocationResult> withShardStores) {
+    private List<NodeAllocationResult> augmentExplanationsWithStoreInfo(Map<String, NodeAllocationResult> nodeDecisions,
+                                                                        Map<String, NodeAllocationResult> withShardStores) {
         if (nodeDecisions == null || withShardStores == null) {
-            return nodeDecisions;
+            return null;
         }
-        Map<String, NodeAllocationResult> augmented = new HashMap<>();
+        List<NodeAllocationResult> augmented = new ArrayList<>();
         for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
             if (withShardStores.containsKey(entry.getKey())) {
-                augmented.put(entry.getKey(), withShardStores.get(entry.getKey()));
+                augmented.add(withShardStores.get(entry.getKey()));
             } else {
-                augmented.put(entry.getKey(), entry.getValue());
+                augmented.add(entry.getValue());
             }
         }
         return augmented;

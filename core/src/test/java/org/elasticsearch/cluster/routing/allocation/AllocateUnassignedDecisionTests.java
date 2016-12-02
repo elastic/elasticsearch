@@ -27,11 +27,13 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.startsWith;
@@ -77,9 +79,9 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertNull(noDecision.getTargetNode());
         assertNull(noDecision.getAllocationId());
 
-        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 1));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.NO, 2));
+        List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
+        nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 1));
+        nodeDecisions.add(new NodeAllocationResult(node2, Decision.NO, 2));
         final boolean reuseStore = randomBoolean();
         noDecision = AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, nodeDecisions, reuseStore);
         assertTrue(noDecision.isDecisionTaken());
@@ -91,7 +93,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         } else {
             assertEquals("cannot allocate because allocation is not permitted to any of the nodes", noDecision.getExplanation());
         }
-        assertEquals(nodeDecisions, noDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity())),
+            noDecision.getNodeDecisions());
         // node1 should be sorted first b/c of better weight ranking
         assertEquals("node1", noDecision.getNodeDecisions().keySet().iterator().next());
         assertNull(noDecision.getTargetNode());
@@ -102,15 +105,16 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testThrottleDecision() {
-        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 1));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.THROTTLE, 2));
+        List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
+        nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 1));
+        nodeDecisions.add(new NodeAllocationResult(node2, Decision.THROTTLE, 2));
         AllocateUnassignedDecision throttleDecision = AllocateUnassignedDecision.throttle(nodeDecisions);
         assertTrue(throttleDecision.isDecisionTaken());
         assertEquals(Decision.Type.THROTTLE, throttleDecision.getDecisionType());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), startsWith("allocation temporarily throttled"));
-        assertEquals(nodeDecisions, throttleDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity())),
+            throttleDecision.getNodeDecisions());
         // node2 should be sorted first b/c a THROTTLE is higher than a NO decision
         assertEquals("node2", throttleDecision.getNodeDecisions().keySet().iterator().next());
         assertNull(throttleDecision.getTargetNode());
@@ -118,9 +122,9 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testYesDecision() {
-        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 1));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, Decision.YES, 2));
+        List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
+        nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 1));
+        nodeDecisions.add(new NodeAllocationResult(node2, Decision.YES, 2));
         String allocId = randomBoolean() ? "allocId" : null;
         AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(
             node2, allocId, nodeDecisions, randomBoolean());
@@ -128,7 +132,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(Decision.Type.YES, yesDecision.getDecisionType());
         assertNull(yesDecision.getAllocationStatus());
         assertEquals("can allocate the shard", yesDecision.getExplanation());
-        assertEquals(nodeDecisions, yesDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity())),
+            yesDecision.getNodeDecisions());
         assertEquals("node2", yesDecision.getTargetNode().getId());
         assertEquals(allocId, yesDecision.getAllocationId());
         // node1 should be sorted first b/c YES decisions are the highest
@@ -143,36 +148,35 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
                 AllocateUnassignedDecision cached = AllocateUnassignedDecision.throttle(null);
                 AllocateUnassignedDecision another = AllocateUnassignedDecision.throttle(null);
                 assertSame(cached, another);
-                AllocateUnassignedDecision notCached = AllocateUnassignedDecision.throttle(new HashMap<>());
-                another = AllocateUnassignedDecision.throttle(new HashMap<>());
+                AllocateUnassignedDecision notCached = AllocateUnassignedDecision.throttle(new ArrayList<>());
+                another = AllocateUnassignedDecision.throttle(new ArrayList<>());
                 assertNotSame(notCached, another);
             } else {
                 AllocateUnassignedDecision cached = AllocateUnassignedDecision.no(allocationStatus, null);
                 AllocateUnassignedDecision another = AllocateUnassignedDecision.no(allocationStatus, null);
                 assertSame(cached, another);
-                AllocateUnassignedDecision notCached = AllocateUnassignedDecision.no(allocationStatus, new HashMap<>());
-                another = AllocateUnassignedDecision.no(allocationStatus, new HashMap<>());
+                AllocateUnassignedDecision notCached = AllocateUnassignedDecision.no(allocationStatus, new ArrayList<>());
+                another = AllocateUnassignedDecision.no(allocationStatus, new ArrayList<>());
                 assertNotSame(notCached, another);
             }
         }
 
         // yes decisions are not precomputed and cached
-        Map<String, NodeAllocationResult> dummyMap = emptyMap();
-        AllocateUnassignedDecision first = AllocateUnassignedDecision.yes(node1, "abc", dummyMap, randomBoolean());
-        AllocateUnassignedDecision second = AllocateUnassignedDecision.yes(node1, "abc", dummyMap, randomBoolean());
+        AllocateUnassignedDecision first = AllocateUnassignedDecision.yes(node1, "abc", emptyList(), randomBoolean());
+        AllocateUnassignedDecision second = AllocateUnassignedDecision.yes(node1, "abc", emptyList(), randomBoolean());
         // same fields for the ShardAllocationDecision, but should be different instances
         assertNotSame(first, second);
     }
 
     public void testSerialization() throws IOException {
-        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Decision.Type finalDecision = randomFrom(Decision.Type.values());
         DiscoveryNode assignedNode = finalDecision == Decision.Type.YES ? node1 : null;
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 2));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, finalDecision == Decision.Type.YES ? Decision.YES :
-                                                                       randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
+        List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
+        nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
+        nodeDecisions.add(new NodeAllocationResult(node2, finalDecision == Decision.Type.YES ? Decision.YES :
+                                                              randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
         AllocateUnassignedDecision decision;
         if (finalDecision == Decision.Type.YES) {
             decision = AllocateUnassignedDecision.yes(assignedNode, randomBoolean() ? randomAsciiOfLength(5) : null,

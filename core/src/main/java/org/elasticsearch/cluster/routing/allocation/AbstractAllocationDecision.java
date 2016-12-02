@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -50,10 +51,11 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     protected final Map<String, NodeAllocationResult> nodeDecisions;
 
     public AbstractAllocationDecision(@Nullable Type decision, @Nullable DiscoveryNode targetNode,
-                                      @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
+                                      @Nullable Collection<NodeAllocationResult> nodeDecisions) {
         this.decision = decision;
         this.targetNode = targetNode;
-        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
+        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(
+            nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity()))) : null;
     }
 
     public AbstractAllocationDecision(StreamInput in) throws IOException {

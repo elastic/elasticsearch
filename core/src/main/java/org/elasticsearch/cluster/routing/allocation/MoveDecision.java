@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Collection;
 
 /**
  * Represents a decision to move a started shard because it is no longer allowed to remain on its current node.
@@ -46,7 +46,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
     private final Decision canRemainDecision;
 
     private MoveDecision(DiscoveryNode currentNode, Decision canRemainDecision, Type finalDecision,
-                         DiscoveryNode assignedNode, Map<String, NodeAllocationResult> nodeDecisions) {
+                         DiscoveryNode assignedNode, Collection<NodeAllocationResult> nodeDecisions) {
         super(finalDecision, assignedNode, nodeDecisions);
         this.currentNode = currentNode;
         this.canRemainDecision = canRemainDecision;
@@ -88,7 +88,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * @return the {@link MoveDecision} for moving the shard to another node
      */
     public static MoveDecision decision(DiscoveryNode currentNode, Decision canRemainDecision, Type finalDecision,
-                                        DiscoveryNode assignedNode, Map<String, NodeAllocationResult> nodeDecisions) {
+                                        DiscoveryNode assignedNode, Collection<NodeAllocationResult> nodeDecisions) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
         if (nodeDecisions == null && finalDecision == Type.NO) {

@@ -416,20 +416,20 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
 
             int weightRanking = 0;
-            Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>(modelNodes.length - 1);
+            List<NodeAllocationResult> nodeDecisions = new ArrayList<>(modelNodes.length - 1);
             for (Tuple<ModelNode, Decision> result : betterBalanceNodes) {
-                nodeDecisions.put(result.v1().getNodeId(), new NodeAllocationResult(
+                nodeDecisions.add(new NodeAllocationResult(
                     result.v1().routingNode.node(), result.v2().type(), result.v2(), ++weightRanking)
                 );
             }
             int currentNodeWeightRanking = ++weightRanking;
             for (Tuple<ModelNode, Decision> result : sameBalanceNodes) {
-                nodeDecisions.put(result.v1().getNodeId(), new NodeAllocationResult(
+                nodeDecisions.add(new NodeAllocationResult(
                     result.v1().routingNode.node(), Type.NO, result.v2(), currentNodeWeightRanking)
                 );
             }
             for (Tuple<ModelNode, Decision> result : worseBalanceNodes) {
-                nodeDecisions.put(result.v1().getNodeId(), new NodeAllocationResult(
+                nodeDecisions.add(new NodeAllocationResult(
                     result.v1().routingNode.node(), Type.NO, result.v2(), ++weightRanking)
                 );
             }
@@ -694,7 +694,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              */
             Type bestDecision = Type.NO;
             RoutingNode targetNode = null;
-            final Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
+            final List<NodeAllocationResult> nodeExplanationMap = explain ? new ArrayList<>() : null;
             int weightRanking = 0;
             for (ModelNode currentNode : sorter.modelNodes) {
                 if (currentNode != sourceNode) {
@@ -702,8 +702,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     // don't use canRebalance as we want hard filtering rules to apply. See #17698
                     Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                     if (explain) {
-                        nodeExplanationMap.put(currentNode.getNodeId(),
-                            new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
+                        nodeExplanationMap.add(new NodeAllocationResult(
+                            currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
                     // TODO maybe we can respect throttling here too?
                     if (allocationDecision.type().higherThan(bestDecision)) {
@@ -962,20 +962,21 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 // decision was not set and a node was not assigned, so treat it as a NO decision
                 decision = Decision.NO;
             }
+            List<NodeAllocationResult> nodeDecisions = null;
             if (explain) {
+                nodeDecisions = new ArrayList<>();
                 // fill in the correct weight ranking, once we've been through all nodes
                 nodeWeights.sort((nodeWeight1, nodeWeight2) -> Float.compare(nodeWeight1.v2(), nodeWeight2.v2()));
                 int weightRanking = 0;
                 for (Tuple<String, Float> nodeWeight : nodeWeights) {
                     NodeAllocationResult current = nodeExplanationMap.get(nodeWeight.v1());
-                    nodeExplanationMap.put(nodeWeight.v1(),
-                        new NodeAllocationResult(current.getNode(), current.getCanAllocateDecision(), ++weightRanking));
+                    nodeDecisions.add(new NodeAllocationResult(current.getNode(), current.getCanAllocateDecision(), ++weightRanking));
                 }
             }
             return AllocateUnassignedDecision.fromDecision(
                 decision,
                 minNode != null ? minNode.routingNode.node() : null,
-                nodeExplanationMap
+                nodeDecisions
             );
         }
 

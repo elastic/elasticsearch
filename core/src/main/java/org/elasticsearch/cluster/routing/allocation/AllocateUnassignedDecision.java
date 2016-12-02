@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -74,7 +75,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                                        AllocationStatus allocationStatus,
                                        DiscoveryNode assignedNode,
                                        String allocationId,
-                                       Map<String, NodeAllocationResult> nodeDecisions,
+                                       Collection<NodeAllocationResult> nodeDecisions,
                                        boolean reuseStore,
                                        long remainingDelayInMillis,
                                        long totalDelayInMillis) {
@@ -105,7 +106,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * Returns a NO decision with the given {@link AllocationStatus}, and the individual node-level
      * decisions that comprised the final NO decision if in explain mode.
      */
-    public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Map<String, NodeAllocationResult> decisions) {
+    public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Collection<NodeAllocationResult> decisions) {
         return no(allocationStatus, decisions, false);
     }
 
@@ -115,7 +116,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * method will return {@link AllocationStatus#DELAYED_ALLOCATION} for {@link #getAllocationStatus()}.
      */
     public static AllocateUnassignedDecision delayed(long remainingDelay, long totalDelay,
-                                                     @Nullable Map<String, NodeAllocationResult> decisions) {
+                                                     @Nullable Collection<NodeAllocationResult> decisions) {
         return no(AllocationStatus.DELAYED_ALLOCATION, decisions, false, remainingDelay, totalDelay);
     }
 
@@ -123,12 +124,12 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * Returns a NO decision with the given {@link AllocationStatus}, and the individual node-level
      * decisions that comprised the final NO decision if in explain mode.
      */
-    public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Map<String, NodeAllocationResult> decisions,
+    public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Collection<NodeAllocationResult> decisions,
                                                 boolean reuseStore) {
         return no(allocationStatus, decisions, reuseStore, 0L, 0L);
     }
 
-    private static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Map<String, NodeAllocationResult> decisions,
+    private static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable Collection<NodeAllocationResult> decisions,
                                                  boolean reuseStore, long remainingDelay, long totalDelay) {
         if (decisions != null) {
             return new AllocateUnassignedDecision(Type.NO, allocationStatus, null, null, decisions, reuseStore, remainingDelay, totalDelay);
@@ -141,7 +142,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * Returns a THROTTLE decision, with the individual node-level decisions that
      * comprised the final THROTTLE decision if in explain mode.
      */
-    public static AllocateUnassignedDecision throttle(@Nullable Map<String, NodeAllocationResult> decisions) {
+    public static AllocateUnassignedDecision throttle(@Nullable Collection<NodeAllocationResult> decisions) {
         if (decisions != null) {
             return new AllocateUnassignedDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, decisions, false, 0L, 0L);
         } else {
@@ -155,7 +156,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * the allocation id for the shard, if available.
      */
     public static AllocateUnassignedDecision yes(DiscoveryNode assignedNode, @Nullable String allocationId,
-                                                 @Nullable Map<String, NodeAllocationResult> decisions, boolean reuseStore) {
+                                                 @Nullable Collection<NodeAllocationResult> decisions, boolean reuseStore) {
         return new AllocateUnassignedDecision(Type.YES, null, assignedNode, allocationId, decisions, reuseStore, 0L, 0L);
     }
 
@@ -163,7 +164,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * Creates a {@link AllocateUnassignedDecision} from the given {@link Decision} and the assigned node, if any.
      */
     public static AllocateUnassignedDecision fromDecision(Decision decision, @Nullable DiscoveryNode assignedNode,
-                                                          @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
+                                                          @Nullable Collection<NodeAllocationResult> nodeDecisions) {
         final Type decisionType = decision.type();
         AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
         return new AllocateUnassignedDecision(decisionType, allocationStatus, assignedNode, null, nodeDecisions, false, 0L, 0L);

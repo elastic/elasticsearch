@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Collection;
 
 /**
  * Represents a decision to move a started shard to form a more optimally balanced cluster.
@@ -45,7 +45,7 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
     private final int currentNodeRanking;
 
     private RebalanceDecision(DiscoveryNode currentNode, Decision canRebalanceDecision, Type finalDecision, DiscoveryNode assignedNode,
-                              int currentNodeRanking, Map<String, NodeAllocationResult> nodeDecisions, boolean fetchPending) {
+                              int currentNodeRanking, Collection<NodeAllocationResult> nodeDecisions, boolean fetchPending) {
         super(finalDecision, assignedNode, nodeDecisions);
         this.currentNode = currentNode;
         this.canRebalanceDecision = canRebalanceDecision;
@@ -74,7 +74,7 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
      * Creates a new NO {@link RebalanceDecision}.
      */
     public static RebalanceDecision no(DiscoveryNode currentNode, Decision canRebalanceDecision, int currentNodeRanking,
-                                       Map<String, NodeAllocationResult> nodeDecisions, boolean fetchPending) {
+                                       Collection<NodeAllocationResult> nodeDecisions, boolean fetchPending) {
         return new RebalanceDecision(currentNode, canRebalanceDecision, Type.NO, null, currentNodeRanking, nodeDecisions, fetchPending);
     }
 
@@ -83,7 +83,7 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
      */
     public static RebalanceDecision decision(DiscoveryNode currentNode, Decision canRebalanceDecision, Type finalDecision,
                                              DiscoveryNode assignedNode, int currentNodeRanking,
-                                             Map<String, NodeAllocationResult> nodeDecisions) {
+                                             Collection<NodeAllocationResult> nodeDecisions) {
         return new RebalanceDecision(currentNode, canRebalanceDecision, finalDecision, assignedNode, currentNodeRanking,
                                         nodeDecisions, false);
     }

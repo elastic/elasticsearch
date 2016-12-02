@@ -27,8 +27,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -62,8 +62,8 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(stay1.getTargetNode(), stay2.getTargetNode());
         // final decision is NO, but in explain mode, so shouldn't use cached decision
         discoveryNode = randomDiscoveryNode();
-        stay1 = MoveDecision.decision(discoveryNode, Decision.NO, Type.NO, null, new HashMap<>());
-        stay2 = MoveDecision.decision(discoveryNode, Decision.NO, Type.NO, null, new HashMap<>());
+        stay1 = MoveDecision.decision(discoveryNode, Decision.NO, Type.NO, null, new ArrayList<>());
+        stay2 = MoveDecision.decision(discoveryNode, Decision.NO, Type.NO, null, new ArrayList<>());
         assertNotSame(stay1, stay2);
         assertSame(stay1.getDecisionType(), stay2.getDecisionType());
         assertNotNull(stay1.getExplanation());
@@ -92,12 +92,12 @@ public class MoveDecisionTests extends ESTestCase {
     }
 
     public void testDecisionWithNodeExplanations() {
-        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Decision nodeDecision = randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES);
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, nodeDecision, 2));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, nodeDecision, 1));
+        List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
+        nodeDecisions.add(new NodeAllocationResult(node1, nodeDecision, 2));
+        nodeDecisions.add(new NodeAllocationResult(node2, nodeDecision, 1));
         DiscoveryNode currentNode = randomDiscoveryNode();
         MoveDecision decision = MoveDecision.decision(currentNode, Decision.NO, Type.NO, null, nodeDecisions);
         assertNotNull(decision.getDecisionType());
@@ -113,14 +113,14 @@ public class MoveDecisionTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>();
+        List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Type finalDecision = randomFrom(Type.values());
         DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
-        nodeDecisions.put("node1", new NodeAllocationResult(node1, Decision.NO, 2));
-        nodeDecisions.put("node2", new NodeAllocationResult(node2, finalDecision == Type.YES ? Decision.YES :
-                                                                       randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
+        nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
+        nodeDecisions.add(new NodeAllocationResult(node2, finalDecision == Type.YES ? Decision.YES :
+                                                              randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
         MoveDecision moveDecision = MoveDecision.decision(randomDiscoveryNode(), Decision.NO, finalDecision, assignedNode, nodeDecisions);
         BytesStreamOutput output = new BytesStreamOutput();
         moveDecision.writeTo(output);

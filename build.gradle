@@ -51,6 +51,7 @@ if (cppEnabledStr == 'auto') {
 
 allprojects {
   group = 'org.elasticsearch.prelert'
+  version = VersionProperties.elasticsearch
 }
 
 String packArtifactName = 'prelert'
@@ -96,7 +97,7 @@ task bundlePack(type: Zip) {
   from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
   destinationDir file('build/distributions')
   baseName = packArtifactName
-  version = VersionProperties.elasticsearch
+  version = project.version
 }
 
 task assemble(dependsOn: bundlePack) {
@@ -124,7 +125,7 @@ task uploadPackToS3(type: UploadS3Task, dependsOn: [build]) {
   enabled project.uploadEnabled
   description = 'upload pack zip to S3 Bucket'
   bucket 'prelert-artifacts'
-  upload bundlePack.outputs.files.singleFile, "maven/${project.group}/${packArtifactName}/${elasticsearchVersion}/${bundlePack.outputs.files.singleFile.name}"
+  upload bundlePack.outputs.files.singleFile, "maven/${project.group}/${packArtifactName}/${project.version}/${bundlePack.outputs.files.singleFile.name}"
 }
 
 task deploy(dependsOn: [uploadPackToS3, ':cpp:upload']) {

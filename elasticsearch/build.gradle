@@ -9,13 +9,13 @@ esplugin {
     classname 'org.elasticsearch.xpack.prelert.PrelertPlugin'
 }
 
-version = "${elasticsearchVersion}"
+version = project.version
 
 thirdPartyAudit.enabled = false
 
 dependencies {
     compile group: 'net.sf.supercsv', name: 'super-csv', version:"${supercsvVersion}"
-    testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
+    testCompile group: 'org.ini4j', name: 'ini4j', version:"${ini4jVersion}"
 }
 
 test {
@@ -46,12 +46,12 @@ task downloadCppDist(type: DownloadS3Task) {
   bucket 'prelert-artifacts'
   destDir file("${buildDir}/cppDist")
   flatten true
-  download "maven/${project.group}/prelert-cpp/${elasticsearchVersion}/prelert-cpp-windows-x86_64-${elasticsearchVersion}.zip"
-  download  "maven/${project.group}/prelert-cpp/${elasticsearchVersion}/prelert-cpp-linux-x86_64-${elasticsearchVersion}.zip"
-  download  "maven/${project.group}/prelert-cpp/${elasticsearchVersion}/prelert-cpp-darwin-x86_64-${elasticsearchVersion}.zip"
-  outputs.file(file("${buildDir}/cppDist/prelert-cpp-windows-x86_64-${elasticsearchVersion}.zip"))
-  outputs.file(file("${buildDir}/cppDist/prelert-cpp-darwin-x86_64-${elasticsearchVersion}.zip"))
-  outputs.file(file("${buildDir}/cppDist/prelert-cpp-linux-x86_64-${elasticsearchVersion}.zip"))
+  download "maven/${project.group}/prelert-cpp/${project.version}/prelert-cpp-windows-x86_64-${project.version}.zip"
+  download  "maven/${project.group}/prelert-cpp/${project.version}/prelert-cpp-linux-x86_64-${project.version}.zip"
+  download  "maven/${project.group}/prelert-cpp/${project.version}/prelert-cpp-darwin-x86_64-${project.version}.zip"
+  outputs.file(file("${buildDir}/cppDist/prelert-cpp-windows-x86_64-${project.version}.zip"))
+  outputs.file(file("${buildDir}/cppDist/prelert-cpp-darwin-x86_64-${project.version}.zip"))
+  outputs.file(file("${buildDir}/cppDist/prelert-cpp-linux-x86_64-${project.version}.zip"))
 }
 
 bundlePlugin {

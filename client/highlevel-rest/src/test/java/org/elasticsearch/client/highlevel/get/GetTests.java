@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.advanced.delete;
+package org.elasticsearch.client.highlevel.get;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
@@ -25,19 +25,19 @@ import org.junit.Assert;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class DeleteTests extends ESTestCase {
+public class GetTests extends ESTestCase {
 
-    public void testDelete() {
-        assertThrows(DeleteRestRequest.builder().build(),
+    public void testGet() {
+        assertThrows(GetRestRequest.builder().build(),
             IllegalArgumentException.class,
             "Index can not be null");
-        assertThrows(DeleteRestRequest.builder().setIndex("foo").build(),
+        assertThrows(GetRestRequest.builder().setIndex("foo").build(),
             IllegalArgumentException.class,
             "Type can not be null");
-        assertThrows(DeleteRestRequest.builder().setIndex("foo").setType("bar").build(),
+        assertThrows(GetRestRequest.builder().setIndex("foo").setType("bar").build(),
             IllegalArgumentException.class,
             "Id can not be null");
-        assertNoException(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("id").build());
+        assertNoException(GetRestRequest.builder().setIndex("foo").setType("bar").setId("id").build());
     }
 
     /**
@@ -47,7 +47,7 @@ public class DeleteTests extends ESTestCase {
      * @param exception Expected exception (null if we don't expect any)
      * @param message   Expected error message (can be a sub part of the full message)
      */
-    public static void assertThrows(DeleteRestRequest request, Class<? extends Exception> exception, String message) {
+    public static void assertThrows(GetRestRequest request, Class<? extends Exception> exception, String message) {
         try {
             request.validate();
             Assert.fail("We were excepting an " + IllegalArgumentException.class.getName());
@@ -62,7 +62,7 @@ public class DeleteTests extends ESTestCase {
      * Check the validation of a request
      * @param request   Request to validate
      */
-    public static void assertNoException(DeleteRestRequest request) {
+    public static void assertNoException(GetRestRequest request) {
         request.validate();
     }
 

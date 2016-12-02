@@ -17,50 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.client.advanced.get;
+package org.elasticsearch.client.highlevel.delete;
 
-import java.util.Map;
+public class DeleteRestResponse {
 
-public class GetRestResponse {
-
-    private String index;
-    private String type;
-    private String id;
-    private Integer version;
     private boolean found;
-    private Map<String, Object> source;
-
-    public String getIndex() {
-        return index;
-    }
-
-    public void setIndex(String index) {
-        this.index = index;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public Integer getVersion() {
-        return version;
-    }
-
-    public void setVersion(Integer version) {
-        this.version = version;
-    }
 
     public void setFound(boolean found) {
         this.found = found;
@@ -68,13 +29,5 @@ public class GetRestResponse {
 
     public boolean isFound() {
         return found;
-    }
-
-    public void setSource(Map<String, Object> source) {
-        this.source = source;
-    }
-
-    public Map<String, Object> getSource() {
-        return source;
     }
 }

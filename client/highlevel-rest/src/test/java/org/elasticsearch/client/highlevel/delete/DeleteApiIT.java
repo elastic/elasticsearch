@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.client.advanced.delete;
+package org.elasticsearch.client.highlevel.delete;
 
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.HighlevelClient;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.advanced.AdvancedRestClient;
-import org.elasticsearch.client.advanced.RequestTestUtil;
+import org.elasticsearch.client.highlevel.RequestTestUtil;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.client.advanced.AdvancedRestClient.toDeleteRestResponse;
+import static org.elasticsearch.client.HighlevelClient.toDeleteRestResponse;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -42,7 +42,7 @@ public class DeleteApiIT extends ESRestTestCase {
         client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
             new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
 
-        AdvancedRestClient client = new AdvancedRestClient(client());
+        HighlevelClient client = new HighlevelClient(client());
         DeleteRestResponse delete = client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build());
         assertThat(delete.isFound(), is(true));
 
@@ -62,7 +62,7 @@ public class DeleteApiIT extends ESRestTestCase {
         client().performRequest("PUT", "foo/bar/1", Collections.emptyMap(),
             new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
 
-        AdvancedRestClient client = new AdvancedRestClient(client());
+        HighlevelClient client = new HighlevelClient(client());
         RequestTestUtil.MockConsumer<DeleteRestResponse> listenerResponse1 = new RequestTestUtil.MockConsumer<>();
         RequestTestUtil.MockConsumer<Exception> listenerException1 = new RequestTestUtil.MockConsumer<>();
         client.delete(DeleteRestRequest.builder().setIndex("foo").setType("bar").setId("1").build(), listenerResponse1, listenerException1);

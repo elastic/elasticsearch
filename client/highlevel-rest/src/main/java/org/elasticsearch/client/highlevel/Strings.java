@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.advanced;
+package org.elasticsearch.client.highlevel;
 
 /**
  * TODO: discuss with team.

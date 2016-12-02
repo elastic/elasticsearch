@@ -28,19 +28,30 @@ apply plugin: 'nebula.maven-scm'
 group = 'org.elasticsearch.client'
 
 dependencies {
-  compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.client:rest:${version}"
-  testCompile "org.elasticsearch.test:framework:${version}"
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    compile "org.elasticsearch:elasticsearch:${version}"
+    compile "org.elasticsearch.client:rest:${version}"
+    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+    compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasync}"
+    compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+    compile "commons-codec:commons-codec:${versions.commonscodec}"
+    compile "commons-logging:commons-logging:${versions.commonslogging}"
+    compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    compile "com.fasterxml.jackson.jr:jackson-jr-objects:${versions.jackson}"
+
+    testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+    testCompile "junit:junit:${versions.junit}"
+    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 }
 
 dependencyLicenses {
-  // Don't check the client's license. We know it.
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
-  }
+    // Don't check the client's license. We know it.
+    dependencies = project.configurations.runtime.fileCollection {
+        it.group.startsWith('org.elasticsearch') == false
+    } - project.configurations.provided
+    mapping from: /http.*/, to: 'httpclient'
+    mapping from: /commons-.*/, to: 'commons'
+    mapping from: /jackson-.*/, to: 'jackson'
 }
 
 //JarHell is part of es core, which we don't want to pull in
@@ -59,3 +70,12 @@ task integTest(type: RestIntegTestTask,
 check.dependsOn integTest
 integTest.mustRunAfter test
 
+thirdPartyAudit.excludes = [
+        //commons-logging optional dependencies
+        'org.apache.avalon.framework.logger.Logger',
+        'org.apache.log.Hierarchy',
+        'org.apache.log.Logger',
+        //commons-logging provided dependencies
+        'javax.servlet.ServletContextEvent',
+        'javax.servlet.ServletContextListener'
+]

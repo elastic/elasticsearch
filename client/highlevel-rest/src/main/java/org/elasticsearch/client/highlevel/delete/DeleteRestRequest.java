@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.client.advanced.get;
+package org.elasticsearch.client.highlevel.delete;
 
-import org.elasticsearch.client.advanced.Strings;
+import org.elasticsearch.client.highlevel.Strings;
 
 /**
  * Delete a document request
  */
-public class GetRestRequest {
+public class DeleteRestRequest {
 
     private String index;
     private String type;
     private String id;
 
-    private GetRestRequest(String index, String type, String id) {
+    private DeleteRestRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -90,8 +90,8 @@ public class GetRestRequest {
             return this;
         }
 
-        public GetRestRequest build() {
-            return new GetRestRequest(index, type, id);
+        public DeleteRestRequest build() {
+            return new DeleteRestRequest(index, type, id);
         }
     }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.advanced;
+package org.elasticsearch.client.highlevel;
 
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;

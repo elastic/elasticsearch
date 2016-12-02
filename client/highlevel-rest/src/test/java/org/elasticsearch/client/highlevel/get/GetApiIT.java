@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.client.advanced.get;
+package org.elasticsearch.client.highlevel.get;
 
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.HighlevelClient;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.advanced.AdvancedRestClient;
-import org.elasticsearch.client.advanced.RequestTestUtil;
+import org.elasticsearch.client.highlevel.RequestTestUtil;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.client.advanced.AdvancedRestClient.toGetRestResponse;
+import static org.elasticsearch.client.HighlevelClient.toGetRestResponse;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetApiIT extends ESRestTestCase {
 
     public void testGetRequest() throws IOException {
-        AdvancedRestClient client = new AdvancedRestClient(client());
+        HighlevelClient client = new HighlevelClient(client());
 
         client().performRequest("PUT", "foo");
 
@@ -72,7 +72,7 @@ public class GetApiIT extends ESRestTestCase {
 
     public void testGetRequestAsync() throws IOException, InterruptedException {
         client().performRequest("PUT", "foo");
-        AdvancedRestClient client = new AdvancedRestClient(client());
+        HighlevelClient client = new HighlevelClient(client());
 
         RequestTestUtil.MockConsumer<GetRestResponse> listenerResponse2 = new RequestTestUtil.MockConsumer<>();
         RequestTestUtil.MockConsumer<Exception> listenerException2 = new RequestTestUtil.MockConsumer<>();

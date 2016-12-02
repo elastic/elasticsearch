@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -24,7 +24,7 @@ import java.util.Collections;
  * <p>
  * This collector runs on the master node only and collect one {@link IndicesStatsMonitoringDoc} document.
  */
-public class IndicesStatsCollector extends AbstractCollector {
+public class IndicesStatsCollector extends Collector {
 
     public static final String NAME = "indices-stats-collector";
 

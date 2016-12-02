@@ -15,7 +15,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.collector.AbstractCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
@@ -88,16 +88,5 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(XPackLicenseState.class, nodeId),
                 securedClient(nodeId),
                 internalCluster().getInstance(LicenseService.class, nodeId));
-    }
-
-    private void assertCanCollect(AbstractCollector collector, Class<?>... classes) {
-        super.assertCanCollect(collector);
-        Collection results = collector.collect();
-        if (classes != null) {
-            assertThat(results.size(), equalTo(classes.length));
-            for (Class<?> cl : classes) {
-                assertThat(results.stream().filter(o -> cl.isInstance(o)).count(), equalTo(1L));
-            }
-        }
     }
 }

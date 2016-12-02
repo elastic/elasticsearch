@@ -35,7 +35,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         return internalCluster().getInstance(InternalClient.class, nodeId);
     }
 
-    protected void assertCanCollect(AbstractCollector collector) {
+    protected void assertCanCollect(Collector collector) {
         assertNotNull(collector);
         assertTrue("collector [" + collector.name() + "] should be able to collect data", collector.shouldCollect());
         Collection results = collector.collect();
@@ -43,15 +43,12 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
     }
 
     public void waitForNoBlocksOnNodes() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                for (String nodeId : internalCluster().getNodeNames()) {
-                    try {
-                        waitForNoBlocksOnNode(nodeId);
-                    } catch (Exception e) {
-                        fail("failed to wait for no blocks on node [" + nodeId + "]: " + e.getMessage());
-                    }
+        assertBusy(() -> {
+            for (String nodeId : internalCluster().getNodeNames()) {
+                try {
+                    waitForNoBlocksOnNode(nodeId);
+                } catch (Exception e) {
+                    fail("failed to wait for no blocks on node [" + nodeId + "]: " + e.getMessage());
                 }
             }
         });

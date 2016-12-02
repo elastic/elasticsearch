@@ -20,7 +20,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 /**
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
  * This collector runs on the master node only and collects the {@link ShardMonitoringDoc} documents
  * for every index shard.
  */
-public class ShardsCollector extends AbstractCollector {
+public class ShardsCollector extends Collector {
 
     public static final String NAME = "shards-collector";
 

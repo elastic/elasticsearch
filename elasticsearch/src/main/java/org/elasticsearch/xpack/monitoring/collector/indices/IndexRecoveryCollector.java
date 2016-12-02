@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -27,7 +27,7 @@ import java.util.List;
  * This collector runs on the master node only and collects a {@link IndexRecoveryMonitoringDoc} document
  * for every index that has on-going shard recoveries.
  */
-public class IndexRecoveryCollector extends AbstractCollector {
+public class IndexRecoveryCollector extends Collector {
 
     public static final String NAME = "index-recovery-collector";
 

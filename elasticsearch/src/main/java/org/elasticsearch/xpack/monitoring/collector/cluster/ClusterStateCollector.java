@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.security.InternalClient;
  * This collector runs on the master node only and collects {@link ClusterStateMonitoringDoc} document
  * at a given frequency.
  */
-public class ClusterStateCollector extends AbstractCollector {
+public class ClusterStateCollector extends Collector {
 
     public static final String NAME = "cluster-state-collector";
 

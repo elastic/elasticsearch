@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -29,7 +29,7 @@ import java.util.List;
  * This collector runs on the master node only and collect a {@link IndexStatsMonitoringDoc} document
  * for each existing index in the cluster.
  */
-public class IndexStatsCollector extends AbstractCollector {
+public class IndexStatsCollector extends Collector {
 
     public static final String NAME = "index-stats-collector";
 

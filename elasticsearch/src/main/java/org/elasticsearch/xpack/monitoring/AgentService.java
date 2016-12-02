@@ -120,10 +120,6 @@ public class AgentService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("monitoring service started");
-
-        for (Collector collector : collectors) {
-            collector.start();
-        }
         exporters.start();
         applyIntervalSettings();
     }
@@ -140,19 +136,11 @@ public class AgentService extends AbstractLifecycleComponent {
             }
         }
 
-        for (Collector collector : collectors) {
-            collector.stop();
-        }
-
         exporters.stop();
     }
 
     @Override
     protected void doClose() {
-        for (Collector collector : collectors) {
-            collector.close();
-        }
-
         for (Exporter exporter : exporters) {
             try {
                 exporter.close();

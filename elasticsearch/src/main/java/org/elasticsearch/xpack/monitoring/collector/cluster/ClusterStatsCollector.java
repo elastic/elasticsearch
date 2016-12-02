@@ -21,7 +21,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
@@ -40,7 +40,7 @@ import java.util.List;
  * document; the cluster stats are also indexed in the timestamped index in a
  * "cluster_stats" document.
  */
-public class ClusterStatsCollector extends AbstractCollector {
+public class ClusterStatsCollector extends Collector {
 
     public static final String NAME = "cluster-stats-collector";
 

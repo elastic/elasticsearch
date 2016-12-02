@@ -407,9 +407,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
                 final int nodeRanking;
                 if (rebalanceConditionsMet || betterWeightThanCurrent == false) {
-                    // if the node meets the conditions for being a better balance than the current
-                    // for the given shard, or if the node has a worse weight than the current, then
-                    // increment the weight ranking
+                    if (betterWeightThanCurrent == false && currentNodeWeightRanking == 0) {
+                        // current node's ranking isn't assigned yet, and we are already examining nodes that
+                        // are of worse ranking, so assign the current node's ranking first
+                        currentNodeWeightRanking = ++weightRanking;
+                    }
+                    // the node meets the conditions for being a better balance than the current for the given shard,
+                    // or the node has a worse weight than the current, so increment the weight ranking
                     nodeRanking = ++weightRanking;
                 } else {
                     if (currentNodeWeightRanking == 0) {
@@ -423,6 +427,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     canAllocate,
                     nodeRanking)
                 );
+            }
+
+            if (currentNodeWeightRanking == 0) {
+                // the current node is the worst ranked, so its ranking never got assigned above
+                currentNodeWeightRanking = weightRanking + 1;
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {

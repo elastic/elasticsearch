@@ -83,8 +83,6 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         weightRanking = in.readVInt();
     }
 
-    @Override public String toString() { return weightRanking+""; }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);

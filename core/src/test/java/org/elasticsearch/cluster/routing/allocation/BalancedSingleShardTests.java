@@ -44,7 +44,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -236,6 +238,101 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             NodeAllocationResult nodeResult = rebalanceDecision.getNodeDecisions().get(exludedNode);
             assertEquals(Type.NO, nodeResult.getCanAllocateDecision().type());
         }
+    }
+
+    public void testNodeDecisionsRanking() {
+        // only one shard, so moving it will not create a better balance anywhere, so all node decisions should
+        // return the same ranking as the current node
+        ClusterState clusterState = ClusterStateCreationUtils.state(randomIntBetween(1, 10), new String[] { "idx" }, 1);
+        ShardRouting shardToRebalance = clusterState.routingTable().index("idx").shardsWithState(ShardRoutingState.STARTED).get(0);
+        RebalanceDecision decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), -1);
+        int currentRanking = decision.getCurrentNodeRanking();
+        assertEquals(1, currentRanking);
+        for (NodeAllocationResult result : decision.getNodeDecisions().values()) {
+            assertEquals(1, result.getWeightRanking());
+        }
+
+        // start off with one node and several shards assigned to that node, then add a few nodes to the cluster,
+        // each of these new nodes should have a better ranking than the current, given a low enough threshold
+        clusterState = ClusterStateCreationUtils.state(1, new String[] { "idx" }, randomIntBetween(2, 10));
+        shardToRebalance = clusterState.routingTable().index("idx").shardsWithState(ShardRoutingState.STARTED).get(0);
+        clusterState = addNodesToClusterState(clusterState, randomIntBetween(1, 10));
+        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 0.01f);
+        for (NodeAllocationResult result : decision.getNodeDecisions().values()) {
+            assertThat(result.getWeightRanking(), lessThan(decision.getCurrentNodeRanking()));
+        }
+
+        // start off with 3 nodes and 7 shards, so that one of the 3 nodes will have 3 shards assigned, the remaining 2
+        // nodes will have 2 shard each.  then, add another node.  pick a shard on one of the nodes that has only 2 shard
+        // to rebalance.  the new node should have the best ranking (because it has no shards), followed by the node currently
+        // holding the shard as well as the other node with only 2 shards (they should have the same ranking), followed by the
+        // node with 3 shards which will have the lowest ranking.
+        clusterState = ClusterStateCreationUtils.state(3, new String[] { "idx" }, 7);
+        shardToRebalance = null;
+        Set<String> nodesWithTwoShards = new HashSet<>();
+        String nodeWithThreeShards = null;
+        for (RoutingNode node : clusterState.getRoutingNodes()) {
+            if (node.numberOfShardsWithState(ShardRoutingState.STARTED) == 2) {
+                nodesWithTwoShards.add(node.nodeId());
+                if (shardToRebalance == null) {
+                    shardToRebalance = node.shardsWithState(ShardRoutingState.STARTED).get(0);
+                }
+            } else {
+                assertEquals(3, node.numberOfShardsWithState(ShardRoutingState.STARTED));
+                assertNull(nodeWithThreeShards); // should only have one of these
+                nodeWithThreeShards = node.nodeId();
+            }
+        }
+        clusterState = addNodesToClusterState(clusterState, 1);
+        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 0.01f);
+        for (NodeAllocationResult result : decision.getNodeDecisions().values()) {
+            if (result.getWeightRanking() < decision.getCurrentNodeRanking()) {
+                // highest ranked node should not be any of the initial nodes
+                assertFalse(nodesWithTwoShards.contains(result.getNode().getId()));
+                assertNotEquals(nodeWithThreeShards, result.getNode().getId());
+            } else if (result.getWeightRanking() > decision.getCurrentNodeRanking()) {
+                // worst ranked should be the node with two shards
+                assertEquals(nodeWithThreeShards, result.getNode().getId());
+            } else {
+                assertTrue(nodesWithTwoShards.contains(result.getNode().getId()));
+            }
+        }
+    }
+
+    private RebalanceDecision executeRebalanceFor(final ShardRouting shardRouting, final ClusterState clusterState,
+                                                  final Set<String> noDecisionNodes, final float threshold) {
+        Settings settings = Settings.EMPTY;
+        if (Float.compare(-1.0f, threshold) != 0) {
+            settings = Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), threshold).build();
+        }
+        AllocationDecider allocationDecider = new AllocationDecider(Settings.EMPTY) {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                if (noDecisionNodes.contains(node.nodeId())) {
+                    return Decision.NO;
+                }
+                return Decision.YES;
+            }
+        };
+        AllocationDecider rebalanceDecider = new AllocationDecider(Settings.EMPTY) {
+            @Override
+            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return Decision.YES;
+            }
+        };
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings);
+        RoutingAllocation routingAllocation = newRoutingAllocation(
+            new AllocationDeciders(Settings.EMPTY, Arrays.asList(allocationDecider, rebalanceDecider)), clusterState);
+        return allocator.decideRebalance(shardRouting, routingAllocation);
+    }
+
+    private ClusterState addNodesToClusterState(ClusterState clusterState, int numNodesToAdd) {
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
+        for (int i = 0; i < numNodesToAdd; i++) {
+            DiscoveryNode discoveryNode = newNode(randomAsciiOfLength(7));
+            nodesBuilder.add(discoveryNode);
+        }
+        return ClusterState.builder(clusterState).nodes(nodesBuilder).build();
     }
 
     private Tuple<ClusterState, RebalanceDecision> setupStateAndRebalance(AllocationDecider allocationDecider,

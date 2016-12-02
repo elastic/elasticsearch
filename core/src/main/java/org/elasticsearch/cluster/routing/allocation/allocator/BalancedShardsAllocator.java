@@ -58,6 +58,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
@@ -360,11 +361,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float currentWeight = sorter.weight(currentNode);
             final AllocationDeciders deciders = allocation.deciders();
             final String idxName = shard.getIndexName();
-            Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>(modelNodes.length - 1);
             Type rebalanceDecisionType = Type.NO;
             ModelNode assignedNode = null;
-            int weightRanking = 0;
-            int currentNodeWeightRanking = 0;
+            List<Tuple<ModelNode, Decision>> betterBalanceNodes = new ArrayList<>();
+            List<Tuple<ModelNode, Decision>> sameBalanceNodes = new ArrayList<>();
+            List<Tuple<ModelNode, Decision>> worseBalanceNodes = new ArrayList<>();
             for (ModelNode node : modelNodes) {
                 if (node == currentNode) {
                     continue; // skip over node we're currently allocated to
@@ -405,33 +406,33 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         assignedNode = node;
                     }
                 }
-                final int nodeRanking;
-                if (rebalanceConditionsMet || betterWeightThanCurrent == false) {
-                    if (betterWeightThanCurrent == false && currentNodeWeightRanking == 0) {
-                        // current node's ranking isn't assigned yet, and we are already examining nodes that
-                        // are of worse ranking, so assign the current node's ranking first
-                        currentNodeWeightRanking = ++weightRanking;
-                    }
-                    // the node meets the conditions for being a better balance than the current for the given shard,
-                    // or the node has a worse weight than the current, so increment the weight ranking
-                    nodeRanking = ++weightRanking;
+                Tuple<ModelNode, Decision> nodeResult = Tuple.tuple(node, canAllocate);
+                if (rebalanceConditionsMet) {
+                    betterBalanceNodes.add(nodeResult);
+                } else if (betterWeightThanCurrent) {
+                    sameBalanceNodes.add(nodeResult);
                 } else {
-                    if (currentNodeWeightRanking == 0) {
-                        currentNodeWeightRanking = ++weightRanking;
-                    }
-                    nodeRanking = currentNodeWeightRanking;
+                    worseBalanceNodes.add(nodeResult);
                 }
-                nodeDecisions.put(node.getNodeId(), new NodeAllocationResult(
-                    node.routingNode.node(),
-                    rebalanceConditionsMet ? canAllocate.type() : Type.NO,
-                    canAllocate,
-                    nodeRanking)
-                );
             }
 
-            if (currentNodeWeightRanking == 0) {
-                // the current node is the worst ranked, so its ranking never got assigned above
-                currentNodeWeightRanking = weightRanking + 1;
+            int weightRanking = 0;
+            Map<String, NodeAllocationResult> nodeDecisions = new HashMap<>(modelNodes.length - 1);
+            for (Tuple<ModelNode, Decision> result : betterBalanceNodes) {
+                nodeDecisions.put(result.v1().getNodeId(), new NodeAllocationResult(
+                    result.v1().routingNode.node(), result.v2().type(), result.v2(), ++weightRanking)
+                );
+            }
+            int currentNodeWeightRanking = ++weightRanking;
+            for (Tuple<ModelNode, Decision> result : sameBalanceNodes) {
+                nodeDecisions.put(result.v1().getNodeId(), new NodeAllocationResult(
+                    result.v1().routingNode.node(), Type.NO, result.v2(), currentNodeWeightRanking)
+                );
+            }
+            for (Tuple<ModelNode, Decision> result : worseBalanceNodes) {
+                nodeDecisions.put(result.v1().getNodeId(), new NodeAllocationResult(
+                    result.v1().routingNode.node(), Type.NO, result.v2(), ++weightRanking)
+                );
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {

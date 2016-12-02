@@ -21,7 +21,6 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -342,13 +341,6 @@ public class WatchTests extends ESTestCase {
         WatcherSearchTemplateRequest request = ((SearchInput) watch.input().input()).getRequest();
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
         assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-
-        // parse in legacy mode:
-        watch = watchParser.parse("_id", false, builder.bytes(), true);
-        assertThat(((ScriptCondition) watch.condition()).getScript().getLang(), equalTo("painless"));
-        request = ((SearchInput) watch.input().input()).getRequest();
-        searchRequest = searchTemplateService.toSearchRequest(request);
-        assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo("painless"));
     }
 
     private static Schedule randomSchedule() {

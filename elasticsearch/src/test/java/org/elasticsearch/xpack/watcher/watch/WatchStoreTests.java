@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -220,10 +219,10 @@ public class WatchStoreTests extends ESTestCase {
         when(watch3.status()).thenReturn(status);
         Watch watch4 = mock(Watch.class);
         when(watch4.status()).thenReturn(status);
-        when(parser.parse("_id1", true, source, true)).thenReturn(watch1);
-        when(parser.parse("_id2", true, source, true)).thenReturn(watch2);
-        when(parser.parse("_id3", true, source, true)).thenReturn(watch3);
-        when(parser.parse("_id4", true, source, true)).thenReturn(watch4);
+        when(parser.parse("_id1", true, source)).thenReturn(watch1);
+        when(parser.parse("_id2", true, source)).thenReturn(watch2);
+        when(parser.parse("_id3", true, source)).thenReturn(watch3);
+        when(parser.parse("_id4", true, source)).thenReturn(watch4);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
@@ -302,7 +301,7 @@ public class WatchStoreTests extends ESTestCase {
             };
             when(watch.transform()).thenReturn(randomFrom(testTransform, null));
 
-            when(parser.parse("_id" + i, true, source, true)).thenReturn(watch);
+            when(parser.parse("_id" + i, true, source)).thenReturn(watch);
         }
 
         SearchResponse searchResponse = mockSearchResponse(1, 1, hitCount, hits.toArray(new InternalSearchHit[] {}));
@@ -364,7 +363,7 @@ public class WatchStoreTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         WatchStatus status = mock(WatchStatus.class);
         when(watch.status()).thenReturn(status);
-        when(parser.parse("_id1", true, source, true)).thenReturn(watch);
+        when(parser.parse("_id1", true, source)).thenReturn(watch);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
@@ -408,17 +407,17 @@ public class WatchStoreTests extends ESTestCase {
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
 
         BytesReference source = new BytesArray("{}");
-        InternalSearchHit hit1 = new InternalSearchHit(0, "_id1", new Text("type"), Collections.<String, SearchHitField>emptyMap());
+        InternalSearchHit hit1 = new InternalSearchHit(0, "_id1", new Text("type"), Collections.emptyMap());
         hit1.sourceRef(source);
-        InternalSearchHit hit2 = new InternalSearchHit(1, "_id2", new Text("type"), Collections.<String, SearchHitField>emptyMap());
+        InternalSearchHit hit2 = new InternalSearchHit(1, "_id2", new Text("type"), Collections.emptyMap());
         hit2.sourceRef(source);
         SearchResponse searchResponse1 = mockSearchResponse(1, 1, 2, hit1, hit2);
 
         when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
 
-        InternalSearchHit hit3 = new InternalSearchHit(2, "_id3", new Text("type"), Collections.<String, SearchHitField>emptyMap());
+        InternalSearchHit hit3 = new InternalSearchHit(2, "_id3", new Text("type"), Collections.emptyMap());
         hit3.sourceRef(source);
-        InternalSearchHit hit4 = new InternalSearchHit(3, "_id4", new Text("type"), Collections.<String, SearchHitField>emptyMap());
+        InternalSearchHit hit4 = new InternalSearchHit(3, "_id4", new Text("type"), Collections.emptyMap());
         hit4.sourceRef(source);
         SearchResponse searchResponse2 = mockSearchResponse(1, 1, 2, hit3, hit4);
         SearchResponse searchResponse3 = mockSearchResponse(1, 1, 2);
@@ -433,10 +432,10 @@ public class WatchStoreTests extends ESTestCase {
         when(watch3.status()).thenReturn(status);
         Watch watch4 = mock(Watch.class);
         when(watch4.status()).thenReturn(status);
-        when(parser.parse("_id1", true, source, true)).thenReturn(watch1);
-        when(parser.parse("_id2", true, source, true)).thenReturn(watch2);
-        when(parser.parse("_id3", true, source, true)).thenReturn(watch3);
-        when(parser.parse("_id4", true, source, true)).thenReturn(watch4);
+        when(parser.parse("_id1", true, source)).thenReturn(watch1);
+        when(parser.parse("_id2", true, source)).thenReturn(watch2);
+        when(parser.parse("_id3", true, source)).thenReturn(watch3);
+        when(parser.parse("_id4", true, source)).thenReturn(watch4);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
@@ -526,5 +525,4 @@ public class WatchStoreTests extends ESTestCase {
         when(searchResponse.getHits()).thenReturn(internalSearchHits);
         return searchResponse;
     }
-
 }

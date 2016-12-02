@@ -301,7 +301,7 @@ public class WatchStore extends AbstractComponent {
                 for (SearchHit hit : response.getHits()) {
                     String id = hit.getId();
                     try {
-                        Watch watch = watchParser.parse(id, true, hit.getSourceRef(), true);
+                        Watch watch = watchParser.parse(id, true, hit.getSourceRef());
                         watch.status().version(hit.version());
                         watch.version(hit.version());
                         watches.put(id, watch);

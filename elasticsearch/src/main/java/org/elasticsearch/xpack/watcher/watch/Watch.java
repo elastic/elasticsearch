@@ -233,15 +233,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         }
 
         public Watch parse(String name, boolean includeStatus, BytesReference source) throws IOException {
-            return parse(name, includeStatus, false, source, new DateTime(clock.millis(), UTC), false);
-        }
-
-        public Watch parse(String name, boolean includeStatus, BytesReference source, boolean upgradeSource) throws IOException {
-            return parse(name, includeStatus, false, source, new DateTime(clock.millis(), UTC), upgradeSource);
+            return parse(name, includeStatus, false, source, new DateTime(clock.millis(), UTC));
         }
 
         public Watch parse(String name, boolean includeStatus, BytesReference source, DateTime now) throws IOException {
-            return parse(name, includeStatus, false, source, now, false);
+            return parse(name, includeStatus, false, source, now);
         }
 
         /**
@@ -257,11 +253,10 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * @see org.elasticsearch.xpack.watcher.WatcherService#putWatch(String, BytesReference, boolean)
          */
         public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, DateTime now) throws IOException {
-            return parse(id, includeStatus, true, source, now, false);
+            return parse(id, includeStatus, true, source, now);
         }
 
-        private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source, DateTime now,
-                            boolean upgradeSource) throws IOException {
+        private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source, DateTime now) throws IOException {
             if (logger.isTraceEnabled()) {
                 logger.trace("parsing watch [{}] ", source.utf8ToString());
             }
@@ -269,7 +264,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             try {
                 parser = new WatcherXContentParser(createParser(source), new HaltedClock(now), withSecrets ? cryptoService : null);
                 parser.nextToken();
-                return parse(id, includeStatus, parser, upgradeSource);
+                return parse(id, includeStatus, parser);
             } catch (IOException ioe) {
                 throw ioException("could not parse watch [{}]", ioe, id);
             } finally {
@@ -279,7 +274,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             }
         }
 
-        public Watch parse(String id, boolean includeStatus, XContentParser parser, boolean upgradeWatchSource) throws IOException {
+        public Watch parse(String id, boolean includeStatus, XContentParser parser) throws IOException {
             Trigger trigger = null;
             ExecutableInput input = defaultInput;
             Condition condition = defaultCondition;

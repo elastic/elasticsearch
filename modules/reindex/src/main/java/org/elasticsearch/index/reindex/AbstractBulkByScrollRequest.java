@@ -446,4 +446,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
     }
 
+    @Override
+    public String getDescription() {
+        return this.toString();
+    }
 }

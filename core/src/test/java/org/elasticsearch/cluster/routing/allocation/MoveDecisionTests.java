@@ -59,7 +59,7 @@ public class MoveDecisionTests extends ESTestCase {
         stay1 = MoveDecision.decision(discoveryNode, Decision.NO, Type.YES, node1, null);
         stay2 = MoveDecision.decision(discoveryNode, Decision.NO, Type.YES, node1, null);
         assertNotSame(stay1, stay2);
-        assertEquals(stay1.getAssignedNode(), stay2.getAssignedNode());
+        assertEquals(stay1.getTargetNode(), stay2.getTargetNode());
         // final decision is NO, but in explain mode, so shouldn't use cached decision
         discoveryNode = randomDiscoveryNode();
         stay1 = MoveDecision.decision(discoveryNode, Decision.NO, Type.NO, null, new HashMap<>());
@@ -109,7 +109,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals("node2", decision.getNodeDecisions().keySet().iterator().next());
 
         decision = MoveDecision.decision(currentNode, Decision.NO, Type.YES, node2, null);
-        assertEquals("node2", decision.getAssignedNode().getId());
+        assertEquals("node2", decision.getTargetNode().getId());
     }
 
     public void testSerialization() throws IOException {
@@ -129,7 +129,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(moveDecision.getExplanation(), readDecision.getExplanation());
         assertEquals(moveDecision.move(), readDecision.move());
         assertEquals(moveDecision.getNodeDecisions().size(), readDecision.getNodeDecisions().size());
-        assertEquals(moveDecision.getAssignedNode(), readDecision.getAssignedNode());
+        assertEquals(moveDecision.getTargetNode(), readDecision.getTargetNode());
         assertEquals(moveDecision.getDecisionType(), readDecision.getDecisionType());
         assertEquals(moveDecision.getCurrentNode(), readDecision.getCurrentNode());
         // node2 should have the highest sort order

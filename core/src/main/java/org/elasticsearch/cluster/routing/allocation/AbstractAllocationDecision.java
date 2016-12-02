@@ -45,20 +45,20 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     @Nullable
     protected final Type decision;
     @Nullable
-    protected final DiscoveryNode assignedNode;
+    protected final DiscoveryNode targetNode;
     @Nullable
     protected final Map<String, NodeAllocationResult> nodeDecisions;
 
-    public AbstractAllocationDecision(@Nullable Type decision, @Nullable DiscoveryNode assignedNode,
+    public AbstractAllocationDecision(@Nullable Type decision, @Nullable DiscoveryNode targetNode,
                                       @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
         this.decision = decision;
-        this.assignedNode = assignedNode;
+        this.targetNode = targetNode;
         this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
     }
 
     public AbstractAllocationDecision(StreamInput in) throws IOException {
         decision = in.readOptionalWriteable(Type::readFrom);
-        assignedNode = in.readOptionalWriteable(DiscoveryNode::new);
+        targetNode = in.readOptionalWriteable(DiscoveryNode::new);
         nodeDecisions = in.readBoolean() ? Collections.unmodifiableMap(
             in.readMap(StreamInput::readString, NodeAllocationResult::new, LinkedHashMap::new)) : null;
     }
@@ -97,8 +97,8 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */
     @Nullable
-    public DiscoveryNode getAssignedNode() {
-        return assignedNode;
+    public DiscoveryNode getTargetNode() {
+        return targetNode;
     }
 
     /**
@@ -119,7 +119,7 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(decision);
-        out.writeOptionalWriteable(assignedNode);
+        out.writeOptionalWriteable(targetNode);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
             out.writeVInt(nodeDecisions.size());

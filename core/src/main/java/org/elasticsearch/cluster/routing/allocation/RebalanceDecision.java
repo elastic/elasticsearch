@@ -122,7 +122,7 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
         } else if (canRebalanceDecision.type() == Type.THROTTLE) {
             explanation = "rebalancing is throttled";
         } else {
-            if (getAssignedNode() != null) {
+            if (getTargetNode() != null) {
                 if (getDecisionType() == Type.THROTTLE) {
                     explanation = "shard rebalancing throttled";
                 } else {
@@ -151,9 +151,9 @@ public final class RebalanceDecision extends AbstractAllocationDecision {
         builder.endObject();
         builder.field("decision", decision.toString());
         builder.field("explanation", getExplanation());
-        if (assignedNode != null) {
-            builder.startObject("assigned_node");
-            discoveryNodeToXContent(assignedNode, builder, params);
+        if (targetNode != null) {
+            builder.startObject("target_node");
+            discoveryNodeToXContent(targetNode, builder, params);
             builder.endObject();
         }
         builder.startObject("can_rebalance_decision");

@@ -185,7 +185,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
 
     /**
      * Gets the allocation id for the existing shard copy that the allocator is assigning the shard to.
-     * This method returns a non-null value iff {@link #getAssignedNode()} returns a non-null value
+     * This method returns a non-null value iff {@link #getTargetNode()} returns a non-null value
      * and the node on which the shard is assigned already has a shard copy with an in-sync allocation id
      * that we can re-use.
      */
@@ -259,9 +259,9 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         }
         builder.field("decision", decision.toString());
         builder.field("explanation", getExplanation());
-        if (assignedNode != null) {
-            builder.startObject("assigned_node");
-            discoveryNodeToXContent(assignedNode, builder, params);
+        if (targetNode != null) {
+            builder.startObject("target_node");
+            discoveryNodeToXContent(targetNode, builder, params);
             builder.endObject();
         }
         if (allocationStatus != null) {

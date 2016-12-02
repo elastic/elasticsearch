@@ -43,11 +43,8 @@ import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -409,6 +406,38 @@ public class BootstrapCheckTests extends ESTestCase {
 
         useSerialGC.set("false");
         BootstrapCheck.check(true, Collections.singletonList(check), "testUseSerialGCCheck");
+    }
+
+    public void testSystemCallFilterCheck() throws NodeValidationException {
+        final AtomicBoolean isSecompInstalled = new AtomicBoolean();
+        final BootstrapCheck.SystemCallFilterCheck systemCallFilterEnabledCheck = new BootstrapCheck.SystemCallFilterCheck(true) {
+            @Override
+            boolean isSeccompInstalled() {
+                return isSecompInstalled.get();
+            }
+        };
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapCheck.check(true, Collections.singletonList(systemCallFilterEnabledCheck), "testSystemCallFilterCheck"));
+        assertThat(
+            e.getMessage(),
+            containsString("system call filters failed to install; " +
+                "check the logs and fix your configuration or disable system call filters at your own risk"));
+
+        isSecompInstalled.set(true);
+        BootstrapCheck.check(true, Collections.singletonList(systemCallFilterEnabledCheck), "testSystemCallFilterCheck");
+
+        final BootstrapCheck.SystemCallFilterCheck systemCallFilterNotEnabledCheck = new BootstrapCheck.SystemCallFilterCheck(false) {
+            @Override
+            boolean isSeccompInstalled() {
+                return isSecompInstalled.get();
+            }
+        };
+        isSecompInstalled.set(false);
+        BootstrapCheck.check(true, Collections.singletonList(systemCallFilterNotEnabledCheck), "testSystemCallFilterCheck");
+        isSecompInstalled.set(true);
+        BootstrapCheck.check(true, Collections.singletonList(systemCallFilterNotEnabledCheck), "testSystemCallFilterCheck");
     }
 
     public void testMightForkCheck() throws NodeValidationException {

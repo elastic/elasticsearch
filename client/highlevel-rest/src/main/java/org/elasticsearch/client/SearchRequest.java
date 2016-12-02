@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -35,7 +35,7 @@ public class SearchRequest {
     private final SearchSourceBuilder searchSourceBuilder;
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
-    Map<String, String> urlParams = Collections.emptyMap();
+    private final Map<String, String> urlParams = new HashMap<>();
 
     /**
      * Create a new SearchRequest
@@ -64,8 +64,10 @@ public class SearchRequest {
     /**
      * Set the url parameters used by this request
      */
-    public SearchRequest params(Map<String, String> urlParams) {
-        this.urlParams = Objects.requireNonNull(urlParams);
+    public SearchRequest addParam(String param, String value) {
+        Objects.requireNonNull(param, "param must not be null");
+        Objects.requireNonNull(value, "value must not be null");
+        urlParams.put(param, value);
         return this;
     }
 
@@ -93,7 +95,7 @@ public class SearchRequest {
     /**
      * Get the url parameters used in this request
      */
-    public Map<String, String> params() {
+    public Map<String, String> getParams() {
         return this.urlParams;
     }
 }

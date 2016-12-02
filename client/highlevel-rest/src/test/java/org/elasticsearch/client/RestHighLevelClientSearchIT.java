@@ -86,7 +86,7 @@ public class RestHighLevelClientSearchIT extends ESRestTestCase {
 
     public void testSearch() throws IOException {
         createTestDoc();
-        SearchResponse searchResponse = highLevelClient.performSearchRequest(new SearchRequest(
+        SearchResponse searchResponse = highLevelClient.search(new SearchRequest(
                 new SearchSourceBuilder()
                 .query(new MatchQueryBuilder("content", "buzz").queryName("buzz_query"))
                 .version(true)

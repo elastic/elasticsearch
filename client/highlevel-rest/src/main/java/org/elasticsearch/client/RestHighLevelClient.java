@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,14 +36,14 @@ public final class RestHighLevelClient {
         this.client = Objects.requireNonNull(client);
     }
 
-    public SearchResponse performSearchRequest(SearchRequest request) throws IOException {
-        StringEntity entity = new StringEntity(request.getSearchSource().toString());
-        return new SearchResponse(this.client.performRequest("GET", buildSearchEndpoint(request), request.urlParams, entity));
+    public SearchResponse search(SearchRequest request) throws IOException {
+        NStringEntity entity = new NStringEntity(request.getSearchSource().toString());
+        return new SearchResponse(this.client.performRequest("GET", buildSearchEndpoint(request), request.getParams(), entity));
     }
 
-    public void performSearchRequestAsync(SearchRequest request, ResponseListener responseListener) throws IOException {
-        StringEntity entity = new StringEntity(request.getSearchSource().toString());
-        this.client.performRequestAsync("GET", buildSearchEndpoint(request), request.urlParams, entity, responseListener);
+    public void searchAsync(SearchRequest request, ResponseListener responseListener) throws IOException {
+        NStringEntity entity = new NStringEntity(request.getSearchSource().toString());
+        this.client.performRequestAsync("GET", buildSearchEndpoint(request), request.getParams(), entity, responseListener);
     }
 
     private static String buildSearchEndpoint(SearchRequest request) {

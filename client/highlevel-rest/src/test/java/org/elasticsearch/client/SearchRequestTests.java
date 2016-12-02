@@ -23,8 +23,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,12 +31,10 @@ public class SearchRequestTests extends ESTestCase {
 
     public void testConstructor() {
         SearchRequest request = new SearchRequest(new SearchSourceBuilder());
-        Map<String, String> params = new HashMap<>();
-        params.put("foo", "bar");
-        request.setIndices("aaa", "bbb").setTypes("ccc", "ddd").params(params);
+        request.setIndices("aaa", "bbb").setTypes("ccc", "ddd").addParam("foo", "bar");
         assertThat(Arrays.asList(request.getIndices()), contains("aaa", "bbb"));
         assertThat(Arrays.asList(request.getTypes()), contains("ccc", "ddd"));
-        assertThat(request.params().size(), equalTo(1));
-        assertThat(request.params().get("foo"), equalTo("bar"));
+        assertThat(request.getParams().size(), equalTo(1));
+        assertThat(request.getParams().get("foo"), equalTo("bar"));
     }
 }

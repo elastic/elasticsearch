@@ -31,39 +31,34 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredScriptRequest> {
 
     private String id;
-    private String scriptLang;
+    private String lang;
 
     DeleteStoredScriptRequest() {
+        super();
     }
 
-    public DeleteStoredScriptRequest(String scriptLang, String id) {
-        this.scriptLang = scriptLang;
+    public DeleteStoredScriptRequest(String id, String lang) {
+        super();
+
         this.id = id;
+        this.lang = lang;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (id == null) {
-            validationException = addValidationError("id is missing", validationException);
+
+        if (id == null || id.isEmpty()) {
+            validationException = addValidationError("must specify id for stored script", validationException);
         } else if (id.contains("#")) {
-            validationException = addValidationError("id can't contain: '#'", validationException);
+            validationException = addValidationError("id cannot contain '#' for stored script", validationException);
         }
-        if (scriptLang == null) {
-            validationException = addValidationError("lang is missing", validationException);
-        } else if (scriptLang.contains("#")) {
-            validationException = addValidationError("lang can't contain: '#'", validationException);
+
+        if (lang != null && lang.contains("#")) {
+            validationException = addValidationError("lang cannot contain '#' for stored script", validationException);
         }
+
         return validationException;
-    }
-
-    public String scriptLang() {
-        return scriptLang;
-    }
-
-    public DeleteStoredScriptRequest scriptLang(String type) {
-        this.scriptLang = type;
-        return this;
     }
 
     public String id() {
@@ -72,25 +67,43 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
 
     public DeleteStoredScriptRequest id(String id) {
         this.id = id;
+
+        return this;
+    }
+
+    public String lang() {
+        return lang;
+    }
+
+    public DeleteStoredScriptRequest lang(String lang) {
+        this.lang = lang;
+
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scriptLang = in.readString();
+
+        lang = in.readString();
+
+        if (lang.isEmpty()) {
+            lang = null;
+        }
+
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(scriptLang);
+
+        out.writeString(lang == null ? "" : lang);
         out.writeString(id);
     }
 
     @Override
     public String toString() {
-        return "delete script {[" + scriptLang + "][" + id + "]}";
+        return "delete stored script {id [" + id + "]" + (lang != null ? ", lang [" + lang + "]" : "") + "}";
     }
 }

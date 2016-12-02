@@ -28,61 +28,79 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScriptRequest> {
 
     protected String id;
     protected String lang;
 
     GetStoredScriptRequest() {
+        super();
     }
 
-    public GetStoredScriptRequest(String lang, String id) {
-        this.lang = lang;
+    public GetStoredScriptRequest(String id, String lang) {
+        super();
+
         this.id = id;
+        this.lang = lang;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (lang == null) {
-            validationException = ValidateActions.addValidationError("lang is missing", validationException);
+
+        if (id == null || id.isEmpty()) {
+            validationException = addValidationError("must specify id for stored script", validationException);
+        } else if (id.contains("#")) {
+            validationException = addValidationError("id cannot contain '#' for stored script", validationException);
         }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+
+        if (lang != null && lang.contains("#")) {
+            validationException = addValidationError("lang cannot contain '#' for stored script", validationException);
         }
+
         return validationException;
-    }
-
-    public GetStoredScriptRequest lang(@Nullable String type) {
-        this.lang = type;
-        return this;
-    }
-
-    public GetStoredScriptRequest id(String id) {
-        this.id = id;
-        return this;
-    }
-
-
-    public String lang() {
-        return lang;
     }
 
     public String id() {
         return id;
     }
 
+    public GetStoredScriptRequest id(String id) {
+        this.id = id;
+
+        return this;
+    }
+
+    public String lang() {
+        return lang;
+    }
+
+    public GetStoredScriptRequest lang(String lang) {
+        this.lang = lang;
+
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+
         lang = in.readString();
+
+        if (lang.isEmpty()) {
+            lang = null;
+        }
+
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(lang);
+
+        out.writeString(lang == null ? "" : lang);
         out.writeString(id);
     }
 

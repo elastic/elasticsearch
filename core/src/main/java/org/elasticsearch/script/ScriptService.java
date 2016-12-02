@@ -354,16 +354,17 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    private String validateScriptLanguage(String scriptLang) {
-        Objects.requireNonNull(scriptLang);
-        if (scriptEnginesByLang.containsKey(scriptLang) == false) {
-            throw new IllegalArgumentException("script_lang not supported [" + scriptLang + "]");
-        }
-        return scriptLang;
+    public boolean isLangSupported(String lang) {
+        Objects.requireNonNull(lang);
+
+        return scriptEnginesByLang.containsKey(lang);
     }
 
-    String getScriptFromClusterState(String scriptLang, String id) {
-        scriptLang = validateScriptLanguage(scriptLang);
+    String getScriptFromClusterState(String id, String lang) {
+        if (isLangSupported(lang) == false) {
+            throw new IllegalArgumentException("unable to get stored script with unsupported lang [" + lang + "]");
+        }
+
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
         if (scriptMetadata == null) {
             throw new ResourceNotFoundException("Unable to find script [" + scriptLang + "/" + id + "] in cluster state");
@@ -376,43 +377,42 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return script;
     }
 
-    void validateStoredScript(String id, String scriptLang, BytesReference scriptBytes) {
-        validateScriptSize(id, scriptBytes.length());
-        String script = ScriptMetaData.parseStoredScript(scriptBytes);
-        if (Strings.hasLength(scriptBytes)) {
-            //Just try and compile it
-            try {
-                ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(scriptLang);
-                //we don't know yet what the script will be used for, but if all of the operations for this lang with
-                //indexed scripts are disabled, it makes no sense to even compile it.
-                if (isAnyScriptContextEnabled(scriptLang, ScriptType.STORED)) {
-                    Object compiled = scriptEngineService.compile(id, script, Collections.emptyMap());
-                    if (compiled == null) {
-                        throw new IllegalArgumentException("Unable to parse [" + script + "] lang [" + scriptLang +
-                                "] (ScriptService.compile returned null)");
-                    }
-                } else {
-                    logger.warn(
-                            "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
-                            script, scriptLang);
-                }
-            } catch (ScriptException good) {
-                // TODO: remove this when all script engines have good exceptions!
-                throw good; // its already good!
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Unable to parse [" + script +
-                        "] lang [" + scriptLang + "]", e);
-            }
-        } else {
-            throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.utf8ToString());
-        }
-    }
+    public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
+                                ActionListener<PutStoredScriptResponse> listener) {
+        int max = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
 
-    public void storeScript(ClusterService clusterService, PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener) {
-        String scriptLang = validateScriptLanguage(request.scriptLang());
-        //verify that the script compiles
-        validateStoredScript(request.id(), scriptLang, request.script());
-        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
+        if (request.content().length() > max) {
+            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + max + "] with size [" +
+                request.content().length() + "] for script [" + request.id() + "]");
+        }
+
+        StoredScriptSource source = StoredScriptSource.parse(request.lang(), request.content());
+
+        if (isLangSupported(source.getLang()) == false) {
+            throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() +"]");
+        }
+
+        try {
+            ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(source.getLang());
+
+            if (isAnyScriptContextEnabled(source.getLang(), ScriptType.STORED)) {
+                Object compiled = scriptEngineService.compile(request.id(), source.getCode(), Collections.emptyMap());
+
+                if (compiled == null) {
+                    throw new IllegalArgumentException("failed to compile stored script [" + request.id() + "]");
+                }
+            } else {
+                throw new IllegalArgumentException(
+                    "cannot put stored script [" + request.id() + "], stored scripts cannot be run under any context");
+            }
+        } catch (ScriptException good) {
+            throw good;
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("failed to compile stored script [" + request.id() + "]", exception);
+        }
+
+        clusterService.submitStateUpdateTask("put-script-" + request.id(),
+            new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
 
             @Override
             protected PutStoredScriptResponse newResponse(boolean acknowledged) {
@@ -421,23 +421,19 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerStoreScript(currentState, scriptLang, request);
+                return ScriptMetaData.putStoredScript(currentState, request.id(), source);
             }
         });
     }
 
-    static ClusterState innerStoreScript(ClusterState currentState, String validatedScriptLang, PutStoredScriptRequest request) {
-        ScriptMetaData scriptMetadata = currentState.metaData().custom(ScriptMetaData.TYPE);
-        ScriptMetaData.Builder scriptMetadataBuilder = new ScriptMetaData.Builder(scriptMetadata);
-        scriptMetadataBuilder.storeScript(validatedScriptLang, request.id(), request.script());
-        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
-                .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
-        return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
-    }
+    public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
+                                   ActionListener<DeleteStoredScriptResponse> listener) {
+        if (request.lang() != null && isLangSupported(request.lang()) == false) {
+            throw new IllegalArgumentException("unable to delete stored script with unsupported lang [" + request.getLang() +"]");
+        }
 
-    public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener) {
-        String scriptLang = validateScriptLanguage(request.scriptLang());
-        clusterService.submitStateUpdateTask("delete-script-" + request.id(), new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("delete-script-" + request.id(),
+            new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
 
             @Override
             protected DeleteStoredScriptResponse newResponse(boolean acknowledged) {
@@ -446,24 +442,16 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerDeleteScript(currentState, scriptLang, request);
+                return ScriptMetaData.deleteStoredScript(currentState, request.id(), request.lang());
             }
         });
     }
 
-    static ClusterState innerDeleteScript(ClusterState currentState, String validatedLang, DeleteStoredScriptRequest request) {
-        ScriptMetaData scriptMetadata = currentState.metaData().custom(ScriptMetaData.TYPE);
-        ScriptMetaData.Builder scriptMetadataBuilder = new ScriptMetaData.Builder(scriptMetadata);
-        scriptMetadataBuilder.deleteScript(validatedLang, request.id());
-        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
-                .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
-        return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
-    }
-
-    public String getStoredScript(ClusterState state, GetStoredScriptRequest request) {
+    public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
         ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+
         if (scriptMetadata != null) {
-            return scriptMetadata.getScript(request.lang(), request.id());
+            return scriptMetadata.getStoredScript(request.id(), request.lang());
         } else {
             return null;
         }
@@ -518,18 +506,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     public ScriptStats stats() {
         return scriptMetrics.stats();
-    }
-
-    private void validateScriptSize(String identifier, int scriptSizeInBytes) {
-        int allowedScriptSizeInBytes = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
-        if (scriptSizeInBytes > allowedScriptSizeInBytes) {
-            String message = LoggerMessageFormat.format(
-                    "Limit of script size in bytes [{}] has been exceeded for script [{}] with size [{}]",
-                    allowedScriptSizeInBytes,
-                    identifier,
-                    scriptSizeInBytes);
-            throw new IllegalArgumentException(message);
-        }
     }
 
     @Override

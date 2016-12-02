@@ -315,7 +315,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler();
             final boolean incompatible = randomBoolean();
             IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
-                .put(SETTING_VERSION_CREATED, incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
+                .put(SETTING_VERSION_CREATED, incompatible ? Version.fromString("1.7.5")
                     : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
                 .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
@@ -339,7 +339,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
                     request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null));
                 assertEquals("index [test] version not supported: "
-                    + VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
+                    + Version.fromString("1.7.5")
                     + " minimum compatible index version is: " + Version.CURRENT.minimumIndexCompatibilityVersion(), ex.getMessage());
             } else {
                 AtomicBoolean sendResponse = new AtomicBoolean(false);

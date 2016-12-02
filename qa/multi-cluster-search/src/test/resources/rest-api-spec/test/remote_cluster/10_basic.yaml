@@ -30,10 +30,6 @@
           - '{"f1": "remote_cluster", "filter_field": 0}'
 
  - do:
-     indices.flush:
-        index: test_index
-
- - do:
      search:
         index: test_index
 

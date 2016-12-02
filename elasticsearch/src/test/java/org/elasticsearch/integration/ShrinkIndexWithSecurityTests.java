@@ -22,11 +22,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
     @Override
-    protected final boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected int minimumNumberOfShards() {
         return 2;
     }

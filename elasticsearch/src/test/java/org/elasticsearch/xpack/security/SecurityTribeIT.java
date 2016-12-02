@@ -129,11 +129,6 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         return useSSL;
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     private void setupTribeNode(Settings settings) throws NodeValidationException, InterruptedException {
         SecuritySettingsSource cluster2SettingsSource = new SecuritySettingsSource(1, useSSL, systemKey(), createTempDir(), Scope.TEST);
         Map<String,String> asMap = new HashMap<>(cluster2SettingsSource.nodeSettings(0).getAsMap());

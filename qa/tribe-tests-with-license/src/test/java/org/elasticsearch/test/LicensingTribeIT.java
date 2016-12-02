@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.GetLicenseResponse;
@@ -26,16 +27,16 @@ import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class LicensingTribeIT extends ESIntegTestCase {
+public class LicensingTribeIT extends ESTestCase {
+    //TODO cut this one over to use a REST client
+    private static TestCluster cluster1;
     private static TestCluster cluster2;
     private static TestCluster tribeNode;
 
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(XPackPlugin.class);
     }
 
-    @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
     }
@@ -43,6 +44,9 @@ public class LicensingTribeIT extends ESIntegTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        if (cluster1 == null) {
+            cluster1 = buildExternalCluster(System.getProperty("tests.cluster"));
+        }
         if (cluster2 == null) {
             cluster2 = buildExternalCluster(System.getProperty("tests.cluster2"));
         }
@@ -54,24 +58,16 @@ public class LicensingTribeIT extends ESIntegTestCase {
 
     @AfterClass
     public static void tearDownExternalClusters() throws IOException {
-        if (cluster2 != null) {
-            try {
-                cluster2.close();
-            } finally {
-                cluster2 = null;
-            }
-        }
-        if (tribeNode != null) {
-            try {
-                tribeNode.close();
-            } finally {
-                tribeNode = null;
-            }
+        try {
+            IOUtils.close(cluster1, cluster2, tribeNode);
+        } finally {
+            cluster1 = null;
+            cluster2 = null;
+            tribeNode = null;
         }
     }
 
 
-    @Override
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder();
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
@@ -81,7 +77,7 @@ public class LicensingTribeIT extends ESIntegTestCase {
         return builder.build();
     }
 
-    private ExternalTestCluster buildExternalCluster(String clusterAddresses) throws IOException {
+    private TestCluster buildExternalCluster(String clusterAddresses) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
@@ -102,7 +98,7 @@ public class LicensingTribeIT extends ESIntegTestCase {
         });
 
         // test that signed license put in one cluster propagates to tribe
-        LicensingClient cluster1Client = new LicensingClient(client());
+        LicensingClient cluster1Client = new LicensingClient(cluster1.client());
         PutLicenseResponse licenseResponse = cluster1Client.preparePutLicense(License.fromSource(BASIC_LICENSE))
                 .setAcknowledge(true).get();
         assertThat(licenseResponse.isAcknowledged(), equalTo(true));

@@ -53,6 +53,12 @@ if (cppEnabledStr == 'auto') {
     }
 }
 
+allprojects {
+  group = 'org.elasticsearch.prelert'
+}
+
+String packArtifactName = 'prelert'
+
 configurations.all {
     // check for updates every build
     resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
@@ -93,7 +99,7 @@ task bundlePack(type: Zip) {
   from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }
   from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
   destinationDir file('build/distributions')
-  baseName = 'prelert'
+  baseName = packArtifactName
   version = VersionProperties.elasticsearch
 }
 
@@ -122,7 +128,7 @@ task uploadPackToS3(type: UploadS3Task, dependsOn: [build]) {
   enabled project.uploadEnabled
   description = 'upload pack zip to S3 Bucket'
   bucket 'prelert-artifacts'
-  upload bundlePack.outputs.files.singleFile, "maven/org.elasticsearch.prelert/prelert/${elasticsearchVersion}/${bundlePack.outputs.files.singleFile.name}"
+  upload bundlePack.outputs.files.singleFile, "maven/${project.group}/${packArtifactName}/${elasticsearchVersion}/${bundlePack.outputs.files.singleFile.name}"
 }
 
 task deploy(dependsOn: [uploadPackToS3, ':cpp:upload']) {
@@ -148,8 +154,6 @@ subprojects {
             jcenter()
         }
     }
-
-    group = 'org.elasticsearch.prelert'
 
     repositories {
         if (System.getProperty("repos.mavenlocal") != null) {

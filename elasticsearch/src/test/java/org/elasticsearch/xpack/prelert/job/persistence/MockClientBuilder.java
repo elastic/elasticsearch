@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.prelert.job.persistence;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -41,6 +44,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -62,6 +66,8 @@ import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 public class MockClientBuilder {
     @Mock
@@ -245,14 +251,63 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareSearch(String index, String type, int from, int size, SearchResponse response) {
+    public MockClientBuilder prepareSearch(String index, String type, SearchResponse response) {
         SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
         when(searchRequestBuilder.get()).thenReturn(response);
         when(searchRequestBuilder.setTypes(eq(type))).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setFrom(eq(from))).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setSize(eq(size))).thenReturn(searchRequestBuilder);
+        when(searchRequestBuilder.setFrom(anyInt())).thenReturn(searchRequestBuilder);
+        when(searchRequestBuilder.setSize(anyInt())).thenReturn(searchRequestBuilder);
         when(searchRequestBuilder.addSort(any(SortBuilder.class))).thenReturn(searchRequestBuilder);
+        when(searchRequestBuilder.setQuery(any())).thenReturn(searchRequestBuilder);
+        when(searchRequestBuilder.setFetchSource(anyBoolean())).thenReturn(searchRequestBuilder);
+        when(searchRequestBuilder.setScroll(anyString())).thenReturn(searchRequestBuilder);
         when(client.prepareSearch(eq(index))).thenReturn(searchRequestBuilder);
+        return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder prepareSearchExecuteListener(String index, SearchResponse response) {
+        SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
+        when(builder.setTypes(anyString())).thenReturn(builder);
+        when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
+        when(builder.setFetchSource(anyBoolean())).thenReturn(builder);
+        when(builder.setScroll(anyString())).thenReturn(builder);
+        when(builder.addDocValueField(any(String.class))).thenReturn(builder);
+        when(builder.addSort(any(String.class), any(SortOrder.class))).thenReturn(builder);
+        when(builder.setQuery(any())).thenReturn(builder);
+        when(builder.setSize(anyInt())).thenReturn(builder);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(builder).execute(any());
+
+        when(client.prepareSearch(eq(index))).thenReturn(builder);
+
+        return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder prepareSearchScrollExecuteListener(SearchResponse response) {
+        SearchScrollRequestBuilder builder = mock(SearchScrollRequestBuilder.class);
+        when(builder.setScroll(anyString())).thenReturn(builder);
+        when(builder.setScrollId(anyString())).thenReturn(builder);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(builder).execute(any());
+
+        when(client.prepareSearchScroll(anyString())).thenReturn(builder);
+
         return this;
     }
 
@@ -338,6 +393,23 @@ public class MockClientBuilder {
         when(client.prepareBulk()).thenReturn(builder);
         when(builder.execute()).thenReturn(actionFuture);
         when(actionFuture.actionGet()).thenReturn(response);
+        return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder prepareBulkExecuteListener(BulkResponse response) {
+        ListenableActionFuture<BulkResponse> actionFuture = mock(ListenableActionFuture.class);
+        BulkRequestBuilder builder = mock(BulkRequestBuilder.class);
+        when(client.prepareBulk()).thenReturn(builder);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(builder).execute(any());
         return this;
     }
 

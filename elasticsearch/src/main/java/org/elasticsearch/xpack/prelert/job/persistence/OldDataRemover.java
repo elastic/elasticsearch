@@ -28,7 +28,18 @@ public class OldDataRemover {
      */
     public void deleteResultsAfter(ActionListener<BulkResponse> listener, String jobId, long cutoffEpochMs) {
         JobDataDeleter deleter = dataDeleterFactory.apply(jobId);
-        deleter.deleteResultsFromTime(cutoffEpochMs);
-        deleter.commit(listener);
+        deleter.deleteResultsFromTime(cutoffEpochMs, new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean success) {
+                if (success) {
+                    deleter.commit(listener);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.prelert.job.results.Result;
 
 import java.util.Date;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ElasticsearchBulkDeleter implements JobDataDeleter {
     private static final Logger LOGGER = Loggers.getLogger(ElasticsearchBulkDeleter.class);
@@ -60,33 +62,30 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
     }
 
     @Override
-    public void deleteResultsFromTime(long cutoffEpochMs) {
+    public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
         String index = JobResultsPersister.getJobIndexName(jobId);
 
         RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(ElasticsearchMappings.ES_TIMESTAMP);
         timeRange.gte(cutoffEpochMs);
         timeRange.lt(new Date().getTime());
 
-        SearchResponse searchResponse = client.prepareSearch(index)
+        RepeatingSearchScrollListener scrollSearchListener = new RepeatingSearchScrollListener(index, listener);
+
+        client.prepareSearch(index)
                 .setTypes(Result.TYPE.getPreferredName())
                 .setFetchSource(false)
                 .setQuery(timeRange)
                 .setScroll(SCROLL_CONTEXT_DURATION)
                 .setSize(SCROLL_SIZE)
-                .get();
+                .execute(scrollSearchListener);
+    }
 
-        String scrollId = searchResponse.getScrollId();
-        long totalHits = searchResponse.getHits().totalHits();
-        long totalDeletedCount = 0;
-        while (totalDeletedCount < totalHits) {
-            for (SearchHit hit : searchResponse.getHits()) {
-                LOGGER.trace("Search hit for result: {}", hit.getId());
-                ++totalDeletedCount;
-                addDeleteRequest(hit, index);
-                ++deletedResultCount;
-            }
-            searchResponse = client.prepareSearchScroll(scrollId).setScroll(SCROLL_CONTEXT_DURATION).get();
+    private void addDeleteRequestForSearchHits(SearchHits hits, String index) {
+        for (SearchHit hit : hits.hits()) {
+            LOGGER.trace("Search hit for result: {}", hit.getId());
+            addDeleteRequest(hit, index);
         }
+        deletedResultCount = hits.getTotalHits();
     }
 
     private void addDeleteRequest(SearchHit hit, String index) {
@@ -179,4 +178,39 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
             listener.onFailure(e);
         }
     }
+
+    /**
+     * Repeats a scroll search adding the hits a bulk delete request
+     */
+    private class RepeatingSearchScrollListener implements ActionListener<SearchResponse> {
+
+        private final AtomicLong totalDeletedCount;
+        private final String index;
+        private final ActionListener<Boolean> scrollFinishedListener;
+
+        RepeatingSearchScrollListener(String index, ActionListener<Boolean> scrollFinishedListener) {
+            totalDeletedCount = new AtomicLong(0L);
+            this.index = index;
+            this.scrollFinishedListener = scrollFinishedListener;
+        }
+
+        @Override
+        public void onResponse(SearchResponse searchResponse) {
+            addDeleteRequestForSearchHits(searchResponse.getHits(), index);
+
+            totalDeletedCount.addAndGet(searchResponse.getHits().hits().length);
+            if (totalDeletedCount.get() < searchResponse.getHits().totalHits()) {
+                client.prepareSearchScroll(searchResponse.getScrollId()).setScroll(SCROLL_CONTEXT_DURATION)
+                        .execute(this);
+            }
+            else {
+                scrollFinishedListener.onResponse(true);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            scrollFinishedListener.onFailure(e);
+        }
+    };
 }

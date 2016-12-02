@@ -14,11 +14,12 @@ import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 public interface JobDataDeleter {
 
     /**
-     * Delete all result types (Buckets, Records, Influencers) from {@code cutOffTime}
+     * Asynchronously delete all result types (Buckets, Records, Influencers) from {@code cutOffTime}
      *
      * @param cutoffEpochMs Results at and after this time will be deleted
+     * @param listener Response listener
      */
-    void deleteResultsFromTime(long cutoffEpochMs);
+    void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener);
 
     /**
      * Delete a {@code ModelSnapshot}

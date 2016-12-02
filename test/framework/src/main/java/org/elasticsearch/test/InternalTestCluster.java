@@ -119,6 +119,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -129,7 +130,6 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -695,10 +695,6 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen(); // currently unused
         Builder builder = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false)
             .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
-        if (size() == 0) {
-            // if we are the first node - don't wait for a state
-            builder.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
-        }
         return startNode(builder);
     }
 
@@ -890,9 +886,6 @@ public final class InternalTestCluster extends TestCluster {
                 assert ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
                 newSettings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes).build();
             }
-
-            // validation is (optionally) done in fullRestart/rollingRestart
-            newSettings.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s");
             if (clearDataIfNeeded) {
                 clearDataIfNeeded(callback);
             }
@@ -1021,10 +1014,6 @@ public final class InternalTestCluster extends TestCluster {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
             settings.put(Node.NODE_DATA_SETTING.getKey(), false);
-            if (autoManageMinMasterNodes) {
-                settings.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s"); // we wait at the end
-            }
-
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes);
             toStartAndPublish.add(nodeAndClient);
         }
@@ -1034,9 +1023,6 @@ public final class InternalTestCluster extends TestCluster {
                 // if we don't have dedicated master nodes, keep things default
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
-            }
-            if (autoManageMinMasterNodes) {
-                settings.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s"); // we wait at the end
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes);
             toStartAndPublish.add(nodeAndClient);
@@ -1350,10 +1336,19 @@ public final class InternalTestCluster extends TestCluster {
                 // special case for 1 node master - we can't update the min master nodes before we add more nodes.
                 updateMinMasterNodes(currentMasters + newMasters);
             }
-            for (NodeAndClient nodeAndClient : nodeAndClients) {
-                nodeAndClient.startNode();
-                publishNode(nodeAndClient);
+            List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
+            try {
+                for (Future<?> future : futures) {
+                    future.get();
+                }
+            } catch (InterruptedException e) {
+                Thread.interrupted();
+                return;
+            } catch (ExecutionException e) {
+                throw new RuntimeException("failed to start nodes", e);
             }
+            nodeAndClients.forEach(this::publishNode);
+
             if (autoManageMinMasterNodes && currentMasters == 1 && newMasters > 0) {
                 // update once masters have joined
                 validateClusterFormed();
@@ -1660,10 +1655,6 @@ public final class InternalTestCluster extends TestCluster {
         if (autoManageMinMasterNodes) {
             int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
             defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + mastersDelta);
-            settings = Stream.of(settings).map(originalSettings -> Settings.builder()
-                .put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // we wait at the end
-                .put(originalSettings)
-                .build()).toArray(Settings[]::new);
         } else {
             defaultMinMasterNodes = -1;
         }
@@ -1672,7 +1663,6 @@ public final class InternalTestCluster extends TestCluster {
             nodes.add(buildNode(nodeSettings, defaultMinMasterNodes));
         }
         startAndPublishNodesAndClients(nodes);
-
         if (autoManageMinMasterNodes) {
             validateClusterFormed();
         }

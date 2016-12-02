@@ -206,7 +206,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
         .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
         .put(TcpTransport.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
-        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // don't wait on start up (we always ensure stable cluster)
         // value and the time of disruption and does not recover immediately
         // when disruption is stop. We should make sure we recover faster
         // then the default of 30s, causing ensureGreen and friends to time out

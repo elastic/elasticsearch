@@ -508,7 +508,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        Mapper[] sortedMappers = mappers.values().stream().toArray(Mapper[]::new);
+        Mapper[] sortedMappers = mappers.values().stream().toArray(size -> new Mapper[size]);
         Arrays.sort(sortedMappers, (o1, o2) -> o1.name().compareTo(o2.name()));
 
         int count = 0;

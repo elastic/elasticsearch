@@ -646,4 +646,10 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
     }
+
+    @Override
+    public String getDescription() {
+        return "snapshot [" + repository + ":" + snapshot + "]";
+    }
+
 }

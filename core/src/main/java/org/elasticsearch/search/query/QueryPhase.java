@@ -163,7 +163,12 @@ public class QueryPhase implements SearchPhase {
                 if (searchContext.getProfilers() != null) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_COUNT, Collections.emptyList());
                 }
-                topDocsCallable = () -> new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                topDocsCallable = new Callable<TopDocs>() {
+                    @Override
+                    public TopDocs call() throws Exception {
+                        return new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                    }
+                };
             } else {
                 // Perhaps have a dedicated scroll phase?
                 final ScrollContext scrollContext = searchContext.scrollContext();
@@ -217,33 +222,36 @@ public class QueryPhase implements SearchPhase {
                 if (doProfile) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TOP_HITS, Collections.emptyList());
                 }
-                topDocsCallable = () -> {
-                    TopDocs topDocs = topDocsCollector.topDocs();
-                    if (scrollContext != null) {
-                        if (scrollContext.totalHits == -1) {
-                            // first round
-                            scrollContext.totalHits = topDocs.totalHits;
-                            scrollContext.maxScore = topDocs.getMaxScore();
-                        } else {
-                            // subsequent round: the total number of hits and
-                            // the maximum score were computed on the first round
-                            topDocs.totalHits = scrollContext.totalHits;
-                            topDocs.setMaxScore(scrollContext.maxScore);
-                        }
-                        switch (searchType) {
-                        case QUERY_AND_FETCH:
-                        case DFS_QUERY_AND_FETCH:
-                            // for (DFS_)QUERY_AND_FETCH, we already know the last emitted doc
-                            if (topDocs.scoreDocs.length > 0) {
-                                // set the last emitted doc
-                                scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
+                topDocsCallable = new Callable<TopDocs>() {
+                    @Override
+                    public TopDocs call() throws Exception {
+                        TopDocs topDocs = topDocsCollector.topDocs();
+                        if (scrollContext != null) {
+                            if (scrollContext.totalHits == -1) {
+                                // first round
+                                scrollContext.totalHits = topDocs.totalHits;
+                                scrollContext.maxScore = topDocs.getMaxScore();
+                            } else {
+                                // subsequent round: the total number of hits and
+                                // the maximum score were computed on the first round
+                                topDocs.totalHits = scrollContext.totalHits;
+                                topDocs.setMaxScore(scrollContext.maxScore);
                             }
-                            break;
-                        default:
-                            break;
+                            switch (searchType) {
+                            case QUERY_AND_FETCH:
+                            case DFS_QUERY_AND_FETCH:
+                                // for (DFS_)QUERY_AND_FETCH, we already know the last emitted doc
+                                if (topDocs.scoreDocs.length > 0) {
+                                    // set the last emitted doc
+                                    scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
+                                }
+                                break;
+                            default:
+                                break;
+                            }
                         }
+                        return topDocs;
                     }
-                    return topDocs;
                 };
             }
 
@@ -329,12 +337,15 @@ public class QueryPhase implements SearchPhase {
                 } else if (query.getClass() == TermQuery.class && searcher.getIndexReader().hasDeletions() == false) {
                     final Term term = ((TermQuery) query).getTerm();
                     collector = null;
-                    topDocsCallable = () -> {
-                        int count = 0;
-                        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
-                            count += context.reader().docFreq(term);
+                    topDocsCallable = new Callable<TopDocs>() {
+                        @Override
+                        public TopDocs call() throws Exception {
+                            int count = 0;
+                            for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+                                count += context.reader().docFreq(term);
+                            }
+                            return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
                         }
-                        return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
                     };
                 }
             }

@@ -122,7 +122,12 @@ public final class HppcMaps {
                 throw new UnsupportedOperationException();
             }
         };
-        return () -> intersection;
+        return new Iterable<T>() {
+            @Override
+            public Iterator<T> iterator() {
+                return intersection;
+            }
+        };
     }
 
     public static final class Object {

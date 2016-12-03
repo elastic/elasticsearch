@@ -199,14 +199,16 @@ public abstract class NetworkUtils {
         }
         return list.toArray(new InetAddress[list.size()]);
     }
-
-    /** Returns all addresses (any scope) for interfaces that are up.
+    
+    /** Returns all addresses (any scope) for interfaces that are up. 
      *  This is only used to pick a publish address, when the user set network.host to a wildcard */
     static InetAddress[] getAllAddresses() throws SocketException {
         List<InetAddress> list = new ArrayList<>();
         for (NetworkInterface intf : getInterfaces()) {
             if (intf.isUp()) {
-                list.addAll(Collections.list(intf.getInetAddresses()));
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    list.add(address);
+                }
             }
         }
         if (list.isEmpty()) {

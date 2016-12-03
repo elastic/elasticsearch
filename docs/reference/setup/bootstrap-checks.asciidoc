@@ -146,6 +146,7 @@ you're using, or you've explicitly specified it with `-XX:+UseSerialGC`). Note
 that the default JVM configuration that ship with Elasticsearch configures
 Elasticsearch to use the CMS collector.
 
+[[system-call-filter-check]]
 === System call filter check
 
 Elasticsearch installs system call filters of various flavors depending on the

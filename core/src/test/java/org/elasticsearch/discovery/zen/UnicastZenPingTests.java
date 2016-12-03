@@ -397,7 +397,7 @@ public class UnicastZenPingTests extends ESTestCase {
             limitPortCounts,
             transportService,
             () -> Integer.toString(idGenerator.incrementAndGet()),
-            TimeValue.timeValueMillis(100));
+            TimeValue.timeValueSeconds(1));
         assertThat(discoveryNodes, hasSize(limitPortCounts));
         final Set<Integer> ports = new HashSet<>();
         for (final DiscoveryNode discoveryNode : discoveryNodes) {

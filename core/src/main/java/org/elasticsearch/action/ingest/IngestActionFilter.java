@@ -85,11 +85,6 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
     }
 
-    @Override
-    public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener, ActionFilterChain<?, Response> chain) {
-        chain.proceed(action, response, listener);
-    }
-
     void processIndexRequest(Task task, String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest) {
 
         executionService.executeIndexRequest(indexRequest, t -> {

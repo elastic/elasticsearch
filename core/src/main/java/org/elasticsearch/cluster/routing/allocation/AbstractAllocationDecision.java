@@ -50,15 +50,15 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     @Nullable
     protected final Map<String, NodeAllocationResult> nodeDecisions;
 
-    public AbstractAllocationDecision(@Nullable Type decision, @Nullable DiscoveryNode targetNode,
-                                      @Nullable Collection<NodeAllocationResult> nodeDecisions) {
+    protected AbstractAllocationDecision(@Nullable Type decision, @Nullable DiscoveryNode targetNode,
+                                         @Nullable Collection<NodeAllocationResult> nodeDecisions) {
         this.decision = decision;
         this.targetNode = targetNode;
         this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(
             nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity()))) : null;
     }
 
-    public AbstractAllocationDecision(StreamInput in) throws IOException {
+    protected AbstractAllocationDecision(StreamInput in) throws IOException {
         decision = in.readOptionalWriteable(Type::readFrom);
         targetNode = in.readOptionalWriteable(DiscoveryNode::new);
         nodeDecisions = in.readBoolean() ? Collections.unmodifiableMap(
@@ -67,54 +67,48 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
 
     /**
      * Returns <code>true</code> if a decision was taken by the allocator, {@code false} otherwise.
-     * If no decision was taken, then the rest of the fields in this object are meaningless and return {@code null}.
+     * If no decision was taken, then the rest of the fields in this object cannot be accessed and will
+     * throw an {@code IllegalStateException}.
      */
     public boolean isDecisionTaken() {
         return decision != null;
     }
 
     /**
-     * Returns the decision made by the allocator on whether to assign the shard.
-     * This value can only be {@code null} if {@link #isDecisionTaken()} returns {@code false}.
+     * Returns the decision made by the allocator on whether to assign the shard.  If {@link #isDecisionTaken()}
+     * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
-    @Nullable
     public Type getDecisionType() {
-        return decision;
-    }
-
-    /**
-     * Returns the decision made by the allocator on whether to assign the shard.
-     * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
-     * throw an {@code IllegalArgumentException}.
-     */
-    public Type getDecisionTypeSafe() {
-        if (isDecisionTaken() == false) {
-            throw new IllegalArgumentException("decision must have been taken in order to return the final decision");
-        }
+        checkDecisionState();
         return decision;
     }
 
     /**
      * Get the node that the allocator will assign the shard to, unless {@link #getDecisionType()} returns
-     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
+     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.  If
+     * {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
     @Nullable
     public DiscoveryNode getTargetNode() {
+        checkDecisionState();
         return targetNode;
     }
 
     /**
      * Gets the individual node-level decisions that went into making the final decision as represented by
      * {@link #getDecisionType()}.  The map that is returned has the node id as the key and a {@link Decision}
-     * as the decision for the given node.
+     * as the decision for the given node.  If {@link #isDecisionTaken()} returns {@code false}, then invoking
+     * this method will throw an {@code IllegalStateException}.
      */
     @Nullable
     public Map<String, NodeAllocationResult> getNodeDecisions() {
+        checkDecisionState();
         return nodeDecisions;
     }
 
     /**
-     * Gets the explanation for the decision
+     * Gets the explanation for the decision.  If {@link #isDecisionTaken()} returns {@code false}, then invoking
+     * this method will throw an {@code IllegalStateException}.
      */
     public abstract String getExplanation();
 
@@ -131,6 +125,12 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
             }
         } else {
             out.writeBoolean(false);
+        }
+    }
+
+    protected void checkDecisionState() {
+        if (isDecisionTaken() == false) {
+            throw new IllegalStateException("decision was not taken, individual object fields cannot be accessed");
         }
     }
 
@@ -161,7 +161,9 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
                 .sorted()
                 .collect(Collectors.toMap(r -> r.getNode().getId(),
                     Function.identity(),
-                    (r1, r2) -> { throw new IllegalArgumentException(String.format(Locale.ROOT, "Duplicate key %s", r1)); },
+                    (r1, r2) -> {
+                        throw new IllegalArgumentException(String.format(Locale.ROOT, "Duplicate key %s", r1));
+                    },
                     LinkedHashMap::new))
         );
     }
@@ -185,4 +187,5 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
         }
         return builder;
     }
+
 }

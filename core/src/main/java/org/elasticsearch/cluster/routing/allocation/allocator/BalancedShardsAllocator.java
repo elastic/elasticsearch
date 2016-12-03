@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
-import org.elasticsearch.cluster.routing.allocation.RebalanceDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -135,7 +134,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * from the cluster allocation explain API to explain possible rebalancing decisions for a single
      * shard.
      */
-    public RebalanceDecision decideRebalance(final ShardRouting shard, final RoutingAllocation allocation) {
+    public MoveDecision decideRebalance(final ShardRouting shard, final RoutingAllocation allocation) {
         assert allocation.debugDecision() : "debugDecision should be set in explain mode";
         return new Balancer(logger, allocation, weightFunction, threshold).decideRebalance(shard);
     }
@@ -335,10 +334,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * optimally balanced cluster.  This method is invoked from the cluster allocation
          * explain API only.
          */
-        private RebalanceDecision decideRebalance(final ShardRouting shard) {
+        private MoveDecision decideRebalance(final ShardRouting shard) {
             if (shard.started() == false) {
                 // cannot rebalance a shard that isn't started
-                return RebalanceDecision.NOT_TAKEN;
+                return MoveDecision.NOT_TAKEN;
             }
 
             Decision canRebalance = allocation.deciders().canRebalance(shard, allocation);
@@ -435,10 +434,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                return RebalanceDecision.no(currentNode.routingNode.node(), canRebalance, currentNodeWeightRanking,
+                return MoveDecision.cannotRebalance(currentNode.routingNode.node(), canRebalance, currentNodeWeightRanking,
                     nodeDecisions, allocation.hasPendingAsyncFetch());
             } else {
-                return RebalanceDecision.decision(currentNode.routingNode.node(), canRebalance, rebalanceDecisionType,
+                return MoveDecision.rebalance(currentNode.routingNode.node(), canRebalance, rebalanceDecisionType,
                     assignedNode != null ? assignedNode.routingNode.node() : null, currentNodeWeightRanking, nodeDecisions);
             }
         }
@@ -642,7 +641,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
                 ShardRouting shardRouting = it.next();
                 final MoveDecision moveDecision = makeMoveDecision(shardRouting);
-                if (moveDecision.move()) {
+                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
                     final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
                     sourceNode.removeShard(shardRouting);
@@ -652,7 +651,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                     }
-                } else if (moveDecision.cannotRemain()) {
+                } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
             }
@@ -720,7 +719,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
             }
 
-            return MoveDecision.decision(sourceNode.routingNode.node(), canRemain, bestDecision,
+            return MoveDecision.cannotRemain(sourceNode.routingNode.node(), canRemain, bestDecision,
                 targetNode != null ? targetNode.node() : null, nodeExplanationMap);
         }
 

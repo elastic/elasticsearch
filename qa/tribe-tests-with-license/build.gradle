@@ -52,9 +52,19 @@ integTest {
         setting 'tribe.cluster1.cluster.name', 'cluster1'
         setting 'tribe.cluster1.discovery.zen.ping.unicast.hosts', "'${-> cluster1Nodes.get(0).transportUri()}'"
         setting 'tribe.cluster1.http.enabled', 'true'
+        setting 'tribe.cluster1.xpack.monitoring.enabled', false
+        setting 'tribe.cluster1.xpack.monitoring.enabled', false
+        setting 'tribe.cluster1.xpack.security.enabled', false
+        setting 'tribe.cluster1.xpack.watcher.enabled', false
+        setting 'tribe.cluster1.xpack.graph.enabled', false
         setting 'tribe.cluster2.cluster.name', 'cluster2'
         setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
         setting 'tribe.cluster2.http.enabled', 'true'
+        setting 'tribe.cluster2.xpack.monitoring.enabled', false
+        setting 'tribe.cluster2.xpack.monitoring.enabled', false
+        setting 'tribe.cluster2.xpack.security.enabled', false
+        setting 'tribe.cluster2.xpack.watcher.enabled', false
+        setting 'tribe.cluster2.xpack.graph.enabled', false
         // x-pack
         plugin ':x-plugins:elasticsearch'
         setting 'xpack.monitoring.enabled', false

@@ -38,25 +38,20 @@ public class Build {
     public static final Build CURRENT;
 
     static {
-        final String shortHash;
-        final String date;
-        final boolean isSnapshot;
+        String shortHash = "Unknown";
+        String date = "Unknown";
+        boolean isSnapshot = true;
 
         final URL url = getElasticsearchCodebase();
-        if (url.toString().endsWith(".jar")) {
+        if (url != null && url.toString().endsWith(".jar")) {
             try (JarInputStream jar = new JarInputStream(url.openStream())) {
                 Manifest manifest = jar.getManifest();
                 shortHash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
                 isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                // unable to open jar, possibly running in OSGi or embedded runtime container
             }
-        } else {
-            // not running from a jar (unit tests, IDE)
-            shortHash = "Unknown";
-            date = "Unknown";
-            isSnapshot = true;
         }
         if (shortHash == null) {
             throw new IllegalStateException("Error finding the build shortHash. " +

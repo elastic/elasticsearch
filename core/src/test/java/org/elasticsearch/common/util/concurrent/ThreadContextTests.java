@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -413,7 +414,7 @@ public class ThreadContextTests extends ESTestCase {
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 threadContext.putHeader("foo", "bar");
                 threadContext.putTransient("foo", "bar_transient");
-                withContext = threadContext.preserveContext(() -> {
+                withContext = threadContext.preserveContext((Runnable) () -> {
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertEquals("bar_transient", threadContext.getTransient("foo"));
                     assertFalse(threadContext.isDefaultContext());
@@ -521,6 +522,77 @@ public class ThreadContextTests extends ESTestCase {
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("foo"));
             assertTrue(threadContext.isDefaultContext());
+        }
+    }
+
+    public void testPreserveContextForCallable() throws Exception {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+
+            final Callable<Void> callable;
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("foo", "baz");
+                callable = threadContext.preserveContext(() -> {
+                    assertEquals("bar", threadContext.getHeader("foo"));
+                    assertEquals("baz", threadContext.getTransient("foo"));
+                    return null;
+                });
+            }
+
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            callable.call();
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertTrue(threadContext.isDefaultContext());
+        }
+    }
+
+    public void testCallablePreservesThreadsOriginalContext() throws Exception {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            threadContext.putHeader("other", "value");
+            final Callable<Void> callable;
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("foo", "baz");
+                callable = threadContext.preserveContext(() -> {
+                    assertEquals("bar", threadContext.getHeader("foo"));
+                    assertEquals("baz", threadContext.getTransient("foo"));
+                    assertNull(threadContext.getHeader("other"));
+                    return null;
+                });
+            }
+
+            assertEquals("value", threadContext.getHeader("other"));
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            callable.call();
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertEquals("value", threadContext.getHeader("other"));
+        }
+    }
+
+    public void testCallableThrowingExceptionPreservesThreadsOriginalContext() throws Exception {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            threadContext.putHeader("other", "value");
+            final Callable<Void> callable;
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("foo", "baz");
+                callable = threadContext.preserveContext(() -> {
+                    throw new RuntimeException("throwing callable");
+                });
+            }
+
+            assertEquals("value", threadContext.getHeader("other"));
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            RuntimeException e = expectThrows(RuntimeException.class, callable::call);
+            assertEquals("throwing callable", e.getMessage());
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("foo"));
+            assertEquals("value", threadContext.getHeader("other"));
         }
     }
 

@@ -50,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -253,11 +252,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                    .collect(Collectors.toList());
     }
 
-    private static final Comparator<NodeGatewayStartedShards> NO_STORE_EXCEPTION_FIRST_COMPARATOR =
-        Comparator.comparing((NodeGatewayStartedShards state) -> state.storeException() == null).reversed();
-    private static final Comparator<NodeGatewayStartedShards> PRIMARY_FIRST_COMPARATOR =
-        Comparator.comparing(NodeGatewayStartedShards::primary).reversed();
-
     private static ShardStoreInfo shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
         final Exception storeErr = nodeShardState.storeException();
         final StoreStatus storeStatus;
@@ -273,6 +267,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         return new ShardStoreInfo(storeStatus, nodeShardState.allocationId(), storeErr);
     }
+
+    private static final Comparator<NodeGatewayStartedShards> NO_STORE_EXCEPTION_FIRST_COMPARATOR =
+        Comparator.comparing((NodeGatewayStartedShards state) -> state.storeException() == null).reversed();
+    private static final Comparator<NodeGatewayStartedShards> PRIMARY_FIRST_COMPARATOR =
+        Comparator.comparing(NodeGatewayStartedShards::primary).reversed();
 
     /**
      * Builds a list of nodes. If matchAnyShard is set to false, only nodes that have an allocation id matching

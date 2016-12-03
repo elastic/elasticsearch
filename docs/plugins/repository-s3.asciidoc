@@ -138,6 +138,16 @@ signer to use.
 If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
 use `S3SignerType`, which is Signature Version 2.
 
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. By default,it is set to 50 seconds.
+It can be configured with `cloud.aws.read_timeout` setting:
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
+
 [[repository-s3-repository]]
 ==== S3 Repository
 
@@ -253,6 +263,12 @@ The following settings are supported:
     Activate path style access for [virtual hosting of buckets](http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html).
     The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
     in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
+
+
+`read_timeout`::
+
+    The amount of time to wait for data to be transferred over an established,
+        open connection before the connection is timed out. Default to value of `cloud.aws.read_timeout`.
 
 Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
 They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories

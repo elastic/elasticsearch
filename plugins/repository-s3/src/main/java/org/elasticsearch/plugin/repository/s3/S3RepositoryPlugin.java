@@ -96,6 +96,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
         AwsS3Service.PROXY_PASSWORD_SETTING,
         AwsS3Service.SIGNER_SETTING,
         AwsS3Service.REGION_SETTING,
+        AwsS3Service.READ_TIMEOUT,
 
         // Register S3 specific settings: cloud.aws.s3
         AwsS3Service.CLOUD_S3.KEY_SETTING,
@@ -108,6 +109,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
         AwsS3Service.CLOUD_S3.SIGNER_SETTING,
         AwsS3Service.CLOUD_S3.REGION_SETTING,
         AwsS3Service.CLOUD_S3.ENDPOINT_SETTING,
+        AwsS3Service.CLOUD_S3.READ_TIMEOUT,
 
         // Register S3 repositories settings: repositories.s3
         S3Repository.Repositories.KEY_SETTING,

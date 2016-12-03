@@ -143,7 +143,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSDefaultConfiguration() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
-        launchAWSConfigurationTest(Settings.EMPTY, repositorySettings, Protocol.HTTPS, null, -1, null, null, null, 3, false);
+        launchAWSConfigurationTest(Settings.EMPTY, repositorySettings, Protocol.HTTPS, null, -1, null, null, null, 3, false, 50000);
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -155,9 +155,10 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
             .put(AwsS3Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
             .put(AwsS3Service.SIGNER_SETTING.getKey(), "AWS3SignerType")
+            .put(AwsS3Service.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", "AWS3SignerType", 3, false);
+            "aws_proxy_password", "AWS3SignerType", 3, false, 10000);
     }
 
     public void testAWSConfigurationWithAwsAndS3Settings() {
@@ -175,9 +176,10 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.CLOUD_S3.PROXY_USERNAME_SETTING.getKey(), "s3_proxy_username")
             .put(AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING.getKey(), "s3_proxy_password")
             .put(AwsS3Service.CLOUD_S3.SIGNER_SETTING.getKey(), "NoOpSignerType")
+            .put(AwsS3Service.CLOUD_S3.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, "s3_proxy_host", 8081, "s3_proxy_username",
-            "s3_proxy_password", "NoOpSignerType", 3, false);
+            "s3_proxy_password", "NoOpSignerType", 3, false, 10000);
     }
 
     protected void launchAWSConfigurationTest(Settings settings,
@@ -189,7 +191,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                                               String expectedProxyPassword,
                                               String expectedSigner,
                                               Integer expectedMaxRetries,
-                                              boolean expectedUseThrottleRetries) {
+                                              boolean expectedUseThrottleRetries,
+                                              int expectedReadTimeout) {
         Protocol protocol = S3Repository.getValue(singleRepositorySettings, settings,
             S3Repository.Repository.PROTOCOL_SETTING, S3Repository.Repositories.PROTOCOL_SETTING);
         Integer maxRetries = S3Repository.getValue(singleRepositorySettings, settings,
@@ -209,6 +212,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(configuration.getSignerOverride(), is(expectedSigner));
         assertThat(configuration.getMaxErrorRetry(), is(expectedMaxRetries));
         assertThat(configuration.useThrottledRetries(), is(expectedUseThrottleRetries));
+        assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
     }
 
     private static Settings generateRepositorySettings(String key, String secret, String region, String endpoint, Integer maxRetries) {

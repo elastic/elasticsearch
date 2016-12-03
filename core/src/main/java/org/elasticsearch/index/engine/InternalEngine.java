@@ -162,7 +162,7 @@ public class InternalEngine extends Engine {
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
                         writer = createWriter(false);
-                        seqNoStats = loadSeqNoStatsLucene(SequenceNumbersService.UNASSIGNED_SEQ_NO, writer);
+                        seqNoStats = loadSeqNoStatsFromLucene(SequenceNumbersService.UNASSIGNED_SEQ_NO, writer);
                         break;
                     case CREATE_INDEX_AND_TRANSLOG:
                         writer = createWriter(true);
@@ -356,7 +356,7 @@ public class InternalEngine extends Engine {
         final TranslogConfig translogConfig,
         final IndexWriter indexWriter) throws IOException {
         long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath());
-        return loadSeqNoStatsLucene(globalCheckpoint, indexWriter);
+        return loadSeqNoStatsFromLucene(globalCheckpoint, indexWriter);
     }
 
     /**
@@ -367,7 +367,7 @@ public class InternalEngine extends Engine {
      * @param indexWriter the index writer (for the Lucene commit point)
      * @return the sequence number stats
      */
-    private static SeqNoStats loadSeqNoStatsLucene(final long globalCheckpoint, final IndexWriter indexWriter) {
+    private static SeqNoStats loadSeqNoStatsFromLucene(final long globalCheckpoint, final IndexWriter indexWriter) {
         long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {

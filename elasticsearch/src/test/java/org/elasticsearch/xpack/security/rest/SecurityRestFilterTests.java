@@ -72,7 +72,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         when(licenseState.isAuthAllowed()).thenReturn(false);
         filter.handleRequest(request, channel, null);
-        verifyZeroInteractions(restHandler);
+        verify(restHandler).handleRequest(request, channel, null);
         verifyZeroInteractions(channel, authcService);
     }
 
@@ -98,7 +98,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         when(request.method()).thenReturn(RestRequest.Method.OPTIONS);
         filter.handleRequest(request, channel, null);
-        verifyZeroInteractions(restHandler);
+        verify(restHandler).handleRequest(request, channel, null);
         verifyZeroInteractions(channel);
         verifyZeroInteractions(authcService);
     }

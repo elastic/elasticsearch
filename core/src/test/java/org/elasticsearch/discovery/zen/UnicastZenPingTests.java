@@ -441,7 +441,7 @@ public class UnicastZenPingTests extends ESTestCase {
             1,
             transportService,
             () -> Integer.toString(idGenerator.incrementAndGet()),
-            TimeValue.timeValueMillis(100)
+            TimeValue.timeValueSeconds(1)
         );
 
         assertThat(discoveryNodes, empty());

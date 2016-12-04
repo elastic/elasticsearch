@@ -58,13 +58,13 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test");
         mapperRegistry = new MapperRegistry(
-            Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser()),
-            Collections.emptyMap());
+                Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser()),
+                Collections.emptyMap());
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
         };
         parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-            indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
+                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
     }
 
     @Override
@@ -74,9 +74,9 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaults() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-            .field("type", "murmur3")
-            .endObject().endObject().endObject().endObject().string();
+                .startObject("properties").startObject("field")
+                    .field("type", "murmur3")
+                .endObject().endObject().endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument parsedDoc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field", "value").endObject().bytes());
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
@@ -90,8 +90,8 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     public void testDocValuesSettingNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
-            .field("type", "murmur3")
-            .field("doc_values", false)
+                .field("type", "murmur3")
+                .field("doc_values", false)
             .endObject().endObject().endObject().endObject().string();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -103,8 +103,8 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         // even setting to the default is not allowed, the setting is invalid
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
-            .field("type", "murmur3")
-            .field("doc_values", true)
+                .field("type", "murmur3")
+                .field("doc_values", true)
             .endObject().endObject().endObject().endObject().string();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -117,8 +117,8 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     public void testIndexSettingNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
-            .field("type", "murmur3")
-            .field("index", "not_analyzed")
+                .field("type", "murmur3")
+                .field("index", "not_analyzed")
             .endObject().endObject().endObject().endObject().string();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -130,8 +130,8 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         // even setting to the default is not allowed, the setting is invalid
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
-            .field("type", "murmur3")
-            .field("index", "no")
+                .field("type", "murmur3")
+                .field("index", "no")
             .endObject().endObject().endObject().endObject().string();
         try {
             parser.parse("type", new CompressedXContent(mapping));

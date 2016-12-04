@@ -225,7 +225,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(zenPingD);
 
         logger.info("ping from UZP_A");
-        Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(100));
+        Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500));
         assertThat(pingResponses.size(), equalTo(1));
         ZenPing.PingResponse ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_B"));
@@ -234,7 +234,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // ping again, this time from B,
         logger.info("ping from UZP_B");
-        pingResponses = zenPingB.pingAndWait(TimeValue.timeValueMillis(100));
+        pingResponses = zenPingB.pingAndWait(TimeValue.timeValueMillis(500));
         assertThat(pingResponses.size(), equalTo(1));
         ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_A"));
@@ -242,12 +242,12 @@ public class UnicastZenPingTests extends ESTestCase {
         assertCountersMoreThan(handleB, handleA, handleC, handleD);
 
         logger.info("ping from UZP_C");
-        pingResponses = zenPingC.pingAndWait(TimeValue.timeValueMillis(100));
+        pingResponses = zenPingC.pingAndWait(TimeValue.timeValueMillis(500));
         assertThat(pingResponses.size(), equalTo(0));
         assertCountersMoreThan(handleC, handleA, handleB, handleD);
 
         logger.info("ping from UZP_D");
-        pingResponses = zenPingD.pingAndWait(TimeValue.timeValueMillis(100));
+        pingResponses = zenPingD.pingAndWait(TimeValue.timeValueMillis(500));
         assertThat(pingResponses.size(), equalTo(0));
         assertCountersMoreThan(handleD, handleA, handleB, handleC);
     }
@@ -488,7 +488,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         closeables.push(transportService);
         final AtomicInteger idGenerator = new AtomicInteger();
-        final TimeValue resolveTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 200));
+        final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 3));
         try {
             final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
                 executorService,
@@ -534,7 +534,7 @@ public class UnicastZenPingTests extends ESTestCase {
             1,
             transportService,
             () -> Integer.toString(idGenerator.incrementAndGet()),
-            TimeValue.timeValueMillis(100));
+            TimeValue.timeValueSeconds(1));
         assertThat(discoveryNodes, hasSize(1)); // only one of the two is valid and will be used
         assertThat(discoveryNodes.get(0).getAddress().getAddress(), equalTo("127.0.0.1"));
         assertThat(discoveryNodes.get(0).getAddress().getPort(), equalTo(9301));

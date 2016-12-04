@@ -230,7 +230,7 @@ public class UnicastZenPingTests extends ESTestCase {
         ZenPing.PingResponse ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_B"));
         assertThat(ping.getClusterStateVersion(), equalTo(state.version()));
-        assertCounters(handleA, handleA, handleB, handleC, handleD);
+        assertCountersMoreThan(handleA, handleB, handleC, handleD);
 
         // ping again, this time from B,
         logger.info("ping from UZP_B");
@@ -239,17 +239,17 @@ public class UnicastZenPingTests extends ESTestCase {
         ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_A"));
         assertThat(ping.getClusterStateVersion(), equalTo(ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION));
-        assertCounters(handleB, handleA, handleB, handleC, handleD);
+        assertCountersMoreThan(handleB, handleA, handleC, handleD);
 
         logger.info("ping from UZP_C");
         pingResponses = zenPingC.pingAndWait(TimeValue.timeValueMillis(100));
         assertThat(pingResponses.size(), equalTo(0));
-        assertCounters(handleC, handleA, handleB, handleC, handleD);
+        assertCountersMoreThan(handleC, handleA, handleB, handleD);
 
         logger.info("ping from UZP_D");
         pingResponses = zenPingD.pingAndWait(TimeValue.timeValueMillis(100));
         assertThat(pingResponses.size(), equalTo(0));
-        assertCounters(handleD, handleA, handleB, handleC, handleD);
+        assertCountersMoreThan(handleD, handleA, handleB, handleC);
     }
 
     public void testUnknownHostNotCached() {
@@ -347,14 +347,19 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // the presence of an unresolvable host should not prevent resolvable hosts from being pinged
         {
-            final Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(100));
+            final Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500));
             assertThat(pingResponses.size(), equalTo(1));
             ZenPing.PingResponse ping = pingResponses.iterator().next();
             assertThat(ping.node().getId(), equalTo("UZP_C"));
             assertThat(ping.getClusterStateVersion(), equalTo(state.version()));
-            assertCounters(handleA, handleA, handleC);
+            assertCountersMoreThan(handleA, handleC);
             assertNull(handleA.counters.get(handleB.address));
         }
+
+        final HashMap<TransportAddress, Integer> moreThan = new HashMap<>();
+        // we should see at least one ping to UZP_B, and one more ping than we have already seen to UZP_C
+        moreThan.put(handleB.address, 0);
+        moreThan.put(handleC.address, handleA.counters.get(handleC.address).intValue());
 
         // now allow UZP_B to be resolvable
         addresses.put(
@@ -365,12 +370,11 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // now we should see pings to UZP_B; this establishes that host resolutions are not cached
         {
-            // ping from C so that we can assert on the counters from a fresh source (as opposed to resetting them)
-            final Collection<ZenPing.PingResponse> secondPingResponses = zenPingC.pingAndWait(TimeValue.timeValueMillis(100));
+            final Collection<ZenPing.PingResponse> secondPingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500));
             assertThat(secondPingResponses.size(), equalTo(2));
             final Set<String> ids = new HashSet<>(secondPingResponses.stream().map(p -> p.node().getId()).collect(Collectors.toList()));
-            assertThat(ids, equalTo(new HashSet<>(Arrays.asList("UZP_A", "UZP_B"))));
-            assertCounters(handleC, handleA, handleB, handleC);
+            assertThat(ids, equalTo(new HashSet<>(Arrays.asList("UZP_B", "UZP_C"))));
+            assertCountersMoreThan(moreThan, handleA, handleB, handleC);
         }
     }
 
@@ -538,11 +542,22 @@ public class UnicastZenPingTests extends ESTestCase {
     }
 
     // assert that we tried to ping each of the configured nodes at least once
-    private void assertCounters(NetworkHandle that, NetworkHandle...handles) {
-        for (NetworkHandle handle : handles) {
-            if (handle != that) {
-                assertThat(that.counters.get(handle.address).get(), greaterThan(0));
-            }
+    private void assertCountersMoreThan(final NetworkHandle that, final NetworkHandle...handles) {
+        final HashMap<TransportAddress, Integer> moreThan = new HashMap<>();
+        for (final NetworkHandle handle : handles) {
+            assert handle != that;
+            moreThan.put(handle.address, 0);
+        }
+        assertCountersMoreThan(moreThan, that, handles);
+    }
+
+    private void assertCountersMoreThan(
+            final Map<TransportAddress, Integer> moreThan,
+            final NetworkHandle that,
+            final NetworkHandle... handles) {
+        for (final NetworkHandle handle : handles) {
+            assert handle != that;
+            assertThat(that.counters.get(handle.address).get(), greaterThan(moreThan.get(handle.address)));
         }
     }
 

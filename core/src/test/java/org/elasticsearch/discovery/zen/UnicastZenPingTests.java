@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransport;
@@ -122,6 +123,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
     private static final UnicastHostsProvider EMPTY_HOSTS_PROVIDER = Collections::emptyList;
 
+    @TestLogging("org.elasticsearch.transport:TRACE,org.elasticsearch.discovery.zen.UnicastZenPing:TRACE")
     public void testSimplePings() throws IOException, InterruptedException {
         // use ephemeral ports
         final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();

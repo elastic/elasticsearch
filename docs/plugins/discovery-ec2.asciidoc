@@ -111,9 +111,10 @@ The `cloud.aws.region` can be set to a region and will automatically use the rel
 The available values are:
 
 * `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-east-2` for US East (Ohio)
 * `us-west` (`us-west-1`) for US West (N. California)
 * `us-west-2` for US West (Oregon)
-* `ap-south-1` for Asia Pacific (Mumbai)
+* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
 * `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
 * `ap-southeast-2` for Asia Pacific (Sydney)
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)

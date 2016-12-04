@@ -11,6 +11,7 @@ API, unless otherwise specified.
 * <<multi-index>>
 * <<date-math-index-names>>
 * <<common-options>>
+* <<url-access-control>>
 
 --
 

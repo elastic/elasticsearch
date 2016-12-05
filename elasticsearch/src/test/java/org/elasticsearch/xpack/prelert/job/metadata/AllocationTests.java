@@ -34,8 +34,4 @@ public class AllocationTests extends AbstractSerializingTestCase<Allocation> {
         return Allocation.PARSER.apply(parser, () -> matcher).build();
     }
 
-    @Override
-    protected boolean skipJacksonTest() {
-        return true;
-    }
 }

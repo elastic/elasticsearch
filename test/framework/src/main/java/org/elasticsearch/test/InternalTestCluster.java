@@ -1342,7 +1342,7 @@ public final class InternalTestCluster extends TestCluster {
                     future.get();
                 }
             } catch (InterruptedException e) {
-                Thread.interrupted();
+                Thread.currentThread().interrupt();
                 return;
             } catch (ExecutionException e) {
                 throw new RuntimeException("failed to start nodes", e);

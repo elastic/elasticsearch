@@ -55,7 +55,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         mapperRegistry = new MapperRegistry(
                 Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser()),

@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -46,6 +47,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -178,7 +180,13 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             final InetSocketAddress address = node.getAddress().address();
             // we just use a single connections
             configureSocket(socket);
-            socket.connect(address, (int) TCP_CONNECT_TIMEOUT.get(settings).millis());
+            final TimeValue connectTimeout = profile.getConnectTimeout() == null ? defaultConnectionProfile.getConnectTimeout()
+                : profile.getConnectTimeout();
+            try {
+                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+            } catch (SocketTimeoutException ex) {
+                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
+            }
             MockChannel channel = new MockChannel(socket, address, "none", onClose);
             channel.loopRead(executor);
             mockChannels[0] = channel;

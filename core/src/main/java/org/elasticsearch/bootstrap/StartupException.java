@@ -104,7 +104,7 @@ final class StartupException extends RuntimeException {
                     continue;
                 }
 
-                consumer.accept("\tat " + line.toString());
+                consumer.accept("\tat " + line);
                 linesWritten++;
             }
         }

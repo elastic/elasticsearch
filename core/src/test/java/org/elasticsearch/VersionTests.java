@@ -64,7 +64,37 @@ public class VersionTests extends ESTestCase {
         assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
         assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
         assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
+    }
 
+    public void testMin() {
+        assertEquals(VersionUtils.getPreviousVersion(), Version.min(Version.CURRENT, VersionUtils.getPreviousVersion()));
+        assertEquals(Version.fromString("1.0.1"), Version.min(Version.fromString("1.0.1"), Version.CURRENT));
+        Version version = VersionUtils.randomVersion(random());
+        Version version1 = VersionUtils.randomVersion(random());
+        if (version.id <= version1.id) {
+            assertEquals(version, Version.min(version1, version));
+        } else {
+            assertEquals(version1, Version.min(version1, version));
+        }
+    }
+
+    public void testMax() {
+        assertEquals(Version.CURRENT, Version.max(Version.CURRENT, VersionUtils.getPreviousVersion()));
+        assertEquals(Version.CURRENT, Version.max(Version.fromString("1.0.1"), Version.CURRENT));
+        Version version = VersionUtils.randomVersion(random());
+        Version version1 = VersionUtils.randomVersion(random());
+        if (version.id >= version1.id) {
+            assertEquals(version, Version.max(version1, version));
+        } else {
+            assertEquals(version1, Version.max(version1, version));
+        }
+    }
+
+    public void testMinimumIndexCompatibilityVersion() {
+        assertEquals(Version.V_5_0_0, Version.V_6_0_0_alpha1_UNRELEASED.minimumIndexCompatibilityVersion());
+        assertEquals(Version.V_2_0_0, Version.V_5_0_0.minimumIndexCompatibilityVersion());
+        assertEquals(Version.V_2_0_0, Version.V_5_1_1_UNRELEASED.minimumIndexCompatibilityVersion());
+        assertEquals(Version.V_2_0_0, Version.V_5_0_0_alpha1.minimumIndexCompatibilityVersion());
     }
 
     public void testVersionConstantPresent() {

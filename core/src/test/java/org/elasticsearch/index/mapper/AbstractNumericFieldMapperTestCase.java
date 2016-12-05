@@ -43,7 +43,7 @@ public abstract class AbstractNumericFieldMapperTestCase extends ESSingleNodeTes
     protected DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
         setTypeList();

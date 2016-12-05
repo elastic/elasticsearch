@@ -20,11 +20,13 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
@@ -130,6 +132,161 @@ public class RatedRequestsTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+    
+    public void testSerialization() throws IOException {
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<String> types = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            types.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        RatedRequest original = createTestItem(indices, types);
+
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
+
+        RatedRequest deserialized = RankEvalTestHelper.copy(original, RatedRequest::new, new NamedWriteableRegistry(namedWriteables));
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<String> types = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            types.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        RatedRequest testItem = createTestItem(indices, types);
+
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
+
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, RatedRequest::new, new NamedWriteableRegistry(namedWriteables)));
+    }
+
+    private RatedRequest mutateTestItem(RatedRequest original) {
+        String specId = original.getSpecId();
+        int size = original.getTestRequest().size();
+        List<RatedDocument> ratedDocs = original.getRatedDocs();
+        List<String> indices = original.getIndices();
+        List<String> types = original.getTypes();
+        Map<String, Object> params = original.getParams();
+        List<String> summaryFields = original.getSummaryFields();
+        
+        switch (randomIntBetween(0, 6)) {
+        case 0:
+        {            
+            String mutation = randomAsciiOfLength(10);
+            while (mutation.equals(specId)) {
+                mutation = randomAsciiOfLength(10);
+            }
+            specId = mutation;
+            break;
+        }
+        case 1:
+        {
+            int mutation = randomInt();
+            while (mutation == size) {
+                mutation = randomInt();
+            }
+            size = mutation;
+            break;
+        }
+        case 2:
+        {
+            int mutation = randomIntBetween(0, 10);
+            while (mutation == ratedDocs.size()) {
+                mutation = randomIntBetween(0, 10);
+            }
+
+            ratedDocs = new ArrayList<>();
+            for (int i = 0; i < mutation; i++) {
+                ratedDocs.add(RatedDocumentTests.createRatedDocument());
+            }
+            break;
+        }
+        case 3:
+        {
+            int mutation = randomIntBetween(0, 10);
+            while (mutation == indices.size()) {
+                mutation = randomIntBetween(0, 10);
+            }
+
+            indices = new ArrayList<>();
+            for (int i = 0; i < mutation; i++) {
+                indices.add(randomAsciiOfLengthBetween(0, 50));
+            }
+            break;
+        }
+        case 4:
+        {
+            int mutation = randomIntBetween(0, 10);
+            while (mutation == types.size()) {
+                mutation = randomIntBetween(0, 10);
+            }
+
+            indices = new ArrayList<>();
+            for (int i = 0; i < mutation; i++) {
+                types.add(randomAsciiOfLengthBetween(0, 50));
+            }
+            break;
+        }
+        case 5:
+        {
+            int mutation = randomIntBetween(0, 10);
+            while (mutation == params.size()) {
+                mutation = randomIntBetween(0, 10);
+            }
+
+            params = new HashMap<>();
+            for (int i = 0; i < mutation; i++) {
+                params.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+            }
+            break;
+        }
+        case 6:
+        {
+            int mutation = randomIntBetween(0, 10);
+            while (mutation == summaryFields.size()) {
+                mutation = randomIntBetween(0, 10);
+            }
+            summaryFields = new ArrayList<>();
+            for (int i = 0; i < mutation; i++) {
+                summaryFields.add(randomAsciiOfLength(5));
+            }
+            break;
+        }
+        default:
+            throw new IllegalStateException("The test should only allow seven parameters mutated");
+        }
+
+        SearchSourceBuilder testRequest = new SearchSourceBuilder();
+        testRequest.size(size);
+        testRequest.query(new MatchAllQueryBuilder());
+
+        RatedRequest ratedRequest = new RatedRequest(specId, testRequest, indices, types, ratedDocs);
+        ratedRequest.setIndices(indices);
+        ratedRequest.setTypes(types);
+        ratedRequest.setParams(params);
+        ratedRequest.setSummaryFields(summaryFields);
+
+        return ratedRequest;
     }
 
     public void testDuplicateRatedDocThrowsException() {

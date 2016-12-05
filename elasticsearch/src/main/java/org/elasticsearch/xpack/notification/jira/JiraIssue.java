@@ -97,7 +97,7 @@ public class JiraIssue implements ToXContent {
         if (successful() == false) {
             builder.field(Field.REASON.getPreferredName(), failureReason);
             if (request != null) {
-                builder.field(Field.REQUEST.getPreferredName(), request, WatcherParams.builder().hideSecrets(true).build());
+                builder.field(Field.REQUEST.getPreferredName(), request, params);
             }
             if (response != null) {
                 builder.field(Field.RESPONSE.getPreferredName(), response, params);

@@ -110,7 +110,7 @@ public class JiraAction implements Action {
         return new JiraAction(account, fields, proxy);
     }
 
-    static class Executed extends Action.Result {
+    public static class Executed extends Action.Result {
 
         private final JiraIssue result;
 
@@ -127,10 +127,6 @@ public class JiraAction implements Action {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(type, result, params);
         }
-    }
-
-    static Executed executedResult(JiraIssue result) {
-        return new Executed(result);
     }
 
     static class Simulated extends Action.Result {

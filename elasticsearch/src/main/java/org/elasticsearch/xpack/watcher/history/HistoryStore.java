@@ -9,11 +9,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -70,9 +72,11 @@ public class HistoryStore extends AbstractComponent {
         }
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         putUpdateLock.lock();
-        try {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            watchRecord.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
+
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
-                    .source(XContentFactory.jsonBuilder().value(watchRecord))
+                    .source(builder)
                     .opType(IndexRequest.OpType.CREATE);
             client.index(request, (TimeValue) null);
         } catch (IOException ioe) {
@@ -92,9 +96,11 @@ public class HistoryStore extends AbstractComponent {
         }
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         putUpdateLock.lock();
-        try {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            watchRecord.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
+
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
-                    .source(XContentFactory.jsonBuilder().value(watchRecord))
+                    .source(builder)
                     .opType(IndexRequest.OpType.CREATE);
             client.index(request, (TimeValue) null);
         } catch (VersionConflictEngineException vcee) {

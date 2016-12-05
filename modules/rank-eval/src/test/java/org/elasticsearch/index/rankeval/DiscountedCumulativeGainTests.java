@@ -214,4 +214,47 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
+    
+    public void testSerialization() throws IOException {
+        DiscountedCumulativeGain original = createTestItem();
+        DiscountedCumulativeGain deserialized = RankEvalTestHelper.copy(original, DiscountedCumulativeGain::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        DiscountedCumulativeGain testItem = createTestItem();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, DiscountedCumulativeGain::new));
+    }
+
+    private DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain testItem) {
+        boolean normalise = testItem.getNormalize();
+        int unknownDocRating = testItem.getUnknownDocRating();
+        
+        int mutate = randomIntBetween(0, 1);
+        switch (mutate) {
+            case 0:
+            {
+                normalise = ! normalise;
+                break;
+            }
+            case 1:
+            {
+                int mutation = randomIntBetween(0, 10);
+                while (mutation == unknownDocRating) {
+                    mutation = randomIntBetween(0, 10);
+                }
+                unknownDocRating = mutation;
+                break;
+            }
+            default:
+                throw new IllegalStateException("The test should only allow two parameters mutated");
+        }
+        DiscountedCumulativeGain gain = new DiscountedCumulativeGain();
+        gain.setNormalize(normalise);
+        gain.setUnknownDocRating(unknownDocRating);
+        return gain;
+    }
 }

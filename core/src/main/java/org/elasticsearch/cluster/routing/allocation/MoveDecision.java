@@ -95,7 +95,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      *
      * @param canRemainDecision the decision for whether the shard is allowed to remain on its current node
      * @param finalDecision the decision of whether to move the shard to another node
-     * @param assignedNode the node for where the shard can move to
+     * @param assignedNode the node where the shard should move to
      * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
      * @return the {@link MoveDecision} for moving the shard to another node
      */
@@ -149,7 +149,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
     }
 
     /**
-     * Returns the decision for being allowed to rebalance the shard.  Invoking this method will return a
+     * Returns the decision for being allowed to rebalance the shard.  Invoking this method will return
      * {@code null} if {@link #cannotRemain()} returns {@code true}, which means the node is not allowed to
      * remain on its current node, so the cluster is forced to attempt to move the shard to a different node,
      * as opposed to attempting to rebalance the shard if a better cluster balance is possible by moving it.
@@ -184,7 +184,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 explanation = "cannot rebalance as information about existing copies of this shard in the cluster is still being gathered";
             } else if (canRebalanceDecision.type() == Type.NO) {
                 explanation = "rebalancing is not allowed on the cluster" + (atLeastOneNodeWithYesDecision() ? ", even though there " +
-                              "is atleast one node on which the shard can be allocated" : "");
+                              "is at least one node on which the shard can be allocated" : "");
             } else if (canRebalanceDecision.type() == Type.THROTTLE) {
                 explanation = "rebalancing is throttled";
             } else {
@@ -195,14 +195,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
                         explanation = "can rebalance shard";
                     }
                 } else {
-                    explanation = "cannot rebalance as no target node node exists that can both allocate this shard " +
+                    explanation = "cannot rebalance as no target node exists that can both allocate this shard " +
                                       "and improve the cluster balance";
                 }
             }
         } else {
             // it was a decision to force move the shard
             if (cannotRemain() == false) {
-                explanation = "can remain on its current node";
+                explanation = "shard can remain on its current node";
             } else if (getDecisionType() == Type.YES) {
                 explanation = "shard cannot remain on this node and is force-moved to another node";
             } else if (getDecisionType() == Type.THROTTLE) {

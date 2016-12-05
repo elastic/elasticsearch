@@ -237,14 +237,14 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 if (getNodeDecisions() != null && getNodeDecisions().size() > 0) {
                     explanation = "cannot allocate because all existing copies of the shard are unreadable";
                 } else {
-                    explanation = "cannot allocate because a previous copy of the shard existed, but could not be found";
+                    explanation = "cannot allocate because a previous copy of the shard existed but could not be found";
                 }
             } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-                explanation = "cannot allocate because the cluster is waiting " +
+                explanation = "cannot allocate because the cluster is still waiting " +
                                   TimeValue.timeValueMillis(remainingDelayInMillis) +
                                   " for the departed node holding a replica to rejoin" +
                                   (atLeastOneNodeWithYesDecision() ?
-                                       ", despite being allowed to allocate the shard to atleast one other node" : "");
+                                       ", despite being allowed to allocate the shard to at least one other node" : "");
             } else {
                 assert allocationStatus == AllocationStatus.DECIDERS_NO;
                 if (reuseStore) {

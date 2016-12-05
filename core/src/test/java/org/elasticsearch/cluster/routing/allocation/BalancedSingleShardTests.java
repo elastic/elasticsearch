@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
@@ -98,8 +99,8 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         MoveDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertEquals(canRebalanceDecision.type(), rebalanceDecision.getCanRebalanceDecision().type());
         assertEquals(Type.NO, rebalanceDecision.getDecisionType());
-        assertEquals(canRebalanceDecision.type() == Type.THROTTLE ? "rebalancing is throttled" : "rebalancing is not allowed",
-            rebalanceDecision.getExplanation());
+        assertThat(rebalanceDecision.getExplanation(), containsString(canRebalanceDecision.type() == Type.THROTTLE ?
+            "rebalancing is throttled" : "rebalancing is not allowed"));
         assertNotNull(rebalanceDecision.getNodeDecisions());
         assertNull(rebalanceDecision.getTargetNode());
         assertEquals(1, rebalanceDecision.getCanRebalanceDecision().getDecisions().size());

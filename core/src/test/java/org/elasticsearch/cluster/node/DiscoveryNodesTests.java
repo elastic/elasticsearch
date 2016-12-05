@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.node;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -249,5 +250,23 @@ public class DiscoveryNodesTests extends ESTestCase {
         }
 
         abstract Set<String> matchingNodeIds(DiscoveryNodes nodes);
+    }
+
+    public void testMaxMinNodeVersion() {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        discoBuilder.add(new DiscoveryNode("name_" + 1, "node_" + 1, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("5.1.0")));
+        discoBuilder.add(new DiscoveryNode("name_" + 2, "node_" + 2, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("6.3.0")));
+        discoBuilder.add(new DiscoveryNode("name_" + 3, "node_" + 3, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("1.1.0")));
+        discoBuilder.localNodeId("name_1");
+        discoBuilder.masterNodeId("name_2");
+        DiscoveryNodes build = discoBuilder.build();
+        assertEquals( Version.fromString("6.3.0"), build.getMaxNodeVersion());
+        assertEquals( Version.fromString("1.1.0"), build.getMinNodeVersion());
     }
 }

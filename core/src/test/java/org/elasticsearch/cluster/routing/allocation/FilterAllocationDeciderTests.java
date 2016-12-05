@@ -28,9 +28,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
@@ -74,12 +76,23 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
             null, 0, false);
-        assertEquals(filterAllocationDecider.canAllocate(routingTable.index("idx").shard(0).primaryShard(),
-            state.getRoutingNodes().node("node2")
-            , allocation), Decision.YES);
-        assertEquals(filterAllocationDecider.canAllocate(routingTable.index("idx").shard(0).primaryShard(),
-            state.getRoutingNodes().node("node1")
-            , allocation), Decision.NO);
+        allocation.debugDecision(true);
+        Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).primaryShard(),
+            state.getRoutingNodes().node("node2"), allocation);
+        assertEquals(Type.YES, decision.type());
+        assertEquals("node passes include/exclude/require filters", decision.getExplanation());
+        ShardRouting primaryShard = routingTable.index("idx").shard(0).primaryShard();
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).primaryShard(),
+            state.getRoutingNodes().node("node1"), allocation);
+        assertEquals(Type.NO, decision.type());
+        if (primaryShard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+            assertEquals("initial allocation of the shrunken index is only allowed on nodes [_id:\"node2\"] that " +
+                         "hold a copy of every shard in the index", decision.getExplanation());
+        } else {
+            assertEquals("initial allocation of the index is only allowed on nodes [_id:\"node2\"]", decision.getExplanation());
+        }
 
         state = service.reroute(state, "try allocate again");
         routingTable = state.routingTable();
@@ -114,12 +127,17 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
         allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
             null, 0, false);
-        assertEquals(filterAllocationDecider.canAllocate(routingTable.index("idx").shard(0).shards().get(0),
-            state.getRoutingNodes().node("node2")
-            , allocation), Decision.YES);
-        assertEquals(filterAllocationDecider.canAllocate(routingTable.index("idx").shard(0).shards().get(0),
-            state.getRoutingNodes().node("node1")
-            , allocation), Decision.YES);
+        allocation.debugDecision(true);
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).shards().get(0),
+            state.getRoutingNodes().node("node2"), allocation);
+        assertEquals(Type.YES, decision.type());
+        assertEquals("node passes include/exclude/require filters", decision.getExplanation());
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).shards().get(0),
+            state.getRoutingNodes().node("node1"), allocation);
+        assertEquals(Type.YES, decision.type());
+        assertEquals("node passes include/exclude/require filters", decision.getExplanation());
     }
 
     private ClusterState createInitialClusterState(AllocationService service, Settings settings) {

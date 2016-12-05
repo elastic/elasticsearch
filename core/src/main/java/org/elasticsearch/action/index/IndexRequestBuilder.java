@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -228,38 +227,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      */
     public IndexRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
-        return this;
-    }
-
-    /**
-     * Sets the timestamp either as millis since the epoch, or, in the configured date format.
-     */
-    public IndexRequestBuilder setTimestamp(String timestamp) {
-        request.timestamp(timestamp);
-        return this;
-    }
-
-    /**
-     * Sets the ttl value as a time value expression.
-     */
-    public IndexRequestBuilder setTTL(String ttl) {
-        request.ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
-     */
-    public IndexRequestBuilder setTTL(long ttl) {
-        request.ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Sets the ttl as a {@link TimeValue} instance.
-     */
-    public IndexRequestBuilder setTTL(TimeValue ttl) {
-        request.ttl(ttl);
         return this;
     }
 

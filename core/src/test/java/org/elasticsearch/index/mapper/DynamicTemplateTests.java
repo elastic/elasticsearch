@@ -41,12 +41,6 @@ public class DynamicTemplateTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> DynamicTemplate.parse("my_template", templateDef, Version.V_5_0_0_alpha1));
         assertEquals("Illegal dynamic template parameter: [random_param]", e.getMessage());
-
-        // but no issues on 2.x for bw compat
-        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.V_2_3_0);
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", builder.string());
     }
 
     public void testParseUnknownMatchType() {

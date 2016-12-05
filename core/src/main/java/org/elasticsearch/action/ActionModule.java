@@ -24,8 +24,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
@@ -201,6 +203,7 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -310,6 +313,7 @@ import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.search.RestSuggestAction;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
@@ -318,6 +322,8 @@ import static java.util.Collections.unmodifiableMap;
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
  */
 public class ActionModule extends AbstractModule {
+
+    private static final Logger logger = ESLoggerFactory.getLogger(ActionModule.class);
 
     private final boolean transportClient;
     private final Settings settings;
@@ -329,7 +335,7 @@ public class ActionModule extends AbstractModule {
     private final RestController restController;
 
     public ActionModule(boolean ingestEnabled, boolean transportClient, Settings settings, IndexNameExpressionResolver resolver,
-            ClusterSettings clusterSettings, List<ActionPlugin> actionPlugins) {
+                        ClusterSettings clusterSettings, ThreadPool threadPool, List<ActionPlugin> actionPlugins) {
         this.transportClient = transportClient;
         this.settings = settings;
         this.actionPlugins = actionPlugins;
@@ -338,7 +344,18 @@ public class ActionModule extends AbstractModule {
         autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<String> headers = actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()).collect(Collectors.toSet());
-        restController = new RestController(settings, headers);
+        UnaryOperator<RestHandler> restWrapper = null;
+        for (ActionPlugin plugin : actionPlugins) {
+            UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
+            if (newRestWrapper != null) {
+                logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
+                if (restWrapper != null) {
+                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
+                }
+                restWrapper = newRestWrapper;
+            }
+        }
+        restController = new RestController(settings, headers, restWrapper);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

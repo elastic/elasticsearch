@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
@@ -48,10 +49,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -359,6 +362,43 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
+    
+    public void testSingleValueFieldWithPartitionedFiltering() throws Exception {
+        runTestFieldWithPartitionedFiltering(SINGLE_VALUED_FIELD_NAME);
+    }
+    
+    public void testMultiValueFieldWithPartitionedFiltering() throws Exception {
+        runTestFieldWithPartitionedFiltering(MULTI_VALUED_FIELD_NAME);
+    }
+    
+    private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
+        // Find total number of unique terms
+        SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms").field(field).size(10000).collectMode(randomFrom(SubAggCollectionMode.values())))
+                .execute().actionGet();
+        assertSearchResponse(allResponse);
+        Terms terms = allResponse.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        int expectedCardinality = terms.getBuckets().size();
+
+        // Gather terms using partitioned aggregations
+        final int numPartitions = randomIntBetween(2, 4);
+        Set<Number> foundTerms = new HashSet<>();
+        for (int partition = 0; partition < numPartitions; partition++) {
+            SearchResponse response = client().prepareSearch("idx").setTypes("type").addAggregation(terms("terms").field(field)
+                    .includeExclude(new IncludeExclude(partition, numPartitions)).collectMode(randomFrom(SubAggCollectionMode.values())))
+                    .execute().actionGet();
+            assertSearchResponse(response);
+            terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getName(), equalTo("terms"));
+            for (Bucket bucket : terms.getBuckets()) {
+                assertTrue(foundTerms.add(bucket.getKeyAsNumber()));
+            }
+        }
+        assertEquals(expectedCardinality, foundTerms.size());
+    }   
 
     public void testSingleValueFieldOrderedByTermAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")

@@ -93,8 +93,6 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         this.aliasFilter = aliasFilter;
     }
 
-
-
     public void start() {
         if (expectedSuccessfulOps == 0) {
             //no search shards to search on, bail with empty response
@@ -125,13 +123,14 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             if (node == null) {
                 onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
-                AliasFilter filter = this.aliasFilter.get(shard.index().getName());
+                AliasFilter filter = this.aliasFilter.get(shard.index().getUUID());
+                assert filter != null;
                 ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shardIt.shardId(), shardsIts.size(),
                     filter, startTime());
                 sendExecuteFirstPhase(node, transportRequest , new ActionListener<FirstResult>() {
                         @Override
                         public void onResponse(FirstResult result) {
-                            onFirstPhaseResult(shardIndex, shard, result, shardIt);
+                            onFirstPhaseResult(shardIndex, shard.currentNodeId(), result, shardIt);
                         }
 
                         @Override
@@ -143,8 +142,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         }
     }
 
-    void onFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result, ShardIterator shardIt) {
-        result.shardTarget(new SearchShardTarget(shard.currentNodeId(), shard.index(), shard.id()));
+    private void onFirstPhaseResult(int shardIndex, String nodeId, FirstResult result, ShardIterator shardIt) {
+        result.shardTarget(new SearchShardTarget(nodeId, shardIt.shardId()));
         processFirstPhaseResult(shardIndex, result);
         // we need to increment successful ops first before we compare the exit condition otherwise if we
         // are fast we could concurrently update totalOps but then preempt one of the threads which can
@@ -173,11 +172,11 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         }
     }
 
-    void onFirstPhaseResult(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
+    private void onFirstPhaseResult(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
                             final ShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
-        SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId().getIndex(), shardIt.shardId().getId());
+        SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId());
         addShardFailure(shardIndex, shardTarget, e);
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {

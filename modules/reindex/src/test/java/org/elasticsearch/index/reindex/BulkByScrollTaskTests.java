@@ -155,8 +155,4 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(reasonCancelled, merged.getReasonCancelled());
     }
 
-    public void testUnknownVersions() {
-        assertThat("5.1.0 has been defined, remove the temporary constant", VersionUtils.allVersions(),
-                not(hasItem(BulkByScrollTask.V_5_1_0_UNRELEASED)));
-    }
 }

@@ -134,7 +134,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -427,8 +426,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          Consumer<ShardId> globalCheckpointSyncer,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
         final Index index = indexMetaData.getIndex();
-        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopeSetting);
         logger.debug("creating Index [{}], shards [{}]/[{}{}] - reason [{}]",
             indexMetaData.getIndex(),
             idxSettings.getNumberOfShards(),
@@ -466,9 +464,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * Note: the returned {@link MapperService} should be closed when unneeded.
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
-        final Index index = indexMetaData.getIndex();
-        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopeSetting);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(mapperRegistry);

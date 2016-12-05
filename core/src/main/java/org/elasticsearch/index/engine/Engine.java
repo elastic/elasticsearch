@@ -69,7 +69,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
-import javax.net.ssl.SNIServerName;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -1029,14 +1028,6 @@ public abstract class Engine implements Closeable {
 
         public String routing() {
             return this.doc.routing();
-        }
-
-        public long timestamp() {
-            return this.doc.timestamp();
-        }
-
-        public long ttl() {
-            return this.doc.ttl();
         }
 
         public String parent() {

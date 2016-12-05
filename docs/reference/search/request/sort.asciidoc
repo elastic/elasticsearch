@@ -213,7 +213,7 @@ then Elasticsearch will handle it as if there was a mapping of type
 [[geo-sorting]]
 ==== Geo Distance Sorting
 
-Allow to sort by `_geo_distance`. Here is an example:
+Allow to sort by `_geo_distance`. Here is an example, assuming `pin.location` is a field of type `geo_point`:
 
 [source,js]
 --------------------------------------------------
@@ -243,7 +243,7 @@ GET /_search
 
     How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slightly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
 
-`sort_mode`::
+`mode`::
 
     What to do in case a field has several geo points. By default, the shortest
     distance is taken into account when sorting in ascending order and the

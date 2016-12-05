@@ -23,7 +23,6 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -43,7 +42,6 @@ import java.util.Map;
  */
 public class LatLonPointFieldMapper extends BaseGeoPointFieldMapper {
     public static final String CONTENT_TYPE = "geo_point";
-    public static final Version LAT_LON_FIELD_VERSION = Version.V_5_0_0_beta1;
 
     public static class Defaults extends BaseGeoPointFieldMapper.Defaults {
         public static final LatLonPointFieldType FIELD_TYPE = new LatLonPointFieldType();
@@ -59,6 +57,7 @@ public class LatLonPointFieldMapper extends BaseGeoPointFieldMapper {
     public static class Builder extends BaseGeoPointFieldMapper.Builder<Builder, LatLonPointFieldMapper> {
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
+            builder = this;
         }
 
         @Override

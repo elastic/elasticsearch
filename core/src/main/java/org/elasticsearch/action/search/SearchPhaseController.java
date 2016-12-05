@@ -83,7 +83,7 @@ public class SearchPhaseController extends AbstractComponent {
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
 
-    SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
+    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;

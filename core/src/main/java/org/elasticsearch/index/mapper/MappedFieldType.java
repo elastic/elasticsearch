@@ -35,6 +35,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -462,6 +463,12 @@ public abstract class MappedFieldType extends FieldType {
     public static Term extractTerm(Query termQuery) {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
+        }
+        if (termQuery instanceof AllTermQuery) {
+            return ((AllTermQuery) termQuery).getTerm();
+        } else if (termQuery instanceof TypeFieldMapper.TypesQuery) {
+            assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
+            return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
         }
         if (termQuery instanceof TermQuery == false) {
             throw new IllegalArgumentException("Cannot extract a term from a query of type "

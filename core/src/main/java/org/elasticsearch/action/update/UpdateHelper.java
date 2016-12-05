@@ -31,7 +31,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,8 +41,6 @@ import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
@@ -55,7 +52,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -76,7 +72,7 @@ public class UpdateHelper extends AbstractComponent {
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
-                new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
+                new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
@@ -86,13 +82,11 @@ public class UpdateHelper extends AbstractComponent {
      */
     @SuppressWarnings("unchecked")
     protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
-        long getDateNS = System.nanoTime();
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
                 throw new DocumentMissingException(shardId, request.type(), request.id());
             }
             IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
-            TimeValue ttl = indexRequest.ttl();
             if (request.scriptedUpsert() && request.script() != null) {
                 // Run the script to perform the create logic
                 IndexRequest upsert = request.upsertRequest();
@@ -103,10 +97,6 @@ public class UpdateHelper extends AbstractComponent {
                 ctx.put("_source", upsertDoc);
                 ctx.put("_now", nowInMillis.getAsLong());
                 ctx = executeScript(request.script, ctx);
-                //Allow the script to set TTL using ctx._ttl
-                if (ttl == null) {
-                    ttl = getTTLFromScriptContext(ctx);
-                }
 
                 //Allow the script to abort the create by setting "op" to "none"
                 String scriptOpChoice = (String) ctx.get("op");
@@ -129,7 +119,6 @@ public class UpdateHelper extends AbstractComponent {
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
                     .create(true)
-                    .ttl(ttl)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .routing(request.routing())
                     .parent(request.parent())
@@ -155,8 +144,6 @@ public class UpdateHelper extends AbstractComponent {
 
         Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         String operation = null;
-        String timestamp = null;
-        TimeValue ttl = null;
         final Map<String, Object> updatedSourceAsMap;
         final XContentType updateSourceContentType = sourceAndContent.v1();
         String routing = getResult.getFields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).getValue().toString() : null;
@@ -165,10 +152,6 @@ public class UpdateHelper extends AbstractComponent {
         if (request.script() == null && request.doc() != null) {
             IndexRequest indexRequest = request.doc();
             updatedSourceAsMap = sourceAndContent.v2();
-            if (indexRequest.ttl() != null) {
-                ttl = indexRequest.ttl();
-            }
-            timestamp = indexRequest.timestamp();
             if (indexRequest.routing() != null) {
                 routing = indexRequest.routing();
             }
@@ -184,16 +167,12 @@ public class UpdateHelper extends AbstractComponent {
             }
         } else {
             Map<String, Object> ctx = new HashMap<>(16);
-            Long originalTtl = getResult.getFields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).getValue() : null;
-            Long originalTimestamp = getResult.getFields().containsKey(TimestampFieldMapper.NAME) ? (Long) getResult.field(TimestampFieldMapper.NAME).getValue() : null;
             ctx.put("_index", getResult.getIndex());
             ctx.put("_type", getResult.getType());
             ctx.put("_id", getResult.getId());
             ctx.put("_version", getResult.getVersion());
             ctx.put("_routing", routing);
             ctx.put("_parent", parent);
-            ctx.put("_timestamp", originalTimestamp);
-            ctx.put("_ttl", originalTtl);
             ctx.put("_source", sourceAndContent.v2());
             ctx.put("_now", nowInMillis.getAsLong());
 
@@ -201,26 +180,7 @@ public class UpdateHelper extends AbstractComponent {
 
             operation = (String) ctx.get("op");
 
-            Object fetchedTimestamp = ctx.get("_timestamp");
-            if (fetchedTimestamp != null) {
-                timestamp = fetchedTimestamp.toString();
-            } else if (originalTimestamp != null) {
-                // No timestamp has been given in the update script, so we keep the previous timestamp if there is one
-                timestamp = originalTimestamp.toString();
-            }
-
-            ttl = getTTLFromScriptContext(ctx);
-
             updatedSourceAsMap = (Map<String, Object>) ctx.get("_source");
-        }
-
-        // apply script to update the source
-        // No TTL has been given in the update script so we keep previous TTL value if there is one
-        if (ttl == null) {
-            Long ttlAsLong = getResult.getFields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).getValue() : null;
-            if (ttlAsLong != null) {
-                ttl = new TimeValue(ttlAsLong - TimeValue.nsecToMSec(System.nanoTime() - getDateNS));// It is an approximation of exact TTL value, could be improved
-            }
         }
 
         if (operation == null || "index".equals(operation)) {
@@ -228,7 +188,6 @@ public class UpdateHelper extends AbstractComponent {
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .version(updateVersion).versionType(request.versionType())
                     .waitForActiveShards(request.waitForActiveShards())
-                    .timestamp(timestamp).ttl(ttl)
                     .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
@@ -261,17 +220,6 @@ public class UpdateHelper extends AbstractComponent {
             throw new IllegalArgumentException("failed to execute script", e);
         }
         return ctx;
-    }
-
-    private TimeValue getTTLFromScriptContext(Map<String, Object> ctx) {
-        Object fetchedTTL = ctx.get("_ttl");
-        if (fetchedTTL != null) {
-            if (fetchedTTL instanceof Number) {
-                return new TimeValue(((Number) fetchedTTL).longValue());
-            }
-            return TimeValue.parseTimeValue((String) fetchedTTL, null, "_ttl");
-        }
-        return null;
     }
 
     /**

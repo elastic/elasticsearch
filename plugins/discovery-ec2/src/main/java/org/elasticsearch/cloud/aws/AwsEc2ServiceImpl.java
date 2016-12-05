@@ -125,7 +125,10 @@ public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Servic
             10,
             false);
         clientConfiguration.setRetryPolicy(retryPolicy);
-        clientConfiguration.setSocketTimeout((int) CLOUD_EC2.READ_TIMEOUT.get(settings).millis());
+
+        if (READ_TIMEOUT.exists(settings) || CLOUD_EC2.READ_TIMEOUT.exists(settings)) {
+            clientConfiguration.setSocketTimeout((int) CLOUD_EC2.READ_TIMEOUT.get(settings).millis());
+        }
 
         return clientConfiguration;
     }

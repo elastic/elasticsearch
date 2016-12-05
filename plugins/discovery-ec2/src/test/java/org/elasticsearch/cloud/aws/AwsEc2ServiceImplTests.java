@@ -72,7 +72,8 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, null, 50000);
+        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, null,
+            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
     public void testAWSConfigurationWithAwsSettings() {

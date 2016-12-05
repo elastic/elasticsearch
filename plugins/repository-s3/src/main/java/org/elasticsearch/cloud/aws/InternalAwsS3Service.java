@@ -116,7 +116,9 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
         }
 
-        clientConfiguration.setSocketTimeout((int) CLOUD_S3.READ_TIMEOUT.get(settings).millis());
+        if (READ_TIMEOUT.exists(settings) || CLOUD_S3.READ_TIMEOUT.exists(settings)) {
+            clientConfiguration.setSocketTimeout((int) CLOUD_S3.READ_TIMEOUT.get(settings).millis());
+        }
 
         return clientConfiguration;
     }

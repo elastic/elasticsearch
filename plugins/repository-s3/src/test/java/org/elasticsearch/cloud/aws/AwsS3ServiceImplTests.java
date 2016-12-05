@@ -143,7 +143,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSDefaultConfiguration() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
-        launchAWSConfigurationTest(Settings.EMPTY, repositorySettings, Protocol.HTTPS, null, -1, null, null, null, 3, false, 50000);
+        launchAWSConfigurationTest(Settings.EMPTY, repositorySettings, Protocol.HTTPS, null, -1, null, null, null, 3, false,
+            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
     public void testAWSConfigurationWithAwsSettings() {

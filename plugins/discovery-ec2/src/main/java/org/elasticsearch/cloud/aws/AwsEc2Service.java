@@ -83,7 +83,7 @@ public interface AwsEc2Service {
     /**
      * cloud.aws.read_timeout: Socket read timeout. Shared with repository-s3 plugin
      */
-    Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout", TimeValue.timeValueSeconds(50),
+    Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout", TimeValue.MINUS_ONE,
         Property.NodeScope, Property.Shared);
 
     /**

@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.security;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -59,7 +57,7 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    private Collection<Object> createComponents(Settings testSettings, XPackExtension... extensions) throws IOException {
+    private Collection<Object> createComponents(Settings testSettings, XPackExtension... extensions) throws Exception {
         Settings settings = Settings.builder().put(testSettings)
             .put("path.home", createTempDir()).build();
         Environment env = new Environment(settings);
@@ -71,7 +69,7 @@ public class SecurityTests extends ESTestCase {
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        return security.createComponents(null, threadPool, clusterService, null, Arrays.asList(extensions));
+        return security.createComponents(null, threadPool, clusterService, mock(ResourceWatcherService.class), Arrays.asList(extensions));
     }
 
     private <T> T findComponent(Class<T> type, Collection<Object> components) {

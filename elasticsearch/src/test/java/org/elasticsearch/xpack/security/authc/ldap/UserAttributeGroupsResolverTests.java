@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectorySessionFactoryTests;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
 
@@ -26,7 +25,8 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
     public void testResolve() throws Exception {
         //falling back on the 'memberOf' attribute
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(Settings.EMPTY);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
@@ -39,7 +39,8 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
                 .put("user_group_attribute", "seeAlso")
                 .build();
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItems(containsString("Avengers")));  //seeAlso only has Avengers
     }
 
@@ -48,7 +49,8 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
                 .put("user_group_attribute", "doesntExist")
                 .build();
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
         assertThat(groups, empty());
     }
 

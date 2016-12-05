@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
-import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -29,11 +28,10 @@ public class FileRealm extends CachingUsernamePasswordRealm {
     // pkg private for testing
     FileRealm(RealmConfig config, FileUserPasswdStore userPasswdStore, FileUserRolesStore userRolesStore) {
         super(TYPE, config);
-        Listener listener = new Listener();
         this.userPasswdStore = userPasswdStore;
-        userPasswdStore.addListener(listener);
+        userPasswdStore.addListener(this::expireAll);
         this.userRolesStore = userRolesStore;
-        userRolesStore.addListener(listener);
+        userRolesStore.addListener(this::expireAll);
     }
 
     @Override
@@ -67,12 +65,5 @@ public class FileRealm extends CachingUsernamePasswordRealm {
     @Override
     public boolean userLookupSupported() {
         return true;
-    }
-
-    class Listener implements RefreshListener {
-        @Override
-        public void onRefresh() {
-            expireAll();
-        }
     }
 }

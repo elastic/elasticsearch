@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.security.action.user.AuthenticateRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
@@ -36,7 +35,6 @@ import java.util.Iterator;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -165,7 +163,7 @@ public class DefaultRoleTests extends ESTestCase {
         when(authentication.getRunAsUser()).thenReturn(user);
         when(authentication.isRunAs()).thenReturn(false);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn(randomFrom(LdapRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, PkiRealm.TYPE,
+        when(authenticatedBy.getType()).thenReturn(randomFrom(LdapRealm.LDAP_TYPE, FileRealm.TYPE, LdapRealm.AD_TYPE, PkiRealm.TYPE,
                         randomAsciiOfLengthBetween(4, 12)));
 
         assertThat(request, instanceOf(UserRequest.class));
@@ -190,7 +188,7 @@ public class DefaultRoleTests extends ESTestCase {
         when(authentication.isRunAs()).thenReturn(true);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
-        when(lookedUpBy.getType()).thenReturn(randomFrom(LdapRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, PkiRealm.TYPE,
+        when(lookedUpBy.getType()).thenReturn(randomFrom(LdapRealm.LDAP_TYPE, FileRealm.TYPE, LdapRealm.AD_TYPE, PkiRealm.TYPE,
                 randomAsciiOfLengthBetween(4, 12)));
 
         assertThat(request, instanceOf(UserRequest.class));

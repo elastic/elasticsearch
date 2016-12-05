@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPConnection;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -176,8 +177,8 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         }
 
         @Override
-        protected LdapSession getSession(String user, SecuredString password) throws Exception {
-            return null;
+        public void session(String user, SecuredString password, ActionListener<LdapSession> listener) {
+            listener.onResponse(null);
         }
     }
 }

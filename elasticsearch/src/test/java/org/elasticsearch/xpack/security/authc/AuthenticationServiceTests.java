@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.authc;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -27,6 +29,7 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
+import org.elasticsearch.xpack.security.authc.Realm.Factory;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -93,17 +96,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.allowedRealmType()).thenReturn(XPackLicenseState.AllowedRealmType.ALL);
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(),
-            licenseState, mock(ReservedRealm.class)) {
-
-            @Override
-            protected void doStart() {
-                this.realms = Arrays.asList(firstRealm, secondRealm);
-                this.internalRealmsOnly = Collections.singletonList(firstRealm);
-            }
-
-        };
-        realms.start();
+        realms = new TestRealms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(),
+            licenseState, mock(ReservedRealm.class), Arrays.asList(firstRealm, secondRealm), Collections.singletonList(firstRealm));
         cryptoService = mock(CryptoService.class);
 
         auditTrail = mock(AuditTrailService.class);
@@ -820,5 +814,15 @@ public class AuthenticationServiceTests extends ESTestCase {
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         service.authenticate(action, message, fallbackUser, future);
         return future.actionGet();
+    }
+
+    static class TestRealms extends Realms {
+
+        TestRealms(Settings settings, Environment env, Map<String, Factory> factories, XPackLicenseState licenseState,
+                   ReservedRealm reservedRealm, List<Realm> realms, List<Realm> internalRealms) throws Exception {
+            super(settings, env, factories, licenseState, reservedRealm);
+            this.realms = realms;
+            this.internalRealmsOnly = internalRealms;
+        }
     }
 }

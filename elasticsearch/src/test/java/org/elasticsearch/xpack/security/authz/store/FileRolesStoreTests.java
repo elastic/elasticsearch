@@ -16,7 +16,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
-import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.security.authz.permission.IndicesPermission;
@@ -268,12 +267,7 @@ public class FileRolesStoreTests extends ESTestCase {
             threadPool = new TestThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileRolesStore store = new FileRolesStore(settings, env, watcherService, new RefreshListener() {
-                @Override
-                public void onRefresh() {
-                    latch.countDown();
-                }
-            });
+            FileRolesStore store = new FileRolesStore(settings, env, watcherService, latch::countDown);
             store.start();
 
             Role role = store.role("role1");

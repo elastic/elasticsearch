@@ -9,6 +9,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -16,12 +17,14 @@ import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory.URLS_SETTING;
@@ -29,7 +32,7 @@ import static org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory.USE
 
 public abstract class LdapTestCase extends ESTestCase {
 
-    protected static int numberOfLdapServers;
+    static int numberOfLdapServers;
     protected InMemoryDirectoryServer[] ldapServers;
 
     @BeforeClass
@@ -109,6 +112,25 @@ public abstract class LdapTestCase extends ESTestCase {
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
         RealmConfig config = new RealmConfig("ldap1", settings, global);
 
-        return new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null);
+        return new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService, () -> {});
+    }
+
+    protected LdapSession session(SessionFactory factory, String username, SecuredString password) {
+        PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
+        factory.session(username, password, future);
+        return future.actionGet();
+    }
+
+    protected List<String> groups(LdapSession ldapSession) {
+        Objects.requireNonNull(ldapSession);
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        ldapSession.groups(future);
+        return future.actionGet();
+    }
+
+    protected LdapSession unauthenticatedSession(SessionFactory factory, String username) {
+        PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
+        factory.unauthenticatedSession(username, future);
+        return future.actionGet();
     }
 }

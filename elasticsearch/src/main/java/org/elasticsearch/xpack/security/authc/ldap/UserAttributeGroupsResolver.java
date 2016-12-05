@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.Attribute;
-import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
-import com.unboundid.ldap.sdk.SearchRequest;
-import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
@@ -21,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
@@ -41,30 +40,22 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     }
 
     @Override
-    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger,
-                                Collection<Attribute> attributes) throws LDAPException {
+    public void resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger, Collection<Attribute> attributes,
+                        ActionListener<List<String>> listener) {
         if (attributes != null) {
-            for (Attribute attribute : attributes) {
-                if (attribute.getName().equals(attribute)) {
-                    String[] values = attribute.getValues();
-                    return Arrays.asList(values);
-                }
-            }
-            return Collections.emptyList();
+            List<String> list = attributes.stream().filter((attr) -> attr.getName().equals(attribute))
+                    .flatMap(attr -> Arrays.stream(attr.getValues())).collect(Collectors.toList());
+            listener.onResponse(Collections.unmodifiableList(list));
+        } else {
+            searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, Math.toIntExact(timeout.seconds()),
+                    ActionListener.wrap((entry) -> {
+                        if (entry == null || entry.hasAttribute(attribute) == false) {
+                            listener.onResponse(Collections.emptyList());
+                        } else {
+                            listener.onResponse(Collections.unmodifiableList(Arrays.asList(entry.getAttributeValues(attribute))));
+                        }
+                    }, listener::onFailure), attribute);
         }
-
-        SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, attribute);
-        request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
-        SearchResultEntry result = searchForEntry(connection, request, logger);
-        if (result == null) {
-            return Collections.emptyList();
-        }
-        Attribute attributeReturned = result.getAttribute(attribute);
-        if (attributeReturned == null) {
-            return Collections.emptyList();
-        }
-        String[] values = attributeReturned.getValues();
-        return Arrays.asList(values);
     }
 
     @Override

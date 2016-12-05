@@ -7,19 +7,19 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPConnection;
-import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.io.Closeable;
 import java.util.Collection;
 import java.util.List;
 
 /**
  * Represents a LDAP connection with an authenticated/bound user that needs closing.
  */
-public class LdapSession implements Closeable {
+public class LdapSession implements Releasable {
 
     protected final Logger logger;
     protected final LDAPInterface ldap;
@@ -51,7 +51,8 @@ public class LdapSession implements Closeable {
      */
     @Override
     public void close() {
-        // Only if it is an LDAPConnection do we need to close it
+        // Only if it is an LDAPConnection do we need to close it, otherwise it is a connection pool and we will close all of the
+        // connections in the pool
         if (ldap instanceof LDAPConnection) {
             ((LDAPConnection) ldap).close();
         }
@@ -65,17 +66,33 @@ public class LdapSession implements Closeable {
     }
 
     /**
-     * @return List of fully distinguished group names
+     * Asynchronously retrieves a list of group distinguished names
      */
-    public List<String> groups() throws LDAPException {
-        return groupsResolver.resolve(ldap, userDn, timeout, logger, attributes);
+    public void groups(ActionListener<List<String>> listener) {
+        groupsResolver.resolve(ldap, userDn, timeout, logger, attributes, listener);
     }
 
+    /**
+     * A GroupsResolver is used to resolve the group names of a given LDAP user
+     */
     public interface GroupsResolver {
 
-        List<String> resolve(LDAPInterface ldapConnection, String userDn, TimeValue timeout, Logger logger,
-                             Collection<Attribute> attributes) throws LDAPException;
+        /**
+         * Asynchronously resolve the group name for the given ldap user
+         * @param ldapConnection an authenticated {@link LDAPConnection} to be used for LDAP queries
+         * @param userDn the distinguished name of the ldap user
+         * @param timeout the timeout for any ldap operation
+         * @param logger the logger to use if necessary
+         * @param attributes a collection of attributes that were previously retrieved for the user such as during a user search.
+         *          {@code null} indicates that the attributes have not been attempted to be retrieved
+         * @param listener the listener to call on a result or on failure
+         */
+        void resolve(LDAPInterface ldapConnection, String userDn, TimeValue timeout, Logger logger, Collection<Attribute> attributes,
+                     ActionListener<List<String>> listener);
 
+        /**
+         * Returns the attributes that this resolvers uses. If no attributes are required, return {@code null}.
+         */
         String[] attributes();
     }
 }

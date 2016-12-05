@@ -7,17 +7,22 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
+import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.text.MessageFormat;
+import java.util.Arrays;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.escapedRDNValue;
@@ -50,35 +55,52 @@ public class LdapSessionFactory extends SessionFactory {
      * is kept as the cause of the thrown exception
      *
      * @param username a relative name, Not a distinguished name, that will be inserted into the template.
-     * @return authenticated exception
      */
     @Override
-    protected LdapSession getSession(String username, SecuredString password) throws Exception {
-        LDAPConnection connection = serverSet.getConnection();
-
+    public void session(String username, SecuredString password, ActionListener<LdapSession> listener) {
         LDAPException lastException = null;
-        String passwordString = new String(password.internalChars());
-        for (String template : userDnTemplates) {
-            String dn = buildDnFromTemplate(username, template);
-            try {
-                connection.bind(dn, passwordString);
-                return new LdapSession(logger, connection, dn, groupResolver, timeout, null);
-            } catch (LDAPException e) {
-                // we catch the ldapException here since we expect it can happen and we shouldn't be logging this all the time otherwise
-                // it is just noise
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage(
-                        "failed LDAP authentication with user template [{}] and DN [{}]", template, dn), e);
-                if (lastException == null) {
-                    lastException = e;
-                } else {
-                    lastException.addSuppressed(e);
+        LDAPConnection connection = null;
+        LdapSession ldapSession = null;
+        final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.internalChars());
+        boolean success = false;
+        try {
+            connection = serverSet.getConnection();
+            for (String template : userDnTemplates) {
+                String dn = buildDnFromTemplate(username, template);
+                try {
+                    connection.bind(new SimpleBindRequest(dn, passwordBytes));
+                    ldapSession = new LdapSession(logger, connection, dn, groupResolver, timeout, null);
+                    success = true;
+                    break;
+                } catch (LDAPException e) {
+                    // we catch the ldapException here since we expect it can happen and we shouldn't be logging this all the time otherwise
+                    // it is just noise
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage(
+                            "failed LDAP authentication with user template [{}] and DN [{}]", template, dn), e);
+                    if (lastException == null) {
+                        lastException = e;
+                    } else {
+                        lastException.addSuppressed(e);
+                    }
                 }
+            }
+        } catch (LDAPException e) {
+            assert lastException == null : "if we catch a LDAPException here, we should have never seen another exception";
+            assert ldapSession == null : "LDAPSession should not have been established due to a connection failure";
+            lastException = e;
+        } finally {
+            Arrays.fill(passwordBytes, (byte) 0);
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(connection);
             }
         }
 
-        connection.close();
-        assert lastException != null;
-        throw lastException;
+        if (ldapSession != null) {
+            listener.onResponse(ldapSession);
+        } else {
+            assert lastException != null : "if there is not LDAPSession, then we must have a exception";
+            listener.onFailure(lastException);
+        }
     }
 
     /**

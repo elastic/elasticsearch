@@ -21,7 +21,6 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group;
 import org.elasticsearch.xpack.security.authz.permission.Role;
@@ -49,16 +48,16 @@ public class FileRolesStore extends AbstractLifecycleComponent {
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
 
     private final Path file;
-    private final RefreshListener listener;
+    private final Runnable listener;
     private final ResourceWatcherService watcherService;
 
     private volatile Map<String, Role> permissions;
 
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        this(settings, env, watcherService, RefreshListener.NOOP);
+        this(settings, env, watcherService, () -> {});
     }
 
-    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
+    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Runnable listener) {
         super(settings);
         this.file = resolveFile(env);
         this.listener = listener;
@@ -328,7 +327,7 @@ public class FileRolesStore extends AbstractLifecycleComponent {
                                     "could not reload roles file [{}]. Current roles remain unmodified", file.toAbsolutePath()), e);
                     return;
                 }
-                listener.onRefresh();
+                listener.run();
             }
         }
     }

@@ -6,22 +6,22 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.Filter;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchRequest;
-import com.unboundid.ldap.sdk.SearchResult;
-import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.createFilter;
@@ -54,23 +54,24 @@ class SearchGroupsResolver implements GroupsResolver {
     }
 
     @Override
-    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger,
-                                Collection<Attribute> attributes) throws LDAPException {
-        String userId = getUserId(userDn, attributes, connection, timeout, logger);
-        if (userId == null) {
-            // attributes were queried but the requested wasn't found
-            return Collections.emptyList();
-        }
-
-        SearchRequest searchRequest = new SearchRequest(baseDn, scope.scope(), createFilter(filter, userId),
-                SearchRequest.NO_ATTRIBUTES);
-        searchRequest.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
-        SearchResult results = search(connection, searchRequest, logger);
-        List<String> groups = new ArrayList<>(results.getSearchEntries().size());
-        for (SearchResultEntry entry : results.getSearchEntries()) {
-            groups.add(entry.getDN());
-        }
-        return groups;
+    public void resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger,
+                        Collection<Attribute> attributes, ActionListener<List<String>> listener) {
+        getUserId(userDn, attributes, connection, timeout, ActionListener.wrap((userId) -> {
+            if (userId == null) {
+                listener.onResponse(Collections.emptyList());
+            } else {
+                try {
+                    Filter userFilter = createFilter(filter, userId);
+                    search(connection, baseDn, scope.scope(), userFilter, Math.toIntExact(timeout.seconds()),
+                            ActionListener.wrap(
+                                    (results) -> listener.onResponse(results.stream().map((r) -> r.getDN()).collect(Collectors.toList())),
+                                    listener::onFailure),
+                            SearchRequest.NO_ATTRIBUTES);
+                } catch (LDAPException e) {
+                    listener.onFailure(e);
+                }
+            }
+        }, listener::onFailure));
     }
 
     public String[] attributes() {
@@ -80,34 +81,30 @@ class SearchGroupsResolver implements GroupsResolver {
         return null;
     }
 
-    private String getUserId(String dn, Collection<Attribute> attributes, LDAPInterface connection, TimeValue
-            timeout, Logger logger) throws LDAPException {
+    private void getUserId(String dn, Collection<Attribute> attributes, LDAPInterface connection, TimeValue timeout,
+                             ActionListener<String> listener) {
         if (userAttribute == null) {
-            return dn;
+            listener.onResponse(dn);
+        } else if (attributes != null) {
+            final String value = attributes.stream().filter((attribute) -> attribute.getName().equals(userAttribute))
+                    .map(Attribute::getValue)
+                    .findFirst()
+                    .orElse(null);
+            listener.onResponse(value);
+        } else {
+            readUserAttribute(connection, dn, timeout, listener);
         }
-
-        if (attributes != null) {
-            for (Attribute attribute : attributes) {
-                if (attribute.getName().equals(userAttribute)) {
-                    return attribute.getValue();
-                }
-            }
-        }
-
-        return readUserAttribute(connection, dn, timeout, logger);
     }
 
-    String readUserAttribute(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger) throws LDAPException {
-        SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, userAttribute);
-        request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
-        SearchResultEntry results = searchForEntry(connection, request, logger);
-        if (results == null) {
-            return null;
-        }
-        Attribute attribute = results.getAttribute(userAttribute);
-        if (attribute == null) {
-            return null;
-        }
-        return attribute.getValue();
+    void readUserAttribute(LDAPInterface connection, String userDn, TimeValue timeout, ActionListener<String> listener) {
+        searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, Math.toIntExact(timeout.seconds()),
+                ActionListener.wrap((entry) -> {
+                    if (entry == null || entry.hasAttribute(userAttribute) == false) {
+                        listener.onResponse(null);
+                    } else {
+                        listener.onResponse(entry.getAttributeValue(userAttribute));
+                    }
+                }, listener::onFailure),
+                userAttribute);
     }
 }

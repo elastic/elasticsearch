@@ -138,7 +138,8 @@ public abstract class Realm implements Comparable<Realm> {
         /**
          * Constructs a realm which will be used for authentication.
          * @param config The configuration for the realm
+         * @throws Exception an exception may be thrown if there was an error during realm creation
          */
-        Realm create(RealmConfig config);
+        Realm create(RealmConfig config) throws Exception;
     }
 }

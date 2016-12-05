@@ -16,16 +16,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
-import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
@@ -37,10 +35,10 @@ import static org.elasticsearch.xpack.security.Security.setting;
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
-public class Realms extends AbstractLifecycleComponent implements Iterable<Realm> {
+public class Realms extends AbstractComponent implements Iterable<Realm> {
 
     static final List<String> INTERNAL_REALM_TYPES =
-        Arrays.asList(ReservedRealm.TYPE, NativeRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
+        Arrays.asList(ReservedRealm.TYPE, NativeRealm.TYPE, FileRealm.TYPE, LdapRealm.AD_TYPE, LdapRealm.LDAP_TYPE, PkiRealm.TYPE);
 
     public static final Setting<Settings> REALMS_GROUPS_SETTINGS = Setting.groupSetting(setting("authc.realms."), Property.NodeScope);
 
@@ -51,21 +49,17 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
     protected List<Realm> realms = Collections.emptyList();
     // a list of realms that are considered default in that they are provided by x-pack and not a third party
-    protected List<Realm> internalRealmsOnly = Collections.emptyList();
+    List<Realm> internalRealmsOnly = Collections.emptyList();
     // a list of realms that are considered native, that is they only interact with x-pack and no 3rd party auth sources
-    protected List<Realm> nativeRealmsOnly = Collections.emptyList();
+    List<Realm> nativeRealmsOnly = Collections.emptyList();
 
     public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, XPackLicenseState licenseState,
-                  ReservedRealm reservedRealm) {
+                  ReservedRealm reservedRealm) throws Exception {
         super(settings);
         this.env = env;
         this.factories = factories;
         this.licenseState = licenseState;
         this.reservedRealm = reservedRealm;
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
         assert factories.get(ReservedRealm.TYPE) == null;
         this.realms = initRealms();
         // pre-computing a list of internal only realms allows us to have much cheaper iteration than a custom iterator
@@ -95,14 +89,6 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
         this.internalRealmsOnly = Collections.unmodifiableList(internalRealms);
         this.nativeRealmsOnly = Collections.unmodifiableList(nativeRealms);
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 
     @Override
@@ -155,7 +141,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         return factories.get(type);
     }
 
-    protected List<Realm> initRealms() {
+    protected List<Realm> initRealms() throws Exception {
         Settings realmsSettings = REALMS_GROUPS_SETTINGS.get(settings);
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
@@ -241,7 +227,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         return realmMap;
     }
 
-    private void addNativeRealms(List<Realm> realms) {
+    private void addNativeRealms(List<Realm> realms) throws Exception {
         Realm.Factory fileRealm = factories.get(FileRealm.TYPE);
         if (fileRealm != null) {
 

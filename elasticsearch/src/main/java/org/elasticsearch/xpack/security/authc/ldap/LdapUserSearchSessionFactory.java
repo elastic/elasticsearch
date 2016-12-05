@@ -11,11 +11,12 @@ import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
-import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -23,11 +24,11 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
+import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLService;
-import org.elasticsearch.xpack.security.support.Exceptions;
 
-import java.util.Locale;
+import java.util.Arrays;
 
 import static com.unboundid.ldap.sdk.Filter.createEqualityFilter;
 import static com.unboundid.ldap.sdk.Filter.encodeValue;
@@ -116,38 +117,91 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     @Override
-    protected LdapSession getSession(String user, SecuredString password) throws Exception {
+    public void session(String user, SecuredString password, ActionListener<LdapSession> listener) {
         if (useConnectionPool) {
-            return getSessionWithPool(user, password);
+            getSessionWithPool(user, password, listener);
         } else {
-            return getSessionWithoutPool(user, password);
+            getSessionWithoutPool(user, password, listener);
         }
     }
 
-    private LdapSession getSessionWithPool(String user, SecuredString password) throws Exception {
-        SearchResultEntry searchResult = findUser(user, connectionPool);
-        assert searchResult != null;
-        final String dn = searchResult.getDN();
-        connectionPool.bindAndRevertAuthentication(dn, new String(password.internalChars()));
-        return new LdapSession(logger, connectionPool, dn, groupResolver, timeout, searchResult.getAttributes());
+    /**
+     * Sets up a LDAPSession using the connection pool that potentially holds existing connections to the server
+     */
+    private void getSessionWithPool(String user, SecuredString password, ActionListener<LdapSession> listener) {
+        findUser(user, connectionPool, ActionListener.wrap((entry) -> {
+            if (entry == null) {
+                listener.onResponse(null);
+            } else {
+                final String dn = entry.getDN();
+                try {
+                    connectionPool.bindAndRevertAuthentication(dn, new String(password.internalChars()));
+                    listener.onResponse(new LdapSession(logger, connectionPool, dn, groupResolver, timeout, entry.getAttributes()));
+                } catch (LDAPException e) {
+                    listener.onFailure(e);
+                }
+            }
+        }, listener::onFailure));
     }
 
-    private LdapSession getSessionWithoutPool(String user, SecuredString password) throws Exception {
+    /**
+     * Sets up a LDAPSession using the following process:
+     * <ol>
+     *     <li>Opening a new connection to the LDAP server</li>
+     *     <li>Executes a bind request using the bind user</li>
+     *     <li>Executes a search to find the DN of the user</li>
+     *     <li>Closes the opened connection</li>
+     *     <li>Opens a new connection to the LDAP server</li>
+     *     <li>Executes a bind request using the found DN and provided password</li>
+     *     <li>Creates a new LDAPSession with the bound connection</li>
+     * </ol>
+     */
+    private void getSessionWithoutPool(String user, SecuredString password, ActionListener<LdapSession> listener) {
         boolean success = false;
         LDAPConnection connection = null;
         try {
             connection = serverSet.getConnection();
             connection.bind(bindRequest(config.settings()));
-            SearchResultEntry searchResult = findUser(user, connection);
-            assert searchResult != null;
-            final String dn = searchResult.getDN();
-            connection.bind(dn, new String(password.internalChars()));
-            LdapSession session = new LdapSession(logger, connection, dn, groupResolver, timeout, searchResult.getAttributes());
+            final LDAPConnection finalConnection = connection;
+            findUser(user, connection, ActionListener.wrap((entry) -> {
+                        // close the existing connection since we are executing in this handler of the previous request and cannot bind here
+                        // so we need to open a new connection to bind on and use for the session
+                        IOUtils.close(finalConnection);
+                        if (entry == null) {
+                            listener.onResponse(null);
+                        } else {
+                            final String dn = entry.getDN();
+                            boolean sessionCreated = false;
+                            LDAPConnection userConnection = null;
+                            final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.internalChars());
+                            try {
+                                userConnection = serverSet.getConnection();
+                                userConnection.bind(new SimpleBindRequest(dn, passwordBytes));
+                                LdapSession session = new LdapSession(logger, userConnection, dn, groupResolver, timeout,
+                                        entry.getAttributes());
+                                sessionCreated = true;
+                                listener.onResponse(session);
+                            } catch (Exception e) {
+                                listener.onFailure(e);
+                            } finally {
+                                Arrays.fill(passwordBytes, (byte) 0);
+                                if (sessionCreated == false) {
+                                    IOUtils.close(userConnection);
+                                }
+                            }
+                        }
+                    },
+                    (e) -> {
+                        IOUtils.closeWhileHandlingException(finalConnection);
+                        listener.onFailure(e);
+                    }));
             success = true;
-            return session;
+        } catch (LDAPException e) {
+            listener.onFailure(e);
         } finally {
-            if (success == false && connection != null) {
-                connection.close();
+            // need the success flag since the search is async and we don't want to close it if it is in progress
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(connection);
             }
         }
     }
@@ -158,7 +212,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     @Override
-    public LdapSession unauthenticatedSession(String user) throws Exception {
+    public void unauthenticatedSession(String user, ActionListener<LdapSession> listener) {
         LDAPConnection connection = null;
         boolean success = false;
         try {
@@ -171,29 +225,37 @@ class LdapUserSearchSessionFactory extends SessionFactory {
                 ldapInterface = connection;
             }
 
-            SearchResultEntry searchResult = findUser(user, ldapInterface);
-            assert searchResult != null;
-            final String dn = searchResult.getDN();
-            LdapSession session = new LdapSession(logger, ldapInterface, dn, groupResolver, timeout, searchResult.getAttributes());
+            findUser(user, ldapInterface, ActionListener.wrap((entry) -> {
+                if (entry == null) {
+                    listener.onResponse(null);
+                } else {
+                    boolean sessionCreated = false;
+                    try {
+                        final String dn = entry.getDN();
+                        LdapSession session = new LdapSession(logger, ldapInterface, dn, groupResolver, timeout, entry.getAttributes());
+                        sessionCreated = true;
+                        listener.onResponse(session);
+                    } finally {
+                        if (sessionCreated == false && useConnectionPool == false) {
+                            IOUtils.close((LDAPConnection) ldapInterface);
+                        }
+                    }
+                }
+            }, listener::onFailure));
             success = true;
-            return session;
+        } catch (LDAPException e) {
+            listener.onFailure(e);
         } finally {
-            if (success == false && connection != null) {
-                connection.close();
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(connection);
             }
         }
     }
 
-    private SearchResultEntry findUser(String user, LDAPInterface ldapInterface) throws Exception {
-        SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user)),
+    private void findUser(String user, LDAPInterface ldapInterface, ActionListener<SearchResultEntry> listener) {
+        searchForEntry(ldapInterface, userSearchBaseDn, scope.scope(),
+                createEqualityFilter(userAttribute, encodeValue(user)), Math.toIntExact(timeout.seconds()), listener,
                 attributesToSearchFor(groupResolver.attributes()));
-        request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
-        SearchResultEntry entry = searchForEntry(ldapInterface, request, logger);
-        if (entry == null) {
-            throw Exceptions.authenticationError("failed to find user [{}] with search base [{}] scope [{}]", user, userSearchBaseDn,
-                    scope.toString().toLowerCase(Locale.ENGLISH));
-        }
-        return entry;
     }
 
     /*

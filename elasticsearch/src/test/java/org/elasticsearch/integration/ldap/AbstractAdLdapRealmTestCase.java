@@ -13,7 +13,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -62,8 +61,8 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
         realmConfig = randomFrom(RealmConfig.values());
         useGlobalSSL = randomBoolean();
         sslEnabled = randomBoolean();
-        ESLoggerFactory.getLogger("test").info("running test with realm configuration [{}], with direct group to role mapping [{}]",
-                realmConfig, realmConfig.mapGroupsAsRoles);
+        ESLoggerFactory.getLogger("test").info("running test with realm configuration [{}], with direct group to role mapping [{}]. " +
+                        "Settings [{}]", realmConfig, realmConfig.mapGroupsAsRoles, realmConfig.settings.getAsMap());
     }
 
     @AfterClass
@@ -177,7 +176,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
 
         AD(false, AD_ROLE_MAPPING,
                 Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", ActiveDirectoryRealm.TYPE)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.AD_TYPE)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".domain_name", "ad.test.elasticsearch.com")
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
                                 + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -186,7 +185,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
 
         AD_SSL(false, AD_ROLE_MAPPING,
                 Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", ActiveDirectoryRealm.TYPE)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.AD_TYPE)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".domain_name", "ad.test.elasticsearch.com")
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
                                 + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -196,7 +195,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
 
         AD_LDAP_GROUPS_FROM_SEARCH(true, AD_ROLE_MAPPING,
                 Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.LDAP_TYPE)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
                                 + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -207,7 +206,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
 
         AD_LDAP_GROUPS_FROM_ATTRIBUTE(true, AD_ROLE_MAPPING,
                 Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.LDAP_TYPE)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .putArray(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
                                 "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -215,7 +214,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
 
         OLDAP(false, OLDAP_ROLE_MAPPING,
                 Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.LDAP_TYPE)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://54.200.235.244:636")
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn",
                                 "ou=people, dc=oldap, dc=test, dc=elasticsearch, dc=com")

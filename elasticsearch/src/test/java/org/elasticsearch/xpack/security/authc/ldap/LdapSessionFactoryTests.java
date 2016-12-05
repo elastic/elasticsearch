@@ -9,6 +9,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -20,6 +21,7 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -54,11 +56,12 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         ldapServer.setProcessingDelayMillis(500L);
-        try (LdapSession session = sessionFactory.session(user, userPass)) {
-            fail("expected connection timeout error here");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(LDAPException.class));
-            assertThat(e.getMessage(), containsString("A client-side timeout was encountered while waiting "));
+        try {
+            UncategorizedExecutionException e =
+                    expectThrows(UncategorizedExecutionException.class, () -> session(sessionFactory, user, userPass));
+            assertThat(e.getCause(), instanceOf(ExecutionException.class));
+            assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
+            assertThat(e.getCause().getCause().getMessage(), containsString("A client-side timeout was encountered while waiting "));
         } finally {
             ldapServer.setProcessingDelayMillis(0L);
         }
@@ -83,7 +86,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         long start = System.currentTimeMillis();
-        LDAPException expected = expectThrows(LDAPException.class, () -> sessionFactory.session(user, userPass));
+        LDAPException expected = expectThrows(LDAPException.class, () -> session(sessionFactory, user, userPass));
         long time = System.currentTimeMillis() - start;
         assertThat(time, lessThan(10000L));
         assertThat(expected, instanceOf(LDAPException.class));
@@ -106,7 +109,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
+        try (LdapSession ldap = session(sessionFactory, user, userPass)) {
             String dn = ldap.userDn();
             assertThat(dn, containsString(user));
         }
@@ -126,9 +129,11 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
-        LDAPException expected = expectThrows(LDAPException.class, () -> ldapFac.session(user, userPass));
-        assertThat(expected.getMessage(), containsString("Unable to bind as user"));
-        Throwable[] suppressed = expected.getSuppressed();
+        UncategorizedExecutionException e = expectThrows(UncategorizedExecutionException.class, () -> session(ldapFac, user, userPass));
+        assertThat(e.getCause(), instanceOf(ExecutionException.class));
+        assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
+        assertThat(e.getCause().getCause().getMessage(), containsString("Unable to bind as user"));
+        Throwable[] suppressed = e.getCause().getCause().getSuppressed();
         assertThat(suppressed.length, is(2));
     }
 
@@ -143,8 +148,8 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = ldapFac.session(user, userPass)) {
-            List<String> groups = ldap.groups();
+        try (LdapSession ldap = session(ldapFac, user, userPass)) {
+            List<String> groups = groups(ldap);
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
@@ -158,8 +163,8 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, null);
 
         String user = "Horatio Hornblower";
-        try (LdapSession ldap = ldapFac.session(user, SecuredStringTests.build("pass"))) {
-            List<String> groups = ldap.groups();
+        try (LdapSession ldap = session(ldapFac, user, SecuredStringTests.build("pass"))) {
+            List<String> groups = groups(ldap);
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
@@ -175,8 +180,8 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = ldapFac.session(user, userPass)) {
-            List<String> groups = ldap.groups();
+        try (LdapSession ldap = session(ldapFac, user, userPass)) {
+            List<String> groups = groups(ldap);
             assertThat(groups.size(), is(1));
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }

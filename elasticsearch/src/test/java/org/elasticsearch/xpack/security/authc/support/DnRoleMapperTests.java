@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.security.authc.support;
 import com.unboundid.ldap.sdk.DN;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -101,12 +99,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         DnRoleMapper mapper = createMapper(file, watcherService);
-        mapper.addListener(new RefreshListener() {
-            @Override
-            public void onRefresh() {
-                latch.countDown();
-            }
-        });
+        mapper.addListener(latch::countDown);
 
         Set<String> roles = mapper.resolveRoles("", Collections.singletonList("cn=shield,ou=marvel,o=superheros"));
         assertThat(roles, notNullValue());
@@ -140,12 +133,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         DnRoleMapper mapper = createMapper(file, watcherService);
-        mapper.addListener(new RefreshListener() {
-            @Override
-            public void onRefresh() {
-                latch.countDown();
-            }
-        });
+        mapper.addListener(latch::countDown);
 
         Set<String> roles = mapper.resolveRoles("", Collections.singletonList("cn=shield,ou=marvel,o=superheros"));
         assertThat(roles, notNullValue());
@@ -246,7 +234,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
 
-        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
         Set<String> roles = mapper.resolveRoles("", Arrays.asList(STARK_GROUP_DNS));
 
@@ -260,7 +248,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
 
-        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
         Set<String> roles = mapper.resolveRoles("", Arrays.asList(STARK_GROUP_DNS));
         assertThat(roles, hasItems("genius", "billionaire", "playboy", "philanthropist", "shield", "avengers"));
@@ -274,7 +262,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .build();
         RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings, settings);
 
-        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
         Set<String> roles = mapper.resolveRoles("cn=Horatio Hornblower,ou=people,o=sevenSeas", Collections.<String>emptyList());
         assertThat(roles, hasItem("avenger"));
@@ -285,6 +273,6 @@ public class DnRoleMapperTests extends ESTestCase {
                 .put("files.role_mapping", file.toAbsolutePath())
                 .build();
         RealmConfig config = new RealmConfig("ad-group-mapper-test", realmSettings, settings, env);
-        return new DnRoleMapper(randomBoolean() ? ActiveDirectoryRealm.TYPE : LdapRealm.TYPE, config, watcherService, null);
+        return new DnRoleMapper(randomBoolean() ? LdapRealm.AD_TYPE : LdapRealm.LDAP_TYPE, config, watcherService, () -> {});
     }
 }

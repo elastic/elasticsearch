@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.support.Validation;
@@ -30,6 +29,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -47,20 +47,20 @@ public class FileUserPasswdStore {
     private final Path file;
     private final Hasher hasher = Hasher.BCRYPT;
     private final Settings settings;
+    private final CopyOnWriteArrayList<Runnable> listeners;
 
     private volatile Map<String, char[]> users;
 
-    private CopyOnWriteArrayList<RefreshListener> listeners;
-
     public FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService) {
-        this(config, watcherService, null);
+        this(config, watcherService, () -> {});
     }
 
-    FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, RefreshListener listener) {
+    FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
         logger = config.logger(FileUserPasswdStore.class);
         file = resolveFile(config.env());
         settings = config.globalSettings();
         users = parseFileLenient(file, logger, settings);
+        listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
@@ -68,14 +68,9 @@ public class FileUserPasswdStore {
         } catch (IOException e) {
             throw new ElasticsearchException("failed to start watching users file [{}]", e, file.toAbsolutePath());
         }
-
-        listeners = new CopyOnWriteArrayList<>();
-        if (listener != null) {
-            listeners.add(listener);
-        }
     }
 
-    public void addListener(RefreshListener listener) {
+    public void addListener(Runnable listener) {
         listeners.add(listener);
     }
 
@@ -175,10 +170,8 @@ public class FileUserPasswdStore {
         }
     }
 
-    public void notifyRefresh() {
-        for (RefreshListener listener : listeners) {
-            listener.onRefresh();
-        }
+    void notifyRefresh() {
+        listeners.forEach(Runnable::run);
     }
 
     private class FileListener implements FileChangesListener {

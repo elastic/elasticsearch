@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.authc.activedirectory;
+package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;

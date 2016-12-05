@@ -16,7 +16,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
@@ -90,12 +89,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
-        FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, new RefreshListener() {
-            @Override
-            public void onRefresh() {
-                latch.countDown();
-            }
-        });
+        FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
 
         assertThat(store.userExists("bcrypt"), is(true));
         assertThat(store.verifyPassword("bcrypt", SecuredStringTests.build("test123")), is(true));
@@ -130,12 +124,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
-        FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, new RefreshListener() {
-            @Override
-            public void onRefresh() {
-                latch.countDown();
-            }
-        });
+        FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
 
         assertTrue(store.verifyPassword("bcrypt", SecuredStringTests.build("test123")));
 

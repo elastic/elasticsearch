@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -54,12 +53,13 @@ public class DnRoleMapper {
     private final boolean useUnmappedGroupsAsRoles;
     private volatile Map<DN, Set<String>> dnRoles;
 
-    private CopyOnWriteArrayList<RefreshListener> listeners;
+    private CopyOnWriteArrayList<Runnable> listeners;
 
-    public DnRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
+    public DnRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
         this.realmType = realmType;
         this.config = config;
         this.logger = config.logger(getClass());
+        this.listeners = new CopyOnWriteArrayList<>(Collections.singleton(listener));
 
         useUnmappedGroupsAsRoles = config.settings().getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
         file = resolveFile(config.settings(), config.env());
@@ -71,13 +71,9 @@ public class DnRoleMapper {
         } catch (IOException e) {
             throw new ElasticsearchException("failed to start file watcher for role mapping file [" + file.toAbsolutePath() + "]", e);
         }
-        listeners = new CopyOnWriteArrayList<>();
-        if (listener != null) {
-            listeners.add(listener);
-        }
     }
 
-    public synchronized void addListener(RefreshListener listener) {
+    public synchronized void addListener(Runnable listener) {
         listeners.add(listener);
     }
 
@@ -186,9 +182,7 @@ public class DnRoleMapper {
     }
 
     public void notifyRefresh() {
-        for (RefreshListener listener : listeners) {
-            listener.onRefresh();
-        }
+        listeners.forEach(Runnable::run);
     }
 
     private class FileListener implements FileChangesListener {

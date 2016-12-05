@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -19,9 +20,8 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import javax.net.SocketFactory;
+import java.util.Arrays;
 import java.util.regex.Pattern;
-
-import static java.util.Arrays.asList;
 
 /**
  * This factory holds settings needed for authenticating to LDAP and creating LdapConnections.
@@ -77,28 +77,13 @@ public abstract class SessionFactory {
      *
      * @param user     The name of the user to authenticate the connection with.
      * @param password The password of the user
-     * @return LdapSession representing a connection to LDAP as the provided user
-     * @throws Exception if an error occurred when creating the session
+     * @param listener the listener to call on a failure or result
      */
-    public final LdapSession session(String user, SecuredString password) throws Exception {
-        return getSession(user, password);
-    }
-
-    /**
-     * Implementors should create a {@link LdapSession} that will be used to Authenticates the given user. This connection
-     * should be bound to the user (meaning, all operations under the returned connection will be executed on behalf of the authenticated
-     * user.
-     *
-     * @param user     The name of the user to authenticate the connection with.
-     * @param password The password of the user
-     * @return LdapSession representing a connection to LDAP as the provided user
-     * @throws Exception if an error occurred when creating the session
-     */
-    protected abstract LdapSession getSession(String user, SecuredString password) throws Exception;
+    public abstract void session(String user, SecuredString password, ActionListener<LdapSession> listener);
 
     /**
      * Returns a flag to indicate if this session factory supports unauthenticated sessions. This means that a session can
-     * be established without providing any credentials in a call to {@link SessionFactory#unauthenticatedSession(String)}
+     * be established without providing any credentials in a call to {@link #unauthenticatedSession(String, ActionListener)}
      *
      * @return true if the factory supports unauthenticated sessions
      */
@@ -110,10 +95,9 @@ public abstract class SessionFactory {
      * Returns an {@link LdapSession} for the user identified by the String parameter
      *
      * @param username the identifier for the user
-     * @return LdapSession representing a connection to LDAP for the provided user.
-     * @throws Exception if an error occurs when creating the session or unauthenticated sessions are not supported
+     * @param listener the listener to call on a failure or result
      */
-    public LdapSession unauthenticatedSession(String username) throws Exception {
+    public void unauthenticatedSession(String username, ActionListener<LdapSession> listener) {
         throw new UnsupportedOperationException("unauthenticated sessions are not supported");
     }
 
@@ -129,7 +113,7 @@ public abstract class SessionFactory {
         return options;
     }
 
-    protected final LDAPServers ldapServers(Settings settings) {
+    private LDAPServers ldapServers(Settings settings) {
         // Parse LDAP urls
         String[] ldapUrls = settings.getAsArray(URLS_SETTING, getDefaultLdapUrls(settings));
         if (ldapUrls == null || ldapUrls.length == 0) {
@@ -142,7 +126,7 @@ public abstract class SessionFactory {
         return null;
     }
 
-    protected ServerSet serverSet(Settings settings, SSLService clientSSLService, LDAPServers ldapServers) {
+    private ServerSet serverSet(Settings settings, SSLService clientSSLService, LDAPServers ldapServers) {
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
             socketFactory = clientSSLService.sslSocketFactory(settings.getByPrefix("ssl."));
@@ -159,6 +143,10 @@ public abstract class SessionFactory {
     // package private to use for testing
     ServerSet getServerSet() {
         return serverSet;
+    }
+
+    public boolean isSslUsed() {
+        return sslUsed;
     }
 
     public static class LDAPServers {
@@ -202,8 +190,8 @@ public abstract class SessionFactory {
                 return true;
             }
 
-            boolean allSecure = asList(ldapUrls).stream().allMatch(s -> STARTS_WITH_LDAPS.matcher(s).find());
-            boolean allClear = asList(ldapUrls).stream().allMatch(s -> STARTS_WITH_LDAP.matcher(s).find());
+            final boolean allSecure = Arrays.stream(ldapUrls).allMatch(s -> STARTS_WITH_LDAPS.matcher(s).find());
+            final boolean allClear = Arrays.stream(ldapUrls).allMatch(s -> STARTS_WITH_LDAP.matcher(s).find());
 
             if (!allSecure && !allClear) {
                 //No mixing is allowed because we use the same socketfactory

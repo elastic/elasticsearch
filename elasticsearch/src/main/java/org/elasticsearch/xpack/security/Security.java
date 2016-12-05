@@ -81,7 +81,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -232,7 +231,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool, ClusterService clusterService,
-                                               ResourceWatcherService resourceWatcherService, List<XPackExtension> extensions) {
+                                               ResourceWatcherService resourceWatcherService,
+                                               List<XPackExtension> extensions) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -248,9 +248,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         Map<String, Realm.Factory> realmFactories = new HashMap<>();
         realmFactories.put(FileRealm.TYPE, config -> new FileRealm(config, resourceWatcherService));
         realmFactories.put(NativeRealm.TYPE, config -> new NativeRealm(config, nativeUsersStore));
-        realmFactories.put(ActiveDirectoryRealm.TYPE,
-            config -> new ActiveDirectoryRealm(config, resourceWatcherService, sslService));
-        realmFactories.put(LdapRealm.TYPE, config -> new LdapRealm(config, resourceWatcherService, sslService));
+        realmFactories.put(LdapRealm.AD_TYPE,
+            config -> new LdapRealm(LdapRealm.AD_TYPE, config, resourceWatcherService, sslService, threadPool));
+        realmFactories.put(LdapRealm.LDAP_TYPE,
+                config -> new LdapRealm(LdapRealm.LDAP_TYPE, config, resourceWatcherService, sslService, threadPool));
         realmFactories.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService, sslService));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);

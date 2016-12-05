@@ -14,6 +14,7 @@ import java.io.IOException;
  */
 @Network
 public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
+
     @Override
     protected String configRoles() {
         return super.configRoles() +

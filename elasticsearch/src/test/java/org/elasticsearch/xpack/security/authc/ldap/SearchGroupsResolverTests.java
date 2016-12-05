@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
@@ -30,7 +31,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
@@ -45,7 +47,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
@@ -60,7 +63,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("Avengers")));
     }
 
@@ -72,7 +76,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, "uid=selvig,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, "uid=selvig,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
                 TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("Geniuses")));
     }
@@ -84,7 +89,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, "uid=selvig,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, "uid=selvig,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
                 TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("Geniuses")));
     }
@@ -107,8 +113,9 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("user_attribute", "uid").build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        assertThat(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE),
-                is("hulk"));
+        PlainActionFuture<String> future = new PlainActionFuture<>();
+        resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), future);
+        assertThat(future.actionGet(), is("hulk"));
     }
 
     public void testReadUserAttributeCn() throws Exception {
@@ -117,8 +124,10 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .put("user_attribute", "cn")
                 .build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        assertThat(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE),
-                is("Bruce Banner"));
+
+        PlainActionFuture<String> future = new PlainActionFuture<>();
+        resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), future);
+        assertThat(future.actionGet(), is("Bruce Banner"));
     }
 
     public void testReadNonExistentUserAttribute() throws Exception {
@@ -127,7 +136,10 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .put("user_attribute", "doesntExists")
                 .build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        assertNull(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE));
+
+        PlainActionFuture<String> future = new PlainActionFuture<>();
+        resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), future);
+        assertNull(future.actionGet());
     }
 
     public void testReadBinaryUserAttribute() throws Exception {
@@ -136,7 +148,10 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .put("user_attribute", "userPassword")
                 .build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        String attribute = resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
+
+        PlainActionFuture<String> future = new PlainActionFuture<>();
+        resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), future);
+        String attribute = future.actionGet();
         assertThat(attribute, is(notNullValue()));
     }
 

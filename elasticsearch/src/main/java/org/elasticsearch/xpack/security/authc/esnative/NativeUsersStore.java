@@ -12,7 +12,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -61,8 +60,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -166,38 +163,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 listener.onFailure(e);
             }
         }
-    }
-
-    /**
-     * Blocking method to get the user and their password hash
-     */
-    private UserAndPassword getUserAndPassword(final String username) {
-        final AtomicReference<UserAndPassword> userRef = new AtomicReference<>(null);
-        final CountDownLatch latch = new CountDownLatch(1);
-        getUserAndPassword(username, new LatchedActionListener<>(new ActionListener<UserAndPassword>() {
-            @Override
-            public void onResponse(UserAndPassword user) {
-                userRef.set(user);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                if (t instanceof IndexNotFoundException) {
-                    logger.trace(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to retrieve user [{}] since security index does not exist", username), t);
-                } else {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve user [{}]", username), t);
-                }
-            }
-        }, latch));
-        try {
-            latch.await(30, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            logger.error("timed out retrieving user [{}]", username);
-            return null;
-        }
-        return userRef.get();
     }
 
     /**

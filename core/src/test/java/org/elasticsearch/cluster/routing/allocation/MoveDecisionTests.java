@@ -40,30 +40,26 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testCachedDecisions() {
         // cached stay decision
-        MoveDecision stay1 = MoveDecision.stay(null, null);
-        MoveDecision stay2 = MoveDecision.stay(null, null);
+        MoveDecision stay1 = MoveDecision.stay(null);
+        MoveDecision stay2 = MoveDecision.stay(null);
         assertSame(stay1, stay2); // not in explain mode, so should use cached decision
-        DiscoveryNode discoveryNode = randomBoolean() ? randomDiscoveryNode() : null;
-        stay1 = MoveDecision.stay(discoveryNode, Decision.YES);
-        stay2 = MoveDecision.stay(discoveryNode, Decision.YES);
+        stay1 = MoveDecision.stay(Decision.YES);
+        stay2 = MoveDecision.stay(Decision.YES);
         assertNotSame(stay1, stay2);
 
         // cached cannot move decision
-        discoveryNode = randomBoolean() ? randomDiscoveryNode() : null;
-        stay1 = MoveDecision.cannotRemain(discoveryNode, Decision.NO, Type.NO, null, null);
-        stay2 = MoveDecision.cannotRemain(discoveryNode, Decision.NO, Type.NO, null, null);
+        stay1 = MoveDecision.cannotRemain(Decision.NO, Type.NO, null, null);
+        stay2 = MoveDecision.cannotRemain(Decision.NO, Type.NO, null, null);
         assertSame(stay1, stay2);
         // final decision is YES, so shouldn't use cached decision
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        discoveryNode = randomDiscoveryNode();
-        stay1 = MoveDecision.cannotRemain(discoveryNode, Decision.NO, Type.YES, node1, null);
-        stay2 = MoveDecision.cannotRemain(discoveryNode, Decision.NO, Type.YES, node1, null);
+        stay1 = MoveDecision.cannotRemain(Decision.NO, Type.YES, node1, null);
+        stay2 = MoveDecision.cannotRemain(Decision.NO, Type.YES, node1, null);
         assertNotSame(stay1, stay2);
         assertEquals(stay1.getTargetNode(), stay2.getTargetNode());
         // final decision is NO, but in explain mode, so shouldn't use cached decision
-        discoveryNode = randomDiscoveryNode();
-        stay1 = MoveDecision.cannotRemain(discoveryNode, Decision.NO, Type.NO, null, new ArrayList<>());
-        stay2 = MoveDecision.cannotRemain(discoveryNode, Decision.NO, Type.NO, null, new ArrayList<>());
+        stay1 = MoveDecision.cannotRemain(Decision.NO, Type.NO, null, new ArrayList<>());
+        stay2 = MoveDecision.cannotRemain(Decision.NO, Type.NO, null, new ArrayList<>());
         assertNotSame(stay1, stay2);
         assertSame(stay1.getDecisionType(), stay2.getDecisionType());
         assertNotNull(stay1.getExplanation());
@@ -71,24 +67,21 @@ public class MoveDecisionTests extends ESTestCase {
     }
 
     public void testStayDecision() {
-        DiscoveryNode currentNode = randomDiscoveryNode();
-        MoveDecision stay = MoveDecision.stay(currentNode, Decision.YES);
+        MoveDecision stay = MoveDecision.stay(Decision.YES);
         assertFalse(stay.cannotRemain());
         assertFalse(stay.forceMove());
         assertTrue(stay.isDecisionTaken());
         assertNull(stay.getNodeDecisions());
         assertNotNull(stay.getExplanation());
         assertEquals(Type.NO, stay.getDecisionType());
-        assertEquals(currentNode, stay.getCurrentNode());
 
-        stay = MoveDecision.stay(currentNode, Decision.YES);
+        stay = MoveDecision.stay(Decision.YES);
         assertFalse(stay.cannotRemain());
         assertFalse(stay.forceMove());
         assertTrue(stay.isDecisionTaken());
         assertNull(stay.getNodeDecisions());
         assertEquals("can remain on its current node", stay.getExplanation());
         assertEquals(Type.NO, stay.getDecisionType());
-        assertEquals(currentNode, stay.getCurrentNode());
     }
 
     public void testDecisionWithNodeExplanations() {
@@ -98,17 +91,15 @@ public class MoveDecisionTests extends ESTestCase {
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
         nodeDecisions.add(new NodeAllocationResult(node1, nodeDecision, 2));
         nodeDecisions.add(new NodeAllocationResult(node2, nodeDecision, 1));
-        DiscoveryNode currentNode = randomDiscoveryNode();
-        MoveDecision decision = MoveDecision.cannotRemain(currentNode, Decision.NO, Type.NO, null, nodeDecisions);
+        MoveDecision decision = MoveDecision.cannotRemain(Decision.NO, Type.NO, null, nodeDecisions);
         assertNotNull(decision.getDecisionType());
         assertNotNull(decision.getExplanation());
         assertNotNull(decision.getNodeDecisions());
         assertEquals(2, decision.getNodeDecisions().size());
-        assertEquals(currentNode, decision.getCurrentNode());
         // both nodes have the same decision type but node2 has a higher weight ranking, so node2 comes first
         assertEquals("node2", decision.getNodeDecisions().iterator().next().getNode().getId());
 
-        decision = MoveDecision.cannotRemain(currentNode, Decision.NO, Type.YES, node2, null);
+        decision = MoveDecision.cannotRemain(Decision.NO, Type.YES, node2, null);
         assertEquals("node2", decision.getTargetNode().getId());
     }
 
@@ -121,8 +112,7 @@ public class MoveDecisionTests extends ESTestCase {
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
         nodeDecisions.add(new NodeAllocationResult(node2, finalDecision == Type.YES ? Decision.YES :
                                                               randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
-        MoveDecision moveDecision = MoveDecision.cannotRemain(
-            randomDiscoveryNode(), Decision.NO, finalDecision, assignedNode, nodeDecisions);
+        MoveDecision moveDecision = MoveDecision.cannotRemain(Decision.NO, finalDecision, assignedNode, nodeDecisions);
         BytesStreamOutput output = new BytesStreamOutput();
         moveDecision.writeTo(output);
         MoveDecision readDecision = new MoveDecision(output.bytes().streamInput());
@@ -132,12 +122,8 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(moveDecision.getNodeDecisions().size(), readDecision.getNodeDecisions().size());
         assertEquals(moveDecision.getTargetNode(), readDecision.getTargetNode());
         assertEquals(moveDecision.getDecisionType(), readDecision.getDecisionType());
-        assertEquals(moveDecision.getCurrentNode(), readDecision.getCurrentNode());
         // node2 should have the highest sort order
         assertEquals("node2", readDecision.getNodeDecisions().iterator().next().getNode().getId());
     }
 
-    private static DiscoveryNode randomDiscoveryNode() {
-        return new DiscoveryNode("randomNode", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-    }
 }

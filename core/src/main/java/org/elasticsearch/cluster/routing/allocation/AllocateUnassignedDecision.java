@@ -297,16 +297,4 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         out.writeVLong(configuredDelayInMillis);
     }
 
-    private boolean atLeastOneNodeWithYesDecision() {
-        if (nodeDecisions == null) {
-            return false;
-        }
-        for (NodeAllocationResult result : nodeDecisions) {
-            if (result.getNodeDecisionType() == Type.YES) {
-                return true;
-            }
-        }
-        return false;
-    }
-
 }

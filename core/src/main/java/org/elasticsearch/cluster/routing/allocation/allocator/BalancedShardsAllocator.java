@@ -434,10 +434,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                return MoveDecision.cannotRebalance(currentNode.routingNode.node(), canRebalance, currentNodeWeightRanking,
+                return MoveDecision.cannotRebalance(canRebalance, currentNodeWeightRanking,
                     nodeDecisions, allocation.hasPendingAsyncFetch());
             } else {
-                return MoveDecision.rebalance(currentNode.routingNode.node(), canRebalance, rebalanceDecisionType,
+                return MoveDecision.rebalance(canRebalance, rebalanceDecisionType,
                     assignedNode != null ? assignedNode.routingNode.node() : null, currentNodeWeightRanking, nodeDecisions);
             }
         }
@@ -681,7 +681,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
             if (canRemain.type() != Decision.Type.NO) {
-                return MoveDecision.stay(sourceNode.routingNode.node(), canRemain);
+                return MoveDecision.stay(canRemain);
             }
 
             sorter.reset(shardRouting.getIndexName());
@@ -719,8 +719,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
             }
 
-            return MoveDecision.cannotRemain(sourceNode.routingNode.node(), canRemain, bestDecision,
-                targetNode != null ? targetNode.node() : null, nodeExplanationMap);
+            return MoveDecision.cannotRemain(canRemain, bestDecision, targetNode != null ? targetNode.node() : null, nodeExplanationMap);
         }
 
         /**

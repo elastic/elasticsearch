@@ -169,4 +169,19 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
         return builder;
     }
 
+    /**
+     * Returns {@code true} if there is at least one node that returned a {@link Type#YES} decision for allocating this shard.
+     */
+    protected boolean atLeastOneNodeWithYesDecision() {
+        if (nodeDecisions == null) {
+            return false;
+        }
+        for (NodeAllocationResult result : nodeDecisions) {
+            if (result.getNodeDecisionType() == Type.YES) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

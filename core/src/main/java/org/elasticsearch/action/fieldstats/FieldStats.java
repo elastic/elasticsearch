@@ -55,9 +55,12 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
      * Builds a FieldStats where min and max value are not available for the field.
      * @param type The native type of this FieldStats
      * @param maxDoc Max number of docs
-     * @param docCount  the number of documents that have at least one term for this field, or -1 if this information isn't available for this field.
-     * @param sumDocFreq  the sum of {@link TermsEnum#docFreq()} for all terms in this field, or -1 if this information isn't available for this field.
-     * @param sumTotalTermFreq the sum of {@link TermsEnum#totalTermFreq} for all terms in this field, or -1 if this measure isn't available for this field.
+     * @param docCount  the number of documents that have at least one term for this field,
+     *                  or -1 if this information isn't available for this field.
+     * @param sumDocFreq  the sum of {@link TermsEnum#docFreq()} for all terms in this field,
+     *                    or -1 if this information isn't available for this field.
+     * @param sumTotalTermFreq the sum of {@link TermsEnum#totalTermFreq} for all terms in this field,
+     *                         or -1 if this measure isn't available for this field.
      * @param isSearchable true if this field is searchable
      * @param isAggregatable true if this field is aggregatable
      */
@@ -77,9 +80,12 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
      * Builds a FieldStats with min and max value for the field.
      * @param type The native type of this FieldStats
      * @param maxDoc Max number of docs
-     * @param docCount  the number of documents that have at least one term for this field, or -1 if this information isn't available for this field.
-     * @param sumDocFreq  the sum of {@link TermsEnum#docFreq()} for all terms in this field, or -1 if this information isn't available for this field.
-     * @param sumTotalTermFreq the sum of {@link TermsEnum#totalTermFreq} for all terms in this field, or -1 if this measure isn't available for this field.
+     * @param docCount  the number of documents that have at least one term for this field,
+     *                  or -1 if this information isn't available for this field.
+     * @param sumDocFreq  the sum of {@link TermsEnum#docFreq()} for all terms in this field,
+     *                    or -1 if this information isn't available for this field.
+     * @param sumTotalTermFreq the sum of {@link TermsEnum#totalTermFreq} for all terms in this field,
+     *                         or -1 if this measure isn't available for this field.
      * @param isSearchable true if this field is searchable
      * @param isAggregatable true if this field is aggregatable
      * @param minValue the minimum value indexed in this field
@@ -720,5 +726,4 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
     private static final String MIN_VALUE_AS_STRING_FIELD = "min_value_as_string";
     private static final String MAX_VALUE_FIELD = "max_value";
     private static final String MAX_VALUE_AS_STRING_FIELD = "max_value_as_string";
-
 }

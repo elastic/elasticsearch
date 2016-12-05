@@ -602,7 +602,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testSerialization() throws IOException {
-        for (Version version : new Version[] {Version.CURRENT, Version.V_5_1_0_UNRELEASED}){
+        for (Version version : new Version[] {Version.CURRENT, Version.V_5_0_1}){
             for (int i = 0; i < 20; i++) {
                 assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0_UNRELEASED)), version);
             }

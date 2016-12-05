@@ -63,7 +63,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -303,12 +302,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
             if (!filteredValues.isEmpty()) {
                 // Make the list order deterministic
-                CollectionUtil.timSort(filteredValues, new Comparator<AliasMetaData>() {
-                    @Override
-                    public int compare(AliasMetaData o1, AliasMetaData o2) {
-                        return o1.alias().compareTo(o2.alias());
-                    }
-                });
+                CollectionUtil.timSort(filteredValues, (o1, o2) -> o1.alias().compareTo(o2.alias()));
                 mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
         }

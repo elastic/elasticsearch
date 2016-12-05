@@ -29,7 +29,6 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -187,18 +186,15 @@ public class HotThreads {
         List<MyThreadInfo> hotties = new ArrayList<>(threadInfos.values());
         final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
         // skip that for now
-        CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
-            @Override
-            public int compare(MyThreadInfo o1, MyThreadInfo o2) {
-                if ("cpu".equals(type)) {
-                    return (int) (o2.cpuTime - o1.cpuTime);
-                } else if ("wait".equals(type)) {
-                    return (int) (o2.waitedTime - o1.waitedTime);
-                } else if ("block".equals(type)) {
-                    return (int) (o2.blockedTime - o1.blockedTime);
-                }
-                throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
+        CollectionUtil.introSort(hotties, (o1, o2) -> {
+            if ("cpu".equals(type)) {
+                return (int) (o2.cpuTime - o1.cpuTime);
+            } else if ("wait".equals(type)) {
+                return (int) (o2.waitedTime - o1.waitedTime);
+            } else if ("block".equals(type)) {
+                return (int) (o2.blockedTime - o1.blockedTime);
             }
+            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
         });
         // analyse N stack traces for M busiest threads
         long[] ids = new long[busiestThreads];

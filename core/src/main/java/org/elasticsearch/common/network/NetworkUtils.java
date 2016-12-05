@@ -30,7 +30,6 @@ import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -103,38 +102,30 @@ public abstract class NetworkUtils {
         return key;
     }
 
-    /** 
+    /**
      * Sorts addresses by order of preference. This is used to pick the first one for publishing
      * @deprecated remove this when multihoming is really correct
      */
     @Deprecated
     // only public because of silly multicast
     public static void sortAddresses(List<InetAddress> list) {
-        Collections.sort(list, new Comparator<InetAddress>() {
-            @Override
-            public int compare(InetAddress left, InetAddress right) {
-                int cmp = Integer.compare(sortKey(left, PREFER_V6), sortKey(right, PREFER_V6));
-                if (cmp == 0) {
-                    cmp = new BytesRef(left.getAddress()).compareTo(new BytesRef(right.getAddress()));
-                }
-                return cmp;
+        Collections.sort(list, (left, right) -> {
+            int cmp = Integer.compare(sortKey(left, PREFER_V6), sortKey(right, PREFER_V6));
+            if (cmp == 0) {
+                cmp = new BytesRef(left.getAddress()).compareTo(new BytesRef(right.getAddress()));
             }
+            return cmp;
         });
     }
-    
+
     /** Return all interfaces (and subinterfaces) on the system */
     static List<NetworkInterface> getInterfaces() throws SocketException {
         List<NetworkInterface> all = new ArrayList<>();
         addAllInterfaces(all, Collections.list(NetworkInterface.getNetworkInterfaces()));
-        Collections.sort(all, new Comparator<NetworkInterface>() {
-            @Override
-            public int compare(NetworkInterface left, NetworkInterface right) {
-                return Integer.compare(left.getIndex(), right.getIndex());
-            }
-        });
+        Collections.sort(all, (left, right) -> Integer.compare(left.getIndex(), right.getIndex()));
         return all;
     }
-    
+
     /** Helper for getInterfaces, recursively adds subinterfaces to {@code target} */
     private static void addAllInterfaces(List<NetworkInterface> target, List<NetworkInterface> level) {
         if (!level.isEmpty()) {

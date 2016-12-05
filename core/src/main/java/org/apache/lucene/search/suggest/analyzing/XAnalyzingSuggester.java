@@ -1076,12 +1076,7 @@ public long ramBytesUsed() {
     return Integer.MAX_VALUE - (int)value;
   }
 
-  static final Comparator<Pair<Long,BytesRef>> weightComparator = new Comparator<Pair<Long,BytesRef>> () {
-    @Override
-    public int compare(Pair<Long,BytesRef> left, Pair<Long,BytesRef> right) {
-      return left.output1.compareTo(right.output1);
-    }
-  };
+  static final Comparator<Pair<Long,BytesRef>> weightComparator = (left, right) -> left.output1.compareTo(right.output1);
 
 
     public static class XBuilder {

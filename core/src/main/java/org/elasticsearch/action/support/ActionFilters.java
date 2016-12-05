@@ -22,7 +22,6 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.common.inject.Inject;
 
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Set;
 
 /**
@@ -35,12 +34,7 @@ public class ActionFilters {
     @Inject
     public ActionFilters(Set<ActionFilter> actionFilters) {
         this.filters = actionFilters.toArray(new ActionFilter[actionFilters.size()]);
-        Arrays.sort(filters, new Comparator<ActionFilter>() {
-            @Override
-            public int compare(ActionFilter o1, ActionFilter o2) {
-                return Integer.compare(o1.order(), o2.order());
-            }
-        });
+        Arrays.sort(filters, (o1, o2) -> Integer.compare(o1.order(), o2.order()));
     }
 
     /**

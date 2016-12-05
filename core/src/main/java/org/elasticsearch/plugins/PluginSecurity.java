@@ -35,7 +35,6 @@ import java.security.Policy;
 import java.security.URIParameter;
 import java.security.UnresolvedPermission;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 class PluginSecurity {
@@ -52,34 +51,31 @@ class PluginSecurity {
         }
 
         // sort permissions in a reasonable order
-        Collections.sort(requested, new Comparator<Permission>() {
-            @Override
-            public int compare(Permission o1, Permission o2) {
-                int cmp = o1.getClass().getName().compareTo(o2.getClass().getName());
-                if (cmp == 0) {
-                    String name1 = o1.getName();
-                    String name2 = o2.getName();
-                    if (name1 == null) {
-                        name1 = "";
-                    }
-                    if (name2 == null) {
-                        name2 = "";
-                    }
-                    cmp = name1.compareTo(name2);
-                    if (cmp == 0) {
-                        String actions1 = o1.getActions();
-                        String actions2 = o2.getActions();
-                        if (actions1 == null) {
-                            actions1 = "";
-                        }
-                        if (actions2 == null) {
-                            actions2 = "";
-                        }
-                        cmp = actions1.compareTo(actions2);
-                    }
+        Collections.sort(requested, (o1, o2) -> {
+            int cmp = o1.getClass().getName().compareTo(o2.getClass().getName());
+            if (cmp == 0) {
+                String name1 = o1.getName();
+                String name2 = o2.getName();
+                if (name1 == null) {
+                    name1 = "";
                 }
-                return cmp;
+                if (name2 == null) {
+                    name2 = "";
+                }
+                cmp = name1.compareTo(name2);
+                if (cmp == 0) {
+                    String actions1 = o1.getActions();
+                    String actions2 = o2.getActions();
+                    if (actions1 == null) {
+                        actions1 = "";
+                    }
+                    if (actions2 == null) {
+                        actions2 = "";
+                    }
+                    cmp = actions1.compareTo(actions2);
+                }
             }
+            return cmp;
         });
 
         terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");

@@ -42,9 +42,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -53,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -62,9 +58,7 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 
-import static org.elasticsearch.percolator.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
@@ -77,11 +71,12 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.elasticsearch.percolator.PercolateSourceBuilder.docBuilder;
+import static org.elasticsearch.percolator.PercolatorTestUtil.assertMatchCount;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
+import static org.elasticsearch.percolator.PercolatorTestUtil.preparePercolate;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.percolator.PercolatorTestUtil.assertMatchCount;
-import static org.elasticsearch.percolator.PercolatorTestUtil.preparePercolate;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -1302,12 +1297,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(response.getMatches(), INDEX_NAME), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
         matches = response.getMatches();
-        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
-            @Override
-            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
-                return a.getId().compareTo(b.getId());
-            }
-        });
+        Arrays.sort(matches, (a, b) -> a.getId().compareTo(b.getId()));
 
         assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));
         assertThat(matches[1].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"));
@@ -1329,12 +1319,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(response.getMatches(), INDEX_NAME), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
         matches = response.getMatches();
-        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
-            @Override
-            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
-                return a.getId().compareTo(b.getId());
-            }
-        });
+        Arrays.sort(matches, (a, b) -> a.getId().compareTo(b.getId()));
 
         assertThat(matches[0].getScore(), equalTo(5.5f));
         assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));
@@ -1361,12 +1346,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(response.getMatches(), INDEX_NAME), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
         matches = response.getMatches();
-        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
-            @Override
-            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
-                return a.getId().compareTo(b.getId());
-            }
-        });
+        Arrays.sort(matches, (a, b) -> a.getId().compareTo(b.getId()));
 
         assertThat(matches[0].getScore(), equalTo(5.5f));
         assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));
@@ -1393,12 +1373,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(response.getMatches(), INDEX_NAME), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
         matches = response.getMatches();
-        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
-            @Override
-            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
-                return a.getId().compareTo(b.getId());
-            }
-        });
+        Arrays.sort(matches, (a, b) -> a.getId().compareTo(b.getId()));
 
         assertThat(matches[0].getScore(), equalTo(5.5f));
         assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
@@ -1431,12 +1406,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(response.getMatches(), INDEX_NAME), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
         matches = response.getMatches();
-        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
-            @Override
-            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
-                return a.getId().compareTo(b.getId());
-            }
-        });
+        Arrays.sort(matches, (a, b) -> a.getId().compareTo(b.getId()));
 
         assertThat(matches[0].getScore(), equalTo(5.5f));
         assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));

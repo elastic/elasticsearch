@@ -64,7 +64,7 @@ public class ValueSourceMustacheIT extends AbstractScriptTestCase {
     }
 
     public void testAccessSourceViaTemplate() {
-        IngestDocument ingestDocument = new IngestDocument("marvel", "type", "id", null, null, null, null, new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument("marvel", "type", "id", null, null, new HashMap<>());
         assertThat(ingestDocument.hasField("marvel"), is(false));
         ingestDocument.setFieldValue(templateService.compile("{{_index}}"), ValueSource.wrap("{{_index}}", templateService));
         assertThat(ingestDocument.getFieldValue("marvel", String.class), equalTo("marvel"));

@@ -162,6 +162,7 @@ final class BootstrapCheck {
         }
         checks.add(new ClientJvmCheck());
         checks.add(new UseSerialGCCheck());
+        checks.add(new SystemCallFilterCheck(BootstrapSettings.SECCOMP_SETTING.get(settings)));
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new G1GCCheck());
@@ -466,6 +467,35 @@ final class BootstrapCheck {
                 "JVM is using the serial collector but should not be for the best performance; " +
                     "either it's the default for the VM [%s] or -XX:+UseSerialGC was explicitly specified",
                 JvmInfo.jvmInfo().getVmName());
+        }
+
+    }
+
+    /**
+     * Bootstrap check that if system call filters are enabled, then system call filters must have installed successfully.
+     */
+    static class SystemCallFilterCheck implements BootstrapCheck.Check {
+
+        private final boolean areSystemCallFiltersEnabled;
+
+        SystemCallFilterCheck(final boolean areSystemCallFiltersEnabled) {
+            this.areSystemCallFiltersEnabled = areSystemCallFiltersEnabled;
+        }
+
+        @Override
+        public boolean check() {
+            return areSystemCallFiltersEnabled && !isSeccompInstalled();
+        }
+
+        // visible for testing
+        boolean isSeccompInstalled() {
+            return Natives.isSeccompInstalled();
+        }
+
+        @Override
+        public String errorMessage() {
+            return "system call filters failed to install; " +
+                "check the logs and fix your configuration or disable system call filters at your own risk";
         }
 
     }

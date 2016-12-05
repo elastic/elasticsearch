@@ -98,7 +98,6 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -118,7 +117,6 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtRegistry;
@@ -347,7 +345,7 @@ public class Node implements Closeable {
             SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
             ActionModule actionModule = new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
                 clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
-                pluginsService.filterPlugins(ActionPlugin.class));
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
@@ -542,13 +540,11 @@ public class Node implements Closeable {
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
-        injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
-        injector.getInstance(RestController.class).start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -666,14 +662,12 @@ public class Node implements Closeable {
         // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
         injector.getInstance(Discovery.class).stop();
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
-        injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
@@ -717,7 +711,6 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
         toClose.add(injector.getInstance(IndicesClusterStateService.class));
         toClose.add(() -> stopWatch.stop().start("indices"));
-        toClose.add(injector.getInstance(IndicesTTLService.class));
         toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
@@ -735,8 +728,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));
         toClose.add(injector.getInstance(SearchService.class));
-        toClose.add(() -> stopWatch.stop().start("rest"));
-        toClose.add(injector.getInstance(RestController.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
 

@@ -19,14 +19,16 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -37,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 public class MembershipAction extends AbstractComponent {
 
@@ -58,21 +61,20 @@ public class MembershipAction extends AbstractComponent {
 
     private final TransportService transportService;
 
-    private final DiscoveryNodesProvider nodesProvider;
-
     private final MembershipListener listener;
 
     public MembershipAction(Settings settings, TransportService transportService,
-                            DiscoveryNodesProvider nodesProvider, MembershipListener listener) {
+                            Supplier<DiscoveryNode> localNodeSupplier, MembershipListener listener) {
         super(settings);
         this.transportService = transportService;
-        this.nodesProvider = nodesProvider;
         this.listener = listener;
+
 
         transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest::new,
             ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
-        transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, ValidateJoinRequest::new,
-            ThreadPool.Names.GENERIC, new ValidateJoinRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
+            () -> new ValidateJoinRequest(localNodeSupplier), ThreadPool.Names.GENERIC,
+            new ValidateJoinRequestRequestHandler());
         transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest::new,
             ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
     }
@@ -152,20 +154,23 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    class ValidateJoinRequest extends TransportRequest {
+    static class ValidateJoinRequest extends TransportRequest {
+        private final Supplier<DiscoveryNode> localNode;
         private ClusterState state;
 
-        ValidateJoinRequest() {
+        ValidateJoinRequest(Supplier<DiscoveryNode> localNode) {
+            this.localNode = localNode;
         }
 
         ValidateJoinRequest(ClusterState state) {
             this.state = state;
+            this.localNode = state.nodes()::getLocalNode;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.state = ClusterState.Builder.readFrom(in, nodesProvider.nodes().getLocalNode());
+            this.state = ClusterState.Builder.readFrom(in, localNode.get());
         }
 
         @Override
@@ -175,12 +180,28 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    class ValidateJoinRequestRequestHandler implements TransportRequestHandler<ValidateJoinRequest> {
+    static class ValidateJoinRequestRequestHandler implements TransportRequestHandler<ValidateJoinRequest> {
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
+            ensureIndexCompatibility(Version.CURRENT.minimumIndexCompatibilityVersion(), request.state.getMetaData());
             // for now, the mere fact that we can serialize the cluster state acts as validation....
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    /**
+     * Ensures that all indices are compatible with the supported index version.
+     * @throws IllegalStateException if any index is incompatible with the given version
+     */
+    static void ensureIndexCompatibility(final Version supportedIndexVersion, MetaData metaData) {
+        // we ensure that all indices in the cluster we join are compatible with us no matter if they are
+        // closed or not we can't read mappings of these indices so we need to reject the join...
+        for (IndexMetaData idxMetaData : metaData) {
+            if (idxMetaData.getCreationVersion().before(supportedIndexVersion)) {
+                throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
+                    + idxMetaData.getCreationVersion() + " minimum compatible index version is: " + supportedIndexVersion);
+            }
         }
     }
 

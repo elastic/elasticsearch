@@ -25,10 +25,10 @@ You can use it then with:
 --------------------------------------------------
 QueryBuilder qb = scriptQuery(
     new Script(
-        "myscript",                          <1>
-        ScriptType.FILE,       <2>
-        "painless",                          <3>
-        ImmutableMap.of("param1", 5))        <4>
+        "myscript",                            <1>
+        ScriptType.FILE,                       <2>
+        "painless",                            <3>
+        Collections.singletonMap("param1", 5)) <4>
 );
 --------------------------------------------------
 <1> Script name

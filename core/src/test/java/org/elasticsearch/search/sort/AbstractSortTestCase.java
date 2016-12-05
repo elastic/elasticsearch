@@ -39,9 +39,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -227,11 +227,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     /**
-     * Return a field type. We use {@link DoubleFieldType} by default since it is compatible with all sort modes
+     * Return a field type. We use {@link NumberFieldMapper.NumberFieldType} by default since it is compatible with all sort modes
      * Tests that require other field type than double can override this.
      */
     protected MappedFieldType provideMappedFieldType(String name) {
-        DoubleFieldType doubleFieldType = new DoubleFieldType();
+        NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         doubleFieldType.setName(name);
         doubleFieldType.setHasDocValues(true);
         return doubleFieldType;

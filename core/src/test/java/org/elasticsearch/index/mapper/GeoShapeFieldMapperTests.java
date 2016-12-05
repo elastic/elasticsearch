@@ -451,16 +451,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type1", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // before 5.x
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        DocumentMapperParser parser2x = createIndex("test_old", oldIndexSettings).mapperService().documentMapperParser();
-
-        e = expectThrows(IllegalArgumentException.class,
-            () -> parser2x.parse("type1", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("fieldName is required"));
     }
 
 }

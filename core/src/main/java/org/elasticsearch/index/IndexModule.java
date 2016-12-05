@@ -295,9 +295,7 @@ public final class IndexModule {
         NIOFS,
         MMAPFS,
         SIMPLEFS,
-        FS,
-        @Deprecated
-        DEFAULT;
+        FS;
 
         public String getSettingsKey() {
             return this.name().toLowerCase(Locale.ROOT);

@@ -1,5 +1,6 @@
 {
   "template" : "logstash-*",
+  "version" : 50001,
   "settings" : {
     "index.refresh_interval" : "5s"
   },
@@ -8,11 +9,11 @@
       "_all" : {"enabled" : true, "norms" : false},
       "dynamic_templates" : [ {
         "message_field" : {
-          "match" : "message",
+          "path_match" : "message",
           "match_mapping_type" : "string",
           "mapping" : {
-            "type" : "string", "index" : "analyzed", "norms" : false,
-            "fielddata" : { "format" : "disabled" }
+            "type" : "text",
+            "norms" : false
           }
         }
       }, {

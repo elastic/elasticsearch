@@ -2798,7 +2798,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .field("type", "geo_point")
             .endObject()
             .startObject("jd")
-            .field("type", "string")
+            .field("type", "text")
             .endObject()
             .endObject()
             .endObject();
@@ -2849,35 +2849,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertThat(search.getHits().totalHits(), equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(),
                 equalTo("<em>some text</em>"));
-    }
-
-    public void testStringFieldHighlighting() throws IOException {
-        // check that string field highlighting on old indexes works
-        XContentBuilder mappings = jsonBuilder();
-        mappings.startObject();
-        mappings.startObject("type")
-            .startObject("properties")
-            .startObject("string_field")
-            .field("type", "string")
-            .endObject()
-            .endObject()
-            .endObject();
-        mappings.endObject();
-        assertAcked(prepareCreate("test")
-            .addMapping("type", mappings)
-        .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_2)));
-
-        client().prepareIndex("test", "type", "1")
-            .setSource(jsonBuilder().startObject().field("string_field", "some text").endObject())
-            .get();
-        refresh();
-        SearchResponse search = client().prepareSearch().setSource(new SearchSourceBuilder()
-            .query(QueryBuilders.matchQuery("string_field", "some text"))
-            .highlighter(new HighlightBuilder().field("*"))).get();
-        assertNoFailures(search);
-        assertThat(search.getHits().totalHits(), equalTo(1L));
-        assertThat(search.getHits().getAt(0).getHighlightFields().get("string_field").getFragments()[0].string(),
-                equalTo("<em>some</em> <em>text</em>"));
     }
 
     public void testACopyFieldWithNestedQuery() throws Exception {

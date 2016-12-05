@@ -66,20 +66,21 @@ public class RestGetMappingAction extends BaseRestHandler {
         return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetMappingsResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
+
                 ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
                 if (mappingsByIndex.isEmpty()) {
                     if (indices.length != 0 && types.length != 0) {
-                        return new BytesRestResponse(OK, builder.endObject());
+                        return new BytesRestResponse(OK, builder.startObject().endObject());
                     } else if (indices.length != 0) {
                         return new BytesRestResponse(channel, new IndexNotFoundException(indices[0]));
                     } else if (types.length != 0) {
                         return new BytesRestResponse(channel, new TypeMissingException("_all", types[0]));
                     } else {
-                        return new BytesRestResponse(OK, builder.endObject());
+                        return new BytesRestResponse(OK, builder.startObject().endObject());
                     }
                 }
 
+                builder.startObject();
                 for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
                     if (indexEntry.value.isEmpty()) {
                         continue;

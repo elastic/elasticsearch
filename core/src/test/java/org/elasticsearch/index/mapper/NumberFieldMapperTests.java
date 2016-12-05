@@ -328,4 +328,18 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertFalse(dvField.fieldType().stored());
     }
+
+    public void testEmptyName() throws IOException {
+        // after version 5
+        for (String type : TYPES) {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("").field("type", type).endObject().endObject()
+                .endObject().endObject().string();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping))
+            );
+            assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        }
+    }
 }

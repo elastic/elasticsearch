@@ -19,6 +19,8 @@
 
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -112,7 +114,13 @@ public class HttpServer extends AbstractLifecycleComponent implements HttpServer
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
             restController.dispatchRequest(request, responseChannel, client, threadContext);
         } catch (Exception e) {
-            restController.sendErrorResponse(request, responseChannel, e);
+            try {
+                responseChannel.sendResponse(new BytesRestResponse(channel, e));
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.error((Supplier<?>) () ->
+                    new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+            }
         }
     }
 

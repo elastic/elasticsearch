@@ -183,7 +183,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         new NewPendingClusterStateListener(),
                         discoverySettings,
                         clusterService.getClusterName());
-        this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, this::localNode, new MembershipListener());
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
         transportService.registerRequestHandler(
@@ -301,7 +301,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (!clusterChangedEvent.state().getNodes().isLocalNodeElectedMaster()) {
             throw new IllegalStateException("Shouldn't publish state when not master");
         }
-
         try {
             publishClusterState.publish(clusterChangedEvent, electMaster.minimumMasterNodes(), ackListener);
         } catch (FailedToCommitClusterStateException t) {
@@ -852,6 +851,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (nodeJoinController == null) {
             throw new IllegalStateException("discovery module is not yet started");
         } else {
+            // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+            // to ensure we fail as fast as possible.
+            MembershipAction.ensureIndexCompatibility(node.getVersion().minimumIndexCompatibilityVersion(), state.getMetaData());
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 

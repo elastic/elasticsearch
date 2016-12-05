@@ -22,7 +22,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,11 +80,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     }
 
     public List<SearchRequest> requests() {
-        return this.requests;
-    }
-
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
         return this.requests;
     }
 

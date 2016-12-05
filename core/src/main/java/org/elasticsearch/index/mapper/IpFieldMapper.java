@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
@@ -54,6 +53,10 @@ import java.util.Map;
 public class IpFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "ip";
+
+    public static class Defaults {
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
+    }
 
     public static class Builder extends FieldMapper.Builder<Builder, IpFieldMapper> {
 
@@ -94,9 +97,6 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
-                return new LegacyIpFieldMapper.TypeParser().parse(name, node, parserContext);
-            }
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

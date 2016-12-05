@@ -1918,8 +1918,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public Path randomRepoPath() {
         if (currentCluster instanceof InternalTestCluster) {
             return randomRepoPath(((InternalTestCluster) currentCluster).getDefaultSettings());
-        } else if (currentCluster instanceof CompositeTestCluster) {
-            return randomRepoPath(((CompositeTestCluster) currentCluster).internalCluster().getDefaultSettings());
         }
         throw new UnsupportedOperationException("unsupported cluster type");
     }
@@ -1986,19 +1984,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
 
     @Before
-    public final void before() throws Exception {
-
+    public final void setupTestCluster() throws Exception {
         if (runTestScopeLifecycle()) {
-            printTestMessage("setup");
+            printTestMessage("setting up");
             beforeInternal();
+            printTestMessage("all set up");
         }
-        printTestMessage("starting");
     }
 
 
     @After
-    public final void after() throws Exception {
-        printTestMessage("finished");
+    public final void cleanUpCluster() throws Exception {
         // Deleting indices is going to clear search contexts implicitly so we
         // need to check that there are no more in-flight search contexts before
         // we remove indices

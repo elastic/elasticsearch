@@ -29,22 +29,21 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     /**
      * Field Names
      */
-    private static final ParseField MODEL_SIZE_STATS_FIELD = new ParseField("modelSizeStats");
-    public static final ParseField JOB_ID = new ParseField("jobId");
-    public static final ParseField MODEL_BYTES_FIELD = new ParseField("modelBytes");
-    public static final ParseField TOTAL_BY_FIELD_COUNT_FIELD = new ParseField("totalByFieldCount");
-    public static final ParseField TOTAL_OVER_FIELD_COUNT_FIELD = new ParseField("totalOverFieldCount");
-    public static final ParseField TOTAL_PARTITION_FIELD_COUNT_FIELD = new ParseField("totalPartitionFieldCount");
-    public static final ParseField BUCKET_ALLOCATION_FAILURES_COUNT_FIELD = new ParseField("bucketAllocationFailuresCount");
-    public static final ParseField MEMORY_STATUS_FIELD = new ParseField("memoryStatus");
-    public static final ParseField LOG_TIME_FIELD = new ParseField("logTime");
+    private static final ParseField MODEL_SIZE_STATS_FIELD = new ParseField("model_size_stats");
+    public static final ParseField MODEL_BYTES_FIELD = new ParseField("model_bytes");
+    public static final ParseField TOTAL_BY_FIELD_COUNT_FIELD = new ParseField("total_by_field_count");
+    public static final ParseField TOTAL_OVER_FIELD_COUNT_FIELD = new ParseField("total_over_field_count");
+    public static final ParseField TOTAL_PARTITION_FIELD_COUNT_FIELD = new ParseField("total_partition_field_count");
+    public static final ParseField BUCKET_ALLOCATION_FAILURES_COUNT_FIELD = new ParseField("bucket_allocation_failures_count");
+    public static final ParseField MEMORY_STATUS_FIELD = new ParseField("memory_status");
+    public static final ParseField LOG_TIME_FIELD = new ParseField("log_time");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
 
     public static final ConstructingObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
             MODEL_SIZE_STATS_FIELD.getPreferredName(), a -> new Builder((String) a[0]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareLong(Builder::setModelBytes, MODEL_BYTES_FIELD);
         PARSER.declareLong(Builder::setBucketAllocationFailuresCount, BUCKET_ALLOCATION_FAILURES_COUNT_FIELD);
         PARSER.declareLong(Builder::setTotalByFieldCount, TOTAL_BY_FIELD_COUNT_FIELD);
@@ -74,7 +73,7 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     /**
      * Elasticsearch type
      */
-    public static final ParseField TYPE = new ParseField("modelSizeStats");
+    public static final ParseField TYPE = new ParseField("model_size_stats");
 
     /**
      * The status of the memory monitored by the ResourceMonitor. OK is default,
@@ -183,7 +182,7 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     }
 
     public XContentBuilder doXContentBody(XContentBuilder builder) throws IOException {
-        builder.field(JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(MODEL_BYTES_FIELD.getPreferredName(), modelBytes);
         builder.field(TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(), totalByFieldCount);
         builder.field(TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(), totalOverFieldCount);

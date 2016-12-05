@@ -106,7 +106,7 @@ public class ElasticsearchBulkDeleter implements JobDataDeleter {
         // too big and has no mappings
         for (int i = 0; i < docCount; ++i) {
             String stateId = snapshotId + '_' + i;
-            bulkRequestBuilder.add(client.prepareDelete(indexName, ModelState.TYPE, stateId));
+            bulkRequestBuilder.add(client.prepareDelete(indexName, ModelState.TYPE.getPreferredName(), stateId));
             ++deletedModelStateCount;
         }
 

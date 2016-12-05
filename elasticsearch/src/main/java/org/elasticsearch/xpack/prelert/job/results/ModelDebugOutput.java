@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
@@ -28,26 +29,25 @@ import java.util.Objects;
  */
 public class ModelDebugOutput extends ToXContentToBytes implements Writeable
 {
-    public static final ParseField TYPE = new ParseField("modelDebugOutput");
-    public static final ParseField JOB_ID = new ParseField("jobId");
+    public static final ParseField TYPE = new ParseField("model_debug_output");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
-    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partitionFieldName");
-    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partitionFieldValue");
-    public static final ParseField OVER_FIELD_NAME = new ParseField("overFieldName");
-    public static final ParseField OVER_FIELD_VALUE = new ParseField("overFieldValue");
-    public static final ParseField BY_FIELD_NAME = new ParseField("byFieldName");
-    public static final ParseField BY_FIELD_VALUE = new ParseField("byFieldValue");
-    public static final ParseField DEBUG_FEATURE = new ParseField("debugFeature");
-    public static final ParseField DEBUG_LOWER = new ParseField("debugLower");
-    public static final ParseField DEBUG_UPPER = new ParseField("debugUpper");
-    public static final ParseField DEBUG_MEDIAN = new ParseField("debugMedian");
+    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
+    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
+    public static final ParseField OVER_FIELD_NAME = new ParseField("over_field_name");
+    public static final ParseField OVER_FIELD_VALUE = new ParseField("over_field_value");
+    public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
+    public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
+    public static final ParseField DEBUG_FEATURE = new ParseField("debug_feature");
+    public static final ParseField DEBUG_LOWER = new ParseField("debug_lower");
+    public static final ParseField DEBUG_UPPER = new ParseField("debug_upper");
+    public static final ParseField DEBUG_MEDIAN = new ParseField("debug_median");
     public static final ParseField ACTUAL = new ParseField("actual");
 
     public static final ConstructingObjectParser<ModelDebugOutput, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new ModelDebugOutput((String) a[0]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareField(ModelDebugOutput::setTimestamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -132,7 +132,7 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         if (timestamp != null) {
             builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
         }

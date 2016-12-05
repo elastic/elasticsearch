@@ -67,12 +67,12 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
     public static class Request extends ActionRequest implements ToXContent {
 
         public static final ParseField EXPAND = new ParseField("expand");
-        public static final ParseField INCLUDE_INTERIM = new ParseField("includeInterim");
-        public static final ParseField PARTITION_VALUE = new ParseField("partitionValue");
+        public static final ParseField INCLUDE_INTERIM = new ParseField("include_interim");
+        public static final ParseField PARTITION_VALUE = new ParseField("partition_value");
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
-        public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("maxNormalizedProbability");
+        public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
+        public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("max_normalized_probability");
         public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
         private static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);

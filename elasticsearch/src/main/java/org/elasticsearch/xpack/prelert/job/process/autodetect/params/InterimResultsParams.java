@@ -108,7 +108,7 @@ public class InterimResultsParams {
 
         private Long checkAdvanceTimeParam() {
             if (advanceTime != null && !advanceTime.isEmpty()) {
-                return paramToEpochIfValidOrThrow("advanceTime", advanceTime) / TimeRange.MILLISECONDS_IN_SECOND;
+                return paramToEpochIfValidOrThrow("advance_time", advanceTime) / TimeRange.MILLISECONDS_IN_SECOND;
             }
             return null;
         }

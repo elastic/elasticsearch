@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class PartitionScore extends ToXContentToBytes implements Writeable {
-    public static final ParseField PARTITION_SCORE = new ParseField("partitionScore");
+    public static final ParseField PARTITION_SCORE = new ParseField("partition_score");
 
     private String partitionFieldValue;
     private String partitionFieldName;

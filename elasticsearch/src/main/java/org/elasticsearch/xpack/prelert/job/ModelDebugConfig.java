@@ -67,9 +67,9 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
 
     private static final double MAX_PERCENTILE = 100.0;
 
-    private static final ParseField TYPE_FIELD = new ParseField("modelDebugConfig");
-    private static final ParseField WRITE_TO_FIELD = new ParseField("writeTo");
-    private static final ParseField BOUNDS_PERCENTILE_FIELD = new ParseField("boundsPercentile");
+    private static final ParseField TYPE_FIELD = new ParseField("model_debug_config");
+    private static final ParseField WRITE_TO_FIELD = new ParseField("write_to");
+    private static final ParseField BOUNDS_PERCENTILE_FIELD = new ParseField("bounds_percentile");
     private static final ParseField TERMS_FIELD = new ParseField("terms");
 
     public static final ConstructingObjectParser<ModelDebugConfig, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(

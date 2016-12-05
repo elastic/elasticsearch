@@ -74,7 +74,7 @@ public class PutListAction extends Action<PutListAction.Request, PutListAction.R
         }
 
         public Request(ListDocument listDocument) {
-            this.listDocument = ExceptionsHelper.requireNonNull(listDocument, "listDocument");
+            this.listDocument = ExceptionsHelper.requireNonNull(listDocument, "list_document");
         }
 
         public ListDocument getListDocument() {

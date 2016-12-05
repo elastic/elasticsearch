@@ -40,13 +40,13 @@ public class ElasticsearchDotNotationReverserTests extends ESTestCase {
     private ElasticsearchDotNotationReverser createReverser() {
         ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
         // This should get ignored as it's a reserved field name
-        reverser.add("bucketSpan", "3600");
+        reverser.add("bucket_span", "3600");
         reverser.add("simple", "simon");
         reverser.add("cpu.user", "10");
         reverser.add("cpu.system", "5");
         reverser.add("cpu.wait", "1");
         // This should get ignored as one of its segments is a reserved field name
-        reverser.add("foo.bucketSpan", "3600");
+        reverser.add("foo.bucket_span", "3600");
         reverser.add("complex.nested.structure.first", "x");
         reverser.add("complex.nested.structure.second", "y");
         reverser.add("complex.nested.value", "z");

@@ -56,25 +56,25 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     /*
      * Field names used in serialization
      */
-    public static final ParseField ID = new ParseField("jobId");
-    public static final ParseField ANALYSIS_CONFIG = new ParseField("analysisConfig");
-    public static final ParseField ANALYSIS_LIMITS = new ParseField("analysisLimits");
-    public static final ParseField CREATE_TIME = new ParseField("createTime");
-    public static final ParseField CUSTOM_SETTINGS = new ParseField("customSettings");
-    public static final ParseField DATA_DESCRIPTION = new ParseField("dataDescription");
+    public static final ParseField ID = new ParseField("job_id");
+    public static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
+    public static final ParseField ANALYSIS_LIMITS = new ParseField("analysis_limits");
+    public static final ParseField CREATE_TIME = new ParseField("create_time");
+    public static final ParseField CUSTOM_SETTINGS = new ParseField("custom_settings");
+    public static final ParseField DATA_DESCRIPTION = new ParseField("data_description");
     public static final ParseField DESCRIPTION = new ParseField("description");
-    public static final ParseField FINISHED_TIME = new ParseField("finishedTime");
-    public static final ParseField IGNORE_DOWNTIME = new ParseField("ignoreDowntime");
-    public static final ParseField LAST_DATA_TIME = new ParseField("lastDataTime");
-    public static final ParseField MODEL_DEBUG_CONFIG = new ParseField("modelDebugConfig");
-    public static final ParseField SCHEDULER_CONFIG = new ParseField("schedulerConfig");
-    public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalizationWindowDays");
-    public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("backgroundPersistInterval");
-    public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("modelSnapshotRetentionDays");
-    public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("resultsRetentionDays");
+    public static final ParseField FINISHED_TIME = new ParseField("finished_time");
+    public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
+    public static final ParseField LAST_DATA_TIME = new ParseField("last_data_time");
+    public static final ParseField MODEL_DEBUG_CONFIG = new ParseField("model_debug_config");
+    public static final ParseField SCHEDULER_CONFIG = new ParseField("scheduler_config");
+    public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
+    public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("background_persist_interval");
+    public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
+    public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField TRANSFORMS = new ParseField("transforms");
-    public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("modelSnapshotId");
+    public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");

@@ -28,8 +28,8 @@ public class AnalysisLimits extends ToXContentToBytes implements Writeable {
     /**
      * Serialisation field names
      */
-    public static final ParseField MODEL_MEMORY_LIMIT = new ParseField("modelMemoryLimit");
-    public static final ParseField CATEGORIZATION_EXAMPLES_LIMIT = new ParseField("categorizationExamplesLimit");
+    public static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
+    public static final ParseField CATEGORIZATION_EXAMPLES_LIMIT = new ParseField("categorization_examples_limit");
 
     public static final ConstructingObjectParser<AnalysisLimits, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
             "analysis_limits", a -> new AnalysisLimits((Long) a[0], (Long) a[1]));

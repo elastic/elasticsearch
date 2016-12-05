@@ -25,7 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
+import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -55,7 +57,7 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
         private String jobId;
 
         public Request(String jobId) {
-            this.jobId = Objects.requireNonNull(jobId);
+            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
         Request() {

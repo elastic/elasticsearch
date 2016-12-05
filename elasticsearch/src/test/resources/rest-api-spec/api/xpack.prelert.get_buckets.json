@@ -23,11 +23,11 @@
           "type": "boolean",
           "description" : "Include anomaly records"
         },
-        "includeInterim": {
+        "include_interim": {
           "type": "boolean",
           "description" : "Include interim results"
         },
-        "partitionValue": {
+        "partition_value": {
           "type": "string",
           "description": "If expand is true filter anomaly records by the partitionFieldValue"
         },
@@ -47,11 +47,11 @@
           "type": "string",
           "description" : "End time filter for buckets"
         },
-        "anomalyScore": {
+        "anomaly_score": {
           "type": "double",
           "description": "Filter for the most anomalous buckets"
         },
-        "maxNormalizedProbability": {
+        "max_normalized_probability": {
           "type": "double",
           "description": "Filter for buckets containing the most anomalous records"
         }

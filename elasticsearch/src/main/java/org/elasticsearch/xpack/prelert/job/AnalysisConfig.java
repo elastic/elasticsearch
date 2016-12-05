@@ -48,21 +48,21 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     /**
      * Serialisation names
      */
-    private static final ParseField ANALYSIS_CONFIG = new ParseField("analysisConfig");
-    private static final ParseField BUCKET_SPAN = new ParseField("bucketSpan");
-    private static final ParseField BATCH_SPAN = new ParseField("batchSpan");
-    private static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorizationFieldName");
-    private static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorizationFilters");
+    private static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
+    private static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    private static final ParseField BATCH_SPAN = new ParseField("batch_span");
+    private static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
+    private static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
     private static final ParseField LATENCY = new ParseField("latency");
     private static final ParseField PERIOD = new ParseField("period");
-    private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summaryCountFieldName");
+    private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
     private static final ParseField DETECTORS = new ParseField("detectors");
     private static final ParseField INFLUENCERS = new ParseField("influencers");
-    private static final ParseField OVERLAPPING_BUCKETS = new ParseField("overlappingBuckets");
-    private static final ParseField RESULT_FINALIZATION_WINDOW = new ParseField("resultFinalizationWindow");
-    private static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariateByFields");
-    private static final ParseField MULTIPLE_BUCKET_SPANS = new ParseField("multipleBucketSpans");
-    private static final ParseField USER_PER_PARTITION_NORMALIZATION = new ParseField("usePerPartitionNormalization");
+    private static final ParseField OVERLAPPING_BUCKETS = new ParseField("overlapping_buckets");
+    private static final ParseField RESULT_FINALIZATION_WINDOW = new ParseField("result_finalization_window");
+    private static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
+    private static final ParseField MULTIPLE_BUCKET_SPANS = new ParseField("multiple_bucket_spans");
+    private static final ParseField USER_PER_PARTITION_NORMALIZATION = new ParseField("use_per_partition_normalization");
 
     private static final String PRELERT_CATEGORY_FIELD = "prelertcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Arrays.asList(PRELERT_CATEGORY_FIELD));

@@ -32,13 +32,12 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     /*
      * Field names
      */
-    public static final ParseField JOB_ID = new ParseField("jobId");
-    public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencerFieldName");
-    public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initialAnomalyScore");
-    public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
-    public static final ParseField RAW_ANOMALY_SCORE = new ParseField("rawAnomalyScore");
+    public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencer_field_name");
+    public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initial_anomaly_score");
+    public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
+    public static final ParseField RAW_ANOMALY_SCORE = new ParseField("raw_anomaly_score");
     public static final ParseField PROBABILITY = new ParseField("probability");
-    public static final ParseField IS_INTERIM = new ParseField("isInterim");
+    public static final ParseField IS_INTERIM = new ParseField("is_interim");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
     public static final ConstructingObjectParser<BucketInfluencer, ParseFieldMatcherSupplier> PARSER =

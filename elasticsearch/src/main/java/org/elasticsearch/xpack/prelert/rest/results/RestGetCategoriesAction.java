@@ -30,9 +30,10 @@ public class RestGetCategoriesAction extends BaseRestHandler {
         super(settings);
         this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{jobId}/categorydefinitions/{categoryId}", this);
+                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/categorydefinitions/{"
+                + Request.CATEGORY_ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{jobId}/categorydefinitions", this);
+                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/categorydefinitions", this);
     }
 
     @Override

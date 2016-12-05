@@ -63,7 +63,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
 
     public void testInputFields_MulitpleInputsSingleOutput() throws IOException {
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setTimeField("timeField");
+        dd.setTimeField("time_field");
 
         Detector.Builder detector = new Detector.Builder("metric", "value");
         detector.setByFieldName("host-metric");
@@ -81,12 +81,12 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
 
         Set<String> inputFields = new HashSet<>(writer.inputFields());
         assertEquals(4, inputFields.size());
-        assertTrue(inputFields.contains("timeField"));
+        assertTrue(inputFields.contains("time_field"));
         assertTrue(inputFields.contains("value"));
         assertTrue(inputFields.contains("host"));
         assertTrue(inputFields.contains("metric"));
 
-        String[] header = { "timeField", "metric", "host", "value" };
+        String[] header = { "time_field", "metric", "host", "value" };
         writer.buildTransformsAndWriteHeader(header);
         List<Transform> trs = writer.postDateTransforms;
         assertEquals(1, trs.size());
@@ -101,14 +101,14 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
 
         Map<String, Integer> inputIndexes = writer.getInputFieldIndexes();
         assertEquals(4, inputIndexes.size());
-        Assert.assertEquals(new Integer(0), inputIndexes.get("timeField"));
+        Assert.assertEquals(new Integer(0), inputIndexes.get("time_field"));
         Assert.assertEquals(new Integer(1), inputIndexes.get("metric"));
         Assert.assertEquals(new Integer(2), inputIndexes.get("host"));
         Assert.assertEquals(new Integer(3), inputIndexes.get("value"));
 
         Map<String, Integer> outputIndexes = writer.getOutputFieldIndexes();
         assertEquals(4, outputIndexes.size());
-        Assert.assertEquals(new Integer(0), outputIndexes.get("timeField"));
+        Assert.assertEquals(new Integer(0), outputIndexes.get("time_field"));
         Assert.assertEquals(new Integer(1), outputIndexes.get("host-metric"));
         Assert.assertEquals(new Integer(2), outputIndexes.get("value"));
         Assert.assertEquals(new Integer(3), outputIndexes.get(LengthEncodedWriter.CONTROL_FIELD_NAME));
@@ -121,7 +121,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
 
     public void testInputFields_SingleInputMulitpleOutputs() throws IOException {
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setTimeField("timeField");
+        dd.setTimeField("time_field");
 
         Detector.Builder detector = new Detector.Builder("metric", "value");
         detector.setByFieldName(TransformType.DOMAIN_SPLIT.defaultOutputNames().get(0));
@@ -139,18 +139,18 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         Set<String> inputFields = new HashSet<>(writer.inputFields());
 
         assertEquals(3, inputFields.size());
-        assertTrue(inputFields.contains("timeField"));
+        assertTrue(inputFields.contains("time_field"));
         assertTrue(inputFields.contains("value"));
         assertTrue(inputFields.contains("domain"));
 
-        String[] header = { "timeField", "domain", "value" };
+        String[] header = { "time_field", "domain", "value" };
         writer.buildTransformsAndWriteHeader(header);
         List<Transform> trs = writer.postDateTransforms;
         assertEquals(1, trs.size());
 
         Map<String, Integer> inputIndexes = writer.getInputFieldIndexes();
         assertEquals(3, inputIndexes.size());
-        Assert.assertEquals(new Integer(0), inputIndexes.get("timeField"));
+        Assert.assertEquals(new Integer(0), inputIndexes.get("time_field"));
         Assert.assertEquals(new Integer(1), inputIndexes.get("domain"));
         Assert.assertEquals(new Integer(2), inputIndexes.get("value"));
 
@@ -161,7 +161,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         Collections.sort(allOutputs); // outputs are in alphabetical order
 
         assertEquals(5, outputIndexes.size()); // time + control field + outputs
-        Assert.assertEquals(new Integer(0), outputIndexes.get("timeField"));
+        Assert.assertEquals(new Integer(0), outputIndexes.get("time_field"));
 
         int count = 1;
         for (String f : allOutputs) {
@@ -191,7 +191,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
 
     public void testInputFields_SingleInputMulitpleOutputs_OnlyOneOutputUsed() throws IOException {
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setTimeField("timeField");
+        dd.setTimeField("time_field");
 
         Detector.Builder detector = new Detector.Builder("metric", "value");
         detector.setByFieldName(TransformType.DOMAIN_SPLIT.defaultOutputNames().get(0));
@@ -208,18 +208,18 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         Set<String> inputFields = new HashSet<>(writer.inputFields());
 
         assertEquals(3, inputFields.size());
-        assertTrue(inputFields.contains("timeField"));
+        assertTrue(inputFields.contains("time_field"));
         assertTrue(inputFields.contains("value"));
         assertTrue(inputFields.contains("domain"));
 
-        String[] header = { "timeField", "domain", "value" };
+        String[] header = { "time_field", "domain", "value" };
         writer.buildTransformsAndWriteHeader(header);
         List<Transform> trs = writer.postDateTransforms;
         assertEquals(1, trs.size());
 
         Map<String, Integer> inputIndexes = writer.getInputFieldIndexes();
         assertEquals(3, inputIndexes.size());
-        Assert.assertEquals(new Integer(0), inputIndexes.get("timeField"));
+        Assert.assertEquals(new Integer(0), inputIndexes.get("time_field"));
         Assert.assertEquals(new Integer(1), inputIndexes.get("domain"));
         Assert.assertEquals(new Integer(2), inputIndexes.get("value"));
 
@@ -231,7 +231,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         Collections.sort(allOutputs); // outputs are in alphabetical order
 
         assertEquals(4, outputIndexes.size()); // time + control field + outputs
-        Assert.assertEquals(new Integer(0), outputIndexes.get("timeField"));
+        Assert.assertEquals(new Integer(0), outputIndexes.get("time_field"));
 
         int count = 1;
         for (String f : allOutputs) {

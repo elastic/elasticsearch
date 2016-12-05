@@ -30,28 +30,27 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     /**
      * Field Names
      */
-    public static final ParseField JOB_ID = new ParseField("jobId");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField DESCRIPTION = new ParseField("description");
-    public static final ParseField RESTORE_PRIORITY = new ParseField("restorePriority");
-    public static final ParseField SNAPSHOT_ID = new ParseField("snapshotId");
-    public static final ParseField SNAPSHOT_DOC_COUNT = new ParseField("snapshotDocCount");
-    public static final ParseField LATEST_RECORD_TIME = new ParseField("latestRecordTimeStamp");
-    public static final ParseField LATEST_RESULT_TIME = new ParseField("latestResultTimeStamp");
+    public static final ParseField RESTORE_PRIORITY = new ParseField("restore_priority");
+    public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
+    public static final ParseField SNAPSHOT_DOC_COUNT = new ParseField("snapshot_doc_count");
+    public static final ParseField LATEST_RECORD_TIME = new ParseField("latest_record_time_stamp");
+    public static final ParseField LATEST_RESULT_TIME = new ParseField("latest_result_time_stamp");
 
     // Used for QueryPage
-    public static final ParseField RESULTS_FIELD = new ParseField("modelSnapshots");
+    public static final ParseField RESULTS_FIELD = new ParseField("model_snapshots");
 
     /**
      * Elasticsearch type
      */
-    public static final ParseField TYPE = new ParseField("modelSnapshot");
+    public static final ParseField TYPE = new ParseField("model_snapshot");
 
     public static final ConstructingObjectParser<ModelSnapshot, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new ModelSnapshot((String) a[0]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareField(ModelSnapshot::setTimestamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -161,7 +160,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         if (timestamp != null) {
             builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
         }

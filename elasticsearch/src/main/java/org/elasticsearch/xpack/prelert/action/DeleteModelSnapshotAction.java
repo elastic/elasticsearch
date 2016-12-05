@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,8 +69,8 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         }
 
         public Request(String jobId, String snapshotId) {
-            this.jobId = ExceptionsHelper.requireNonNull(jobId, "jobId");
-            this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, "snapshotId");
+            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, ModelSnapshot.SNAPSHOT_ID.getPreferredName());
         }
 
         public String getJobId() {
@@ -158,8 +159,8 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
             ).results();
 
             if (deleteCandidates.size() > 1) {
-                logger.warn("More than one model found for [jobId: " + request.getJobId()
-                        + ", snapshotId: " + request.getSnapshotId() + "] tuple.");
+                logger.warn("More than one model found for [job_id: " + request.getJobId()
+                        + ", snapshot_id: " + request.getSnapshotId() + "] tuple.");
             }
 
             if (deleteCandidates.isEmpty()) {

@@ -199,7 +199,7 @@ public class ElasticsearchJobProvider implements JobProvider {
             createIndexRequest.mapping(CategorizerState.TYPE, categorizerStateMapping);
             createIndexRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
             createIndexRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
-            createIndexRequest.mapping(ModelState.TYPE, modelStateMapping);
+            createIndexRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
             createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
             createIndexRequest.mapping(ModelSizeStats.TYPE.getPreferredName(), modelSizeStatsMapping);
             createIndexRequest.mapping(ModelDebugOutput.TYPE.getPreferredName(), modelDebugMapping);
@@ -925,7 +925,7 @@ public class ElasticsearchJobProvider implements JobProvider {
 
             LOGGER.trace("ES API CALL: get ID {} type {} from index {}", docId, ModelState.TYPE, indexName);
 
-            GetResponse stateResponse = client.prepareGet(indexName, ModelState.TYPE, docId).get();
+            GetResponse stateResponse = client.prepareGet(indexName, ModelState.TYPE.getPreferredName(), docId).get();
             if (!stateResponse.isExists()) {
                 LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
                         numDocs, jobId, modelSnapshot.getSnapshotId(), docId);

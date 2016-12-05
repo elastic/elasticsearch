@@ -59,7 +59,7 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     public static final ParseField EARLIEST_RECORD_TIME = new ParseField(EARLIEST_RECORD_TIME_STR);
     public static final ParseField LATEST_RECORD_TIME = new ParseField(LATEST_RECORD_TIME_STR);
 
-    public static final ParseField TYPE = new ParseField("dataCounts");
+    public static final ParseField TYPE = new ParseField("data_counts");
 
     public static final ConstructingObjectParser<DataCounts, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>("data_counts", a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3],

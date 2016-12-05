@@ -3,48 +3,48 @@ setup:
       xpack.prelert.put_job:
         body:  >
           {
-            "jobId":"foo",
+            "job_id":"foo",
             "description":"Analysis of response time by airline",
-            "analysisConfig" : {
-                "bucketSpan":3600,
-                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
-            "dataDescription" : {
-                "fieldDelimiter":",",
-                "timeField":"time",
-                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelSnapshot
+        type:   model_snapshot
         id:     "1"
         body: >
           {
-            "jobId": "foo",
+            "job_id": "foo",
             "timestamp": "2016-06-02T00:00:00Z",
-            "restorePriority": "1",
-            "snapshotId": "foo1",
+            "restore_priority": "1",
+            "snapshot_id": "foo1",
             "description": "first",
-            "latestRecordTimeStamp": "2016-06-02T00:00:00Z",
-            "latestResultTimeStamp": "2016-06-02T00:00:00Z"
+            "latest_record_time_stamp": "2016-06-02T00:00:00Z",
+            "latest_result_time_stamp": "2016-06-02T00:00:00Z"
           }
 
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelSnapshot
+        type:   model_snapshot
         id:     "2"
         body: >
           {
-            "jobId": "foo",
+            "job_id": "foo",
             "timestamp": "2016-06-01T00:00:00Z",
-            "restorePriority": "2",
-            "snapshotId": "foo2",
+            "restore_priority": "2",
+            "snapshot_id": "foo2",
             "description": "second",
-            "latestRecordTimeStamp": "2016-06-01T00:00:00Z",
-            "latestResultTimeStamp": "2016-06-01T00:00:00Z"
+            "latest_record_time_stamp": "2016-06-01T00:00:00Z",
+            "latest_result_time_stamp": "2016-06-01T00:00:00Z"
           }
 
   - do:
@@ -52,35 +52,35 @@ setup:
         index:  prelertresults-foo
         type:   result
         id:     "foo_1464825600000_1"
-        body:   { "jobId": "foo", "result_type": "bucket", "timestamp": "2016-06-02T00:00:00Z", "bucketSpan":1 }
+        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-06-02T00:00:00Z", "bucket_span":1 }
 
   - do:
       index:
         index:  prelertresults-foo
         type:   result
         id:     "foo_1464782400000_1"
-        body:   { "jobId": "foo", "result_type": "bucket", "timestamp": "2016-06-01T12:00:00Z", "bucketSpan":1 }
+        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-06-01T12:00:00Z", "bucket_span":1 }
 
   - do:
       index:
         index:  prelertresults-foo
         type:   result
         id:     "foo_1462060800000_1"
-        body:   { "jobId": "foo", "result_type": "bucket", "timestamp": "2016-05-01T00:00:00Z", "bucketSpan":1 }
+        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-05-01T00:00:00Z", "bucket_span":1 }
 
   - do:
        index:
         index:  prelertresults-foo
         type:   result
         id:     "foo_1464825600000_1_record"
-        body:   { "jobId": "foo", "result_type": "record", "timestamp": "2016-06-02T00:00:00Z" }
+        body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-06-02T00:00:00Z" }
 
   - do:
        index:
          index:  prelertresults-foo
          type:   result
          id:     "foo_1462060800000_1_record"
-         body:   { "jobId": "foo", "result_type": "record", "timestamp": "2016-05-01T00:00:00Z" }
+         body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-05-01T00:00:00Z" }
 
   - do:
       index:
@@ -88,12 +88,12 @@ setup:
         type:   result
         id:     "foo_1464825600000_1_influencer"
         body:   {
-                  "jobId": "foo",
+                  "job_id": "foo",
                   "result_type": "influencer",
                   "timestamp": "2016-06-02T00:00:00Z",
-                  "influencerFieldName": "foo",
-                  "influencerFieldValue": "zoo",
-                  "anomalyScore": 50.0
+                  "influencer_field_name": "foo",
+                  "influencer_field_value": "zoo",
+                  "anomaly_score": 50.0
                 }
 
   - do:
@@ -103,12 +103,12 @@ setup:
         id:     "foo_1462060800000_1_influencer"
         body:
            {
-              "jobId": "foo",
+              "job_id": "foo",
               "result_type": "influencer",
               "timestamp": "2016-05-01T00:00:00Z",
-              "influencerFieldName": "foo",
-              "influencerFieldValue": "zoo",
-              "anomalyScore": 50.0
+              "influencer_field_name": "foo",
+              "influencer_field_value": "zoo",
+              "anomaly_score": 50.0
             }
 
   - do:
@@ -136,7 +136,7 @@ setup:
       catch: /resource_not_found_exception/
       xpack.prelert.revert_model_snapshot:
         job_id: "foo"
-        snapshotId: "not_exist"
+        snapshot_id: "not_exist"
 
 ---
 "Test revert model with invalid description":
@@ -151,26 +151,26 @@ setup:
   - do:
       xpack.prelert.revert_model_snapshot:
         job_id: "foo"
-        snapshotId: "foo1"
+        snapshot_id: "foo1"
 
   - match: { acknowledged: true }
-  - match: { model.jobId: "foo" }
+  - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464825600000 }
-  - match: { model.restorePriority: 1 }
-  - match: { model.snapshotId: "foo1" }
-  - match: { model.snapshotDocCount: 0 }
+  - match: { model.restore_priority: 1 }
+  - match: { model.snapshot_id: "foo1" }
+  - match: { model.snapshot_doc_count: 0 }
 
   - do:
       xpack.prelert.revert_model_snapshot:
         job_id: "foo"
-        snapshotId: "foo2"
+        snapshot_id: "foo2"
 
   - match: { acknowledged: true }
-  - match: { model.jobId: "foo" }
+  - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464739200000 }
-  - match: { model.restorePriority: 2 }
-  - match: { model.snapshotId: "foo2" }
-  - match: { model.snapshotDocCount: 0 }
+  - match: { model.restore_priority: 2 }
+  - match: { model.snapshot_id: "foo2" }
+  - match: { model.snapshot_doc_count: 0 }
 
 ---
 "Test revert model with valid time":
@@ -180,11 +180,11 @@ setup:
         time: "2016-06-02T01:00:00Z"
 
   - match: { acknowledged: true }
-  - match: { model.jobId: "foo" }
+  - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464825600000 }
-  - match: { model.restorePriority: 1 }
-  - match: { model.snapshotId: "foo1" }
-  - match: { model.snapshotDocCount: 0 }
+  - match: { model.restore_priority: 1 }
+  - match: { model.snapshot_id: "foo1" }
+  - match: { model.snapshot_doc_count: 0 }
 
   - do:
         xpack.prelert.revert_model_snapshot:
@@ -192,11 +192,11 @@ setup:
           time: "2016-06-01T01:00:00Z"
 
   - match: { acknowledged: true }
-  - match: { model.jobId: "foo" }
+  - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464739200000 }
-  - match: { model.restorePriority: 2 }
-  - match: { model.snapshotId: "foo2" }
-  - match: { model.snapshotDocCount: 0 }
+  - match: { model.restore_priority: 2 }
+  - match: { model.snapshot_id: "foo2" }
+  - match: { model.snapshot_doc_count: 0 }
 
 ---
 "Test revert model with valid description":
@@ -206,11 +206,11 @@ setup:
         description: "first"
 
   - match: { acknowledged: true }
-  - match: { model.jobId: "foo" }
+  - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464825600000 }
-  - match: { model.restorePriority: 1 }
-  - match: { model.snapshotId: "foo1" }
-  - match: { model.snapshotDocCount: 0 }
+  - match: { model.restore_priority: 1 }
+  - match: { model.snapshot_id: "foo1" }
+  - match: { model.snapshot_doc_count: 0 }
 
   - do:
         xpack.prelert.revert_model_snapshot:
@@ -218,11 +218,11 @@ setup:
           description: "second"
 
   - match: { acknowledged: true }
-  - match: { model.jobId: "foo" }
+  - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464739200000 }
-  - match: { model.restorePriority: 2 }
-  - match: { model.snapshotId: "foo2" }
-  - match: { model.snapshotDocCount: 0 }
+  - match: { model.restore_priority: 2 }
+  - match: { model.snapshot_id: "foo2" }
+  - match: { model.snapshot_doc_count: 0 }
 
 ---
 "Test revert model with deleteInterveningResults":
@@ -237,8 +237,8 @@ setup:
   - do:
       xpack.prelert.revert_model_snapshot:
         job_id: "foo"
-        snapshotId: "foo2"
-        deleteInterveningResults: true
+        snapshot_id: "foo2"
+        delete_intervening_results: true
 
   - do:
       indices.refresh:
@@ -251,7 +251,7 @@ setup:
         end: "2016-12-01T00:00:00Z"
 
   - match: { count: 1 }
-  - match: { buckets.0.jobId: "foo" }
+  - match: { buckets.0.job_id: "foo" }
   - match: { buckets.0.timestamp: 1462060800000 }
 
   - do:
@@ -261,7 +261,7 @@ setup:
         end: "2016-12-01T00:00:00Z"
 
   - match: { count: 1 }
-  - match: { records.0.jobId: "foo" }
+  - match: { records.0.job_id: "foo" }
   - match: { records.0.timestamp: 1462060800000 }
 
   - do:
@@ -271,7 +271,7 @@ setup:
         end: "2016-12-01T01:00:00Z"
 
   - match: { count: 1 }
-  - match: { influencers.0.jobId: "foo" }
+  - match: { influencers.0.job_id: "foo" }
   - match: { influencers.0.timestamp: 1462060800000 }
 
   - do:

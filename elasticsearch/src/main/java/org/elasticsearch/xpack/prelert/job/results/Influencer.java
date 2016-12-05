@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -31,13 +32,12 @@ public class Influencer extends ToXContentToBytes implements Writeable {
     /*
      * Field names
      */
-    public static final ParseField JOB_ID = new ParseField("jobId");
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
-    public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencerFieldName");
-    public static final ParseField INFLUENCER_FIELD_VALUE = new ParseField("influencerFieldValue");
-    public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initialAnomalyScore");
-    public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
+    public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencer_field_name");
+    public static final ParseField INFLUENCER_FIELD_VALUE = new ParseField("influencer_field_value");
+    public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initial_anomaly_score");
+    public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("influencers");
@@ -46,7 +46,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
             RESULT_TYPE_FIELD.getPreferredName(), a -> new Influencer((String) a[0], (String) a[1], (String) a[2]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUE);
         PARSER.declareString((influencer, s) -> {}, Result.RESULT_TYPE);
@@ -117,7 +117,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(INFLUENCER_FIELD_NAME.getPreferredName(), influenceField);
         builder.field(INFLUENCER_FIELD_VALUE.getPreferredName(), influenceValue);

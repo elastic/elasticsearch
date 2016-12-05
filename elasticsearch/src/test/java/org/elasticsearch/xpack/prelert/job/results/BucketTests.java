@@ -227,7 +227,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public void testEquals_GivenEqualBuckets() {
-        AnomalyRecord record = new AnomalyRecord("jobId");
+        AnomalyRecord record = new AnomalyRecord("job_id");
         BucketInfluencer bucketInfluencer = new BucketInfluencer("foo");
         Date date = new Date();
 

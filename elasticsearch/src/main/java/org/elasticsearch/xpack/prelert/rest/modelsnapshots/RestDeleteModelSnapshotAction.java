@@ -15,13 +15,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 
 import java.io.IOException;
 
 public class RestDeleteModelSnapshotAction extends BaseRestHandler {
-
-    private static final ParseField JOB_ID = new ParseField("jobId");
-    private static final ParseField SNAPSHOT_ID = new ParseField("snapshotId");
 
     private final DeleteModelSnapshotAction.TransportAction transportAction;
 
@@ -30,13 +29,15 @@ public class RestDeleteModelSnapshotAction extends BaseRestHandler {
             DeleteModelSnapshotAction.TransportAction transportAction) {
         super(settings);
         this.transportAction = transportAction;
-        controller.registerHandler(RestRequest.Method.DELETE, PrelertPlugin.BASE_PATH + "modelsnapshots/{jobId}/{snapshotId}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, PrelertPlugin.BASE_PATH + "modelsnapshots/{"
+                + Job.ID.getPreferredName() + "}/{" + ModelSnapshot.SNAPSHOT_ID.getPreferredName() + "}", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteModelSnapshotAction.Request deleteModelSnapshot = new DeleteModelSnapshotAction.Request(
-                restRequest.param(JOB_ID.getPreferredName()), restRequest.param(SNAPSHOT_ID.getPreferredName()));
+                restRequest.param(Job.ID.getPreferredName()),
+                restRequest.param(ModelSnapshot.SNAPSHOT_ID.getPreferredName()));
 
         return channel -> transportAction.execute(deleteModelSnapshot, new AcknowledgedRestListener<>(channel));
     }

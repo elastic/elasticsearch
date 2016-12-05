@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.prelert.job;
 
 
+import org.elasticsearch.common.ParseField;
+
 /**
  * The serialised models can get very large and only the C++ code
  * understands how to decode them, hence there is no reason to load
@@ -21,7 +23,7 @@ public class ModelState
     /**
      * The type of this class used when persisting the data
      */
-    public static final String TYPE = "modelState";
+    public static final ParseField TYPE = new ParseField("model_state");
 
     private ModelState()
     {

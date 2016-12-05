@@ -4,36 +4,36 @@ setup:
         index:  prelertresults-foo
         body:
           mappings:
-            modelSnapshot:
+            model_snapshot:
               properties:
                 "timestamp":
                   type: date
-                "restorePriority":
+                "restore_priority":
                   type: integer
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelSnapshot
+        type:   model_snapshot
         id:     "1"
         body: >
           {
-            "jobId" : "foo",
+            "job_id" : "foo",
             "timestamp": "2016-06-02T00:00:00Z",
-            "restorePriority": "1",
-            "snapshotId": "foo"
+            "restore_priority": "1",
+            "snapshot_id": "foo"
           }
 
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelSnapshot
+        type:   model_snapshot
         id:     "2"
         body: >
           {
-            "jobId": "foo",
+            "job_id": "foo",
             "timestamp": "2016-06-01T00:00:00Z",
-            "restorePriority": "2",
-            "snapshotId": "bar",
+            "restore_priority": "2",
+            "snapshot_id": "bar",
             "description": "bar"
           }
 
@@ -61,7 +61,7 @@ setup:
         description: "new_description"
 
   - match: { count: 0 }
-  - length: { modelSnapshots: 0 }
+  - length: { model_snapshots: 0 }
 
   - do:
       xpack.prelert.put_model_snapshot_description:
@@ -85,8 +85,8 @@ setup:
         description: "new_description"
 
   - match: { count: 1 }
-  - match: { modelSnapshots.0.restorePriority: 1 }
-  - match: { modelSnapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.0.restore_priority: 1 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
 
 ---
 "Test with conflict against existing description":
@@ -96,9 +96,9 @@ setup:
         description: "bar"
 
   - match: { count: 1 }
-  - length: { modelSnapshots: 1 }
-  - match: { modelSnapshots.0.jobId: "foo" }
-  - match: { modelSnapshots.0.description: "bar" }
+  - length: { model_snapshots: 1 }
+  - match: { model_snapshots.0.job_id: "foo" }
+  - match: { model_snapshots.0.description: "bar" }
 
   - do:
       catch: request

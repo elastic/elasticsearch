@@ -102,12 +102,12 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     public void testAnalysisConfigRequiredFields() throws IOException {
         Logger logger = Loggers.getLogger(SchedulerConfigTests.class);
 
-        String jobConfigStr = "{" + "\"jobId\":\"farequote\"," + "\"schedulerConfig\" : {" + "\"dataSource\":\"ELASTICSEARCH\","
-                + "\"baseUrl\":\"http://localhost:9200/\"," + "\"indexes\":[\"farequote\"]," + "\"types\":[\"farequote\"],"
-                + "\"query\":{\"match_all\":{} }" + "}," + "\"analysisConfig\" : {" + "\"bucketSpan\":3600,"
-                + "\"detectors\" :[{\"function\":\"metric\",\"fieldName\":\"responsetime\",\"byFieldName\":\"airline\"}],"
-                + "\"influencers\" :[\"airline\"]" + "}," + "\"dataDescription\" : {" + "\"format\":\"ELASTICSEARCH\","
-                + "\"timeField\":\"@timestamp\"," + "\"timeFormat\":\"epoch_ms\"" + "}" + "}";
+        String jobConfigStr = "{" + "\"job_id\":\"farequote\"," + "\"scheduler_config\" : {" + "\"data_source\":\"ELASTICSEARCH\","
+                + "\"base_url\":\"http://localhost:9200/\"," + "\"indexes\":[\"farequote\"]," + "\"types\":[\"farequote\"],"
+                + "\"query\":{\"match_all\":{} }" + "}," + "\"analysis_config\" : {" + "\"bucket_span\":3600,"
+                + "\"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}],"
+                + "\"influencers\" :[\"airline\"]" + "}," + "\"data_description\" : {" + "\"format\":\"ELASTICSEARCH\","
+                + "\"time_field\":\"@timestamp\"," + "\"time_format\":\"epoch_ms\"" + "}" + "}";
 
         XContentParser parser = XContentFactory.xContent(jobConfigStr).createParser(jobConfigStr);
         Job jobConfig = Job.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT).build();
@@ -139,16 +139,16 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     public void testAggsParse() throws IOException {
         Logger logger = Loggers.getLogger(SchedulerConfigTests.class);
 
-        String jobConfigStr = "{" + "\"jobId\":\"farequote\"," + "\"schedulerConfig\" : {" + "\"dataSource\":\"ELASTICSEARCH\","
-                + "\"baseUrl\":\"http://localhost:9200/\"," + "\"indexes\":[\"farequote\"]," + "\"types\":[\"farequote\"],"
+        String jobConfigStr = "{" + "\"job_id\":\"farequote\"," + "\"scheduler_config\" : {" + "\"data_source\":\"ELASTICSEARCH\","
+                + "\"base_url\":\"http://localhost:9200/\"," + "\"indexes\":[\"farequote\"]," + "\"types\":[\"farequote\"],"
                 + "\"query\":{\"match_all\":{} }," + "\"aggs\" : {" + "\"top_level_must_be_time\" : {" + "\"histogram\" : {"
                 + "\"field\" : \"@timestamp\"," + "\"interval\" : 3600000" + "}," + "\"aggs\" : {" + "\"by_field_in_the_middle\" : { "
                 + "\"terms\" : {" + "\"field\" : \"airline\"," + "\"size\" : 0" + "}," + "\"aggs\" : {" + "\"stats_last\" : {"
                 + "\"avg\" : {" + "\"field\" : \"responsetime\"" + "}" + "}" + "} " + "}" + "}" + "}" + "}" + "},"
-                + "\"analysisConfig\" : {" + "\"summaryCountFieldName\":\"doc_count\"," + "\"bucketSpan\":3600,"
-                + "\"detectors\" :[{\"function\":\"avg\",\"fieldName\":\"responsetime\",\"byFieldName\":\"airline\"}],"
-                + "\"influencers\" :[\"airline\"]" + "}," + "\"dataDescription\" : {" + "\"format\":\"ELASTICSEARCH\","
-                + "\"timeField\":\"@timestamp\"," + "\"timeFormat\":\"epoch_ms\"" + "}" + "}";
+                + "\"analysis_config\" : {" + "\"summary_count_field_name\":\"doc_count\"," + "\"bucket_span\":3600,"
+                + "\"detectors\" :[{\"function\":\"avg\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}],"
+                + "\"influencers\" :[\"airline\"]" + "}," + "\"data_description\" : {" + "\"format\":\"ELASTICSEARCH\","
+                + "\"time_field\":\"@timestamp\"," + "\"time_format\":\"epoch_ms\"" + "}" + "}";
 
         XContentParser parser = XContentFactory.xContent(jobConfigStr).createParser(jobConfigStr);
         Job jobConfig = Job.PARSER.parse(parser, () -> ParseFieldMatcher.STRICT).build();
@@ -354,14 +354,14 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     public void testCheckValidFile_NoPath() {
         SchedulerConfig.Builder conf = new SchedulerConfig.Builder(DataSource.FILE);
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "filePath", "null"), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "file_path", "null"), e.getMessage());
     }
 
     public void testCheckValidFile_EmptyPath() {
         SchedulerConfig.Builder conf = new SchedulerConfig.Builder(DataSource.FILE);
         conf.setFilePath("");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "filePath", ""), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "file_path", ""), e.getMessage());
     }
 
     public void testCheckValidFile_InappropriateField() {
@@ -369,7 +369,7 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         conf.setFilePath("myfile.csv");
         conf.setBaseUrl("http://localhost:9200/");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_FIELD_NOT_SUPPORTED, "baseUrl", DataSource.FILE), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_FIELD_NOT_SUPPORTED, "base_url", DataSource.FILE), e.getMessage());
     }
 
     public void testCheckValidElasticsearch_AllOk() throws IOException {
@@ -457,7 +457,7 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         conf.setQuery(parser.map());
         conf.setTailFile(true);
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_FIELD_NOT_SUPPORTED, "tailFile", DataSource.ELASTICSEARCH),
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_FIELD_NOT_SUPPORTED, "tail_file", DataSource.ELASTICSEARCH),
                 e.getMessage());
     }
 
@@ -529,7 +529,7 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     public void testCheckValidElasticsearch_GivenNegativeQueryDelay() throws IOException {
         SchedulerConfig.Builder conf = new SchedulerConfig.Builder(DataSource.ELASTICSEARCH);
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setQueryDelay(-10L));
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "queryDelay", -10L), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "query_delay", -10L), e.getMessage());
     }
 
     public void testCheckValidElasticsearch_GivenZeroFrequency() throws IOException {
@@ -547,7 +547,7 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     public void testCheckValidElasticsearch_GivenNegativeScrollSize() throws IOException {
         SchedulerConfig.Builder conf = new SchedulerConfig.Builder(DataSource.ELASTICSEARCH);
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setScrollSize(-1000));
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "scrollSize", -1000L), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "scroll_size", -1000L), e.getMessage());
     }
 
     public void testCheckValidElasticsearch_GivenBothAggregationsAndAggsAreSet() {

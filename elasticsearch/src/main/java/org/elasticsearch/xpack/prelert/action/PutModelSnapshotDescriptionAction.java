@@ -269,8 +269,8 @@ PutModelSnapshotDescriptionAction.RequestBuilder> {
             checkForClashes(request);
 
             if (changeCandidates.size() > 1) {
-                logger.warn("More than one model found for [jobId: " + request.getJobId() + ", snapshotId: " + request.getSnapshotId()
-                + "] tuple.");
+                logger.warn("More than one model found for [{}: {}, {}: {}] tuple.", Job.ID.getPreferredName(), request.getJobId(),
+                        ModelSnapshot.SNAPSHOT_ID.getPreferredName(), request.getSnapshotId());
             }
             ModelSnapshot modelSnapshot = changeCandidates.get(0);
             modelSnapshot.setDescription(request.getDescriptionString());

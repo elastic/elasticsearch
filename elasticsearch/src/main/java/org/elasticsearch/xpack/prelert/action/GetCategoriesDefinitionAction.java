@@ -57,7 +57,7 @@ Action<GetCategoriesDefinitionAction.Request, GetCategoriesDefinitionAction.Resp
 
     public static class Request extends ActionRequest {
 
-        public static final ParseField CATEGORY_ID = new ParseField("categoryId");
+        public static final ParseField CATEGORY_ID = new ParseField("category_id");
         public static final ParseField FROM = new ParseField("from");
         public static final ParseField SIZE = new ParseField("size");
 

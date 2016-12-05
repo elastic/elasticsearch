@@ -25,11 +25,11 @@ import java.util.EnumSet;
 import java.util.Objects;
 
 public class RuleCondition extends ToXContentToBytes implements Writeable {
-    public static final ParseField CONDITION_TYPE_FIELD = new ParseField("conditionType");
-    public static final ParseField RULE_CONDITION_FIELD = new ParseField("ruleCondition");
-    public static final ParseField FIELD_NAME_FIELD = new ParseField("fieldName");
-    public static final ParseField FIELD_VALUE_FIELD = new ParseField("fieldValue");
-    public static final ParseField VALUE_LIST_FIELD = new ParseField("valueList");
+    public static final ParseField CONDITION_TYPE_FIELD = new ParseField("condition_type");
+    public static final ParseField RULE_CONDITION_FIELD = new ParseField("rule_condition");
+    public static final ParseField FIELD_NAME_FIELD = new ParseField("field_name");
+    public static final ParseField FIELD_VALUE_FIELD = new ParseField("field_value");
+    public static final ParseField VALUE_LIST_FIELD = new ParseField("value_list");
 
     public static final ConstructingObjectParser<RuleCondition, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(),

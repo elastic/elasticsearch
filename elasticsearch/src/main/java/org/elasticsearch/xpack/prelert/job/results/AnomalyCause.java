@@ -23,20 +23,20 @@ import java.util.Objects;
  */
 public class AnomalyCause extends ToXContentToBytes implements Writeable
 {
-    public static final ParseField ANOMALY_CAUSE = new ParseField("anomalyCause");
+    public static final ParseField ANOMALY_CAUSE = new ParseField("anomaly_cause");
     /**
      * Result fields
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
-    public static final ParseField OVER_FIELD_NAME = new ParseField("overFieldName");
-    public static final ParseField OVER_FIELD_VALUE = new ParseField("overFieldValue");
-    public static final ParseField BY_FIELD_NAME = new ParseField("byFieldName");
-    public static final ParseField BY_FIELD_VALUE = new ParseField("byFieldValue");
-    public static final ParseField CORRELATED_BY_FIELD_VALUE = new ParseField("correlatedByFieldValue");
-    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partitionFieldName");
-    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partitionFieldValue");
+    public static final ParseField OVER_FIELD_NAME = new ParseField("over_field_name");
+    public static final ParseField OVER_FIELD_VALUE = new ParseField("over_field_value");
+    public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
+    public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
+    public static final ParseField CORRELATED_BY_FIELD_VALUE = new ParseField("correlated_by_field_value");
+    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
+    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
     public static final ParseField FUNCTION = new ParseField("function");
-    public static final ParseField FUNCTION_DESCRIPTION = new ParseField("functionDescription");
+    public static final ParseField FUNCTION_DESCRIPTION = new ParseField("function_description");
     public static final ParseField TYPICAL = new ParseField("typical");
     public static final ParseField ACTUAL = new ParseField("actual");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
@@ -44,7 +44,7 @@ public class AnomalyCause extends ToXContentToBytes implements Writeable
     /**
      * Metric Results
      */
-    public static final ParseField FIELD_NAME = new ParseField("fieldName");
+    public static final ParseField FIELD_NAME = new ParseField("field_name");
 
     public static final ObjectParser<AnomalyCause, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(ANOMALY_CAUSE.getPreferredName(),
             AnomalyCause::new);

@@ -4,19 +4,19 @@
       xpack.prelert.put_job:
         body:  >
           {
-            "jobId":"farequote",
+            "job_id":"farequote",
             "description":"Analysis of response time by airline",
-            "analysisConfig" : {
-                "bucketSpan":3600,
-                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
-            "dataDescription" : {
-                "fieldDelimiter":",",
-                "timeField":"time",
-                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
-  - match: { jobId: "farequote" }
+  - match: { job_id: "farequote" }
 
   - do:
       indices.get:
@@ -28,13 +28,13 @@
         from: 0
         size: 100
   - match: { count: 1 }
-  - match: { jobs.0.config.jobId: "farequote" }
+  - match: { jobs.0.config.job_id: "farequote" }
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "farequote"
   - match: { count: 1 }
-  - match: { jobs.0.config.jobId: "farequote" }
+  - match: { jobs.0.config.job_id: "farequote" }
 
   - do:
       xpack.prelert.delete_job:
@@ -64,34 +64,34 @@
       xpack.prelert.put_job:
         body:  >
           {
-            "jobId":"farequote",
+            "job_id":"farequote",
             "description":"Analysis of response time by airline",
-            "analysisConfig" : {
-                "bucketSpan":3600,
-                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
-            "dataDescription" : {
-                "fieldDelimiter":",",
-                "timeField":"time",
-                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
-  - match: { jobId: "farequote" }
+  - match: { job_id: "farequote" }
 
   - do:
       catch: /resource_already_exists_exception/
       xpack.prelert.put_job:
         body:  >
           {
-            "jobId":"farequote",
+            "job_id":"farequote",
             "description":"Analysis of response time by airline",
-            "analysisConfig" : {
-                "bucketSpan":3600,
-                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
-            "dataDescription" : {
-                "fieldDelimiter":",",
-                "timeField":"time",
-                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }

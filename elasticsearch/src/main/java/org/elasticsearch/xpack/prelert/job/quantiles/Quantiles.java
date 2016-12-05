@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.prelert.job.Job;
 
 import java.io.IOException;
 import java.util.Date;
@@ -28,9 +29,8 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
     /**
      * Field Names
      */
-    public static final ParseField JOB_ID = new ParseField("jobId");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
-    public static final ParseField QUANTILE_STATE = new ParseField("quantileState");
+    public static final ParseField QUANTILE_STATE = new ParseField("quantile_state");
 
     /**
      * Elasticsearch type
@@ -41,7 +41,7 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
             TYPE.getPreferredName(), a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> new Date(p.longValue()), TIMESTAMP, ValueType.LONG);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), QUANTILE_STATE);
     }
@@ -78,7 +78,7 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         if (timestamp != null) {
             builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
         }

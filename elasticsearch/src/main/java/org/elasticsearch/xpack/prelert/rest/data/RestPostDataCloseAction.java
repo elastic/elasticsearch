@@ -15,12 +15,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.PostDataCloseAction;
+import org.elasticsearch.xpack.prelert.job.Job;
 
 import java.io.IOException;
 
 public class RestPostDataCloseAction extends BaseRestHandler {
-
-    private static final ParseField JOB_ID = new ParseField("jobId");
 
     private final PostDataCloseAction.TransportAction transportPostDataCloseAction;
 
@@ -29,12 +28,14 @@ public class RestPostDataCloseAction extends BaseRestHandler {
             PostDataCloseAction.TransportAction transportPostDataCloseAction) {
         super(settings);
         this.transportPostDataCloseAction = transportPostDataCloseAction;
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "data/{jobId}/_close", this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH
+                + "data/{" + Job.ID.getPreferredName() + "}/_close", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        PostDataCloseAction.Request postDataCloseRequest = new PostDataCloseAction.Request(restRequest.param(JOB_ID.getPreferredName()));
+        PostDataCloseAction.Request postDataCloseRequest = new PostDataCloseAction.Request(
+                restRequest.param(Job.ID.getPreferredName()));
 
         return channel -> transportPostDataCloseAction.execute(postDataCloseRequest, new AcknowledgedRestListener<>(channel));
     }

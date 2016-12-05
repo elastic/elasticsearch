@@ -494,7 +494,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                     logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", request.getJobId()));
                     throw QueryPage.emptyQueryPage(Job.RESULTS_FIELD);
                 } else if (jobs.count() > 1) {
-                    logger.error(String.format(Locale.ROOT, "More than one job found for jobId [%s]", request.getJobId()));
+                    logger.error("More than one job found for {} [{}]", Job.ID.getPreferredName(), request.getJobId());
                 }
 
                 logger.debug("Returning job [" + request.getJobId() + "]");

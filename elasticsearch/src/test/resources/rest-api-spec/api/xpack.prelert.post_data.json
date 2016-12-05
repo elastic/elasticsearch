@@ -12,15 +12,15 @@
         }
       },
       "params": {
-        "ignoreDowntime": {
+        "ignore_downtime": {
           "type": "boolean",
           "description": "Controls if gaps in data are treated as anomalous or as a maintenance window after a job re-start"
         },
-        "resetStart": {
+        "reset_start": {
           "type": "string",
           "description": "Optional parameter to specify the start of the bucket resetting range"
         },
-        "resetEnd": {
+        "reset_end": {
           "type": "string",
           "description": "Optional parameter to specify the end of the bucket resetting range"
         }

@@ -25,11 +25,11 @@ import java.util.TreeSet;
 
 public class CategoryDefinition extends ToXContentToBytes implements Writeable {
 
-    public static final ParseField TYPE = new ParseField("categoryDefinition");
-    public static final ParseField CATEGORY_ID = new ParseField("categoryId");
+    public static final ParseField TYPE = new ParseField("category_definition");
+    public static final ParseField CATEGORY_ID = new ParseField("category_id");
     public static final ParseField TERMS = new ParseField("terms");
     public static final ParseField REGEX = new ParseField("regex");
-    public static final ParseField MAX_MATCHING_LENGTH = new ParseField("maxMatchingLength");
+    public static final ParseField MAX_MATCHING_LENGTH = new ParseField("max_matching_length");
     public static final ParseField EXAMPLES = new ParseField("examples");
 
     // Used for QueryPage

@@ -2,21 +2,21 @@ setup:
   - do:
       index:
         index:  prelertresults-farequote
-        type:   categoryDefinition
+        type:   category_definition
         id:     1
-        body:   { "jobId": "farequote", "categoryId": 1 }
+        body:   { "job_id": "farequote", "category_id": 1 }
   - do:
       index:
         index:  prelertresults-farequote
-        type:   categoryDefinition
+        type:   category_definition
         id:     2
-        body:   { "jobId": "farequote", "categoryId": 2 }
+        body:   { "job_id": "farequote", "category_id": 2 }
   - do:
       index:
         index:  prelertresults-unrelated
-        type:   categoryDefinition
+        type:   category_definition
         id:     3
-        body:   { "jobId": "unrelated", "categoryId": 1 }
+        body:   { "job_id": "unrelated", "category_id": 1 }
 
   - do:
       indices.refresh:
@@ -29,10 +29,10 @@ setup:
         job_id: "farequote"
 
   - match: { count: 2 }
-  - match: { categories.0.jobId: farequote }
-  - match: { categories.0.categoryId: 1 }
-  - match: { categories.1.jobId: farequote }
-  - match: { categories.1.categoryId: 2 }
+  - match: { categories.0.job_id: farequote }
+  - match: { categories.0.category_id: 1 }
+  - match: { categories.1.job_id: farequote }
+  - match: { categories.1.category_id: 2 }
 
 ---
 "Test result category api":
@@ -41,5 +41,5 @@ setup:
         job_id: "farequote"
         category_id: "1"
 
-  - match: { categories.0.jobId: farequote }
-  - match: { categories.0.categoryId: 1 }
+  - match: { categories.0.job_id: farequote }
+  - match: { categories.0.category_id: 1 }

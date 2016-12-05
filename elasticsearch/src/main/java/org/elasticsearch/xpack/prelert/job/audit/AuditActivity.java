@@ -22,12 +22,12 @@ import java.util.Date;
 import java.util.Objects;
 
 public class AuditActivity extends ToXContentToBytes implements Writeable {
-    public static final ParseField TYPE = new ParseField("auditActivity");
+    public static final ParseField TYPE = new ParseField("audit_activity");
 
-    public static final ParseField TOTAL_JOBS = new ParseField("totalJobs");
-    public static final ParseField TOTAL_DETECTORS = new ParseField("totalDetectors");
-    public static final ParseField RUNNING_JOBS = new ParseField("runningJobs");
-    public static final ParseField RUNNING_DETECTORS = new ParseField("runningDetectors");
+    public static final ParseField TOTAL_JOBS = new ParseField("total_jobs");
+    public static final ParseField TOTAL_DETECTORS = new ParseField("total_detectors");
+    public static final ParseField RUNNING_JOBS = new ParseField("running_jobs");
+    public static final ParseField RUNNING_DETECTORS = new ParseField("running_detectors");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
     public static final ObjectParser<AuditActivity, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(TYPE.getPreferredName(),

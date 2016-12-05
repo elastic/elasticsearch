@@ -4,25 +4,25 @@ setup:
         index:  prelertresults-foo
         body:
           mappings:
-            modelSnapshot:
+            model_snapshot:
               properties:
                 "timestamp":
                   type: date
-                "restorePriority":
+                "restore_priority":
                   type: integer
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelSnapshot
+        type:   model_snapshot
         id:     "1"
-        body:   { "jobId": "foo", "timestamp": "2016-06-02T00:00:00Z", "restorePriority": "1" }
+        body:   { "job_id": "foo", "timestamp": "2016-06-02T00:00:00Z", "restore_priority": "1" }
 
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelSnapshot
+        type:   model_snapshot
         id:     "2"
-        body:   { "jobId": "foo", "timestamp": "2016-06-01T00:00:00Z", "restorePriority": "2" }
+        body:   { "job_id": "foo", "timestamp": "2016-06-01T00:00:00Z", "restore_priority": "2" }
 
   - do:
       indices.refresh:
@@ -36,8 +36,8 @@ setup:
 
 
   - match: { count: 2 }
-  - match: { modelSnapshots.0.restorePriority: 2 }
-  - match: { modelSnapshots.0.timestamp: 1464739200000 }
+  - match: { model_snapshots.0.restore_priority: 2 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
 
 ---
 "Test get model snapshots API with start/end":
@@ -49,8 +49,8 @@ setup:
 
 
   - match: { count: 2 }
-  - match: { modelSnapshots.0.restorePriority: 2 }
-  - match: { modelSnapshots.0.timestamp: 1464739200000 }
+  - match: { model_snapshots.0.restore_priority: 2 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
 
 ---
 "Test get model snapshots API with ascending":
@@ -61,8 +61,8 @@ setup:
 
 
   - match: { count: 2 }
-  - match: { modelSnapshots.0.restorePriority: 1 }
-  - match: { modelSnapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.0.restore_priority: 1 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
 
 ---
 "Test get model snapshots API with size":
@@ -73,9 +73,9 @@ setup:
 
 
   - match: { count: 2 }
-  - match: { modelSnapshots.0.restorePriority: 2 }
-  - match: { modelSnapshots.0.timestamp: 1464739200000 }
-  - length: { modelSnapshots: 1 }
+  - match: { model_snapshots.0.restore_priority: 2 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
+  - length: { model_snapshots: 1 }
 
 ---
 "Test get model snapshots API with from":
@@ -86,6 +86,6 @@ setup:
 
 
   - match: { count: 2 }
-  - match: { modelSnapshots.0.restorePriority: 1 }
-  - match: { modelSnapshots.0.timestamp: 1464825600000 }
-  - length: { modelSnapshots: 1 }
+  - match: { model_snapshots.0.restore_priority: 1 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - length: { model_snapshots: 1 }

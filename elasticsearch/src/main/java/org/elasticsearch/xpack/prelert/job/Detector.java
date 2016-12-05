@@ -82,15 +82,15 @@ public class Detector extends ToXContentToBytes implements Writeable {
     }
 
     public static final ParseField DETECTOR_FIELD = new ParseField("detector");
-    public static final ParseField DETECTOR_DESCRIPTION_FIELD = new ParseField("detectorDescription");
+    public static final ParseField DETECTOR_DESCRIPTION_FIELD = new ParseField("detector_description");
     public static final ParseField FUNCTION_FIELD = new ParseField("function");
-    public static final ParseField FIELD_NAME_FIELD = new ParseField("fieldName");
-    public static final ParseField BY_FIELD_NAME_FIELD = new ParseField("byFieldName");
-    public static final ParseField OVER_FIELD_NAME_FIELD = new ParseField("overFieldName");
-    public static final ParseField PARTITION_FIELD_NAME_FIELD = new ParseField("partitionFieldName");
-    public static final ParseField USE_NULL_FIELD = new ParseField("useNull");
-    public static final ParseField EXCLUDE_FREQUENT_FIELD = new ParseField("excludeFrequent");
-    public static final ParseField DETECTOR_RULES_FIELD = new ParseField("detectorRules");
+    public static final ParseField FIELD_NAME_FIELD = new ParseField("field_name");
+    public static final ParseField BY_FIELD_NAME_FIELD = new ParseField("by_field_name");
+    public static final ParseField OVER_FIELD_NAME_FIELD = new ParseField("over_field_name");
+    public static final ParseField PARTITION_FIELD_NAME_FIELD = new ParseField("partition_field_name");
+    public static final ParseField USE_NULL_FIELD = new ParseField("use_null");
+    public static final ParseField EXCLUDE_FREQUENT_FIELD = new ParseField("exclude_frequent");
+    public static final ParseField DETECTOR_RULES_FIELD = new ParseField("detector_rules");
 
     public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("detector", Builder::new);
 

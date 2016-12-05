@@ -27,8 +27,8 @@ public class Influence extends ToXContentToBytes implements Writeable {
      * Note all publicly exposed field names are "influencer" not "influence"
      */
     public static final ParseField INFLUENCER = new ParseField("influencer");
-    public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencerFieldName");
-    public static final ParseField INFLUENCER_FIELD_VALUES = new ParseField("influencerFieldValues");
+    public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencer_field_name");
+    public static final ParseField INFLUENCER_FIELD_VALUES = new ParseField("influencer_field_values");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Influence, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(

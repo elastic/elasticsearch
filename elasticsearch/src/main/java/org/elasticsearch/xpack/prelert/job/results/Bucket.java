@@ -39,17 +39,17 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     public static final ParseField JOB_ID = Job.ID;
 
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
-    public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
-    public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initialAnomalyScore");
-    public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("maxNormalizedProbability");
-    public static final ParseField IS_INTERIM = new ParseField("isInterim");
-    public static final ParseField RECORD_COUNT = new ParseField("recordCount");
-    public static final ParseField EVENT_COUNT = new ParseField("eventCount");
+    public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
+    public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initial_anomaly_score");
+    public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("max_normalized_probability");
+    public static final ParseField IS_INTERIM = new ParseField("is_interim");
+    public static final ParseField RECORD_COUNT = new ParseField("record_count");
+    public static final ParseField EVENT_COUNT = new ParseField("event_count");
     public static final ParseField RECORDS = new ParseField("records");
-    public static final ParseField BUCKET_INFLUENCERS = new ParseField("bucketInfluencers");
-    public static final ParseField BUCKET_SPAN = new ParseField("bucketSpan");
-    public static final ParseField PROCESSING_TIME_MS = new ParseField("processingTimeMs");
-    public static final ParseField PARTITION_SCORES = new ParseField("partitionScores");
+    public static final ParseField BUCKET_INFLUENCERS = new ParseField("bucket_influencers");
+    public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    public static final ParseField PROCESSING_TIME_MS = new ParseField("processing_time_ms");
+    public static final ParseField PARTITION_SCORES = new ParseField("partition_scores");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("buckets");

@@ -176,7 +176,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> DataDescription.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
-        assertThat(ex.getMessage(), containsString("[dataDescription] failed to parse field [format]"));
+        assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [format]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
         assertThat(cause, instanceOf(IllegalArgumentException.class));
@@ -185,11 +185,11 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     }
 
     public void testInvalidFieldDelimiter() throws Exception {
-        BytesArray json = new BytesArray("{ \"fieldDelimiter\":\",,\" }");
+        BytesArray json = new BytesArray("{ \"field_delimiter\":\",,\" }");
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> DataDescription.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
-        assertThat(ex.getMessage(), containsString("[dataDescription] failed to parse field [fieldDelimiter]"));
+        assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [field_delimiter]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
         assertThat(cause, instanceOf(IllegalArgumentException.class));
@@ -198,11 +198,11 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     }
 
     public void testInvalidQuoteCharacter() throws Exception {
-        BytesArray json = new BytesArray("{ \"quoteCharacter\":\"''\" }");
+        BytesArray json = new BytesArray("{ \"quote_character\":\"''\" }");
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> DataDescription.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
-        assertThat(ex.getMessage(), containsString("[dataDescription] failed to parse field [quoteCharacter]"));
+        assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [quote_character]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
         assertThat(cause, instanceOf(IllegalArgumentException.class));

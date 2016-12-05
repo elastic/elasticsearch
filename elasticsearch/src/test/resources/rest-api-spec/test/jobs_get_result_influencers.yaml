@@ -6,11 +6,11 @@ setup:
           mappings:
             result:
               properties:
-                "jobId":
+                "job_id":
                   type: keyword
                 "timestamp":
                   type: date
-                "anomalyScore":
+                "anomaly_score":
                   type: float
                 "result_type":
                   type: keyword
@@ -21,11 +21,11 @@ setup:
         id:     1
         body:
           {
-            "jobId": "farequote",
+            "job_id": "farequote",
             "timestamp": "2016-06-01T00:00:00Z",
-            "influencerFieldName": "foo",
-            "influencerFieldValue": "bar",
-            "anomalyScore": 80.0,
+            "influencer_field_name": "foo",
+            "influencer_field_value": "bar",
+            "anomaly_score": 80.0,
             "result_type" : "influencer"
           }
 
@@ -36,11 +36,11 @@ setup:
         id:     2
         body:
           {
-            "jobId": "farequote",
+            "job_id": "farequote",
             "timestamp": "2016-06-02T00:00:00Z",
-            "influencerFieldName": "foo",
-            "influencerFieldValue": "zoo",
-            "anomalyScore": 50.0,
+            "influencer_field_name": "foo",
+            "influencer_field_value": "zoo",
+            "anomaly_score": 50.0,
             "result_type" : "influencer"
           }
   - do:

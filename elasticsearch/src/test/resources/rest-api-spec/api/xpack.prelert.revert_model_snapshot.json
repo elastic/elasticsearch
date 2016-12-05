@@ -16,7 +16,7 @@
           "type": "date",
           "description": "revert to a snapshot with a timestamp no later than this time"
         },
-        "snapshotId": {
+        "snapshot_id": {
           "type": "string",
           "description": "the snapshot ID of the snapshot to revert to"
         },
@@ -24,7 +24,7 @@
           "type": "string",
           "description": "the description of the snapshot to revert to"
         },
-        "deleteInterveningResults": {
+        "delete_intervening_results": {
           "type": "boolean",
           "description": "should we reset the results back to the time of the snapshot?"
         }

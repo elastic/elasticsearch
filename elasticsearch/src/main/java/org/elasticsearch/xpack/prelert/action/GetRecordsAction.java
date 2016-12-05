@@ -64,12 +64,12 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField INCLUDE_INTERIM = new ParseField("includeInterim");
-        public static final ParseField ANOMALY_SCORE_FILTER = new ParseField("anomalyScore");
+        public static final ParseField INCLUDE_INTERIM = new ParseField("include_interim");
+        public static final ParseField ANOMALY_SCORE_FILTER = new ParseField("anomaly_score");
         public static final ParseField SORT = new ParseField("sort");
         public static final ParseField DESCENDING = new ParseField("desc");
-        public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("normalizedProbability");
-        public static final ParseField PARTITION_VALUE = new ParseField("partitionValue");
+        public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("normalized_probability");
+        public static final ParseField PARTITION_VALUE = new ParseField("partition_value");
 
         private static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
 

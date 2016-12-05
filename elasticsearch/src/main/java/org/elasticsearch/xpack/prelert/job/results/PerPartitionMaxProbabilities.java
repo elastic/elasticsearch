@@ -38,12 +38,12 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     /**
      * Result type
      */
-    public static final String RESULT_TYPE_VALUE = "partitionNormalizedProbs";
+    public static final String RESULT_TYPE_VALUE = "partition_normalized_probs";
 
     /*
      * Field Names
      */
-    public static final ParseField PER_PARTITION_MAX_PROBABILITIES = new ParseField("perPartitionMaxProbabilities");
+    public static final ParseField PER_PARTITION_MAX_PROBABILITIES = new ParseField("per_partition_max_probabilities");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<PerPartitionMaxProbabilities, ParseFieldMatcherSupplier> PARSER =

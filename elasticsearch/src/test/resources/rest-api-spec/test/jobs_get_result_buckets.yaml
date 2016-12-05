@@ -6,7 +6,7 @@ setup:
           mappings:
             results:
               properties:
-                "jobId":
+                "job_id":
                   type: keyword
                 "result_type":
                   type: keyword
@@ -18,14 +18,14 @@ setup:
         index:  prelertresults-farequote
         type:   result
         id:     "farequote_1464739200000_1"
-        body:   { "jobId": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z", "bucketSpan":1 }
+        body:   { "job_id": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z", "bucket_span":1 }
 
   - do:
       index:
         index:  prelertresults-farequote
         type:   result
         id:     "farequote_1464739200000_2"
-        body:   { "jobId": "farequote", "result_type": "bucket", "timestamp": "2016-08-01T00:00:00Z", "bucketSpan":1 }
+        body:   { "job_id": "farequote", "result_type": "bucket", "timestamp": "2016-08-01T00:00:00Z", "bucket_span":1 }
 
   - do:
       indices.refresh:
@@ -41,7 +41,7 @@ setup:
 
   - match: { count: 1 }
   - match: { buckets.0.timestamp: 1464739200000 }
-  - match: { buckets.0.jobId: farequote}
+  - match: { buckets.0.job_id: farequote}
   - match: { buckets.0.result_type: bucket}
 
 ---
@@ -52,10 +52,10 @@ setup:
 
   - match: { count: 2 }
   - match: { buckets.0.timestamp: 1464739200000 }
-  - match: { buckets.0.jobId: farequote}
+  - match: { buckets.0.job_id: farequote}
   - match: { buckets.0.result_type: bucket}
   - match: { buckets.1.timestamp: 1470009600000 }
-  - match: { buckets.1.jobId: farequote}
+  - match: { buckets.1.job_id: farequote}
   - match: { buckets.1.result_type: bucket}
 
 ---
@@ -66,5 +66,5 @@ setup:
         timestamp: "2016-06-01T00:00:00Z"
 
   - match: { buckets.0.timestamp: 1464739200000}
-  - match: { buckets.0.jobId: farequote }
+  - match: { buckets.0.job_id: farequote }
   - match: { buckets.0.result_type: bucket}

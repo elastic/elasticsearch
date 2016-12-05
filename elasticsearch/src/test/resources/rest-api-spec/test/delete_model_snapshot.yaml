@@ -3,40 +3,40 @@ setup:
       xpack.prelert.put_job:
         body:  >
           {
-            "jobId":"foo",
+            "job_id": "foo",
             "description":"Analysis of response time by airline",
-            "analysisConfig" : {
-                "bucketSpan":3600,
-                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            "analysis_config" : {
+                "bucket_span" : 3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
-            "dataDescription" : {
-                "fieldDelimiter":",",
-                "timeField":"time",
-                "timeFormat":"yyyy-MM-dd HH:mm:ssX"
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
 
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelSnapshot
+        type:   model_snapshot
         id:     "foo1"
         body: >
           {
-            "jobId": "foo",
+            "job_id": "foo",
             "timestamp": "2016-06-02T00:00:00Z",
-            "restorePriority": "1",
-            "snapshotId": "foo1",
+            "restore_priority": "1",
+            "snapshot_id": "foo1",
             "description": "first",
-            "latestRecordTimeStamp": "2016-06-02T00:00:00Z",
-            "latestResultTimeStamp": "2016-06-02T00:00:00Z",
-            "snapshotDocCount": 2
+            "latest_record_time_stamp": "2016-06-02T00:00:00Z",
+            "latest_result_time_stamp": "2016-06-02T00:00:00Z",
+            "snapshot_doc_count": 2
           }
 
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelState
+        type:   model_state
         id:     "foo1_0"
         body: >
           {
@@ -46,7 +46,7 @@ setup:
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelState
+        type:   model_state
         id:     "foo1_1"
         body: >
           {
@@ -56,17 +56,17 @@ setup:
   - do:
       index:
         index:  prelertresults-foo
-        type:   modelSnapshot
+        type:   model_snapshot
         id:     "foo2"
         body: >
           {
-            "jobId": "foo",
+            "job_id": "foo",
             "timestamp": "2016-06-01T00:00:00Z",
-            "restorePriority": "2",
-            "snapshotId": "foo2",
+            "restore_priority": "2",
+            "snapshot_id": "foo2",
             "description": "second",
-            "latestRecordTimeStamp": "2016-06-01T00:00:00Z",
-            "latestResultTimeStamp": "2016-06-01T00:00:00Z"
+            "latest_record_time_stamp": "2016-06-01T00:00:00Z",
+            "latest_result_time_stamp": "2016-06-01T00:00:00Z"
           }
 
   - do:
@@ -85,7 +85,7 @@ setup:
   - do:
       catch: param
       xpack.prelert.delete_model_snapshot:
-        snapshotId: "foo"
+        snapshot_id: "foo"
 
 ---
 "Test valid delete snapshot":
@@ -97,7 +97,7 @@ setup:
   - do:
       count:
         index: prelertresults-foo
-        type: modelState
+        type: model_state
 
   - match: { count: 2 }
 
@@ -115,12 +115,12 @@ setup:
       xpack.prelert.get_model_snapshots:
         job_id: "foo"
   - match: { count: 1 }
-  - match: { modelSnapshots.0.snapshotId: "foo2"}
+  - match: { model_snapshots.0.snapshot_id: "foo2"}
 
   - do:
       count:
         index: prelertresults-foo
-        type: modelState
+        type: model_state
 
   - match: { count: 0 }
 
@@ -129,7 +129,7 @@ setup:
   - do:
       xpack.prelert.revert_model_snapshot:
         job_id: "foo"
-        snapshotId: "foo2"
+        snapshot_id: "foo2"
 
   - do:
       catch: request

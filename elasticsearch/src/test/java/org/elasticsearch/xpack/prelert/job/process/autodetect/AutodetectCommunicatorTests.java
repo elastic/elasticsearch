@@ -102,7 +102,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         Job.Builder builder = new Job.Builder("foo");
 
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setTimeField("timeField");
+        dd.setTimeField("time_field");
 
         Detector.Builder detector = new Detector.Builder("metric", "value");
         detector.setByFieldName("host-metric");

@@ -59,10 +59,10 @@ PostDataFlushAction.RequestBuilder> {
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContent {
 
-        public static final ParseField CALC_INTERIM = new ParseField("calcInterim");
+        public static final ParseField CALC_INTERIM = new ParseField("calc_interim");
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField ADVANCE_TIME = new ParseField("advanceTime");
+        public static final ParseField ADVANCE_TIME = new ParseField("advance_time");
 
         private static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
 

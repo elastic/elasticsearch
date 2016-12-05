@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -37,21 +38,20 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     /**
      * Result fields (all detector types)
      */
-    public static final ParseField JOB_ID = new ParseField("jobId");
-    public static final ParseField DETECTOR_INDEX = new ParseField("detectorIndex");
+    public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
     public static final ParseField PROBABILITY = new ParseField("probability");
-    public static final ParseField BY_FIELD_NAME = new ParseField("byFieldName");
-    public static final ParseField BY_FIELD_VALUE = new ParseField("byFieldValue");
-    public static final ParseField CORRELATED_BY_FIELD_VALUE = new ParseField("correlatedByFieldValue");
-    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partitionFieldName");
-    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partitionFieldValue");
+    public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
+    public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
+    public static final ParseField CORRELATED_BY_FIELD_VALUE = new ParseField("correlated_by_field_value");
+    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
+    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
     public static final ParseField FUNCTION = new ParseField("function");
-    public static final ParseField FUNCTION_DESCRIPTION = new ParseField("functionDescription");
+    public static final ParseField FUNCTION_DESCRIPTION = new ParseField("function_description");
     public static final ParseField TYPICAL = new ParseField("typical");
     public static final ParseField ACTUAL = new ParseField("actual");
-    public static final ParseField IS_INTERIM = new ParseField("isInterim");
+    public static final ParseField IS_INTERIM = new ParseField("is_interim");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
-    public static final ParseField BUCKET_SPAN = new ParseField("bucketSpan");
+    public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
     // Used for QueryPage
@@ -60,27 +60,27 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     /**
      * Metric Results (including population metrics)
      */
-    public static final ParseField FIELD_NAME = new ParseField("fieldName");
+    public static final ParseField FIELD_NAME = new ParseField("field_name");
 
     /**
      * Population results
      */
-    public static final ParseField OVER_FIELD_NAME = new ParseField("overFieldName");
-    public static final ParseField OVER_FIELD_VALUE = new ParseField("overFieldValue");
+    public static final ParseField OVER_FIELD_NAME = new ParseField("over_field_name");
+    public static final ParseField OVER_FIELD_VALUE = new ParseField("over_field_value");
     public static final ParseField CAUSES = new ParseField("causes");
 
     /**
      * Normalisation
      */
-    public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
-    public static final ParseField NORMALIZED_PROBABILITY = new ParseField("normalizedProbability");
-    public static final ParseField INITIAL_NORMALIZED_PROBABILITY = new ParseField("initialNormalizedProbability");
+    public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
+    public static final ParseField NORMALIZED_PROBABILITY = new ParseField("normalized_probability");
+    public static final ParseField INITIAL_NORMALIZED_PROBABILITY = new ParseField("initial_normalized_probability");
 
     public static final ConstructingObjectParser<AnomalyRecord, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new AnomalyRecord((String) a[0]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
         PARSER.declareDouble(AnomalyRecord::setAnomalyScore, ANOMALY_SCORE);
@@ -242,7 +242,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);

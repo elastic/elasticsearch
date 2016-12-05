@@ -69,20 +69,20 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertEquals(2, list.size());
 
         String s = list.get(0).string();
-        assertTrue(s.matches(".*anomalyScore.:99\\.9.*"));
-        assertTrue(s.matches(".*initialAnomalyScore.:88\\.8.*"));
-        assertTrue(s.matches(".*maxNormalizedProbability.:42\\.0.*"));
-        assertTrue(s.matches(".*recordCount.:1.*"));
-        assertTrue(s.matches(".*eventCount.:57.*"));
-        assertTrue(s.matches(".*bucketSpan.:123456.*"));
-        assertTrue(s.matches(".*processingTimeMs.:8888.*"));
+        assertTrue(s.matches(".*anomaly_score.:99\\.9.*"));
+        assertTrue(s.matches(".*initial_anomaly_score.:88\\.8.*"));
+        assertTrue(s.matches(".*max_normalized_probability.:42\\.0.*"));
+        assertTrue(s.matches(".*record_count.:1.*"));
+        assertTrue(s.matches(".*event_count.:57.*"));
+        assertTrue(s.matches(".*bucket_span.:123456.*"));
+        assertTrue(s.matches(".*processing_time_ms.:8888.*"));
 
         s = list.get(1).string();
         assertTrue(s.matches(".*probability.:0\\.0054.*"));
-        assertTrue(s.matches(".*influencerFieldName.:.biOne.*"));
-        assertTrue(s.matches(".*initialAnomalyScore.:18\\.12.*"));
-        assertTrue(s.matches(".*anomalyScore.:14\\.15.*"));
-        assertTrue(s.matches(".*rawAnomalyScore.:19\\.19.*"));
+        assertTrue(s.matches(".*influencer_field_name.:.biOne.*"));
+        assertTrue(s.matches(".*initial_anomaly_score.:18\\.12.*"));
+        assertTrue(s.matches(".*anomaly_score.:14\\.15.*"));
+        assertTrue(s.matches(".*raw_anomaly_score.:19\\.19.*"));
     }
 
     public void testPersistRecords() throws IOException {
@@ -127,24 +127,24 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertEquals(1, captured.size());
 
         String s = captured.get(0).string();
-        assertTrue(s.matches(".*detectorIndex.:3.*"));
+        assertTrue(s.matches(".*detector_index.:3.*"));
         assertTrue(s.matches(".*\"probability\":0\\.1.*"));
-        assertTrue(s.matches(".*\"anomalyScore\":99\\.8.*"));
-        assertTrue(s.matches(".*\"normalizedProbability\":0\\.005.*"));
-        assertTrue(s.matches(".*initialNormalizedProbability.:23.4.*"));
-        assertTrue(s.matches(".*bucketSpan.:42.*"));
-        assertTrue(s.matches(".*byFieldName.:.byName.*"));
-        assertTrue(s.matches(".*byFieldValue.:.byValue.*"));
-        assertTrue(s.matches(".*correlatedByFieldValue.:.testCorrelations.*"));
+        assertTrue(s.matches(".*\"anomaly_score\":99\\.8.*"));
+        assertTrue(s.matches(".*\"normalized_probability\":0\\.005.*"));
+        assertTrue(s.matches(".*initial_normalized_probability.:23.4.*"));
+        assertTrue(s.matches(".*bucket_span.:42.*"));
+        assertTrue(s.matches(".*by_field_name.:.byName.*"));
+        assertTrue(s.matches(".*by_field_value.:.byValue.*"));
+        assertTrue(s.matches(".*correlated_by_field_value.:.testCorrelations.*"));
         assertTrue(s.matches(".*typical.:.0\\.44,998765\\.3.*"));
         assertTrue(s.matches(".*actual.:.5\\.0,5\\.1.*"));
-        assertTrue(s.matches(".*fieldName.:.testFieldName.*"));
+        assertTrue(s.matches(".*field_name.:.testFieldName.*"));
         assertTrue(s.matches(".*function.:.testFunction.*"));
-        assertTrue(s.matches(".*functionDescription.:.testDescription.*"));
-        assertTrue(s.matches(".*partitionFieldName.:.partName.*"));
-        assertTrue(s.matches(".*partitionFieldValue.:.partValue.*"));
-        assertTrue(s.matches(".*overFieldName.:.overName.*"));
-        assertTrue(s.matches(".*overFieldValue.:.overValue.*"));
+        assertTrue(s.matches(".*function_description.:.testDescription.*"));
+        assertTrue(s.matches(".*partition_field_name.:.partName.*"));
+        assertTrue(s.matches(".*partition_field_value.:.partValue.*"));
+        assertTrue(s.matches(".*over_field_name.:.overName.*"));
+        assertTrue(s.matches(".*over_field_value.:.overValue.*"));
     }
 
     public void testPersistInfluencers() throws IOException {
@@ -170,9 +170,9 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         String s = captured.get(0).string();
         assertTrue(s.matches(".*probability.:0\\.4.*"));
-        assertTrue(s.matches(".*influencerFieldName.:.infName1.*"));
-        assertTrue(s.matches(".*influencerFieldValue.:.infValue1.*"));
-        assertTrue(s.matches(".*initialAnomalyScore.:55\\.5.*"));
-        assertTrue(s.matches(".*anomalyScore.:16\\.0.*"));
+        assertTrue(s.matches(".*influencer_field_name.:.infName1.*"));
+        assertTrue(s.matches(".*influencer_field_value.:.infValue1.*"));
+        assertTrue(s.matches(".*initial_anomaly_score.:55\\.5.*"));
+        assertTrue(s.matches(".*anomaly_score.:16\\.0.*"));
     }
 }

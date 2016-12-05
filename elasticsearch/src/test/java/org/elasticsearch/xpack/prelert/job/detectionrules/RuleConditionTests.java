@@ -115,68 +115,68 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         Condition condition = new Condition(Operator.MATCH, "text");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.CATEGORICAL, null, null, condition, null));
-        assertEquals("Invalid detector rule: a categorical ruleCondition does not support condition", e.getMessage());
+        assertEquals("Invalid detector rule: a categorical rule_condition does not support condition", e.getMessage());
     }
 
     public void testVerify_GivenCategoricalWithFieldValue() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.CATEGORICAL, "metric", "CPU", null, null));
-        assertEquals("Invalid detector rule: a categorical ruleCondition does not support fieldValue", e.getMessage());
+        assertEquals("Invalid detector rule: a categorical rule_condition does not support field_value", e.getMessage());
     }
 
     public void testVerify_GivenCategoricalWithoutValueList() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, null));
-        assertEquals("Invalid detector rule: a categorical ruleCondition requires valueList to be set", e.getMessage());
+        assertEquals("Invalid detector rule: a categorical rule_condition requires value_list to be set", e.getMessage());
     }
 
     public void testVerify_GivenNumericalActualWithValueList() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, "myList"));
-        assertEquals("Invalid detector rule: a numerical ruleCondition does not support valueList", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_list", e.getMessage());
     }
 
     public void testVerify_GivenNumericalActualWithoutCondition() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, null));
-        assertEquals("Invalid detector rule: a numerical ruleCondition requires condition to be set", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition requires condition to be set", e.getMessage());
     }
 
     public void testVerify_GivenNumericalActualWithFieldNameButNoFieldValue() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "metric", null, new Condition(Operator.LT, "5"), null));
-        assertEquals("Invalid detector rule: a numerical ruleCondition with fieldName requires that fieldValue is set", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition with field_name requires that field_value is set", e.getMessage());
     }
 
     public void testVerify_GivenNumericalTypicalWithValueList() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, "myList"));
-        assertEquals("Invalid detector rule: a numerical ruleCondition does not support valueList", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_list", e.getMessage());
     }
 
     public void testVerify_GivenNumericalTypicalWithoutCondition() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, null));
-        assertEquals("Invalid detector rule: a numerical ruleCondition requires condition to be set", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition requires condition to be set", e.getMessage());
     }
 
     public void testVerify_GivenNumericalDiffAbsWithValueList() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_DIFF_ABS, null, null, null, "myList"));
-        assertEquals("Invalid detector rule: a numerical ruleCondition does not support valueList", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_list", e.getMessage());
     }
 
     public void testVerify_GivenNumericalDiffAbsWithoutCondition() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_DIFF_ABS, null, null, null, null));
-        assertEquals("Invalid detector rule: a numerical ruleCondition requires condition to be set", e.getMessage());
+        assertEquals("Invalid detector rule: a numerical rule_condition requires condition to be set", e.getMessage());
     }
 
     public void testVerify_GivenFieldValueWithoutFieldName() {
         Condition condition = new Condition(Operator.LTE, "5");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_DIFF_ABS, null, "foo", condition, null));
-        assertEquals("Invalid detector rule: missing fieldName in ruleCondition where fieldValue 'foo' is set", e.getMessage());
+        assertEquals("Invalid detector rule: missing field_name in rule_condition where field_value 'foo' is set", e.getMessage());
     }
 
     public void testVerify_GivenNumericalAndOperatorEquals() {

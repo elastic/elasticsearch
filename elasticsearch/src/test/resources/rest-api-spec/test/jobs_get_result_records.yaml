@@ -6,23 +6,23 @@ setup:
           mappings:
             record:
               properties:
-                "jobId":
+                "job_id":
                   type: keyword
                 "result_type":
                   type: keyword
                 "timestamp":
                   type: date
-                "normalizedProbability":
+                "normalized_probability":
                   type: float
-                "anomalyScore":
+                "anomaly_score":
                   type: float
-                "overFieldValue":
+                "over_field_value":
                   type: keyword
-                "partitionFieldValue":
+                "partition_field_value":
                   type: keyword
-                "byFieldValue":
+                "by_field_value":
                   type: keyword
-                "fieldName":
+                "field_name":
                   type: keyword
                 "function":
                   type: keyword
@@ -34,10 +34,10 @@ setup:
         id:     2
         body:
           {
-            "jobId": "farequote",
+            "job_id": "farequote",
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
-            "anomalyScore": 60.0
+            "anomaly_score": 60.0
           }
 
   - do:
@@ -47,10 +47,10 @@ setup:
           id:     3
           body:
             {
-              "jobId": "farequote",
+              "job_id": "farequote",
               "result_type": "record",
               "timestamp": "2016-06-02T00:00:00Z",
-              "anomalyScore": 80.0
+              "anomaly_score": 80.0
             }
 
   - do:
@@ -65,10 +65,10 @@ setup:
 
   - match: { count: 2 }
   - match: { records.0.timestamp: 1464825600000 }
-  - match: { records.0.jobId: farequote}
+  - match: { records.0.job_id: farequote}
   - match: { records.0.result_type: record}
   - match: { records.1.timestamp: 1464739200000 }
-  - match: { records.1.jobId: farequote}
+  - match: { records.1.job_id: farequote}
   - match: { records.1.result_type: record}
 
 ---
@@ -81,5 +81,5 @@ setup:
 
   - match: { count: 1 }
   - match: { records.0.timestamp: 1464739200000 }
-  - match: { records.0.jobId: farequote}
+  - match: { records.0.job_id: farequote}
   - match: { records.0.result_type: record}

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
@@ -64,7 +65,7 @@ public class PostDataCloseAction extends Action<PostDataCloseAction.Request, Pos
         Request() {}
 
         public Request(String jobId) {
-            this.jobId = ExceptionsHelper.requireNonNull(jobId, "jobId");
+            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
         public String getJobId() {

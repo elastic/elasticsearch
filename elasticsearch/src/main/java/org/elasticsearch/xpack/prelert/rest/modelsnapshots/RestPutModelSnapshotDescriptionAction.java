@@ -18,13 +18,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
+import org.elasticsearch.xpack.prelert.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction;
+import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
+
 import java.io.IOException;
 
 public class RestPutModelSnapshotDescriptionAction extends BaseRestHandler {
-
-    private static final ParseField JOB_ID = new ParseField("jobId");
-    private static final ParseField SNAPSHOT_ID = new ParseField("snapshotId");
 
     private final PutModelSnapshotDescriptionAction.TransportAction transportAction;
 
@@ -35,7 +37,8 @@ public class RestPutModelSnapshotDescriptionAction extends BaseRestHandler {
         this.transportAction = transportAction;
 
         // NORELEASE: should be a POST action
-        controller.registerHandler(RestRequest.Method.PUT, PrelertPlugin.BASE_PATH + "modelsnapshots/{jobId}/{snapshotId}/description",
+        controller.registerHandler(RestRequest.Method.PUT, PrelertPlugin.BASE_PATH + "modelsnapshots/{"
+                + Job.ID.getPreferredName() + "}/{" + ModelSnapshot.SNAPSHOT_ID +"}/description",
                 this);
     }
 
@@ -44,8 +47,8 @@ public class RestPutModelSnapshotDescriptionAction extends BaseRestHandler {
         BytesReference bodyBytes = RestActions.getRestContent(restRequest);
         XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
         PutModelSnapshotDescriptionAction.Request getModelSnapshots = PutModelSnapshotDescriptionAction.Request.parseRequest(
-                restRequest.param(JOB_ID.getPreferredName()),
-                restRequest.param(SNAPSHOT_ID.getPreferredName()),
+                restRequest.param(Job.ID.getPreferredName()),
+                restRequest.param(ModelSnapshot.SNAPSHOT_ID.getPreferredName()),
                 parser, () -> parseFieldMatcher
                 );
 

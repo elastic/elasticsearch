@@ -29,6 +29,7 @@ import java.util.Objects;
 public final class QueryPage<T extends ToXContent & Writeable> extends ToXContentToBytes implements Writeable {
 
     public static final ParseField COUNT = new ParseField("count");
+    public static final ParseField DEFAULT_RESULTS_FIELD = new ParseField("results_field");
 
     private final ParseField resultsField;
     private final List<T> results;
@@ -37,7 +38,7 @@ public final class QueryPage<T extends ToXContent & Writeable> extends ToXConten
     public QueryPage(List<T> results, long count, ParseField resultsField) {
         this.results = results;
         this.count = count;
-        this.resultsField = ExceptionsHelper.requireNonNull(resultsField, "resultsField");
+        this.resultsField = ExceptionsHelper.requireNonNull(resultsField, DEFAULT_RESULTS_FIELD.getPreferredName());
     }
 
     public QueryPage(StreamInput in, Reader<T> hitReader) throws IOException {

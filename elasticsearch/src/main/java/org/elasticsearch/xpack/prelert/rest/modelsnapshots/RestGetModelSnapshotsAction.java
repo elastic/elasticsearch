@@ -19,20 +19,13 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
+import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction.Request;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.results.PageParams;
 
 import java.io.IOException;
 
 public class RestGetModelSnapshotsAction extends BaseRestHandler {
-
-    private static final ParseField JOB_ID = new ParseField("jobId");
-    private static final ParseField SORT = new ParseField("sort");
-    private static final ParseField DESC_ORDER = new ParseField("desc");
-    private static final ParseField SIZE = new ParseField("size");
-    private static final ParseField FROM = new ParseField("from");
-    private static final ParseField START = new ParseField("start");
-    private static final ParseField END = new ParseField("end");
-    private static final ParseField DESCRIPTION = new ParseField("description");
 
     // Even though these are null, setting up the defaults in case
     // we want to change them later
@@ -49,34 +42,37 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
             GetModelSnapshotsAction.TransportAction transportGetModelSnapshotsAction) {
         super(settings);
         this.transportGetModelSnapshotsAction = transportGetModelSnapshotsAction;
-        controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "modelsnapshots/{jobId}", this);
+        controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "modelsnapshots/{"
+                + Job.ID.getPreferredName() + "}", this);
         // endpoints that support body parameters must also accept POST
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "modelsnapshots/{jobId}", this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "modelsnapshots/{"
+                + Job.ID.getPreferredName() + "}", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String jobId = restRequest.param(JOB_ID.getPreferredName());
-        GetModelSnapshotsAction.Request getModelSnapshots;
+        String jobId = restRequest.param(Job.ID.getPreferredName());
+        Request getModelSnapshots;
         if (RestActions.hasBodyContent(restRequest)) {
             BytesReference bodyBytes = RestActions.getRestContent(restRequest);
             XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
-            getModelSnapshots = GetModelSnapshotsAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
+            getModelSnapshots = Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         } else {
-            getModelSnapshots = new GetModelSnapshotsAction.Request(jobId);
-            getModelSnapshots.setSort(restRequest.param(SORT.getPreferredName(), DEFAULT_SORT));
-            if (restRequest.hasParam(START.getPreferredName())) {
-                getModelSnapshots.setStart(restRequest.param(START.getPreferredName(), DEFAULT_START));
+            getModelSnapshots = new Request(jobId);
+            getModelSnapshots.setSort(restRequest.param(Request.SORT.getPreferredName(), DEFAULT_SORT));
+            if (restRequest.hasParam(Request.START.getPreferredName())) {
+                getModelSnapshots.setStart(restRequest.param(Request.START.getPreferredName(), DEFAULT_START));
             }
-            if (restRequest.hasParam(END.getPreferredName())) {
-                getModelSnapshots.setEnd(restRequest.param(END.getPreferredName(), DEFAULT_END));
+            if (restRequest.hasParam(Request.END.getPreferredName())) {
+                getModelSnapshots.setEnd(restRequest.param(Request.END.getPreferredName(), DEFAULT_END));
             }
-            if (restRequest.hasParam(DESCRIPTION.getPreferredName())) {
-                getModelSnapshots.setDescriptionString(restRequest.param(DESCRIPTION.getPreferredName(), DEFAULT_DESCRIPTION));
+            if (restRequest.hasParam(Request.DESCRIPTION.getPreferredName())) {
+                getModelSnapshots.setDescriptionString(restRequest.param(Request.DESCRIPTION.getPreferredName(), DEFAULT_DESCRIPTION));
             }
-            getModelSnapshots.setDescOrder(restRequest.paramAsBoolean(DESC_ORDER.getPreferredName(), DEFAULT_DESC_ORDER));
-            getModelSnapshots.setPageParams(new PageParams(restRequest.paramAsInt(FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+            getModelSnapshots.setDescOrder(restRequest.paramAsBoolean(Request.DESC.getPreferredName(), DEFAULT_DESC_ORDER));
+            getModelSnapshots.setPageParams(new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
 
         return channel -> transportGetModelSnapshotsAction.execute(getModelSnapshots, new RestToXContentListener<>(channel));

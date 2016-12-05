@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.TimeRange;
@@ -136,9 +137,9 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
 
     public static class Request extends ActionRequest {
 
-        public static final ParseField IGNORE_DOWNTIME = new ParseField("ignoreDowntime");
-        public static final ParseField RESET_START = new ParseField("resetStart");
-        public static final ParseField RESET_END = new ParseField("resetEnd");
+        public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
+        public static final ParseField RESET_START = new ParseField("reset_start");
+        public static final ParseField RESET_END = new ParseField("reset_end");
 
         private String jobId;
         private boolean ignoreDowntime = false;
@@ -150,7 +151,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         }
 
         public Request(String jobId) {
-            ExceptionsHelper.requireNonNull(jobId, "jobId");
+            ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             this.jobId = jobId;
         }
 

@@ -98,9 +98,9 @@ public class AuditorTests extends ESTestCase {
         IndexRequestBuilder indexRequestBuilder = Mockito.mock(IndexRequestBuilder.class);
         when(indexRequestBuilder.setSource(jsonCaptor.capture())).thenReturn(indexRequestBuilder);
         when(indexRequestBuilder.execute()).thenReturn(indexResponse);
-        when(client.prepareIndex(indexCaptor.capture(), eq("auditMessage")))
+        when(client.prepareIndex(indexCaptor.capture(), eq("audit_message")))
         .thenReturn(indexRequestBuilder);
-        when(client.prepareIndex(indexCaptor.capture(), eq("auditActivity")))
+        when(client.prepareIndex(indexCaptor.capture(), eq("audit_activity")))
         .thenReturn(indexRequestBuilder);
     }
 

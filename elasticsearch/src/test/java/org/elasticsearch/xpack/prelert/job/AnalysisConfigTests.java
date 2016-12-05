@@ -449,7 +449,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             new AnalysisConfig.Builder(Collections.singletonList(d)).build();
             assertTrue(false); // shouldn't get here
         } catch (IllegalArgumentException e) {
-            assertEquals("Unless the function is 'count' one of fieldName, byFieldName or overFieldName must be set", e.getMessage());
+            assertEquals("Unless the function is 'count' one of field_name, by_field_name or over_field_name must be set", e.getMessage());
         }
 
         // should work now
@@ -481,7 +481,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             acBuilder.build();
             assertTrue(false); // shouldn't get here
         } catch (IllegalArgumentException e) {
-            assertEquals("batchSpan cannot be less than 0. Value = -1", e.getMessage());
+            assertEquals("batch_span cannot be less than 0. Value = -1", e.getMessage());
         }
 
         acBuilder.setBatchSpan(10L);
@@ -490,7 +490,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             acBuilder.build();
             assertTrue(false); // shouldn't get here
         } catch (IllegalArgumentException e) {
-            assertEquals("bucketSpan cannot be less than 0. Value = -1", e.getMessage());
+            assertEquals("bucket_span cannot be less than 0. Value = -1", e.getMessage());
         }
 
         acBuilder.setBucketSpan(3600L);
@@ -518,7 +518,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> config.build());
 
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "bucketSpan", 0, -1), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "bucket_span", 0, -1), e.getMessage());
     }
 
     public void testVerify_GivenNegativeBatchSpan() {
@@ -527,7 +527,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> analysisConfig.build());
 
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "batchSpan", 0, -1), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "batch_span", 0, -1), e.getMessage());
     }
 
 

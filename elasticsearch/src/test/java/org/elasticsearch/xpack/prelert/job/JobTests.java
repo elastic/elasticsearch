@@ -172,7 +172,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setAnalysisLimits(new AnalysisLimits(42L, null));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> builder.setAnalysisLimits(new AnalysisLimits(41L, null)));
-        assertEquals("Invalid update value for analysisLimits: modelMemoryLimit cannot be decreased; existing is 42, update had 41",
+        assertEquals("Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 42, update had 41",
                 e.getMessage());
     }
 

@@ -30,7 +30,7 @@ public class RestPostDataAction extends BaseRestHandler {
     public RestPostDataAction(Settings settings, RestController controller, PostDataAction.TransportAction transportPostDataAction) {
         super(settings);
         this.transportPostDataAction = transportPostDataAction;
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "data/{jobId}", this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "data/{" + Job.ID.getPreferredName() + "}", this);
     }
 
     @Override

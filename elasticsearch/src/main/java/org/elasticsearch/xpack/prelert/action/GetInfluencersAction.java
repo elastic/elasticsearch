@@ -64,8 +64,8 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
 
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField INCLUDE_INTERIM = new ParseField("includeInterim");
-        public static final ParseField ANOMALY_SCORE = new ParseField("anomalyScore");
+        public static final ParseField INCLUDE_INTERIM = new ParseField("include_interim");
+        public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
         public static final ParseField SORT_FIELD = new ParseField("sort");
         public static final ParseField DESCENDING_SORT = new ParseField("desc");
 

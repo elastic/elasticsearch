@@ -487,7 +487,7 @@ public class ElasticsearchMappings {
     public static XContentBuilder modelStateMapping() throws IOException {
         return jsonBuilder()
                 .startObject()
-                .startObject(ModelState.TYPE)
+                .startObject(ModelState.TYPE.getPreferredName())
                 .field(ENABLED, false)
                 .startObject(ALL)
                 .field(ENABLED, false)

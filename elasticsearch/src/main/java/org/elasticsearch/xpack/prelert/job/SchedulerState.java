@@ -23,8 +23,7 @@ import java.util.Objects;
 
 public class SchedulerState extends ToXContentToBytes implements Writeable {
 
-    // NORELEASE: no camel casing:
-    public static final ParseField TYPE_FIELD = new ParseField("schedulerState");
+    public static final ParseField TYPE_FIELD = new ParseField("scheduler_state");
     public static final ParseField STATUS = new ParseField("status");
     public static final ParseField START_TIME_MILLIS = new ParseField("start");
     public static final ParseField END_TIME_MILLIS = new ParseField("end");

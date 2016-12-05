@@ -3,16 +3,16 @@ setup:
       xpack.prelert.put_job:
         body:  >
           {
-            "jobId":"farequote",
+            "job_id":"farequote",
             "description":"Analysis of response time by airline",
-            "analysisConfig" : {
-                "bucketSpan":3600,
-                "detectors" :[{"function":"metric","fieldName":"responsetime","byFieldName":"airline"}]
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
-            "dataDescription" : {
+            "data_description" : {
                 "format":"JSON",
-                "timeField":"time",
-                "timeFormat":"epoch"
+                "time_field":"time",
+                "time_format":"epoch"
             }
           }
 
@@ -54,7 +54,7 @@ setup:
   - do:
     get:
       index: prelertresults-farequote
-      type: dataCounts
+      type: data_counts
       id: farequote-data-counts
 
   - match: { _source.processed_record_count: 2 }
@@ -73,7 +73,7 @@ setup:
       catch: /parse_exception/
       xpack.prelert.post_data:
         job_id: foo
-        resetStart: not_a_date
+        reset_start: not_a_date
         body:  >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481600"}
@@ -82,7 +82,7 @@ setup:
       catch: /parse_exception/
       xpack.prelert.post_data:
         job_id: foo
-        resetEnd: end_not_a_date
+        reset_end: end_not_a_date
         body:  >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481600"}
@@ -105,4 +105,4 @@ setup:
       catch: /parse_exception/
       xpack.prelert.flush_data:
         job_id: foo
-        advanceTime: advance_time_not_a_date
+        advance_time: advance_time_not_a_date

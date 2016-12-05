@@ -14,7 +14,7 @@
         "expand": {
           "type": "boolean"
         },
-        "includeInterim": {
+        "include_interim": {
           "type": "boolean",
           "description" : "Include interim results"
         },
@@ -34,13 +34,13 @@
           "type": "string",
           "description" : "End time filter for records"
         },
-        "anomalyScore": {
+        "anomaly_score": {
           "type": "double"
         },
-        "maxNormalizedProbability": {
+        "max_normalized_probability": {
           "type": "double"
         },
-        "partitionValue": {
+        "partition_value": {
           "type": "string",
           "description": "Filter anomaly records by the partitionFieldValue"
         },

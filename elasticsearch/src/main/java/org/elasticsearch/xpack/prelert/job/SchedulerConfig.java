@@ -54,20 +54,20 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     public static final String DOC_COUNT = "doc_count";
 
     // NORELEASE: no camel casing:
-    public static final ParseField DATA_SOURCE = new ParseField("dataSource");
-    public static final ParseField QUERY_DELAY = new ParseField("queryDelay");
+    public static final ParseField DATA_SOURCE = new ParseField("data_source");
+    public static final ParseField QUERY_DELAY = new ParseField("query_delay");
     public static final ParseField FREQUENCY = new ParseField("frequency");
-    public static final ParseField FILE_PATH = new ParseField("filePath");
-    public static final ParseField TAIL_FILE = new ParseField("tailFile");
-    public static final ParseField BASE_URL = new ParseField("baseUrl");
+    public static final ParseField FILE_PATH = new ParseField("file_path");
+    public static final ParseField TAIL_FILE = new ParseField("tail_file");
+    public static final ParseField BASE_URL = new ParseField("base_url");
     public static final ParseField USERNAME = new ParseField("username");
     public static final ParseField PASSWORD = new ParseField("password");
-    public static final ParseField ENCRYPTED_PASSWORD = new ParseField("encryptedPassword");
+    public static final ParseField ENCRYPTED_PASSWORD = new ParseField("encrypted_password");
     public static final ParseField INDEXES = new ParseField("indexes");
     public static final ParseField TYPES = new ParseField("types");
     public static final ParseField QUERY = new ParseField("query");
-    public static final ParseField RETRIEVE_WHOLE_SOURCE = new ParseField("retrieveWholeSource");
-    public static final ParseField SCROLL_SIZE = new ParseField("scrollSize");
+    public static final ParseField RETRIEVE_WHOLE_SOURCE = new ParseField("retrieve_whole_source");
+    public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
     /**

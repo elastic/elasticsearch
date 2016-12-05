@@ -5,17 +5,17 @@
         body:  >
           {
             "function":"count",
-            "byFieldName":"airline"
+            "by_field_name":"airline"
           }
   - match: { acknowledged: true }
 
 ---
 "Test invalid detector":
   - do:
-      catch: /fieldName must be set when the 'mean' function is used/
+      catch: /field_name must be set when the 'mean' function is used/
       xpack.prelert.validate_detector:
         body:  >
           {
             "function":"mean",
-            "byFieldName":"airline"
+            "by_field_name":"airline"
           }

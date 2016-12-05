@@ -17,7 +17,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
 
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
-        assertEquals("modelSizeStats", stats.getId());
+        assertEquals("model_size_stats", stats.getId());
         assertEquals(0, stats.getModelBytes());
         assertEquals(0, stats.getTotalByFieldCount());
         assertEquals(0, stats.getTotalOverFieldCount());
@@ -41,7 +41,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
 
         NullPointerException ex = expectThrows(NullPointerException.class, () -> stats.setMemoryStatus(null));
 
-        assertEquals("[memoryStatus] must not be null", ex.getMessage());
+        assertEquals("[memory_status] must not be null", ex.getMessage());
     }
 
 

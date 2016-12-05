@@ -81,9 +81,9 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
         public static final ParseField TIME = new ParseField("time");
-        public static final ParseField SNAPSHOT_ID = new ParseField("snapshotId");
+        public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
         public static final ParseField DESCRIPTION = new ParseField("description");
-        public static final ParseField DELETE_INTERVENING = new ParseField("deleteInterveningResults");
+        public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
 
         private static ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
 

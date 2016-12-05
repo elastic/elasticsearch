@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.prelert.job.results;
 
 import org.elasticsearch.xpack.prelert.job.DataCounts;
+import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
@@ -27,7 +28,7 @@ public final class ReservedFieldNames {
     /**
      * jobId isn't in this package, so redefine.
      */
-    private static final String JOB_ID_NAME = "jobId";
+    private static final String JOB_ID_NAME = Job.ID.getPreferredName();
 
     /**
      * @timestamp isn't in this package, so redefine.

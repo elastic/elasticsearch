@@ -14,11 +14,11 @@ public class PutModelSnapshotDescriptionTests extends ESTestCase {
     public void testUpdateDescription_GivenMissingArg() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new PutModelSnapshotDescriptionAction.Request(null, "foo", "bar"));
-        assertEquals("[jobId] must not be null.", e.getMessage());
+        assertEquals("[job_id] must not be null.", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class,
                 () -> new PutModelSnapshotDescriptionAction.Request("foo", null, "bar"));
-        assertEquals("[snapshotId] must not be null.", e.getMessage());
+        assertEquals("[snapshot_id] must not be null.", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class,
                 () -> new PutModelSnapshotDescriptionAction.Request("foo", "foo", null));

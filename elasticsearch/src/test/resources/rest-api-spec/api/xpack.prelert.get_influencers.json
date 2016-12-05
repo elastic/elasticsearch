@@ -11,7 +11,7 @@
         }
       },
       "params": {
-        "includeInterim": {
+        "include_interim": {
           "type": "boolean",
           "description" : "Include interim results"
         },
@@ -31,7 +31,7 @@
           "type": "string",
           "description": "end timestamp for the requested influencers"
         },
-        "anomalyScore": {
+        "anomaly_score": {
           "type": "double",
           "description": "anomaly score threshold for the requested influencers"
         },

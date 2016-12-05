@@ -28,6 +28,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -165,6 +167,15 @@ public class PrecisionTests extends ESTestCase {
         partialResults.add(new EvalQueryQuality("b", 0.2));
         partialResults.add(new EvalQueryQuality("c", 0.6));
         assertEquals(0.3, metric.combine(partialResults), Double.MIN_VALUE);
+    }
+
+    @Rule
+    public final ExpectedException exception = ExpectedException.none();
+
+    public void testInvalidRelevantThreshold() {
+        Precision prez = new Precision();
+        exception.expect(IllegalArgumentException.class);
+        prez.setRelevantRatingThreshhold(-1);
     }
 
     public static Precision createTestItem() {

@@ -158,29 +158,30 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
             this.jobId = jobId;
         }
 
+        @SuppressWarnings("incomplete-switch")
         public void setStatus(JobStatus newStatus) {
             switch (newStatus) {
-                case CLOSING:
-                    if (this.status == JobStatus.CLOSED) {
-                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] job already closed");
-                    }
-                    if (this.status == JobStatus.CLOSING) {
-                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] job already closing");
-                    }
-                    break;
-                case PAUSING:
-                    if (this.status == JobStatus.CLOSED) {
-                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is closed");
-                    }
-                    if (this.status == JobStatus.CLOSING) {
-                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is closing");
-                    }
-                    if (this.status == JobStatus.PAUSING) {
-                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is pausing");
-                    }
-                    if (this.status == JobStatus.PAUSED) {
-                        throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is already paused");
-                    }
+            case CLOSING:
+                if (this.status == JobStatus.CLOSED) {
+                    throw new IllegalArgumentException("[" + jobId + "][" + status +"] job already closed");
+                }
+                if (this.status == JobStatus.CLOSING) {
+                    throw new IllegalArgumentException("[" + jobId + "][" + status +"] job already closing");
+                }
+                break;
+            case PAUSING:
+                if (this.status == JobStatus.CLOSED) {
+                    throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is closed");
+                }
+                if (this.status == JobStatus.CLOSING) {
+                    throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is closing");
+                }
+                if (this.status == JobStatus.PAUSING) {
+                    throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is pausing");
+                }
+                if (this.status == JobStatus.PAUSED) {
+                    throw new IllegalArgumentException("[" + jobId + "][" + status +"] can't pause a job that is already paused");
+                }
             }
 
             this.status = newStatus;
@@ -211,7 +212,7 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
                 break;
             case STOPPED:
                 if ((currentSchedulerStatus != JobSchedulerStatus.STOPPED ||
-                     currentSchedulerStatus != JobSchedulerStatus.STOPPING) == false) {
+                currentSchedulerStatus != JobSchedulerStatus.STOPPING) == false) {
                     String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, jobId, newSchedulerStatus);
                     throw ExceptionsHelper.conflictStatusException(msg);
                 }

@@ -398,7 +398,6 @@ public class MockClientBuilder {
 
     @SuppressWarnings("unchecked")
     public MockClientBuilder prepareBulkExecuteListener(BulkResponse response) {
-        ListenableActionFuture<BulkResponse> actionFuture = mock(ListenableActionFuture.class);
         BulkRequestBuilder builder = mock(BulkRequestBuilder.class);
         when(client.prepareBulk()).thenReturn(builder);
 

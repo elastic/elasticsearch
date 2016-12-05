@@ -335,7 +335,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
 
         BucketQueryBuilder bq = new BucketQueryBuilder(Long.toString(timestamp));
 
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
+        expectThrows(ResourceNotFoundException.class,
                 () -> provider.bucket(jobId, bq.build()));
     }
 
@@ -392,7 +392,7 @@ public class ElasticsearchJobProviderTests extends ESTestCase {
 
         BucketQueryBuilder bq = new BucketQueryBuilder(Long.toString(now.getTime()));
 
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
+        expectThrows(ResourceNotFoundException.class,
                 () -> provider.bucket(jobId, bq.build()));
     }
 

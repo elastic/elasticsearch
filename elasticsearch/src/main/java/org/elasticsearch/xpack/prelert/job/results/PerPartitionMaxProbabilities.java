@@ -85,7 +85,6 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
         this.perPartitionMaxProbabilities = calcMaxNormalizedProbabilityPerPartition(records);
     }
 
-    @SuppressWarnings("unchecked")
     public PerPartitionMaxProbabilities(StreamInput in) throws IOException {
         jobId = in.readString();
         timestamp = new Date(in.readLong());

@@ -33,7 +33,6 @@ public class StatusReporterTests extends ESTestCase {
 
     private UsageReporter usageReporter;
     private JobDataCountsPersister jobDataCountsPersister;
-    private StatusReporter statusReporter;
     private ThreadPool threadPool;
     private Settings settings;
 
@@ -59,10 +58,11 @@ public class StatusReporterTests extends ESTestCase {
     }
 
     public void testSettingAcceptablePercentages() throws IOException {
-        StatusReporter statusReporter =
-                new StatusReporter(threadPool, settings, JOB_ID, new DataCounts(JOB_ID), usageReporter, jobDataCountsPersister);
-        assertEquals(statusReporter.getAcceptablePercentDateParseErrors(), MAX_PERCENT_DATE_PARSE_ERRORS);
-        assertEquals(statusReporter.getAcceptablePercentOutOfOrderErrors(), MAX_PERCENT_OUT_OF_ORDER_ERRORS);
+        try (StatusReporter statusReporter = new StatusReporter(threadPool, settings, JOB_ID, new DataCounts(JOB_ID), usageReporter,
+                jobDataCountsPersister)) {
+            assertEquals(statusReporter.getAcceptablePercentDateParseErrors(), MAX_PERCENT_DATE_PARSE_ERRORS);
+            assertEquals(statusReporter.getAcceptablePercentOutOfOrderErrors(), MAX_PERCENT_OUT_OF_ORDER_ERRORS);
+        }
     }
 
     public void testSimpleConstructor() throws Exception {
@@ -75,12 +75,10 @@ public class StatusReporterTests extends ESTestCase {
     }
 
     public void testComplexConstructor() throws Exception {
-        Environment env = new Environment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, new Date(), new Date());
 
         try (StatusReporter statusReporter =
-                     new StatusReporter(threadPool, settings, JOB_ID, counts, usageReporter, jobDataCountsPersister)) {
+                new StatusReporter(threadPool, settings, JOB_ID, counts, usageReporter, jobDataCountsPersister)) {
             DataCounts stats = statusReporter.incrementalStats();
             assertNotNull(stats);
             assertAllCountFieldsEqualZero(stats);
@@ -156,91 +154,95 @@ public class StatusReporterTests extends ESTestCase {
     }
 
     public void testReportRecordsWritten_Given100Records() {
-        DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
-        statusReporter.setAnalysedFieldsPerRecord(3);
+        try (DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter)) {
+            statusReporter.setAnalysedFieldsPerRecord(3);
 
-        for (int i = 1; i <= 101; i++) {
-            statusReporter.reportRecordWritten(5, i);
+            for (int i = 1; i <= 101; i++) {
+                statusReporter.reportRecordWritten(5, i);
+            }
+
+            assertEquals(101, statusReporter.incrementalStats().getInputRecordCount());
+            assertEquals(505, statusReporter.incrementalStats().getInputFieldCount());
+            assertEquals(101, statusReporter.incrementalStats().getProcessedRecordCount());
+            assertEquals(303, statusReporter.incrementalStats().getProcessedFieldCount());
+            assertEquals(101, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
+
+            assertEquals(1, statusReporter.getLogStatusCallCount());
         }
-
-        assertEquals(101, statusReporter.incrementalStats().getInputRecordCount());
-        assertEquals(505, statusReporter.incrementalStats().getInputFieldCount());
-        assertEquals(101, statusReporter.incrementalStats().getProcessedRecordCount());
-        assertEquals(303, statusReporter.incrementalStats().getProcessedFieldCount());
-        assertEquals(101, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
-
-
-        assertEquals(1, statusReporter.getLogStatusCallCount());
     }
 
     public void testReportRecordsWritten_Given1000Records() {
-        DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
+        try (DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter)) {
 
-        statusReporter.setAnalysedFieldsPerRecord(3);
+            statusReporter.setAnalysedFieldsPerRecord(3);
 
-        for (int i = 1; i <= 1001; i++) {
-            statusReporter.reportRecordWritten(5, i);
+            for (int i = 1; i <= 1001; i++) {
+                statusReporter.reportRecordWritten(5, i);
+            }
+
+            assertEquals(1001, statusReporter.incrementalStats().getInputRecordCount());
+            assertEquals(5005, statusReporter.incrementalStats().getInputFieldCount());
+            assertEquals(1001, statusReporter.incrementalStats().getProcessedRecordCount());
+            assertEquals(3003, statusReporter.incrementalStats().getProcessedFieldCount());
+            assertEquals(1001, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
+
+            assertEquals(10, statusReporter.getLogStatusCallCount());
         }
-
-        assertEquals(1001, statusReporter.incrementalStats().getInputRecordCount());
-        assertEquals(5005, statusReporter.incrementalStats().getInputFieldCount());
-        assertEquals(1001, statusReporter.incrementalStats().getProcessedRecordCount());
-        assertEquals(3003, statusReporter.incrementalStats().getProcessedFieldCount());
-        assertEquals(1001, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
-
-        assertEquals(10, statusReporter.getLogStatusCallCount());
 
     }
 
     public void testReportRecordsWritten_Given2000Records() {
-        DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
-        statusReporter.setAnalysedFieldsPerRecord(3);
+        try (DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter)) {
+            statusReporter.setAnalysedFieldsPerRecord(3);
 
-        for (int i = 1; i <= 2001; i++) {
-            statusReporter.reportRecordWritten(5, i);
+            for (int i = 1; i <= 2001; i++) {
+                statusReporter.reportRecordWritten(5, i);
+            }
+
+            assertEquals(2001, statusReporter.incrementalStats().getInputRecordCount());
+            assertEquals(10005, statusReporter.incrementalStats().getInputFieldCount());
+            assertEquals(2001, statusReporter.incrementalStats().getProcessedRecordCount());
+            assertEquals(6003, statusReporter.incrementalStats().getProcessedFieldCount());
+            assertEquals(2001, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
+
+            assertEquals(11, statusReporter.getLogStatusCallCount());
         }
-
-        assertEquals(2001, statusReporter.incrementalStats().getInputRecordCount());
-        assertEquals(10005, statusReporter.incrementalStats().getInputFieldCount());
-        assertEquals(2001, statusReporter.incrementalStats().getProcessedRecordCount());
-        assertEquals(6003, statusReporter.incrementalStats().getProcessedFieldCount());
-        assertEquals(2001, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
-
-        assertEquals(11, statusReporter.getLogStatusCallCount());
     }
 
     public void testReportRecordsWritten_Given20000Records() {
-        DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
-        statusReporter.setAnalysedFieldsPerRecord(3);
+        try (DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter)) {
+            statusReporter.setAnalysedFieldsPerRecord(3);
 
-        for (int i = 1; i <= 20001; i++) {
-            statusReporter.reportRecordWritten(5, i);
+            for (int i = 1; i <= 20001; i++) {
+                statusReporter.reportRecordWritten(5, i);
+            }
+
+            assertEquals(20001, statusReporter.incrementalStats().getInputRecordCount());
+            assertEquals(100005, statusReporter.incrementalStats().getInputFieldCount());
+            assertEquals(20001, statusReporter.incrementalStats().getProcessedRecordCount());
+            assertEquals(60003, statusReporter.incrementalStats().getProcessedFieldCount());
+            assertEquals(20001, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
+
+            assertEquals(29, statusReporter.getLogStatusCallCount());
         }
-
-        assertEquals(20001, statusReporter.incrementalStats().getInputRecordCount());
-        assertEquals(100005, statusReporter.incrementalStats().getInputFieldCount());
-        assertEquals(20001, statusReporter.incrementalStats().getProcessedRecordCount());
-        assertEquals(60003, statusReporter.incrementalStats().getProcessedFieldCount());
-        assertEquals(20001, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
-
-        assertEquals(29, statusReporter.getLogStatusCallCount());
     }
 
     public void testReportRecordsWritten_Given30000Records() {
-        DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter);
-        statusReporter.setAnalysedFieldsPerRecord(3);
+        try (DummyStatusReporter statusReporter = new DummyStatusReporter(usageReporter)) {
+            statusReporter.setAnalysedFieldsPerRecord(3);
 
-        for (int i = 1; i <= 30001; i++) {
-            statusReporter.reportRecordWritten(5, i);
+            for (int i = 1; i <= 30001; i++) {
+                statusReporter.reportRecordWritten(5, i);
+            }
+
+            assertEquals(30001, statusReporter.incrementalStats().getInputRecordCount());
+            assertEquals(150005, statusReporter.incrementalStats().getInputFieldCount());
+            assertEquals(30001, statusReporter.incrementalStats().getProcessedRecordCount());
+            assertEquals(90003, statusReporter.incrementalStats().getProcessedFieldCount());
+            assertEquals(30001, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
+
+            assertEquals(30, statusReporter.getLogStatusCallCount());
         }
-
-        assertEquals(30001, statusReporter.incrementalStats().getInputRecordCount());
-        assertEquals(150005, statusReporter.incrementalStats().getInputFieldCount());
-        assertEquals(30001, statusReporter.incrementalStats().getProcessedRecordCount());
-        assertEquals(90003, statusReporter.incrementalStats().getProcessedFieldCount());
-        assertEquals(30001, statusReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
-
-        assertEquals(30, statusReporter.getLogStatusCallCount());
     }
 
     public void testFinishReporting() {

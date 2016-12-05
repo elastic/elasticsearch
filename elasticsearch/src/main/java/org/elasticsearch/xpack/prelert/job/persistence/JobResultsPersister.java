@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -74,14 +73,14 @@ public class JobResultsPersister extends AbstractComponent {
             String indexName = getJobIndexName(jobId);
             logger.trace("[{}] ES API CALL: index result type {} to index {} at epoch {}", jobId, Bucket.RESULT_TYPE_VALUE, indexName,
                     bucket.getEpoch());
-            IndexResponse response = client.prepareIndex(indexName, Result.TYPE.getPreferredName())
-                    .setSource(content)
-                    .execute().actionGet();
+            client.prepareIndex(indexName, Result.TYPE.getPreferredName()).setSource(content).execute()
+            .actionGet();
             persistBucketInfluencersStandalone(jobId, bucket.getId(), bucket.getBucketInfluencers(), bucket.getTimestamp(),
                     bucket.isInterim());
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Error persisting bucket", new Object[] {jobId}, e));
         }
+
     }
 
     /**
@@ -158,8 +157,8 @@ public class JobResultsPersister extends AbstractComponent {
             logger.trace("[{}] ES API CALL: index result type {} to index {} at timestamp {}",
                     jobId, PerPartitionMaxProbabilities.RESULT_TYPE_VALUE, indexName, partitionProbabilities.getTimestamp());
             client.prepareIndex(indexName, Result.TYPE.getPreferredName())
-                    .setSource(builder)
-                    .execute().actionGet();
+            .setSource(builder)
+            .execute().actionGet();
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] error updating bucket per partition max normalized scores",
                     new Object[]{jobId}, e));
@@ -251,8 +250,8 @@ public class JobResultsPersister extends AbstractComponent {
             byte[] bytes = bytesRef.toBytesRef().bytes;
             logger.trace("[{}] ES API CALL: bulk index", jobId);
             client.prepareBulk()
-                    .add(bytes, 0, bytes.length)
-                    .execute().actionGet();
+            .add(bytes, 0, bytes.length)
+            .execute().actionGet();
         } catch (Exception e) {
             logger.error((org.apache.logging.log4j.util.Supplier<?>)
                     () -> new ParameterizedMessage("[{}] Error persisting bulk state", jobId), e);
@@ -307,7 +306,7 @@ public class JobResultsPersister extends AbstractComponent {
     }
 
     void persistBucketInfluencersStandalone(String jobId, String bucketId, List<BucketInfluencer> bucketInfluencers,
-                                            Date bucketTime, boolean isInterim) throws IOException {
+            Date bucketTime, boolean isInterim) throws IOException {
         if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
             BulkRequestBuilder addBucketInfluencersRequest = client.prepareBulk();
             for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
@@ -330,7 +329,7 @@ public class JobResultsPersister extends AbstractComponent {
     }
 
     private XContentBuilder serialiseBucketInfluencerStandalone(BucketInfluencer bucketInfluencer,
-                                                                Date bucketTime, boolean isInterim) throws IOException {
+            Date bucketTime, boolean isInterim) throws IOException {
         BucketInfluencer influencer = new BucketInfluencer(bucketInfluencer);
         influencer.setIsInterim(isInterim);
         influencer.setTimestamp(bucketTime);
@@ -354,7 +353,7 @@ public class JobResultsPersister extends AbstractComponent {
         private final Serialiser serialiser;
 
         Persistable(String jobId, Object object, Supplier<String> typeSupplier, Supplier<String> idSupplier,
-                    Serialiser serialiser) {
+                Serialiser serialiser) {
             this.jobId = jobId;
             this.object = object;
             this.typeSupplier = typeSupplier;
@@ -376,8 +375,8 @@ public class JobResultsPersister extends AbstractComponent {
             try {
                 String indexName = getJobIndexName(jobId);
                 client.prepareIndex(indexName, type, idSupplier.get())
-                        .setSource(serialiser.serialise())
-                        .execute().actionGet();
+                .setSource(serialiser.serialise())
+                .execute().actionGet();
                 return true;
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, typeSupplier.get()}, e));

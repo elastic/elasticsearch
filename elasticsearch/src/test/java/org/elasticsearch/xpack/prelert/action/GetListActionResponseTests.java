@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.prelert.action.GetListAction.Response;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.lists.ListDocument;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.prelert.utils.SingleDocument;
 
 import java.util.Collections;
 

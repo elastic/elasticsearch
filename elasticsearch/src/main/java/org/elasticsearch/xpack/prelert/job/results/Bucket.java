@@ -298,32 +298,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         partitionScores = scores;
     }
 
-    /**
-     * Box class for the stream collector function below
-     */
-    private final class DoubleMaxBox {
-        private double value = 0.0;
-
-        public DoubleMaxBox() {
-        }
-
-        public void accept(double d) {
-            if (d > value) {
-                value = d;
-            }
-        }
-
-        public DoubleMaxBox combine(DoubleMaxBox other) {
-            return (this.value > other.value) ? this : other;
-        }
-
-        public Double value() {
-            return this.value;
-        }
-    }
-
-
-
     public Map<String, Double> getPerPartitionMaxProbability() {
         return perPartitionMaxProbability;
     }

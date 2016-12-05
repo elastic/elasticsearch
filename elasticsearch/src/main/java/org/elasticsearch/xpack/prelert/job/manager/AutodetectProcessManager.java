@@ -73,9 +73,9 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
-                                    JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-                                    JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
-                                    AutodetectProcessFactory autodetectProcessFactory) {
+            JobProvider jobProvider, JobResultsPersister jobResultsPersister,
+            JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
+            AutodetectProcessFactory autodetectProcessFactory) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -133,22 +133,23 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         ExecutorService executorService = threadPool.executor(PrelertPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME);
 
         UsageReporter usageReporter = new UsageReporter(settings, job.getId(), usagePersister);
-        StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getId(),
-                jobProvider.dataCounts(jobId), usageReporter, jobDataCountsPersister);
-        AutoDetectResultProcessor processor =  new AutoDetectResultProcessor(new NoOpRenormaliser(), jobResultsPersister, parser);
+        try (StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getId(), jobProvider.dataCounts(jobId),
+                usageReporter, jobDataCountsPersister)) {
+            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(new NoOpRenormaliser(), jobResultsPersister, parser);
 
-        AutodetectProcess process = null;
-        try {
-            process = autodetectProcessFactory.createAutodetectProcess(job, ignoreDowntime, executorService);
-            // TODO Port the normalizer from the old project
-            return new AutodetectCommunicator(executorService, job, process, statusReporter, processor, stateProcessor);
-        } catch (Exception e) {
+            AutodetectProcess process = null;
             try {
-                IOUtils.close(process);
-            } catch (IOException ioe) {
-                logger.error("Can't close autodetect", ioe);
+                process = autodetectProcessFactory.createAutodetectProcess(job, ignoreDowntime, executorService);
+                // TODO Port the normalizer from the old project
+                return new AutodetectCommunicator(executorService, job, process, statusReporter, processor, stateProcessor);
+            } catch (Exception e) {
+                try {
+                    IOUtils.close(process);
+                } catch (IOException ioe) {
+                    logger.error("Can't close autodetect", ioe);
+                }
+                throw e;
             }
-            throw e;
         }
     }
 

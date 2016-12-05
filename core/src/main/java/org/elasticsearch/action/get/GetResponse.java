@@ -134,18 +134,10 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.getSource();
     }
 
-    /**
-     * @deprecated Use {@link GetResponse#getSource()} instead
-     */
-    @Deprecated
     public Map<String, GetField> getFields() {
         return getResult.getFields();
     }
 
-    /**
-     * @deprecated Use {@link GetResponse#getSource()} instead
-     */
-    @Deprecated
     public GetField getField(String name) {
         return getResult.field(name);
     }

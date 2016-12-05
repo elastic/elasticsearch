@@ -170,7 +170,7 @@ If everything goes well, you should see a bunch of messages that look like below
 [2016-09-16T14:17:56,748][INFO ][o.e.n.Node               ] [6-bjhwl] started
 --------------------------------------------------
 
-Without going too much into detail, we can see that our node named "I8hydUG" (which will be a different set of characters in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
+Without going too much into detail, we can see that our node named "6-bjhwl" (which will be a different set of characters in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
 
 As mentioned previously, we can override either the cluster or node name. This can be done from the command line when starting Elasticsearch as follows:
 
@@ -241,7 +241,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 // TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ (\\d+\\.\\d+)? (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
 // TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ _cat]
 
-Here, we can see our one node named "I8hydUG", which is the single node that is currently in our cluster.
+Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
 
 === List All Indices
 

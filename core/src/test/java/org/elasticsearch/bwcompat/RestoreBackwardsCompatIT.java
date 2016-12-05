@@ -97,7 +97,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         for (Version v : VersionUtils.allReleasedVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
             if (v.isRelease() == false) continue; // no guarantees for prereleases
-            if (v.before(Version.V_5_0_0)) continue; // we only support versions N and N-1
+            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we only support versions N and N-1
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add(v.toString());
         }
@@ -206,7 +206,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> restoring unsupported snapshot");
         try {
             client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
-            fail("should have failed to restore");
+            fail("should have failed to restore - " + repo);
         } catch (SnapshotRestoreException ex) {
             assertThat(ex.getMessage(), containsString("cannot restore index"));
             assertThat(ex.getMessage(), containsString("because it cannot be upgraded"));

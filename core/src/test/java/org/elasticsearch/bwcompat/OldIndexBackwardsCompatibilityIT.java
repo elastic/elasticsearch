@@ -189,7 +189,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         for (Version v : VersionUtils.allReleasedVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
             if (v.isRelease() == false) continue; // no guarantees for prereleases
-            if (v.before(Version.V_5_0_0)) continue; // we can only support one major version backward
+            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we can only support one major version backward
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add("index-" + v.toString() + ".zip");
         }

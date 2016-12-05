@@ -478,4 +478,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
     }
+
+    @Override
+    public String getDescription() {
+        return "snapshot [" + repository + ":" + snapshot + "]";
+    }
 }

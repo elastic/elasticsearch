@@ -196,6 +196,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
         return RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
                 .setDefaultHeaders(clientHeaders)
+                .setRequestConfigCallback(c -> {
+                    c.setConnectTimeout(Math.toIntExact(remoteInfo.getConnectTimeout().millis()));
+                    c.setSocketTimeout(Math.toIntExact(remoteInfo.getSocketTimeout().millis()));
+                    return c;
+                })
                 .setHttpClientConfigCallback(c -> {
                     // Enable basic auth if it is configured
                     if (remoteInfo.getUsername() != null) {

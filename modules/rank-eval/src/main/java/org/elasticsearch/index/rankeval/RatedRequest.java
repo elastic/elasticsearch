@@ -74,9 +74,8 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
 
     public RatedRequest(StreamInput in) throws IOException {
         this.specId = in.readString();
-        if (in.readBoolean()) {
-            testRequest = new SearchSourceBuilder(in);
-        }
+        testRequest = in.readOptionalWriteable(SearchSourceBuilder::new);
+
         int indicesSize = in.readInt();
         indices = new ArrayList<>(indicesSize);
         for (int i = 0; i < indicesSize; i++) {
@@ -103,12 +102,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(specId);
-        if (testRequest != null) {
-            out.writeBoolean(true);
-            testRequest.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }   
+        out.writeOptionalWriteable(testRequest);
 
         out.writeInt(indices.size());
         for (String index : indices) {

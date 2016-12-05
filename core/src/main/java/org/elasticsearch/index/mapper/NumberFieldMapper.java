@@ -415,9 +415,6 @@ public class NumberFieldMapper extends FieldMapper {
                     if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
                         throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
                     }
-                    if (doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).byteValue();
                 }
                 if (value instanceof BytesRef) {
@@ -475,9 +472,6 @@ public class NumberFieldMapper extends FieldMapper {
                     double doubleValue = ((Number) value).doubleValue();
                     if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
                         throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
-                    }
-                    if (doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                     }
                     return ((Number) value).shortValue();
                 }
@@ -537,9 +531,6 @@ public class NumberFieldMapper extends FieldMapper {
                     if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
                         throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
                     }
-                    if (doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).intValue();
                 }
                 if (value instanceof BytesRef) {
@@ -575,7 +566,7 @@ public class NumberFieldMapper extends FieldMapper {
                 int u = Integer.MAX_VALUE;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm);
-                    if (includeLower == false) {
+                    if (includeLower == false || hasDecimalPart(lowerTerm)) {
                         if (l == Integer.MAX_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -584,7 +575,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm);
-                    if (includeUpper == false) {
+                    if (includeUpper == false && !hasDecimalPart(upperTerm)) {
                         if (u == Integer.MIN_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -633,9 +624,6 @@ public class NumberFieldMapper extends FieldMapper {
                     if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
                         throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
                     }
-                    if (doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).longValue();
                 }
                 if (value instanceof BytesRef) {
@@ -671,7 +659,7 @@ public class NumberFieldMapper extends FieldMapper {
                 long u = Long.MAX_VALUE;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm);
-                    if (includeLower == false) {
+                    if (includeLower == false || hasDecimalPart(lowerTerm)) {
                         if (l == Long.MAX_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -680,7 +668,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm);
-                    if (includeUpper == false) {
+                    if (includeUpper == false && !hasDecimalPart(upperTerm)) {
                         if (u == Long.MIN_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -734,7 +722,7 @@ public class NumberFieldMapper extends FieldMapper {
         public final String typeName() {
             return name;
         }
-        /** Get the associated numerit type */
+        /** Get the associated numeric type */
         final NumericType numericType() {
             return numericType;
         }
@@ -751,6 +739,18 @@ public class NumberFieldMapper extends FieldMapper {
         Number valueForSearch(Number value) {
             return value;
         }
+
+        /**
+         * Returns true if the object is a number and has a decimal part
+         */
+        protected boolean hasDecimalPart(Object number) {
+            if (number instanceof Number) {
+                double doubleValue = ((Number) number).doubleValue();
+                return doubleValue % 1 != 0;
+            }
+            return false;
+        }
+
     }
 
     public static final class NumberFieldType extends MappedFieldType {

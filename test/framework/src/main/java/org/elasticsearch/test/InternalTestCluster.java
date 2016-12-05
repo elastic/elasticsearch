@@ -2050,14 +2050,4 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
     }
-
-    /**
-     * Simple interface that allows to wait for an async operation to finish
-     *
-     * @param <T> the result of the async execution
-     */
-    public interface Async<T> {
-        T get() throws ExecutionException, InterruptedException;
-    }
-
 }

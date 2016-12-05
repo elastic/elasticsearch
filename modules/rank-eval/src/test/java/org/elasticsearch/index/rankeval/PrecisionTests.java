@@ -186,6 +186,49 @@ public class PrecisionTests extends ESTestCase {
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
+    
+    public void testSerialization() throws IOException {
+        Precision original = createTestItem();
+        Precision deserialized = RankEvalTestHelper.copy(original, Precision::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        Precision testItem = createTestItem();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, Precision::new));
+    }
+
+    private Precision mutateTestItem(Precision testItem) {
+        boolean ignoreUnlabeled = testItem.getIgnoreUnlabeled();
+        int relevantThreshold = testItem.getRelevantRatingThreshold();
+        
+        int mutate = randomIntBetween(0, 1);
+        switch (mutate) {
+            case 0:
+            {
+                ignoreUnlabeled = ! ignoreUnlabeled;
+                break;
+            }
+            case 1:
+            {
+                int mutation = randomIntBetween(0, 10);
+                while (mutation == relevantThreshold) {
+                    mutation = randomIntBetween(0, 10);
+                }
+                relevantThreshold = mutation;
+                break;
+            }
+            default:
+                throw new IllegalStateException("The test should only allow two parameters mutated");
+        }
+        Precision precision = new Precision();
+        precision.setIgnoreUnlabeled(ignoreUnlabeled);
+        precision.setRelevantRatingThreshhold(relevantThreshold);
+        return precision;
+    }
 
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index, String type) {
         InternalSearchHit[] hits = new InternalSearchHit[rated.size()];

@@ -146,4 +146,36 @@ public class ReciprocalRankTests extends ESTestCase {
         }
         return hits;
     }
+    
+    public void testSerialization() throws IOException {
+        ReciprocalRank original = new ReciprocalRank();
+        original.setRelevantRatingThreshhold(randomIntBetween(0, 20));
+
+        ReciprocalRank deserialized = RankEvalTestHelper.copy(original, ReciprocalRank::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        ReciprocalRank testItem = new ReciprocalRank();
+        testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
+
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, ReciprocalRank::new));
+    }
+
+    private ReciprocalRank mutateTestItem(ReciprocalRank testItem) {
+        int relevantThreshold = testItem.getRelevantRatingThreshold();
+        
+        int mutation = randomIntBetween(0, 10);
+        while (mutation == relevantThreshold) {
+            mutation = randomIntBetween(0, 10);
+        }
+
+        ReciprocalRank rank = new ReciprocalRank();
+        rank.setRelevantRatingThreshhold(mutation);
+        return rank;
+    }
+
 }

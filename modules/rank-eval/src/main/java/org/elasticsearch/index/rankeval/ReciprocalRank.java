@@ -57,7 +57,7 @@ public class ReciprocalRank implements RankedListQualityMetric {
     }
 
     public ReciprocalRank(StreamInput in) throws IOException {
-        this.relevantRatingThreshhold = in.readInt();
+        this.relevantRatingThreshhold = in.readVInt();
     }
 
     @Override

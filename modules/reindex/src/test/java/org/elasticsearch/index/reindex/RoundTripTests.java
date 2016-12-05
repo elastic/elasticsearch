@@ -74,7 +74,10 @@ public class RoundTripTests extends ESTestCase {
             while (headers.size() < headersCount) {
                 headers.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
             }
-            reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), port, query, username, password, headers));
+            TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
+            TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
+            reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), port, query, username, password, headers,
+                    socketTimeout, connectTimeout));
         }
         ReindexRequest tripped = new ReindexRequest();
         roundTrip(reindex, tripped);
@@ -90,7 +93,7 @@ public class RoundTripTests extends ESTestCase {
         tripped = new ReindexRequest();
         reindex.setSlices(1);
         roundTrip(Version.V_5_0_0_rc1, reindex, tripped);
-        assertRequestEquals(reindex, tripped);
+        assertRequestEquals(Version.V_5_0_0_rc1, reindex, tripped);
     }
 
     public void testUpdateByQueryRequest() throws IOException {
@@ -155,7 +158,7 @@ public class RoundTripTests extends ESTestCase {
         request.setScript(random().nextBoolean() ? null : randomScript());
     }
 
-    private void assertRequestEquals(ReindexRequest request, ReindexRequest tripped) {
+    private void assertRequestEquals(Version version, ReindexRequest request, ReindexRequest tripped) {
         assertRequestEquals((AbstractBulkIndexByScrollRequest<?>) request, (AbstractBulkIndexByScrollRequest<?>) tripped);
         assertEquals(request.getDestination().version(), tripped.getDestination().version());
         assertEquals(request.getDestination().index(), tripped.getDestination().index());
@@ -169,6 +172,13 @@ public class RoundTripTests extends ESTestCase {
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
+            if (version.onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+                assertEquals(request.getRemoteInfo().getSocketTimeout(), tripped.getRemoteInfo().getSocketTimeout());
+                assertEquals(request.getRemoteInfo().getConnectTimeout(), tripped.getRemoteInfo().getConnectTimeout());
+            } else {
+                assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, tripped.getRemoteInfo().getSocketTimeout());
+                assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, tripped.getRemoteInfo().getConnectTimeout());
+            }
         }
     }
 

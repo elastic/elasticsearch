@@ -28,7 +28,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -355,33 +354,4 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-    /**
-     * Set the new ttl of the document as a long. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(Long ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Set the new ttl of the document as a time value expression. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(String ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Set the new ttl of the document as a {@link TimeValue} instance. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(TimeValue ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
 }

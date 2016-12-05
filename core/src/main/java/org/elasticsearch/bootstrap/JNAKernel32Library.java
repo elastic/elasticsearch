@@ -149,7 +149,7 @@ final class JNAKernel32Library {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList(new String[]{"BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type"});
+            return Arrays.asList("BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type");
         }
     }
 
@@ -261,10 +261,8 @@ final class JNAKernel32Library {
 
       @Override
       protected List<String> getFieldOrder() {
-          return Arrays.asList(new String[] {
-                  "PerProcessUserTimeLimit", "PerJobUserTimeLimit", "LimitFlags", "MinimumWorkingSetSize",
-                  "MaximumWorkingSetSize", "ActiveProcessLimit", "Affinity", "PriorityClass", "SchedulingClass"
-          });
+          return Arrays.asList("PerProcessUserTimeLimit", "PerJobUserTimeLimit", "LimitFlags", "MinimumWorkingSetSize",
+              "MaximumWorkingSetSize", "ActiveProcessLimit", "Affinity", "PriorityClass", "SchedulingClass");
       }
     }
 

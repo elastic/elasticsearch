@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -67,7 +66,7 @@ public class IndexSettingsModule extends AbstractModule {
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
         }
-        return new IndexSettings(metaData, nodeSettings, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()), new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(metaData, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings settings, IndexScopedSettings indexScopedSettings) {
@@ -77,7 +76,7 @@ public class IndexSettingsModule extends AbstractModule {
                 .put(settings)
                 .build();
         IndexMetaData metaData = IndexMetaData.builder(index.getName()).settings(build).build();
-        return new IndexSettings(metaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()), indexScopedSettings);
+        return new IndexSettings(metaData, Settings.EMPTY, indexScopedSettings);
     }
 
     public static IndexSettings newIndexSettings(final IndexMetaData indexMetaData, Setting<?>... setting) {
@@ -85,7 +84,6 @@ public class IndexSettingsModule extends AbstractModule {
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
         }
-        return new IndexSettings(indexMetaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, indexMetaData.getIndex().getName()),
-                                 new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(indexMetaData, Settings.EMPTY, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 }

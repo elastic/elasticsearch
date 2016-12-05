@@ -40,7 +40,7 @@ public class IndexingSlowLogTests extends ESTestCase {
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
         BytesReference source = JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
         ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1), new NumericDocValuesField("seqNo", 1), "id",
-                "test", null, 0, -1, null, source, null);
+                "test", null, null, source, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 0);

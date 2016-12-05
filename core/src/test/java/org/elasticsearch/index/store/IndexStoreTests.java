@@ -73,7 +73,6 @@ public class IndexStoreTests extends ESTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
                     break;
                 case FS:
-                case DEFAULT:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
                         assertTrue(directory.toString(), directory instanceof MMapDirectory);
                     } else if (Constants.WINDOWS) {

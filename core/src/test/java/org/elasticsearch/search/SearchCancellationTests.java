@@ -44,7 +44,7 @@ public class SearchCancellationTests extends ESTestCase {
     static IndexReader reader;
 
     @BeforeClass
-    public static void before() throws IOException {
+    public static void setup() throws IOException {
         dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         // we need at least 2 segments - so no merges should be allowed
@@ -66,7 +66,7 @@ public class SearchCancellationTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void after() throws IOException {
+    public static void cleanup() throws IOException {
         IOUtils.close(reader, dir);
         dir = null;
         reader = null;

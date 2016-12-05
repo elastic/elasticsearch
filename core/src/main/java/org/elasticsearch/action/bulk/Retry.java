@@ -142,7 +142,9 @@ public class Retry {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            scheduledRequestFuture = client.threadPool().schedule(next, ThreadPool.Names.SAME, (() -> this.execute(bulkRequestForRetry)));
+            Runnable retry = () -> this.execute(bulkRequestForRetry);
+            retry = client.threadPool().getThreadContext().preserveContext(retry);
+            scheduledRequestFuture = client.threadPool().schedule(next, ThreadPool.Names.SAME, retry);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {

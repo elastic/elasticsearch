@@ -159,10 +159,8 @@ public class PipelineExecutionService implements ClusterStateListener {
             String id = indexRequest.id();
             String routing = indexRequest.routing();
             String parent = indexRequest.parent();
-            String timestamp = indexRequest.timestamp();
-            String ttl = indexRequest.ttl() == null ? null : indexRequest.ttl().toString();
             Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, timestamp, ttl, sourceAsMap);
+            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, sourceAsMap);
             pipeline.execute(ingestDocument);
 
             Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
@@ -173,8 +171,6 @@ public class PipelineExecutionService implements ClusterStateListener {
             indexRequest.id(metadataMap.get(IngestDocument.MetaData.ID));
             indexRequest.routing(metadataMap.get(IngestDocument.MetaData.ROUTING));
             indexRequest.parent(metadataMap.get(IngestDocument.MetaData.PARENT));
-            indexRequest.timestamp(metadataMap.get(IngestDocument.MetaData.TIMESTAMP));
-            indexRequest.ttl(metadataMap.get(IngestDocument.MetaData.TTL));
             indexRequest.source(ingestDocument.getSourceAndMetadata());
         } catch (Exception e) {
             totalStats.ingestFailed();

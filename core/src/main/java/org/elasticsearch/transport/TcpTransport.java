@@ -81,6 +81,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -149,12 +150,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
 
-    protected final int connectionsPerNodeRecovery;
-    protected final int connectionsPerNodeBulk;
-    protected final int connectionsPerNodeReg;
-    protected final int connectionsPerNodeState;
-    protected final int connectionsPerNodePing;
-    protected final TimeValue connectTimeout;
     protected final boolean blockingClient;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
@@ -179,7 +174,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final boolean compress;
     protected volatile BoundTransportAddress boundAddress;
     private final String transportName;
-    private final ConnectionProfile defaultConnectionProfile;
+    protected final ConnectionProfile defaultConnectionProfile;
 
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -194,21 +189,26 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
-
-        this.connectionsPerNodeRecovery = CONNECTIONS_PER_NODE_RECOVERY.get(settings);
-        this.connectionsPerNodeBulk = CONNECTIONS_PER_NODE_BULK.get(settings);
-        this.connectionsPerNodeReg = CONNECTIONS_PER_NODE_REG.get(settings);
-        this.connectionsPerNodeState = CONNECTIONS_PER_NODE_STATE.get(settings);
-        this.connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
-        this.connectTimeout = TCP_CONNECT_TIMEOUT.get(settings);
         this.blockingClient = TCP_BLOCKING_CLIENT.get(settings);
+        defaultConnectionProfile = buildDefaultConnectionProfile(settings);
+    }
+
+    static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
+        int connectionsPerNodeRecovery = CONNECTIONS_PER_NODE_RECOVERY.get(settings);
+        int connectionsPerNodeBulk = CONNECTIONS_PER_NODE_BULK.get(settings);
+        int connectionsPerNodeReg = CONNECTIONS_PER_NODE_REG.get(settings);
+        int connectionsPerNodeState = CONNECTIONS_PER_NODE_STATE.get(settings);
+        int connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.setConnectTimeout(TCP_CONNECT_TIMEOUT.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
-        builder.addConnections(connectionsPerNodeRecovery, TransportRequestOptions.Type.RECOVERY);
+        // if we are not master eligible we don't need a dedicated channel to publish the state
+        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
+        // if we are not a data-node we don't need any dedicated channels for recovery
+        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
-        builder.addConnections(connectionsPerNodeState, TransportRequestOptions.Type.STATE);
-        defaultConnectionProfile = builder.build();
+        return builder.build();
     }
 
     @Override
@@ -909,7 +909,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.smallest(getCurrentVersion(), node.getVersion());
+            Version version = Version.min(getCurrentVersion(), node.getVersion());
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);

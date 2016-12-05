@@ -32,8 +32,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Client that always responds with {@code null} to every request. Override this for testing.
+ */
 public class NoOpClient extends AbstractClient {
+    /**
+     * Build with {@link ThreadPool}. This {@linkplain ThreadPool} is terminated on {@link #close()}.
+     */
+    public NoOpClient(ThreadPool threadPool) {
+        super(Settings.EMPTY, threadPool);
+    }
 
+    /**
+     * Create a new {@link TestThreadPool} for this client.
+     */
     public NoOpClient(String testName) {
         super(Settings.EMPTY, new TestThreadPool(testName));
     }

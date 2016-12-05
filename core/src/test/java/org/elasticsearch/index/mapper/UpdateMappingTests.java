@@ -235,30 +235,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testReuseMetaFieldBackCompat() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("_id").field("type", "text").endObject()
-                .endObject().endObject().endObject();
-        // the logic is different for 2.x indices since they record some meta mappers (including _id)
-        // in the root object
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
-
-        try {
-            mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
-        }
-
-        try {
-            mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
-        }
-    }
-
     public void testRejectFieldDefinedTwice() throws IOException {
         String mapping1 = XContentFactory.jsonBuilder().startObject()
                 .startObject("type1")

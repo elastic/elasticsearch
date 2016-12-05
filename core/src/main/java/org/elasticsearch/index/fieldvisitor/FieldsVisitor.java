@@ -28,8 +28,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 
@@ -52,8 +50,6 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 public class FieldsVisitor extends StoredFieldVisitor {
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
             UidFieldMapper.NAME,
-            TimestampFieldMapper.NAME,
-            TTLFieldMapper.NAME,
             RoutingFieldMapper.NAME,
             ParentFieldMapper.NAME));
 

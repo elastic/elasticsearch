@@ -28,6 +28,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -177,5 +179,13 @@ public class ReciprocalRankTests extends ESTestCase {
         rank.setRelevantRatingThreshhold(mutation);
         return rank;
     }
+    
+    @Rule
+    public final ExpectedException exception = ExpectedException.none();
 
+    public void testInvalidRelevantThreshold() {
+        ReciprocalRank prez = new ReciprocalRank();
+        exception.expect(IllegalArgumentException.class);
+        prez.setRelevantRatingThreshhold(-1);
+    }
 }

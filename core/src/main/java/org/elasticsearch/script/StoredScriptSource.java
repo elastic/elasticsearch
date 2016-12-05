@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -71,6 +72,18 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Standard {@link ParseField} for options on the inner level.
      */
     public static final ParseField OPTIONS_PARSE_FIELD = new ParseField("options");
+
+    private static final class MatcherSupplier implements ParseFieldMatcherSupplier {
+
+        ParseFieldMatcher matcher = new ParseFieldMatcher(false);
+
+        private MatcherSupplier() {}
+
+        @Override
+        public ParseFieldMatcher getParseFieldMatcher() {
+            return matcher;
+        }
+    }
 
     /**
      * Helper class used by {@link ObjectParser} to store mutable {@link StoredScriptSource} variables and then
@@ -179,7 +192,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
                 } else if (token == Token.START_OBJECT) {
                     if (lang == null) {
-                        return PARSER.apply(parser, () -> null).build();
+                        return PARSER.apply(parser, new MatcherSupplier()).build();
                     } else {
                         try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
                             builder.copyCurrentStructure(parser);
@@ -224,7 +237,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     }
 
     public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, () -> null).build();
+        return PARSER.apply(parser, new MatcherSupplier()).build();
     }
 
     private final String lang;
@@ -234,6 +247,12 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     public StoredScriptSource() {
         this.lang = null;
         this.code = null;
+        this.options = null;
+    }
+
+    public StoredScriptSource(String code) {
+        this.lang = null;
+        this.code = Objects.requireNonNull(code);
         this.options = null;
     }
 

@@ -30,19 +30,21 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<Pu
         super(client, action, new PutStoredScriptRequest());
     }
 
-    public PutStoredScriptRequestBuilder setScriptLang(String scriptLang) {
-        request.scriptLang(scriptLang);
-        return this;
-    }
-
     public PutStoredScriptRequestBuilder setId(String id) {
         request.id(id);
+
         return this;
     }
 
-    public PutStoredScriptRequestBuilder setSource(BytesReference source) {
-        request.script(source);
+    public PutStoredScriptRequestBuilder setLang(String lang) {
+        request.lang(lang);
+
         return this;
     }
 
+    public PutStoredScriptRequestBuilder setContent(BytesReference content) {
+        request.content(content);
+
+        return this;
+    }
 }

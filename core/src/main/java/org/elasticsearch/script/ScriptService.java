@@ -34,11 +34,9 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
@@ -46,7 +44,6 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -308,7 +305,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             //the script has been updated in the index since the last look up.
             final IndexedScript indexedScript = new IndexedScript(lang, name);
             name = indexedScript.id;
-            code = getScriptFromClusterState(indexedScript.lang, indexedScript.id);
+            code = getScriptFromClusterState(indexedScript.id, indexedScript.lang).getCode();
         }
 
         CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code, params);
@@ -360,21 +357,26 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return scriptEnginesByLang.containsKey(lang);
     }
 
-    String getScriptFromClusterState(String id, String lang) {
-        if (isLangSupported(lang) == false) {
+    StoredScriptSource getScriptFromClusterState(String id, String lang) {
+        if (lang != null && isLangSupported(lang) == false) {
             throw new IllegalArgumentException("unable to get stored script with unsupported lang [" + lang + "]");
         }
 
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+
         if (scriptMetadata == null) {
-            throw new ResourceNotFoundException("Unable to find script [" + scriptLang + "/" + id + "] in cluster state");
+            throw new ResourceNotFoundException("unable to find script [" + id + "]" +
+                (lang == null ? "" : " using lang [" + lang + "]") + " in cluster state");
         }
 
-        String script = scriptMetadata.getScript(scriptLang, id);
-        if (script == null) {
-            throw new ResourceNotFoundException("Unable to find script [" + scriptLang + "/" + id + "] in cluster state");
+        StoredScriptSource source = scriptMetadata.getStoredScript(id, lang);
+
+        if (source == null) {
+            throw new ResourceNotFoundException("unable to find script [" + id + "]" +
+                (lang == null ? "" : " using lang [" + lang + "]") + " in cluster state");
         }
-        return script;
+
+        return source;
     }
 
     public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
@@ -429,7 +431,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
                                    ActionListener<DeleteStoredScriptResponse> listener) {
         if (request.lang() != null && isLangSupported(request.lang()) == false) {
-            throw new IllegalArgumentException("unable to delete stored script with unsupported lang [" + request.getLang() +"]");
+            throw new IllegalArgumentException("unable to delete stored script with unsupported lang [" + request.lang() +"]");
         }
 
         clusterService.submitStateUpdateTask("delete-script-" + request.id(),

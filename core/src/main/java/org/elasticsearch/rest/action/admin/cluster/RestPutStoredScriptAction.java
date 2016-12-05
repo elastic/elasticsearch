@@ -27,7 +27,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 

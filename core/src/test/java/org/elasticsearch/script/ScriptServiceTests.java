@@ -19,9 +19,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -121,9 +119,9 @@ public class ScriptServiceTests extends ESTestCase {
         // TODO:
         scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            String getScriptFromClusterState(String scriptLang, String id) {
+            StoredScriptSource getScriptFromClusterState(String scriptLang, String id) {
                 //mock the script that gets retrieved from an index
-                return "100";
+                return new StoredScriptSource(scriptLang, "100", Collections.emptyMap());
             }
         };
     }
@@ -422,66 +420,47 @@ public class ScriptServiceTests extends ESTestCase {
                 .endObject().bytes();
 
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
-        PutStoredScriptRequest request = new PutStoredScriptRequest("_lang", "_id")
-                .script(script);
-        ClusterState result = ScriptService.innerStoreScript(empty, "_lang", request);
+        ClusterState result = ScriptMetaData.putStoredScript(empty, "_id",
+            StoredScriptSource.parse("_lang", script));
         ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
         assertNotNull(scriptMetaData);
-        assertEquals("abc", scriptMetaData.getScript("_lang", "_id"));
+        assertEquals("abc", scriptMetaData.getStoredScript("_id", "_lang").getCode());
     }
 
     public void testDeleteScript() throws Exception {
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
                         .putCustom(ScriptMetaData.TYPE,
-                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
-                                    new BytesArray("{\"script\":\"abc\"}")).build()))
+                                new ScriptMetaData.Builder(null).storeScript("_id",
+                                    StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"))).build()))
                 .build();
 
-        DeleteStoredScriptRequest request = new DeleteStoredScriptRequest("_lang", "_id");
-        ClusterState result = ScriptService.innerDeleteScript(cs, "_lang", request);
+        ClusterState result = ScriptMetaData.deleteStoredScript(cs, "_id", "_lang");
         ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
         assertNotNull(scriptMetaData);
-        assertNull(scriptMetaData.getScript("_lang", "_id"));
-        assertNull(scriptMetaData.getScriptAsBytes("_lang", "_id"));
+        assertNull(scriptMetaData.getStoredScript("_id", "_lang"));
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
-            ScriptService.innerDeleteScript(cs, "_lang", new DeleteStoredScriptRequest("_lang", "_non_existing_id"));
+            ScriptMetaData.deleteStoredScript(result, "_id", "_lang");
         });
-        assertEquals("Stored script with id [_non_existing_id] for language [_lang] does not exist", e.getMessage());
+        assertEquals("stored script [_id] using lang [_lang] does not exist and cannot be deleted", e.getMessage());
     }
 
     public void testGetStoredScript() throws Exception {
         buildScriptService(Settings.EMPTY);
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder()
-                        .putCustom(ScriptMetaData.TYPE,
-                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
-                                        new BytesArray("{\"script\":\"abc\"}")).build()))
-                .build();
+            .metaData(MetaData.builder()
+                .putCustom(ScriptMetaData.TYPE,
+                    new ScriptMetaData.Builder(null).storeScript("_id",
+                        StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"))).build()))
+            .build();
 
-        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang", "_id")));
-        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang", "_id2")));
+        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")).getCode());
+        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id2", "_lang")));
 
         cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang", "_id")));
+        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")));
     }
-
-    public void testValidateScriptSize() throws Exception {
-        int maxSize = 0xFFFF;
-        buildScriptService(Settings.EMPTY);
-        // allowed
-        scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
-
-        // disallowed
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> {
-                    scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
-                });
-        assertThat(e.getMessage(), equalTo(
-                "Limit of script size in bytes [" + maxSize+ "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));
-    }
-
 
     private void createFileScripts(String... langs) throws IOException {
         for (String lang : langs) {

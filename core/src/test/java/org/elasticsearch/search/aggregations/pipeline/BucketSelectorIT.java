@@ -432,9 +432,9 @@ public class BucketSelectorIT extends ESIntegTestCase {
     public void testStoredScript() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my_script")
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setSource(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }")));
+                .setContent(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }")));
 
         Script script = new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "my_script", Collections.emptyMap());
 

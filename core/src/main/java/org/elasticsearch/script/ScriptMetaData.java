@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -43,7 +42,7 @@ import java.util.Map;
 
 public final class ScriptMetaData implements MetaData.Custom {
 
-    private static final class Builder {
+    public static final class Builder {
 
         private final Map<String, StoredScriptSource> scripts;
 
@@ -55,7 +54,7 @@ public final class ScriptMetaData implements MetaData.Custom {
             StoredScriptSource previous = scripts.put(id, source);
             scripts.put(source.getLang() + "#" + id, source);
 
-            if (previous.getLang().equals(source.getLang()) == false) {
+            if (previous != null && previous.getLang().equals(source.getLang()) == false) {
                 deprecationLogger.deprecated("stored script [" + id + "] already exists using a different lang " +
                     "[" + previous.getLang() + "], the new namespace for stored scripts will only use (id) instead of (lang, id)");
             }
@@ -87,6 +86,8 @@ public final class ScriptMetaData implements MetaData.Custom {
                     "stored script [" + id + "] using lang [" + lang + "] does not exist and cannot be deleted");
             }
 
+            scripts.remove(lang + "#" + id);
+
             return this;
         }
 
@@ -95,9 +96,9 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
-    private static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
+    static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
 
-        private final Diff<Map<String, StoredScriptSource>> pipelines;
+        final Diff<Map<String, StoredScriptSource>> pipelines;
 
         ScriptMetadataDiff(ScriptMetaData before, ScriptMetaData after) {
             this.pipelines = DiffableUtils.diff(before.scripts, after.scripts, DiffableUtils.getStringKeySerializer());
@@ -184,11 +185,28 @@ public final class ScriptMetaData implements MetaData.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(scripts.size());
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.write(scripts.size());
 
-        for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
+            for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        } else {
+            Map<String, StoredScriptSource> filtered = new HashMap<>();
+
+            for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
+                if (entry.getKey().contains("#")) {
+                    filtered.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            out.writeVInt(filtered.size());
+
+            for (Map.Entry<String, StoredScriptSource> entry : filtered.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
         }
     }
 
@@ -243,7 +261,8 @@ public final class ScriptMetaData implements MetaData.Custom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue().toXContent(builder, params));
+            builder.field(entry.getKey());
+            entry.getValue().toXContent(builder, params);
         }
 
         return builder;

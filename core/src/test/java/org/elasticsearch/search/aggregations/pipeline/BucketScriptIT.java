@@ -480,9 +480,9 @@ public class BucketScriptIT extends ESIntegTestCase {
     public void testStoredScript() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my_script")
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
-                .setSource(new BytesArray("{ \"script\": \"my_script\" }")));
+                .setContent(new BytesArray("{ \"script\": \"my_script\" }")));
 
         SearchResponse response = client()
                 .prepareSearch("idx")

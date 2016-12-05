@@ -50,37 +50,38 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
     public void testBasics() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(LANG)
+                .setLang(LANG)
                 .setId("foobar")
-                .setSource(new BytesArray("{\"script\":\"1\"}")));
+                .setContent(new BytesArray("{\"script\":\"1\"}")));
         String script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
-                .get().getStoredScript();
+                .get().getSource().getCode();
         assertNotNull(script);
         assertEquals("1", script);
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript()
                 .setId("foobar")
-                .setScriptLang(LANG));
-        script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
-                .get().getStoredScript();
-        assertNull(script);
+                .setLang(LANG));
+        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
+                .get().getSource();
+        assertNull(source);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
-                .setScriptLang("lang#")
+                .setLang("lang#")
                 .setId("id#")
-                .setSource(new BytesArray("{}"))
+                .setContent(new BytesArray("{}"))
                 .get());
-        assertEquals("Validation Failed: 1: id can't contain: '#';2: lang can't contain: '#';", e.getMessage());
+        assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;" +
+            "2: lang cannot contain '#' for stored script;", e.getMessage());
     }
 
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(LANG)
+                .setLang(LANG)
                 .setId("foobar")
-                .setSource(new BytesArray(randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)))
+                .setContent(new BytesArray(randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)))
                 .get()
         );
-        assertEquals("Limit of script size in bytes [64] has been exceeded for script [foobar] with size [65]", e.getMessage());
+        assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

@@ -93,8 +93,8 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return content;
     }
 
-    public PutStoredScriptRequest content(BytesReference source) {
-        this.content = source;
+    public PutStoredScriptRequest content(BytesReference content) {
+        this.content = content;
 
         return this;
     }

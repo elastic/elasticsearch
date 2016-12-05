@@ -150,9 +150,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     public void testIndexedTemplateClient() throws Exception {
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setLang(MustacheScriptEngineService.NAME)
                 .setId("testTemplate")
-                .setSource(new BytesArray("{" +
+                .setContent(new BytesArray("{" +
                         "\"template\":{" +
                         "                \"query\":{" +
                         "                   \"match\":{" +
@@ -163,8 +163,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(MustacheScriptEngineService.NAME)
-                .setId("testTemplate").setSource(new BytesArray("{" +
+                .setLang(MustacheScriptEngineService.NAME)
+                .setId("testTemplate").setContent(new BytesArray("{" +
                         "\"template\":{" +
                         "                \"query\":{" +
                         "                   \"match\":{" +
@@ -175,7 +175,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         GetStoredScriptResponse getResponse = client().admin().cluster()
                 .prepareGetStoredScript(MustacheScriptEngineService.NAME, "testTemplate").get();
-        assertNotNull(getResponse.getStoredScript());
+        assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
@@ -200,7 +200,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         getResponse = client().admin().cluster()
                 .prepareGetStoredScript(MustacheScriptEngineService.NAME, "testTemplate").get();
-        assertNull(getResponse.getStoredScript());
+        assertNull(getResponse.getSource());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
@@ -211,9 +211,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     public void testIndexedTemplate() throws Exception {
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setLang(MustacheScriptEngineService.NAME)
                 .setId("1a")
-                .setSource(new BytesArray("{" +
+                .setContent(new BytesArray("{" +
                         "\"template\":{" +
                         "                \"query\":{" +
                         "                   \"match\":{" +
@@ -224,9 +224,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 ))
         );
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setLang(MustacheScriptEngineService.NAME)
                 .setId("2")
-                .setSource(new BytesArray("{" +
+                .setContent(new BytesArray("{" +
                         "\"template\":{" +
                         "                \"query\":{" +
                         "                   \"match\":{" +
@@ -236,9 +236,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "}"))
         );
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setLang(MustacheScriptEngineService.NAME)
                 .setId("3")
-                .setSource(new BytesArray("{" +
+                .setContent(new BytesArray("{" +
                         "\"template\":{" +
                         "             \"match\":{" +
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
@@ -309,14 +309,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         int iterations = randomIntBetween(2, 11);
         for (int i = 1; i < iterations; i++) {
             assertAcked(client().admin().cluster().preparePutStoredScript()
-                    .setScriptLang(MustacheScriptEngineService.NAME)
+                    .setLang(MustacheScriptEngineService.NAME)
                     .setId("git01")
-                    .setSource(new BytesArray("{\"template\":{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                    .setContent(new BytesArray("{\"template\":{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
                             "\"type\": \"ooophrase_prefix\"}}}}}")));
 
             GetStoredScriptResponse getResponse = client().admin().cluster()
                     .prepareGetStoredScript(MustacheScriptEngineService.NAME, "git01").get();
-            assertNotNull(getResponse.getStoredScript());
+            assertNotNull(getResponse.getSource());
 
             Map<String, Object> templateParams = new HashMap<>();
             templateParams.put("P_Keyword1", "dev");
@@ -328,9 +328,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             assertThat(e.getMessage(), containsString("[match] query does not support type ooophrase_prefix"));
 
             assertAcked(client().admin().cluster().preparePutStoredScript()
-                    .setScriptLang(MustacheScriptEngineService.NAME)
+                    .setLang(MustacheScriptEngineService.NAME)
                     .setId("git01")
-                    .setSource(new BytesArray("{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                    .setContent(new BytesArray("{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
                             "\"type\": \"phrase_prefix\"}}}}")));
 
             SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
@@ -345,9 +345,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         String multiQuery = "{\"query\":{\"terms\":{\"theField\":[\"{{#fieldParam}}\",\"{{.}}\",\"{{/fieldParam}}\"]}}}";
         assertAcked(
                 client().admin().cluster().preparePutStoredScript()
-                        .setScriptLang(MustacheScriptEngineService.NAME)
+                        .setLang(MustacheScriptEngineService.NAME)
                         .setId("4")
-                        .setSource(jsonBuilder().startObject().field("template", multiQuery).endObject().bytes())
+                        .setContent(jsonBuilder().startObject().field("template", multiQuery).endObject().bytes())
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));

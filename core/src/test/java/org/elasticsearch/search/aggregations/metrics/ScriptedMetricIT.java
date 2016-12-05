@@ -228,24 +228,24 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // the id of the stored script is used in test method while the source of the stored script
         // must match a predefined script from CustomScriptPlugin.pluginScripts() method
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("initScript_stored")
-                .setSource(new BytesArray("{\"script\":\"vars.multiplier = 3\"}")));
+                .setContent(new BytesArray("{\"script\":\"vars.multiplier = 3\"}")));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("mapScript_stored")
-                .setSource(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}")));
+                .setContent(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}")));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("combineScript_stored")
-                .setSource(new BytesArray("{\"script\":\"sum agg values as a new aggregation\"}")));
+                .setContent(new BytesArray("{\"script\":\"sum agg values as a new aggregation\"}")));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("reduceScript_stored")
-                .setSource(new BytesArray("{\"script\":\"sum aggs of agg values as a new aggregation\"}")));
+                .setContent(new BytesArray("{\"script\":\"sum aggs of agg values as a new aggregation\"}")));
 
         indexRandom(true, builders);
         ensureSearchable();

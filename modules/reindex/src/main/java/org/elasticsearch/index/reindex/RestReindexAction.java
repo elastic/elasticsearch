@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
@@ -113,14 +112,18 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (false == request.hasContent()) {
-            throw new ElasticsearchException("_reindex requires a request body");
-        }
         return doPrepareRequest(request, client, true, true);
     }
 
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
+        if (false == request.hasContent()) {
+            throw new IllegalArgumentException("_reindex requires a request body");
+        }
+        if (request.hasParam("pipeline")) {
+            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parmaeter. "
+                    + "Specify it in the [dest] object instead.");
+        }
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
             PARSER.parse(xcontent, internal, new ReindexParseContext(searchRequestParsers, parseFieldMatcher));

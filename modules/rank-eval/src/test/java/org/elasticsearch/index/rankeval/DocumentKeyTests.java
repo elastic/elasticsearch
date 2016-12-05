@@ -27,13 +27,13 @@ import java.io.IOException;
 public class DocumentKeyTests extends ESTestCase {
 
     static DocumentKey createRandomRatedDocumentKey() {
-        String index = randomAsciiOfLengthBetween(0, 10);
-        String type = randomAsciiOfLengthBetween(0, 10);
-        String docId = randomAsciiOfLengthBetween(0, 10);
+        String index = randomAsciiOfLengthBetween(1, 10);
+        String type = randomAsciiOfLengthBetween(1, 10);
+        String docId = randomAsciiOfLengthBetween(1, 10);
         return  new DocumentKey(index, type, docId);
     }
 
-    public DocumentKey createRandomTestItem() {
+    public DocumentKey createTestItem() {
         return createRandomRatedDocumentKey();
     }
 
@@ -62,4 +62,14 @@ public class DocumentKeyTests extends ESTestCase {
         RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
                 new DocumentKey(testItem.getIndex(), testItem.getType(), testItem.getDocID()));
     }
+
+    public void testSerialization() throws IOException {
+        DocumentKey original = createTestItem();
+        DocumentKey deserialized = RankEvalTestHelper.copy(original, DocumentKey::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+
 }

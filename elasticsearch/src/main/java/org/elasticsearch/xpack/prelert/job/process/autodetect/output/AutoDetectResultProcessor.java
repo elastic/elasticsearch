@@ -126,10 +126,10 @@ public class AutoDetectResultProcessor {
         }
         ModelSizeStats modelSizeStats = result.getModelSizeStats();
         if (modelSizeStats != null) {
-            LOGGER.trace(String.format(Locale.ROOT, "[%s] Parsed ModelSizeStats: %d / %d / %d / %d / %d / %s",
+            LOGGER.trace("[{}] Parsed ModelSizeStats: {} / {} / {} / {} / {} / {}",
                     context.jobId, modelSizeStats.getModelBytes(), modelSizeStats.getTotalByFieldCount(),
                     modelSizeStats.getTotalOverFieldCount(), modelSizeStats.getTotalPartitionFieldCount(),
-                    modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus()));
+                    modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus());
 
             latestModelSizeStats = modelSizeStats;
             persister.persistModelSizeStats(modelSizeStats);

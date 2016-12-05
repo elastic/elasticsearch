@@ -210,7 +210,7 @@ public class JobResultsPersister extends AbstractComponent {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, ModelSizeStats.TYPE::getPreferredName,
-                () -> jobId, () -> toXContentBuilder(modelSizeStats));
+                ModelSizeStats.TYPE::getPreferredName, () -> toXContentBuilder(modelSizeStats));
         persistable.persist();
         persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, ModelSizeStats.TYPE::getPreferredName,
                 () -> null, () -> toXContentBuilder(modelSizeStats));

@@ -40,6 +40,19 @@ setup:
             }
           }
 
+  - do:
+      index:
+        index:  prelertresults-job-stats-test
+        type:   model_size_stats
+        id:     model_size_stats
+        body:   {
+                  "job_id": "job-stats-test",
+                  "log_time": 1480896000000,
+                  "timestamp": 1480896000000,
+                  "model_bytes": 100,
+                  "total_by_field_count": 2
+                }
+
 ---
 "Test get job stats after uploading data prompting the creation of some stats":
   - do:
@@ -70,13 +83,12 @@ setup:
         job_id: job-stats-test
         metric: data_counts
 
+  - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
   - match: { jobs.0.data_counts.processed_field_count: 4}
   - match: { jobs.0.data_counts.input_field_count: 4 }
 
 # Test filters
-# It's difficult to test for the presence of model_size_stats as they
-# won't be created with such a small data sample
   - do:
       xpack.prelert.get_jobs:
         job_id: "job-stats-test"
@@ -93,6 +105,7 @@ setup:
   - is_false: jobs.0.config
   - is_false: jobs.0.data_counts
   - is_false: jobs.0.scheduler_state
+  - match: { jobs.0.model_size_stats.model_bytes: 100 }
 
   - do:
       xpack.prelert.get_jobs:
@@ -118,6 +131,7 @@ setup:
   - is_true: jobs.0.config
   - is_true: jobs.0.data_counts
   - is_false: jobs.0.scheduler_state
+  - match: { jobs.0.job_id: job-stats-test }
   - match: { jobs.0.status: RUNNING }
 
   - do:

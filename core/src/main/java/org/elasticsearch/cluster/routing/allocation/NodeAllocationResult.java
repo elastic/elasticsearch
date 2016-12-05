@@ -152,7 +152,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
                 // if the node decision is NO, despite the canAllocate decision returning YES, it might not seem
                 // intuitive why the node has a NO decision, so we provide an extra explanation in this case
                 // to denote the reason for the NO decision was that the balance was not improved
-                builder.field("explanation", "not rebalancing to this node because the weight ranking is not better" +
+                builder.field("explanation", "not rebalancing to this node because the weight ranking is not better " +
                                                  "than the current node, therefore moving the shard to this node will not achieve a " +
                                                  "better cluster balance");
             }

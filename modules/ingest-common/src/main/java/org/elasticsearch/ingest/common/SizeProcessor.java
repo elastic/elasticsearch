@@ -83,9 +83,7 @@ public final class SizeProcessor extends AbstractProcessor {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            // We want to ignore metadata
-            document.extractMetadata();
-            for (Map.Entry<String, Object> source : document.getSourceAndMetadata().entrySet()) {
+            for (Map.Entry<String, Object> source : document.getSource().entrySet()) {
                 builder.field(source.getKey(), source.getValue());
             }
             return builder;

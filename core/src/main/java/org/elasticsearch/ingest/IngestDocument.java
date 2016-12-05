@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
+import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -566,6 +567,22 @@ public final class IngestDocument {
      */
     public Map<String, Object> getSourceAndMetadata() {
         return this.sourceAndMetadata;
+    }
+
+    /**
+     * Returns the document without its metadata fields.
+     */
+    public Map<String, Object> getSource() {
+        return this.sourceAndMetadata.entrySet().stream()
+            .filter(entry -> {
+                for (MetaData metaData : MetaData.values()) {
+                  if (metaData.getFieldName().equals(entry.getKey())) {
+                      return false;
+                  }
+                }
+                return true;
+            })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @SuppressWarnings("unchecked")

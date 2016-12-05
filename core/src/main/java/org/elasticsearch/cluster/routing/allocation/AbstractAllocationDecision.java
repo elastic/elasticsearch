@@ -30,12 +30,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -48,21 +45,19 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     @Nullable
     protected final DiscoveryNode targetNode;
     @Nullable
-    protected final Map<String, NodeAllocationResult> nodeDecisions;
+    protected final List<NodeAllocationResult> nodeDecisions;
 
     protected AbstractAllocationDecision(@Nullable Type decision, @Nullable DiscoveryNode targetNode,
-                                         @Nullable Collection<NodeAllocationResult> nodeDecisions) {
+                                         @Nullable List<NodeAllocationResult> nodeDecisions) {
         this.decision = decision;
         this.targetNode = targetNode;
-        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(
-            nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity()))) : null;
+        this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
     }
 
     protected AbstractAllocationDecision(StreamInput in) throws IOException {
         decision = in.readOptionalWriteable(Type::readFrom);
         targetNode = in.readOptionalWriteable(DiscoveryNode::new);
-        nodeDecisions = in.readBoolean() ? Collections.unmodifiableMap(
-            in.readMap(StreamInput::readString, NodeAllocationResult::new, LinkedHashMap::new)) : null;
+        nodeDecisions = in.readBoolean() ? Collections.unmodifiableList(in.readList(NodeAllocationResult::new)) : null;
     }
 
     /**
@@ -95,13 +90,12 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     }
 
     /**
-     * Gets the individual node-level decisions that went into making the final decision as represented by
-     * {@link #getDecisionType()}.  The map that is returned has the node id as the key and a {@link Decision}
-     * as the decision for the given node.  If {@link #isDecisionTaken()} returns {@code false}, then invoking
-     * this method will throw an {@code IllegalStateException}.
+     * Gets the sorted list of individual node-level decisions that went into making the final decision as
+     * represented by {@link #getDecisionType()}.  If {@link #isDecisionTaken()} returns {@code false}, then
+     * invoking this method will throw an {@code IllegalStateException}.
      */
     @Nullable
-    public Map<String, NodeAllocationResult> getNodeDecisions() {
+    public List<NodeAllocationResult> getNodeDecisions() {
         checkDecisionState();
         return nodeDecisions;
     }
@@ -118,11 +112,7 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
         out.writeOptionalWriteable(targetNode);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
-            out.writeVInt(nodeDecisions.size());
-            for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
+            out.writeList(nodeDecisions);
         } else {
             out.writeBoolean(false);
         }
@@ -135,55 +125,46 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     }
 
     /**
-     * Generates X-Content for a {@link DiscoveryNode} that leaves off some of the non-critical fields,
-     * and assumes the outer object is created outside of this method call.
+     * Generates X-Content for a {@link DiscoveryNode} that leaves off some of the non-critical fields.
      */
-    public static XContentBuilder discoveryNodeToXContent(DiscoveryNode node, XContentBuilder builder, Params params)
+    public static XContentBuilder discoveryNodeToXContent(DiscoveryNode node, boolean outerObjectWritten, XContentBuilder builder)
         throws IOException {
 
-        builder.field("id", node.getId());
-        builder.field("name", node.getName());
+        builder.field(outerObjectWritten ? "id" : "node_id", node.getId());
+        builder.field(outerObjectWritten ? "name" : "node_name", node.getName());
         builder.field("transport_address", node.getAddress().toString());
-        builder.startObject("attributes");
-        for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
+        if (node.getAttributes().isEmpty() == false) {
+            builder.startObject(outerObjectWritten ? "attributes" : "node_attributes");
+            for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
         }
-        builder.endObject();
         return builder;
     }
 
     /**
-     * Sorts a map of node level decisions by the decision type, then by weight ranking, and finally by node id.
+     * Sorts a list of node level decisions by the decision type, then by weight ranking, and finally by node id.
      */
-    public Map<String, NodeAllocationResult> sortNodeDecisions(Map<String, NodeAllocationResult> nodeDecisions) {
-        return Collections.unmodifiableMap(
-            nodeDecisions.values().stream()
-                .sorted()
-                .collect(Collectors.toMap(r -> r.getNode().getId(),
-                    Function.identity(),
-                    (r1, r2) -> {
-                        throw new IllegalArgumentException(String.format(Locale.ROOT, "Duplicate key %s", r1));
-                    },
-                    LinkedHashMap::new))
-        );
+    public List<NodeAllocationResult> sortNodeDecisions(List<NodeAllocationResult> nodeDecisions) {
+        return Collections.unmodifiableList(nodeDecisions.stream().sorted().collect(Collectors.toList()));
     }
 
     /**
      * Generates X-Content for the node-level decisions, creating the outer "node_decisions" object
      * in which they are serialized.
      */
-    public XContentBuilder nodeDecisionsToXContent(Map<String, NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
+    public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
         throws IOException {
 
         if (nodeDecisions != null) {
-            builder.startObject("node_decisions");
+            builder.startArray("node_decisions");
             {
-                for (String nodeId : nodeDecisions.keySet()) {
-                    NodeAllocationResult explanation = nodeDecisions.get(nodeId);
+                for (NodeAllocationResult explanation : nodeDecisions) {
                     explanation.toXContent(builder, params);
                 }
             }
-            builder.endObject();
+            builder.endArray();
         }
         return builder;
     }

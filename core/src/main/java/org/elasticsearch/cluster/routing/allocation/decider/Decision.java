@@ -337,11 +337,9 @@ public abstract class Decision implements ToXContent, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray("decisions");
             for (Decision d : decisions) {
                 d.toXContent(builder, params);
             }
-            builder.endArray();
             return builder;
         }
 

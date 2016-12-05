@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
@@ -254,18 +253,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     private static ShardStoreInfo shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
         final Exception storeErr = nodeShardState.storeException();
-        final StoreStatus storeStatus;
-        if (inSyncAllocationIds.isEmpty()) {
-            // The ids are only empty if dealing with a legacy index
-            storeStatus = StoreStatus.UNKNOWN;
-        } else if (nodeShardState.allocationId() != null && inSyncAllocationIds.contains(nodeShardState.allocationId())) {
-            storeStatus = StoreStatus.IN_SYNC;
-        } else {
-            // Otherwise, this is a stale copy of the data (allocation ids don't match)
-            storeStatus = StoreStatus.STALE;
-        }
-
-        return new ShardStoreInfo(storeStatus, nodeShardState.allocationId(), storeErr);
+        final boolean inSync = nodeShardState.allocationId() != null && inSyncAllocationIds.contains(nodeShardState.allocationId());
+        return new ShardStoreInfo(nodeShardState.allocationId(), inSync, storeErr);
     }
 
     private static final Comparator<NodeGatewayStartedShards> NO_STORE_EXCEPTION_FIRST_COMPARATOR =

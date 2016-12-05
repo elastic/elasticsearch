@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -165,7 +164,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                result.v2() != null ? result.v2().values() : null);
+                result.v2() != null ? new ArrayList<>(result.v2().values()) : null);
         }
 
         AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> shardStores = fetchData(unassignedShard, allocation);
@@ -184,7 +183,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             assert explain : "primary should only be null here if we are in explain mode, so we didn't " +
                                  "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                result.v2().values());
+                new ArrayList<>(result.v2().values()));
         }
 
         TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
@@ -352,12 +351,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             long matchingBytes = -1;
             if (explain) {
                 matchingBytes = computeMatchingBytes(primaryStore, storeFilesMetaData);
-                ShardStoreInfo shardStoreInfo;
-                if (matchingBytes == Long.MAX_VALUE) {
-                    shardStoreInfo = new ShardStoreInfo(StoreStatus.MATCHING_SYNC_ID, -1);
-                } else {
-                    shardStoreInfo = new ShardStoreInfo(StoreStatus.UNKNOWN, matchingBytes);
-                }
+                ShardStoreInfo shardStoreInfo = new ShardStoreInfo(matchingBytes);
                 nodeDecisions.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStoreInfo, decision));
             }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.StoreStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -50,9 +49,8 @@ public class NodeAllocationResultTests extends ESTestCase {
     public void testShardStore() throws IOException {
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Decision decision = randomFrom(Decision.YES, Decision.THROTTLE, Decision.NO);
-        StoreStatus storeStatus = randomFrom(StoreStatus.values());
         long matchingBytes = (long) randomIntBetween(1, 1000);
-        ShardStoreInfo shardStoreInfo = new ShardStoreInfo(storeStatus, matchingBytes);
+        ShardStoreInfo shardStoreInfo = new ShardStoreInfo(matchingBytes);
         NodeAllocationResult explanation = new NodeAllocationResult(node, shardStoreInfo, decision);
         BytesStreamOutput output = new BytesStreamOutput();
         explanation.writeTo(output);
@@ -60,16 +58,20 @@ public class NodeAllocationResultTests extends ESTestCase {
         assertNodeExplanationEquals(explanation, readExplanation);
         assertEquals(matchingBytes, explanation.getShardStoreInfo().getMatchingBytes());
         assertNull(explanation.getShardStoreInfo().getAllocationId());
+        assertFalse(explanation.getShardStoreInfo().isInSync());
+        assertFalse(explanation.getShardStoreInfo().hasMatchingSyncId());
 
         String allocId = randomAsciiOfLength(5);
-        shardStoreInfo = new ShardStoreInfo(storeStatus, allocId, randomBoolean() ? new Exception("bad stuff") : null);
+        boolean inSync = randomBoolean();
+        shardStoreInfo = new ShardStoreInfo(allocId, inSync, randomBoolean() ? new Exception("bad stuff") : null);
         explanation = new NodeAllocationResult(node, shardStoreInfo, decision);
         output = new BytesStreamOutput();
         explanation.writeTo(output);
         readExplanation = new NodeAllocationResult(output.bytes().streamInput());
         assertNodeExplanationEquals(explanation, readExplanation);
-        assertEquals(storeStatus, explanation.getShardStoreInfo().getStoreStatus());
+        assertEquals(inSync, explanation.getShardStoreInfo().isInSync());
         assertEquals(-1, explanation.getShardStoreInfo().getMatchingBytes());
+        assertFalse(explanation.getShardStoreInfo().hasMatchingSyncId());
         assertEquals(allocId, explanation.getShardStoreInfo().getAllocationId());
     }
 
@@ -78,9 +80,10 @@ public class NodeAllocationResultTests extends ESTestCase {
         assertEquals(expl1.getCanAllocateDecision(), expl2.getCanAllocateDecision());
         assertEquals(0, Float.compare(expl1.getWeightRanking(), expl2.getWeightRanking()));
         if (expl1.getShardStoreInfo() != null) {
-            assertEquals(expl1.getShardStoreInfo().getStoreStatus(), expl2.getShardStoreInfo().getStoreStatus());
+            assertEquals(expl1.getShardStoreInfo().isInSync(), expl2.getShardStoreInfo().isInSync());
             assertEquals(expl1.getShardStoreInfo().getAllocationId(), expl2.getShardStoreInfo().getAllocationId());
             assertEquals(expl1.getShardStoreInfo().getMatchingBytes(), expl2.getShardStoreInfo().getMatchingBytes());
+            assertEquals(expl1.getShardStoreInfo().hasMatchingSyncId(), expl2.getShardStoreInfo().hasMatchingSyncId());
         } else {
             assertNull(expl2.getShardStoreInfo());
         }

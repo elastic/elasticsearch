@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.List;
 
 /**
  * Represents a decision to move a started shard, either because it is no longer allowed to remain on its current node
@@ -53,7 +53,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
     private final int currentNodeRanking;
 
     private MoveDecision(DiscoveryNode currentNode, Decision canRemainDecision, Decision canRebalanceDecision, Type finalDecision,
-                         DiscoveryNode assignedNode, Collection<NodeAllocationResult> nodeDecisions, boolean fetchPending,
+                         DiscoveryNode assignedNode, List<NodeAllocationResult> nodeDecisions, boolean fetchPending,
                          int currentNodeRanking) {
         super(finalDecision, assignedNode, nodeDecisions);
         this.currentNode = currentNode;
@@ -106,7 +106,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * @return the {@link MoveDecision} for moving the shard to another node
      */
     public static MoveDecision cannotRemain(DiscoveryNode currentNode, Decision canRemainDecision, Type finalDecision,
-                                            DiscoveryNode assignedNode, Collection<NodeAllocationResult> nodeDecisions) {
+                                            DiscoveryNode assignedNode, List<NodeAllocationResult> nodeDecisions) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
         if (nodeDecisions == null && finalDecision == Type.NO) {
@@ -122,7 +122,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a move decision for when rebalancing the shard is not allowed.
      */
     public static MoveDecision cannotRebalance(DiscoveryNode currentNode, Decision canRebalanceDecision, int currentNodeRanking,
-                                               Collection<NodeAllocationResult> nodeDecisions, boolean fetchPending) {
+                                               List<NodeAllocationResult> nodeDecisions, boolean fetchPending) {
         return new MoveDecision(currentNode, null, canRebalanceDecision, Type.NO, null, nodeDecisions, fetchPending, currentNodeRanking);
     }
 
@@ -131,7 +131,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public static MoveDecision rebalance(DiscoveryNode currentNode, Decision canRebalanceDecision, Type finalDecision,
                                          @Nullable DiscoveryNode assignedNode, int currentNodeRanking,
-                                         Collection<NodeAllocationResult> nodeDecisions) {
+                                         List<NodeAllocationResult> nodeDecisions) {
         return new MoveDecision(currentNode, null, canRebalanceDecision, finalDecision, assignedNode, nodeDecisions,
                                    false, currentNodeRanking);
     }
@@ -235,32 +235,32 @@ public final class MoveDecision extends AbstractAllocationDecision {
         checkDecisionState();
         builder.startObject("current_node");
         {
-            discoveryNodeToXContent(currentNode, builder, params);
+            discoveryNodeToXContent(currentNode, true, builder);
             if (currentNodeRanking > 0) {
                 builder.field("weight_ranking", currentNodeRanking);
             }
         }
         builder.endObject();
-        builder.field("decision", decision.toString());
+        builder.field(canRebalanceDecision != null ? "rebalance_decision" : "move_decision", decision.toString());
         builder.field("explanation", getExplanation());
         if (targetNode != null) {
             builder.startObject("target_node");
-            discoveryNodeToXContent(targetNode, builder, params);
+            discoveryNodeToXContent(targetNode, true, builder);
             builder.endObject();
         }
-        builder.startObject("can_remain_decision");
-        {
-            builder.field("decision", canRemainDecision.type().toString());
+        builder.field("can_remain_decision", canRemainDecision.type().toString());
+        if (canRemainDecision.getDecisions().isEmpty() == false) {
+            builder.startArray("can_remain_details");
             canRemainDecision.toXContent(builder, params);
+            builder.endArray();
         }
-        builder.endObject();
         if (canRebalanceDecision != null) {
-            builder.startObject("can_rebalance_decision");
-            {
-                builder.field("decision", canRebalanceDecision.type().toString());
+            builder.field("can_rebalance_decision", canRebalanceDecision.type().toString());
+            if (canRebalanceDecision.getDecisions().isEmpty() == false) {
+                builder.startArray("can_rebalance_details");
                 canRebalanceDecision.toXContent(builder, params);
+                builder.endArray();
             }
-            builder.endObject();
         }
         nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;

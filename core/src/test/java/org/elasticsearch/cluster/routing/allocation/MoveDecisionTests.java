@@ -106,7 +106,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(2, decision.getNodeDecisions().size());
         assertEquals(currentNode, decision.getCurrentNode());
         // both nodes have the same decision type but node2 has a higher weight ranking, so node2 comes first
-        assertEquals("node2", decision.getNodeDecisions().keySet().iterator().next());
+        assertEquals("node2", decision.getNodeDecisions().iterator().next().getNode().getId());
 
         decision = MoveDecision.cannotRemain(currentNode, Decision.NO, Type.YES, node2, null);
         assertEquals("node2", decision.getTargetNode().getId());
@@ -134,7 +134,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(moveDecision.getDecisionType(), readDecision.getDecisionType());
         assertEquals(moveDecision.getCurrentNode(), readDecision.getCurrentNode());
         // node2 should have the highest sort order
-        assertEquals("node2", readDecision.getNodeDecisions().keySet().iterator().next());
+        assertEquals("node2", readDecision.getNodeDecisions().iterator().next().getNode().getId());
     }
 
     private static DiscoveryNode randomDiscoveryNode() {

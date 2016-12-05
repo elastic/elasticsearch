@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,7 +48,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     private final DiscoveryNode node;
     @Nullable
     private final ShardStoreInfo shardStoreInfo;
-    private final Decision.Type nodeDecisionType;
+    private final Type nodeDecisionType;
     private final Decision canAllocateDecision;
     private final int weightRanking;
 
@@ -59,7 +60,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         this.weightRanking = 0;
     }
 
-    public NodeAllocationResult(DiscoveryNode node, Decision.Type nodeDecisionType, Decision canAllocate, int weightRanking) {
+    public NodeAllocationResult(DiscoveryNode node, Type nodeDecisionType, Decision canAllocate, int weightRanking) {
         this.node = node;
         this.shardStoreInfo = null;
         this.canAllocateDecision = canAllocate;
@@ -79,7 +80,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         node = new DiscoveryNode(in);
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
         canAllocateDecision = Decision.readFrom(in);
-        nodeDecisionType = Decision.Type.readFrom(in);
+        nodeDecisionType = Type.readFrom(in);
         weightRanking = in.readVInt();
     }
 
@@ -137,27 +138,35 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     /**
      * Gets the decision type for allocating to this node.
      */
-    public Decision.Type getNodeDecisionType() {
+    public Type getNodeDecisionType() {
         return nodeDecisionType;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(node.getId());
+        builder.startObject();
         {
-            builder.startObject("node_info");
-            {
-                discoveryNodeToXContent(node, builder, params);
-            }
-            builder.endObject(); // end node_info
+            discoveryNodeToXContent(node, false, builder);
             builder.field("node_decision", getNodeDecisionType());
+            if (getNodeDecisionType() == Type.NO && canAllocateDecision.type() == Type.YES && isWeightRanked()) {
+                // if the node decision is NO, despite the canAllocate decision returning YES, it might not seem
+                // intuitive why the node has a NO decision, so we provide an extra explanation in this case
+                // to denote the reason for the NO decision was that the balance was not improved
+                builder.field("explanation", "not rebalancing to this node because the weight ranking is the same or worse " +
+                                                 "than the current node, therefore moving the shard to this node will not achieve a " +
+                                                 "better cluster balance");
+            }
             if (shardStoreInfo != null) {
                 shardStoreInfo.toXContent(builder, params);
             }
             if (isWeightRanked()) {
                 builder.field("weight_ranking", getWeightRanking());
             }
-            getCanAllocateDecision().toXContent(builder, params);
+            if (canAllocateDecision.getDecisions().isEmpty() == false) {
+                builder.startArray("can_allocate_details");
+                canAllocateDecision.toXContent(builder, params);
+                builder.endArray();
+            }
         }
         builder.endObject();
         return builder;
@@ -170,39 +179,41 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
 
     /** A class that captures metadata about a shard store on a node. */
     public static final class ShardStoreInfo implements ToXContent, Writeable {
-        private final StoreStatus storeStatus;
+        private final boolean inSync;
         @Nullable
         private final String allocationId;
         private final long matchingBytes;
         @Nullable
         private final Exception storeException;
 
-        public ShardStoreInfo(StoreStatus storeStatus, String allocationId, Exception storeException) {
-            this.storeStatus = storeStatus;
+        public ShardStoreInfo(String allocationId, boolean inSync, Exception storeException) {
+            this.inSync = inSync;
             this.allocationId = allocationId;
             this.matchingBytes = -1;
             this.storeException = storeException;
         }
 
-        public ShardStoreInfo(StoreStatus storeStatus, long matchingBytes) {
-            this.storeStatus = storeStatus;
+        public ShardStoreInfo(long matchingBytes) {
+            this.inSync = false;
             this.allocationId = null;
             this.matchingBytes = matchingBytes;
             this.storeException = null;
         }
 
         public ShardStoreInfo(StreamInput in) throws IOException {
-            this.storeStatus = StoreStatus.readFrom(in);
+            this.inSync = in.readBoolean();
             this.allocationId = in.readOptionalString();
             this.matchingBytes = in.readLong();
             this.storeException = in.readException();
         }
 
         /**
-         * Gets the store status for the shard copy.
+         * Returns {@code true} if the shard copy is in-sync and contains the latest data.
+         * Returns {@code false} if the shard copy is stale or if the shard copy being examined
+         * is for a replica shard allocation.
          */
-        public StoreStatus getStoreStatus() {
-            return storeStatus;
+        public boolean isInSync() {
+            return inSync;
         }
 
         /**
@@ -214,7 +225,18 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         }
 
         /**
+         * Returns {@code true} if the shard copy has a matching sync id with the primary shard.
+         * Returns {@code false} if the shard copy does not have a matching sync id with the primary
+         * shard, or this explanation pertains to the allocation of a primary shard, in which case
+         * matching sync ids are irrelevant.
+         */
+        public boolean hasMatchingSyncId() {
+            return matchingBytes == Long.MAX_VALUE;
+        }
+
+        /**
          * Gets the number of matching bytes the shard copy has with the primary shard.
+         * Returns {@code Long.MAX_VALUE} if {@link #hasMatchingSyncId()} returns {@code true}.
          * Returns -1 if not applicable (this value only applies to assigning replica shards).
          */
         public long getMatchingBytes() {
@@ -223,7 +245,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            storeStatus.writeTo(out);
+            out.writeBoolean(inSync);
             out.writeOptionalString(allocationId);
             out.writeLong(matchingBytes);
             out.writeException(storeException);
@@ -233,12 +255,19 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("store");
             {
-                builder.field("status", storeStatus.toString());
+                if (matchingBytes < 0) {
+                    // dealing with a primary shard
+                    builder.field("in_sync", inSync);
+                }
                 if (allocationId != null) {
                     builder.field("allocation_id", allocationId);
                 }
                 if (matchingBytes >= 0) {
-                    builder.byteSizeField("matching_size_in_bytes", "matching_size", matchingBytes);
+                    if (hasMatchingSyncId()) {
+                        builder.field("matching_sync_id", true);
+                    } else {
+                        builder.byteSizeField("matching_size_in_bytes", "matching_size", matchingBytes);
+                    }
                 }
                 if (storeException != null) {
                     builder.startObject("store_exception");
@@ -251,53 +280,4 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         }
     }
 
-    /** An enum representing the state of the shard store's copy of the data on a node */
-    public enum StoreStatus implements Writeable {
-        // A current and valid copy of the data is available on this node
-        IN_SYNC((byte) 0),
-        // The copy of the data on the node is stale
-        STALE((byte) 1),
-        // The copy matches sync ids with the primary
-        MATCHING_SYNC_ID((byte) 2),
-        // It's unknown what the copy of the data is
-        UNKNOWN((byte) 3);
-
-        private final byte id;
-
-        StoreStatus(byte id) {
-            this.id = id;
-        }
-
-        private static StoreStatus fromId(byte id) {
-            switch (id) {
-                case 0: return IN_SYNC;
-                case 1: return STALE;
-                case 2: return MATCHING_SYNC_ID;
-                case 3: return UNKNOWN;
-                default:
-                    throw new IllegalArgumentException("unknown id for store status: [" + id + "]");
-            }
-        }
-
-        @Override
-        public String toString() {
-            switch (id) {
-                case 0: return "IN_SYNC";
-                case 1: return "STALE";
-                case 2: return "MATCHING_SYNC_ID";
-                case 3: return "UNKNOWN";
-                default:
-                    throw new IllegalArgumentException("unknown id for store status: [" + id + "]");
-            }
-        }
-
-        static StoreStatus readFrom(StreamInput in) throws IOException {
-            return fromId(in.readByte());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(id);
-        }
-    }
 }

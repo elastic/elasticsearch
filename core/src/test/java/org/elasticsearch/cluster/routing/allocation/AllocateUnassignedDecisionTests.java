@@ -87,20 +87,19 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(Decision.Type.NO, noDecision.getDecisionType());
         assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
         if (reuseStore) {
-            assertEquals("cannot allocate because allocation is not permitted to any of the nodes that hold a valid shard copy",
+            assertEquals("cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy",
                 noDecision.getExplanation());
         } else {
             assertEquals("cannot allocate because allocation is not permitted to any of the nodes", noDecision.getExplanation());
         }
-        assertEquals(nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity())),
-            noDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), noDecision.getNodeDecisions());
         // node1 should be sorted first b/c of better weight ranking
-        assertEquals("node1", noDecision.getNodeDecisions().keySet().iterator().next());
+        assertEquals("node1", noDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertNull(noDecision.getTargetNode());
         assertNull(noDecision.getAllocationId());
 
         // test bad values
-        expectThrows(NullPointerException.class, () -> AllocateUnassignedDecision.no((AllocationStatus) null, null));
+        expectThrows(NullPointerException.class, () -> AllocateUnassignedDecision.no(null, null));
     }
 
     public void testThrottleDecision() {
@@ -112,10 +111,9 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(Decision.Type.THROTTLE, throttleDecision.getDecisionType());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), startsWith("allocation temporarily throttled"));
-        assertEquals(nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity())),
-            throttleDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), throttleDecision.getNodeDecisions());
         // node2 should be sorted first b/c a THROTTLE is higher than a NO decision
-        assertEquals("node2", throttleDecision.getNodeDecisions().keySet().iterator().next());
+        assertEquals("node2", throttleDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertNull(throttleDecision.getTargetNode());
         assertNull(throttleDecision.getAllocationId());
     }
@@ -131,12 +129,11 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(Decision.Type.YES, yesDecision.getDecisionType());
         assertNull(yesDecision.getAllocationStatus());
         assertEquals("can allocate the shard", yesDecision.getExplanation());
-        assertEquals(nodeDecisions.stream().collect(Collectors.toMap(r -> r.getNode().getId(), Function.identity())),
-            yesDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), yesDecision.getNodeDecisions());
         assertEquals("node2", yesDecision.getTargetNode().getId());
         assertEquals(allocId, yesDecision.getAllocationId());
         // node1 should be sorted first b/c YES decisions are the highest
-        assertEquals("node2", yesDecision.getNodeDecisions().keySet().iterator().next());
+        assertEquals("node2", yesDecision.getNodeDecisions().iterator().next().getNode().getId());
     }
 
     public void testCachedDecisions() {
@@ -195,7 +192,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(decision.getAllocationId(), readDecision.getAllocationId());
         assertEquals(decision.getDecisionType(), readDecision.getDecisionType());
         // node2 should have the highest sort order
-        assertEquals("node2", readDecision.getNodeDecisions().keySet().iterator().next());
+        assertEquals("node2", readDecision.getNodeDecisions().iterator().next().getNode().getId());
     }
 
 }

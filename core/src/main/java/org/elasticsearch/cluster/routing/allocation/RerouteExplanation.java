@@ -66,15 +66,9 @@ public class RerouteExplanation implements ToXContent {
         builder.startObject();
         builder.field("command", command.name());
         builder.field("parameters", command);
-        // The Decision could be a Multi or Single decision, and they should
-        // both be encoded the same, so check and wrap in an array if necessary
-        if (decisions instanceof Decision.Multi) {
-            decisions.toXContent(builder, params);
-        } else {
-            builder.startArray("decisions");
-            decisions.toXContent(builder, params);
-            builder.endArray();
-        }
+        builder.startArray("decisions");
+        decisions.toXContent(builder, params);
+        builder.endArray();
         builder.endObject();
         return builder;
     }

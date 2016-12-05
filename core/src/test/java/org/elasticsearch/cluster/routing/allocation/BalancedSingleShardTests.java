@@ -142,7 +142,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getTargetNode());
         int prevRanking = 0;
-        for (NodeAllocationResult result : rebalanceDecision.getNodeDecisions().values()) {
+        for (NodeAllocationResult result : rebalanceDecision.getNodeDecisions()) {
             assertThat(result.getWeightRanking(), greaterThanOrEqualTo(prevRanking));
             prevRanking = result.getWeightRanking();
         }
@@ -166,7 +166,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getTargetNode());
         int prevRanking = 0;
-        for (NodeAllocationResult result : rebalanceDecision.getNodeDecisions().values()) {
+        for (NodeAllocationResult result : rebalanceDecision.getNodeDecisions()) {
             assertThat(result.getWeightRanking(), greaterThanOrEqualTo(prevRanking));
             prevRanking = result.getWeightRanking();
         }
@@ -234,9 +234,10 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         MoveDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertEquals(shardToRebalance.relocatingNodeId(), rebalanceDecision.getTargetNode().getId());
         // make sure all excluded nodes returned a NO decision
-        for (String exludedNode : excludeNodes) {
-            NodeAllocationResult nodeResult = rebalanceDecision.getNodeDecisions().get(exludedNode);
-            assertEquals(Type.NO, nodeResult.getCanAllocateDecision().type());
+        for (NodeAllocationResult nodeResult : rebalanceDecision.getNodeDecisions()) {
+            if (excludeNodes.contains(nodeResult.getNode().getId())) {
+                assertEquals(Type.NO, nodeResult.getCanAllocateDecision().type());
+            }
         }
     }
 
@@ -248,7 +249,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         MoveDecision decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), -1);
         int currentRanking = decision.getCurrentNodeRanking();
         assertEquals(1, currentRanking);
-        for (NodeAllocationResult result : decision.getNodeDecisions().values()) {
+        for (NodeAllocationResult result : decision.getNodeDecisions()) {
             assertEquals(1, result.getWeightRanking());
         }
 
@@ -258,7 +259,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         shardToRebalance = clusterState.routingTable().index("idx").shardsWithState(ShardRoutingState.STARTED).get(0);
         clusterState = addNodesToClusterState(clusterState, randomIntBetween(1, 10));
         decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 0.01f);
-        for (NodeAllocationResult result : decision.getNodeDecisions().values()) {
+        for (NodeAllocationResult result : decision.getNodeDecisions()) {
             assertThat(result.getWeightRanking(), lessThan(decision.getCurrentNodeRanking()));
         }
 
@@ -285,7 +286,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         }
         clusterState = addNodesToClusterState(clusterState, 1);
         decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 0.01f);
-        for (NodeAllocationResult result : decision.getNodeDecisions().values()) {
+        for (NodeAllocationResult result : decision.getNodeDecisions()) {
             if (result.getWeightRanking() < decision.getCurrentNodeRanking()) {
                 // highest ranked node should not be any of the initial nodes
                 assertFalse(nodesWithTwoShards.contains(result.getNode().getId()));

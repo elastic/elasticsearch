@@ -1193,7 +1193,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         // request termvectors of artificial document from each shard
         int sumTotalTermFreq = 0;
-        int sumTotalDocFreq = 0;
+        int sumDocFreq = 0;
         for (Integer shardId : shardIds) {
             TermVectorsResponse tvResponse = client().prepareTermVectors()
                     .setIndex("test")
@@ -1209,11 +1209,11 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             TermsEnum termsEnum = terms.iterator();
             while (termsEnum.next() != null) {
                 sumTotalTermFreq += termsEnum.totalTermFreq();
-                sumTotalDocFreq += termsEnum.docFreq();
+                sumDocFreq += termsEnum.docFreq();
             }
         }
         assertEquals("expected to find term statistics in exactly one shard!", 2, sumTotalTermFreq);
-        assertEquals("expected to find term statistics in exactly one shard!", 2, sumTotalDocFreq);
+        assertEquals("expected to find term statistics in exactly one shard!", 2, sumDocFreq);
     }
 
     private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {

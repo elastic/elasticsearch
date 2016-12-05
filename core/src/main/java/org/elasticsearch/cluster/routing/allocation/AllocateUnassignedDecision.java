@@ -243,7 +243,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 explanation = "cannot allocate because the cluster is waiting " +
                                   TimeValue.timeValueMillis(remainingDelayInMillis) +
                                   " for the departed node holding a replica to rejoin" +
-                                  (atleastOneNodeWithYesDecision() ?
+                                  (atLeastOneNodeWithYesDecision() ?
                                        ", despite being allowed to allocate the shard to atleast one other node" : "");
             } else {
                 assert allocationStatus == AllocationStatus.DECIDERS_NO;
@@ -297,7 +297,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         out.writeVLong(configuredDelayInMillis);
     }
 
-    private boolean atleastOneNodeWithYesDecision() {
+    private boolean atLeastOneNodeWithYesDecision() {
         if (nodeDecisions == null) {
             return false;
         }

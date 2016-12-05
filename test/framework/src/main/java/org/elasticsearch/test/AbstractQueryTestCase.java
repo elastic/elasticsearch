@@ -73,7 +73,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -145,7 +144,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static final String DATE_RANGE_FIELD_NAME = "mapped_date_range";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
-    protected static final String LEGACY_GEO_POINT_FIELD_MAPPING = "type=geo_point,lat_lon=true,geohash=true,geohash_prefix=true";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
     protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
             DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME,
@@ -830,7 +828,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 value = randomIntBetween(0, 10);
                 break;
             case DOUBLE_FIELD_NAME:
-                value = randomDouble() * 10;
+                value = 1 + randomDouble() * 9;
                 break;
             case BOOLEAN_FIELD_NAME:
                 value = randomBoolean();
@@ -1111,9 +1109,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             });
             indicesQueriesRegistry = searchModule.getQueryParserRegistry();
 
-            String geoFieldMapping = (idxSettings.getIndexVersionCreated().before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) ?
-                LEGACY_GEO_POINT_FIELD_MAPPING : "type=geo_point";
-
             for (String type : currentTypes) {
                 mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
                         STRING_FIELD_NAME, "type=text",
@@ -1125,7 +1120,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         DATE_FIELD_NAME, "type=date",
                         DATE_RANGE_FIELD_NAME, "type=date_range",
                         OBJECT_FIELD_NAME, "type=object",
-                        GEO_POINT_FIELD_NAME, geoFieldMapping,
+                        GEO_POINT_FIELD_NAME, "type=geo_point",
                         GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
                 // also add mappings for two inner field in the object field

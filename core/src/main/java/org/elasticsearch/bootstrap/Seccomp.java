@@ -172,7 +172,7 @@ final class Seccomp {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList(new String[] { "len", "filter" });
+            return Arrays.asList("len", "filter");
         }
     }
 

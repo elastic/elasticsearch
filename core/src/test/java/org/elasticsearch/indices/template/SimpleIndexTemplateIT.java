@@ -695,7 +695,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .setCreate(true)
                     .setOrder(1)
                     .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
+                        .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
                         .endObject().endObject().endObject())
                 .get());
         assertThat(e.getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));

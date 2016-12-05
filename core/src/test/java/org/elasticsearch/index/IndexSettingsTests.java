@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -164,8 +163,7 @@ public class IndexSettingsTests extends ESTestCase {
         if (settings.length > 0) {
             settingSet.addAll(Arrays.asList(settings));
         }
-        return new IndexSettings(metaData, nodeSettings, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()),
-            new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(metaData, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 
 
@@ -207,8 +205,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(indexSettings)
                 .build();
-        IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();
-        return metaData;
+        return IndexMetaData.builder(name).settings(build).build();
     }
 
 

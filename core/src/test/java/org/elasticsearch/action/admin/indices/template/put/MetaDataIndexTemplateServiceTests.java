@@ -111,7 +111,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(Collections.singletonList("te*"));
         request.putMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-            .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
+            .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
             .endObject().endObject().endObject().string());
 
         List<Throwable> errors = putTemplateDetail(request);

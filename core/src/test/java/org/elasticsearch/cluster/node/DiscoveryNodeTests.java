@@ -72,9 +72,12 @@ public class DiscoveryNodeTests extends ESTestCase {
         in.setVersion(Version.V_5_0_0);
         DiscoveryNode serialized = new DiscoveryNode(in);
         assertEquals(transportAddress.address().getHostString(), serialized.getHostName());
-        assertNotEquals(transportAddress.address().getHostString(), serialized.getAddress().address().getHostString());
+        assertEquals(transportAddress.address().getHostString(), serialized.getAddress().address().getHostString());
         assertEquals(transportAddress.getAddress(), serialized.getHostAddress());
         assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
         assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
+        assertFalse("if the minimum compatibility version moves past 5.0.3, remove the special casing in DiscoverNode(StreamInput) and " +
+                "the TransportAddress(StreamInput, String) constructor",
+            Version.CURRENT.minimumCompatibilityVersion().onOrAfter(Version.V_5_0_3_UNRELEASED));
     }
 }

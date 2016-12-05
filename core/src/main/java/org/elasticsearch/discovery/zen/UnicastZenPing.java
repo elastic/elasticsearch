@@ -64,6 +64,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -285,7 +286,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
      * Sends three rounds of pings notifying the specified {@link PingListener} when pinging is complete. Pings are sent after resolving
      * configured unicast hosts to their IP address (subject to DNS caching within the JVM). A batch of pings is sent, then another batch
      * of pings is sent at half the specified {@link TimeValue}, and then another batch of pings is sent at the specified {@link TimeValue}.
-     * The pings that are sent carry a timeout of 1.25 times the {@link TimeValue}.
+     * The pings that are sent carry a timeout of 1.25 times the specified {@link TimeValue}. When pinging each node, a connection and
+     * handshake is performed, with a connection timeout of the specified {@link TimeValue}.
      *
      * @param listener the callback when pinging is complete
      * @param duration the timeout for various components of the pings
@@ -584,7 +586,6 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         List<PingResponse> pingResponses = CollectionUtils.iterableAsArrayList(temporalResponses);
         pingResponses.add(createPingResponse(contextProvider.nodes()));
 
-
         UnicastPingResponse unicastPingResponse = new UnicastPingResponse();
         unicastPingResponse.id = request.id;
         unicastPingResponse.pingResponses = pingResponses.toArray(new PingResponse[pingResponses.size()]);
@@ -596,8 +597,18 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         @Override
         public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
-            channel.sendResponse(handlePingRequest(request));
+            if (request.pingResponse.clusterName().equals(clusterName)) {
+                channel.sendResponse(handlePingRequest(request));
+            } else {
+                throw new IllegalStateException(
+                        String.format(
+                                Locale.ROOT,
+                                "mismatched cluster names; request: [%s], local: [%s]",
+                                request.pingResponse.clusterName().value(),
+                                clusterName.value()));
+            }
         }
+
     }
 
     public static class UnicastPingRequest extends TransportRequest {

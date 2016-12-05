@@ -26,12 +26,14 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestHandler;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
@@ -70,6 +72,15 @@ public interface ActionPlugin {
      */
     default Collection<String> getRestHeaders() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns a function used to wrap each rest request before handling the request.
+     *
+     * Note: Only one installed plugin may implement a rest wrapper.
+     */
+    default UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+        return null;
     }
 
     final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {

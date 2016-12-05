@@ -668,7 +668,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_SHARDS, 3)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 );
-        assertAcked(builder.addMapping("type", "title", "type=string", "body", "type=string"));
+        assertAcked(builder.addMapping("type", "title", "type=text", "body", "type=text"));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex(idx, "type", "1").setSource(

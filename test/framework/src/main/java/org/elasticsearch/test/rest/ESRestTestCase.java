@@ -123,7 +123,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Clean up after the test case.
      */
     @After
-    public final void after() throws Exception {
+    public final void cleanUpCluster() throws Exception {
         wipeCluster();
         logIfThereAreRunningTasks();
     }

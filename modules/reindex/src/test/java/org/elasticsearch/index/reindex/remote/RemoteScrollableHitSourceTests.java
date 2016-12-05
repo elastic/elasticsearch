@@ -169,8 +169,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals("test", r.getHits().get(0).getType());
             assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test2\"}", r.getHits().get(0).getSource().utf8ToString());
-            assertNull(r.getHits().get(0).getTTL());
-            assertNull(r.getHits().get(0).getTimestamp());
             assertNull(r.getHits().get(0).getRouting());
             called.set(true);
         });
@@ -189,8 +187,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals("test", r.getHits().get(0).getType());
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-            assertNull(r.getHits().get(0).getTTL());
-            assertNull(r.getHits().get(0).getTimestamp());
             assertNull(r.getHits().get(0).getRouting());
             called.set(true);
         });
@@ -205,8 +201,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("scroll_fully_loaded.json").doStartNextScroll("", timeValueMillis(0), r -> {
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-            assertEquals((Long) 1234L, r.getHits().get(0).getTTL());
-            assertEquals((Long) 123444L, r.getHits().get(0).getTimestamp());
             assertEquals("testrouting", r.getHits().get(0).getRouting());
             assertEquals("testparent", r.getHits().get(0).getParent());
             called.set(true);
@@ -222,8 +216,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doStartNextScroll("", timeValueMillis(0), r -> {
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-            assertEquals((Long) 1234L, r.getHits().get(0).getTTL());
-            assertNull(r.getHits().get(0).getTimestamp()); // Not available from 1.7
             assertEquals("testrouting", r.getHits().get(0).getRouting());
             assertEquals("testparent", r.getHits().get(0).getParent());
             called.set(true);
@@ -248,8 +240,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals("test", r.getHits().get(0).getType());
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-            assertNull(r.getHits().get(0).getTTL());
-            assertNull(r.getHits().get(0).getTimestamp());
             assertNull(r.getHits().get(0).getRouting());
             called.set(true);
         });

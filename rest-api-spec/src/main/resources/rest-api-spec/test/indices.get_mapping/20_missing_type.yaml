@@ -17,3 +17,14 @@
         type: not_test_type
  
   - match: { '': {}}
+
+---
+"Type missing when no types exist":
+  - skip:
+      version: " - 5.0.2"
+      reason: there was a bug prior to 5.0.2
+  - do:
+      catch: missing
+      indices.get_mapping:
+        type: not_test_type
+ 

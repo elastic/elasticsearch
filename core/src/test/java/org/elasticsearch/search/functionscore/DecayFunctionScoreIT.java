@@ -605,16 +605,13 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testManyDocsLin() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("test").field("type", "text").endObject().startObject("date").field("type", "date")
                 .field("doc_values", true).endObject().startObject("num").field("type", "double")
                 .field("doc_values", true).endObject().startObject("geo").field("type", "geo_point")
                 .field("ignore_malformed", true);
-        if (version.before(Version.V_2_2_0)) {
-            xContentBuilder.field("coerce", true);
-        }
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", xContentBuilder.string()));
         int numDocs = 200;

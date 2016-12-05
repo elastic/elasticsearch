@@ -55,6 +55,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -64,6 +65,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -203,7 +205,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         bootstrap.handler(getClientChannelInitializer());
 
-        bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(connectTimeout.millis()));
+        bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(defaultConnectionProfile.getConnectTimeout().millis()));
         bootstrap.option(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TCP_KEEP_ALIVE.get(settings));
 
@@ -269,8 +271,13 @@ public class Netty4Transport extends TcpTransport<Channel> {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
                     + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
                 name, workerCount, settings.get("port"), settings.get("bind_host"), settings.get("publish_host"), compress,
-                connectTimeout, connectionsPerNodeRecovery, connectionsPerNodeBulk, connectionsPerNodeReg, connectionsPerNodeState,
-                connectionsPerNodePing, receivePredictorMin, receivePredictorMax);
+                defaultConnectionProfile.getConnectTimeout(),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.REG),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.PING),
+                receivePredictorMin, receivePredictorMax);
         }
 
         final ThreadFactory workerFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX, name);
@@ -338,10 +345,20 @@ public class Netty4Transport extends TcpTransport<Channel> {
         final NodeChannels nodeChannels = new NodeChannels(channels, profile);
         boolean success = false;
         try {
-            int numConnections = channels.length;
-            final ArrayList<ChannelFuture> connections = new ArrayList<>(numConnections);
+            final TimeValue connectTimeout;
+            final Bootstrap bootstrap;
+            final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
+            if (profile.getConnectTimeout() != null && profile.getConnectTimeout().equals(defaultConnectTimeout) == false) {
+                bootstrap = this.bootstrap.clone(this.bootstrap.config().group());
+                bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(profile.getConnectTimeout().millis()));
+                connectTimeout = profile.getConnectTimeout();
+            } else {
+                connectTimeout = defaultConnectTimeout;
+                bootstrap = this.bootstrap;
+            }
+            final ArrayList<ChannelFuture> connections = new ArrayList<>(channels.length);
             final InetSocketAddress address = node.getAddress().address();
-            for (int i = 0; i < numConnections; i++) {
+            for (int i = 0; i < channels.length; i++) {
                 connections.add(bootstrap.connect(address));
             }
             final Iterator<ChannelFuture> iterator = connections.iterator();
@@ -356,6 +373,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                     channels[i] = future.channel();
                     channels[i].closeFuture().addListener(new ChannelCloseListener(node));
                 }
+                assert iterator.hasNext() == false : "not all created connection have been consumed";
             } catch (final RuntimeException e) {
                 for (final ChannelFuture future : Collections.unmodifiableList(connections)) {
                     FutureUtils.cancel(future);

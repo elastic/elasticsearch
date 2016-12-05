@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -49,7 +50,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
@@ -82,6 +82,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.test.OldIndexUtils.assertUpgradeWorks;
 import static org.elasticsearch.test.OldIndexUtils.getIndexDir;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -188,7 +189,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         for (Version v : VersionUtils.allReleasedVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
             if (v.isRelease() == false) continue; // no guarantees for prereleases
-            if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
+            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we can only support one major version backward
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add("index-" + v.toString() + ".zip");
         }
@@ -425,11 +426,31 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void assertPositionIncrementGapDefaults(String indexName, Version version) throws Exception {
-        if (version.before(Version.V_2_0_0_beta1)) {
-            StringFieldMapperPositionIncrementGapTests.assertGapIsZero(client(), indexName, "doc");
-        } else {
-            StringFieldMapperPositionIncrementGapTests.assertGapIsOneHundred(client(), indexName, "doc");
-        }
+        client().prepareIndex(indexName, "doc", "position_gap_test").setSource("string", Arrays.asList("one", "two three"))
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+
+        // Baseline - phrase query finds matches in the same field value
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "two three")).get(), 1);
+
+        // No match across gaps when slop < position gap
+        assertHitCount(
+                client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(99)).get(),
+                0);
+
+        // Match across gaps when slop >= position gap
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(100)).get(), 1);
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(101)).get(),
+                1);
+
+        // No match across gap using default slop with default positionIncrementGap
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two")).get(), 0);
+
+        // Nor with small-ish values
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(5)).get(), 0);
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(50)).get(), 0);
+
+        // But huge-ish values still match
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(500)).get(), 1);
     }
 
     private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");

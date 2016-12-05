@@ -42,6 +42,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -746,6 +747,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                                     DiscoverySettings.PUBLISH_TIMEOUT,
                                     InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD);
 
+    /**
+     * These properties have been optional pre 2.0, but are not allowed any more in as of 2.0
+     * They need to be removed from templates that have been created prior to 2.0
+     */
+    private static final String[] INVALID_OBJECT_PROPERTIES = new String[] {"index", "doc_values", "store"};
 
     /** As of 2.0 we require units for time and byte-sized settings.
      * This methods adds default units to any settings that are part of timeSettings or byteSettings and don't specify a unit.
@@ -810,7 +816,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     public static MetaData addDefaultUnitsIfNeeded(ESLogger logger, MetaData metaData) {
         Settings newPersistentSettings = addDefaultUnitsIfNeeded(
                 CLUSTER_TIME_SETTINGS, CLUSTER_BYTES_SIZE_SETTINGS, logger, metaData.persistentSettings());
-        ImmutableOpenMap<String, IndexTemplateMetaData> templates = updateTemplates(logger, metaData.getTemplates());
+        ImmutableOpenMap<String, IndexTemplateMetaData> templates = updateTemplatesAddDefaultUnitsToSettings(logger, metaData.getTemplates());
 
         if (newPersistentSettings != null || templates != null) {
             return new MetaData(
@@ -832,19 +838,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     }
 
     @Nullable
-    private static ImmutableOpenMap<String, IndexTemplateMetaData> updateTemplates(
-            ESLogger logger, ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
+    private static ImmutableOpenMap<String, IndexTemplateMetaData> updateTemplatesAddDefaultUnitsToSettings(
+        ESLogger logger, ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
 
         ImmutableOpenMap.Builder<String, IndexTemplateMetaData> builder = null;
         for (ObjectObjectCursor<String, IndexTemplateMetaData> cursor : templates) {
             IndexTemplateMetaData templateMetaData = cursor.value;
+
             Settings currentSettings = templateMetaData.getSettings();
             Settings newSettings = addDefaultUnitsIfNeeded(
-                    MetaDataIndexUpgradeService.INDEX_TIME_SETTINGS,
-                    MetaDataIndexUpgradeService.INDEX_BYTES_SIZE_SETTINGS,
-                    logger,
-                    currentSettings);
-
+                MetaDataIndexUpgradeService.INDEX_TIME_SETTINGS,
+                MetaDataIndexUpgradeService.INDEX_BYTES_SIZE_SETTINGS,
+                logger,
+                currentSettings);
 
             if (newSettings != currentSettings) {
                 if (builder == null) {
@@ -852,13 +858,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     builder.putAll(templates);
                 }
                 builder.put(cursor.key, new IndexTemplateMetaData(
-                        templateMetaData.name(),
-                        templateMetaData.order(),
-                        templateMetaData.template(),
-                        newSettings,
-                        templateMetaData.mappings(),
-                        templateMetaData.aliases(),
-                        templateMetaData.customs()
+                    templateMetaData.name(),
+                    templateMetaData.order(),
+                    templateMetaData.template(),
+                    newSettings,
+                    templateMetaData.mappings(),
+                    templateMetaData.aliases(),
+                    templateMetaData.customs()
                 ));
             }
         }
@@ -867,6 +873,84 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
         return builder.build();
     }
+
+    private static Map<String, Object> removeInvalidObjectPropertiesIfNeeded(ESLogger logger, Map<String, Object> mapping) {
+        for (Map.Entry<String, Object> entry : mapping.entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                Map<String, Object> m = (Map<String, Object>) entry.getValue();
+                removePropertiesFromType(logger, "object", (Map<String, Object>) m.get("properties"), INVALID_OBJECT_PROPERTIES);
+            }
+        }
+        return mapping;
+    }
+
+    private static void removePropertiesFromType(ESLogger logger, String type, Map<String, Object> mapping, String ... properties) {
+        if (mapping == null || mapping.size() == 0) {
+            return;
+        }
+        if (type.equals(mapping.get("type"))) {
+            for (String k : properties) {
+                logger.debug("Remove property {} from mapping", k);
+                mapping.remove(k);
+            }
+        }
+        for (Map.Entry<String, Object> entry : mapping.entrySet()) {
+            Object o = entry.getValue();
+            if (o instanceof Map) {
+                removePropertiesFromType(logger, type, (Map<String, Object>) o, properties);
+            }
+        }
+    }
+
+    public static MetaData removeInvalidObjectPropertiesIfNeeded(ESLogger logger, MetaData metaData) {
+        ImmutableOpenMap<String, IndexTemplateMetaData> templates = updateTemplatesRemoveInvalidObjectPropertiesFromMappings(logger, metaData.getTemplates());
+
+        if (templates != null) {
+            return new MetaData(
+                metaData.clusterUUID(),
+                metaData.version(),
+                metaData.transientSettings(),
+                metaData.persistentSettings(),
+                metaData.getIndices(),
+                templates,
+                metaData.getCustoms(),
+                metaData.concreteAllIndices(),
+                metaData.concreteAllOpenIndices(),
+                metaData.concreteAllClosedIndices(),
+                metaData.getAliasAndIndexLookup());
+        } else {
+            // No changes:
+            return metaData;
+        }
+    }
+
+    private static ImmutableOpenMap<String,IndexTemplateMetaData> updateTemplatesRemoveInvalidObjectPropertiesFromMappings(
+        ESLogger logger, ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
+        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> builder = ImmutableOpenMap.builder(templates.size());
+        for (ObjectObjectCursor<String, IndexTemplateMetaData> cursor : templates) {
+            IndexTemplateMetaData.Builder md = new IndexTemplateMetaData.Builder(cursor.value);
+            for (ObjectObjectCursor<String, CompressedXContent> mapping: cursor.value.mappings()) {
+                try {
+                    byte[] mappingBytes = mapping.value.uncompressed();
+                    Map<String, Object> map = XContentFactory.xContent(mappingBytes)
+                        .createParser(mappingBytes)
+                        .map();
+                    Map<String, Object> newMapping = removeInvalidObjectPropertiesIfNeeded(logger, map);
+                    md.putMapping(mapping.key,
+                        new CompressedXContent(XContentFactory.jsonBuilder()
+                            .map(newMapping)
+                            .bytes()
+                        )
+                    );
+                } catch (IOException e) {
+                    logger.warn("Could not update template mappings for [{}]", cursor.key);
+                }
+            }
+            builder.put(cursor.key, md.build());
+        }
+        return builder.build();
+    }
+
 
     public static class Builder {
 

@@ -120,10 +120,10 @@ public class MetaStateService extends AbstractComponent {
         // ES 2.0 now requires units for all time and byte-sized settings, so we add the default unit if it's missing
         // TODO: can we somehow only do this for pre-2.0 cluster state?
         if (globalState != null) {
-            return MetaData.addDefaultUnitsIfNeeded(logger, globalState);
-        } else {
-            return null;
+            globalState = MetaData.addDefaultUnitsIfNeeded(logger, globalState);
+            globalState = MetaData.removeInvalidObjectPropertiesIfNeeded(logger, globalState);
         }
+        return globalState;
     }
 
     /**

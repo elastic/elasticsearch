@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.prelert.job.results.PageParams;
-import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
 
-public class GetCategoryDefinitionRequestTests extends AbstractStreamableTestCase<GetCategoriesDefinitionAction.Request> {
+public class GetCategoryDefinitionRequestTests extends AbstractStreamableXContentTestCase<GetCategoriesDefinitionAction.Request> {
 
     @Override
     protected GetCategoriesDefinitionAction.Request createTestInstance() {
@@ -28,5 +30,10 @@ public class GetCategoryDefinitionRequestTests extends AbstractStreamableTestCas
     @Override
     protected GetCategoriesDefinitionAction.Request createBlankInstance() {
         return new GetCategoriesDefinitionAction.Request();
+    }
+
+    @Override
+    protected GetCategoriesDefinitionAction.Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
+        return GetCategoriesDefinitionAction.Request.parseRequest(null, parser, () -> matcher);
     }
 }

@@ -1,12 +1,14 @@
 {
   "xpack.prelert.get_records": {
-    "methods": [ "GET" ],
+    "methods": ["GET", "POST"],
     "url": {
       "path": "/_xpack/prelert/results/{job_id}/records",
-      "paths": [ "/_xpack/prelert/results/{job_id}/records" ],
+      "paths": [
+        "/_xpack/prelert/results/{job_id}/records"
+      ],
       "parts": {
         "job_id": {
-          "type" : "string",
+          "type": "string",
           "required": true
         }
       },
@@ -16,7 +18,7 @@
         },
         "include_interim": {
           "type": "boolean",
-          "description" : "Include interim results"
+          "description": "Include interim results"
         },
         "from": {
           "type": "int",
@@ -28,11 +30,11 @@
         },
         "start": {
           "type": "string",
-          "description" : "Start time filter for records"
+          "description": "Start time filter for records"
         },
         "end": {
           "type": "string",
-          "description" : "End time filter for records"
+          "description": "End time filter for records"
         },
         "anomaly_score": {
           "type": "double"
@@ -53,6 +55,9 @@
           "description": "Set the sort direction"
         }
       }
+    },
+    "body": {
+      "description": "Record selection criteria"
     }
   }
 }

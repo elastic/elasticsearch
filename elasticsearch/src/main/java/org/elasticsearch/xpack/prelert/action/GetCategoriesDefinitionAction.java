@@ -16,12 +16,15 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.Job;
@@ -55,15 +58,31 @@ Action<GetCategoriesDefinitionAction.Request, GetCategoriesDefinitionAction.Resp
         return new Response();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements ToXContent {
 
         public static final ParseField CATEGORY_ID = new ParseField("category_id");
         public static final ParseField FROM = new ParseField("from");
         public static final ParseField SIZE = new ParseField("size");
 
+        private static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
+
+        static {
+            PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
+            PARSER.declareString(Request::setCategoryId, CATEGORY_ID);
+            PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
+        }
+
+        public static Request parseRequest(String jobId, XContentParser parser, ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
+            Request request = PARSER.apply(parser, parseFieldMatcherSupplier);
+            if (jobId != null) {
+                request.jobId = jobId;
+            }
+            return request;
+        }
+
         private String jobId;
         private String categoryId;
-        private PageParams pageParams = null;
+        private PageParams pageParams = new PageParams();
 
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -107,6 +126,18 @@ Action<GetCategoriesDefinitionAction.Request, GetCategoriesDefinitionAction.Resp
             out.writeString(jobId);
             out.writeOptionalString(categoryId);
             out.writeOptionalWriteable(pageParams);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Job.ID.getPreferredName(), jobId);
+            if (categoryId != null) {
+                builder.field(CATEGORY_ID.getPreferredName(), categoryId);
+            }
+            builder.field(PageParams.PAGE.getPreferredName(), pageParams);
+            builder.endObject();
+            return builder;
         }
 
         @Override

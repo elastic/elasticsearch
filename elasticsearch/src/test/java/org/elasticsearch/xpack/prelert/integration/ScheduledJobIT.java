@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
+import org.elasticsearch.xpack.prelert.action.ScheduledJobsIT;
 import org.junit.After;
 
 import java.io.BufferedReader;
@@ -52,6 +53,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         String jobId = "_id2";
         createAirlineDataIndex();
         createScheduledJob(jobId);
+        openJob(client(), jobId);
 
         Response startSchedulerRequest = client().performRequest("post",
                 PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z");
@@ -76,6 +78,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         String jobId = "_id3";
         createAirlineDataIndex();
         createScheduledJob(jobId);
+        openJob(client(), jobId);
 
         Response response = client().performRequest("post",
                 PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start?start=2016-06-01T00:00:00Z");
@@ -85,9 +88,9 @@ public class ScheduledJobIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/" + jobId,
-                        Collections.singletonMap("metric", "status,data_counts"));
+                        Collections.singletonMap("metric", "data_counts,status"));
                 String responseAsString = responseEntityToString(getJobResponse);
-                assertThat(responseAsString, containsString("\"status\":\"RUNNING\""));
+                assertThat(responseAsString, containsString("\"status\":\"OPENED\""));
                 assertThat(responseAsString, containsString("\"input_record_count\":2"));
             } catch (Exception e1) {
                 throw new RuntimeException(e1);
@@ -215,11 +218,17 @@ public class ScheduledJobIT extends ESRestTestCase {
                 // ignore
             }
             try {
-                client.performRequest("POST", "/_xpack/prelert/data/" + jobId + "/_close");
+                Response response = client.performRequest("POST", "/_xpack/prelert/data/" + jobId + "/_close");
+                assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             } catch (Exception e) {
                 // ignore
             }
             client.performRequest("DELETE", "/_xpack/prelert/jobs/" + jobId);
         }
+    }
+
+    public static void openJob(RestClient client, String jobId) throws IOException {
+        Response response = client.performRequest("post", PrelertPlugin.BASE_PATH + "data/" + jobId + "/_open");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 }

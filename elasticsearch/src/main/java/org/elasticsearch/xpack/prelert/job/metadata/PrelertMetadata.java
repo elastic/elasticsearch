@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
@@ -215,23 +216,6 @@ public class PrelertMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder putAllocation(String nodeId, String jobId) {
-            Allocation.Builder builder = new Allocation.Builder();
-            builder.setJobId(jobId);
-            builder.setNodeId(nodeId);
-            this.allocations.put(jobId, builder.build());
-            return this;
-        }
-
-        public Builder putAllocationWithScheduler(String nodeId, String jobId) {
-            Allocation.Builder builder = new Allocation.Builder();
-            builder.setJobId(jobId);
-            builder.setNodeId(nodeId);
-            builder.setSchedulerState(new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
-            this.allocations.put(jobId, builder.build());
-            return this;
-        }
-
         public Builder updateAllocation(String jobId, Allocation updated) {
             Allocation previous = this.allocations.put(jobId, updated);
             if (previous == null) {
@@ -263,6 +247,65 @@ public class PrelertMetadata implements MetaData.Custom {
 
         public PrelertMetadata build() {
             return new PrelertMetadata(jobs, allocations);
+        }
+
+        public Builder createAllocation(String jobId, boolean ignoreDowntime) {
+            Job job = jobs.get(jobId);
+            if (job == null) {
+                throw ExceptionsHelper.missingJobException(jobId);
+            }
+
+            Allocation allocation = allocations.get(jobId);
+            Allocation.Builder builder;
+            if (allocation == null) {
+                builder = new Allocation.Builder();
+                builder.setJobId(jobId);
+                boolean addSchedulderState = job.getSchedulerConfig() != null;
+                if (addSchedulderState) {
+                    builder.setSchedulerState(new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
+                }
+            } else {
+                if (allocation.getStatus() != JobStatus.CLOSED) {
+                    throw ExceptionsHelper.conflictStatusException("[" + jobId + "] expected status [" + JobStatus.CLOSED
+                            + "], but got [" + allocation.getStatus() +"]");
+                }
+                builder = new Allocation.Builder(allocation);
+            }
+
+            builder.setStatus(JobStatus.OPENING);
+            builder.setIgnoreDowntime(ignoreDowntime);
+            allocations.put(jobId, builder.build());
+            return this;
+        }
+
+        public Builder assignToNode(String jobId, String nodeId) {
+            Allocation allocation = allocations.get(jobId);
+            if (allocation == null) {
+                throw new IllegalStateException("[" + jobId + "] no allocation to assign to node [" + nodeId + "]");
+            }
+            Allocation.Builder builder = new Allocation.Builder(allocation);
+            builder.setNodeId(nodeId);
+            allocations.put(jobId, builder.build());
+            return this;
+        }
+
+        public Builder updateStatus(String jobId, JobStatus jobStatus, @Nullable String reason) {
+            Allocation previous = allocations.get(jobId);
+            if (previous == null) {
+                throw new IllegalStateException("[" + jobId + "] no allocation exist to update the status to [" + jobStatus + "]");
+            }
+            Allocation.Builder builder = new Allocation.Builder(previous);
+            builder.setStatus(jobStatus);
+            if (reason != null) {
+                builder.setStatusReason(reason);
+            }
+            if (previous.getStatus() != jobStatus && jobStatus == JobStatus.CLOSED) {
+                Job.Builder job = new Job.Builder(this.jobs.get(jobId));
+                job.setFinishedTime(new Date());
+                this.jobs.put(job.getId(), job.build());
+            }
+            allocations.put(jobId, builder.build());
+            return this;
         }
     }
 

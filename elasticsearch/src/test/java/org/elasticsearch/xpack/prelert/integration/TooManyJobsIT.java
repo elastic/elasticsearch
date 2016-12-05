@@ -7,20 +7,20 @@ package org.elasticsearch.xpack.prelert.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
-import org.elasticsearch.xpack.prelert.action.GetJobsAction;
-import org.elasticsearch.xpack.prelert.action.PostDataAction;
+import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.ScheduledJobsIT;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobStatus;
+import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.junit.After;
 
 import java.util.Collection;
@@ -42,70 +42,55 @@ public class TooManyJobsIT extends ESIntegTestCase {
     @After
     public void clearPrelertMetadata() throws Exception {
         ScheduledJobsIT.clearPrelertMetadata(client());
+        client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(
+                        Settings.builder().put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), (String) null)
+                ).get();
     }
 
     public void testCannotStartTooManyAnalyticalProcesses() throws Exception {
-        String jsonLine = "{\"time\": \"0\"}";
-        int maxNumJobs = 1000;
-        for (int i = 1; i <= maxNumJobs; i++) {
+        int maxRunningJobsPerNode = randomIntBetween(1, 16);
+        logger.info("Setting [{}] to [{}]", AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxRunningJobsPerNode);
+        client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder()
+                        .put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxRunningJobsPerNode)
+                ).get();
+        for (int i = 1; i <= (maxRunningJobsPerNode + 1); i++) {
             Job.Builder job = createJob(Integer.toString(i));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true));
             PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
             assertTrue(putJobResponse.isAcknowledged());
-            assertBusy(() -> {
-                try {
-                    GetJobsAction.Request getJobRequest = new GetJobsAction.Request();
-                    getJobRequest.setJobId(job.getId());
-                    getJobRequest.status(true);
-                    GetJobsAction.Response response = client().execute(GetJobsAction.INSTANCE, getJobRequest).get();
-                    GetJobsAction.Response.JobInfo jobInfo = response.getResponse().results().get(0);
-                    assertNotNull(jobInfo);
-                    assertEquals(JobStatus.CLOSED, jobInfo.getStatus());
-                } catch (Exception e) {
-                    fail("failure " + e.getMessage());
-                }
-            });
 
-            // triggers creating autodetect process:
-            PostDataAction.Request postDataRequest = new PostDataAction.Request(job.getId());
-            postDataRequest.setContent(new BytesArray(jsonLine));
             try {
-                PostDataAction.Response postDataResponse = client().execute(PostDataAction.INSTANCE, postDataRequest).get();
-                assertEquals(1, postDataResponse.getDataCounts().getInputRecordCount());
-                logger.info("Posted data {} times", i);
+                OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
+                openJobRequest.setOpenTimeout(TimeValue.timeValueSeconds(10));
+                OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest)
+                        .get();
+                assertTrue(openJobResponse.isAcknowledged());
+                logger.info("Opened {}th job", i);
             } catch (Exception e) {
                 Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
                 if (ElasticsearchStatusException.class.equals(cause.getClass()) == false) {
                     logger.warn("Unexpected cause", e);
                 }
                 assertEquals(ElasticsearchStatusException.class, cause.getClass());
-                assertEquals(RestStatus.FORBIDDEN, ((ElasticsearchStatusException) cause).status());
-                logger.info("good news everybody --> reached threadpool capacity after starting {}th analytical process", i);
+                assertEquals(RestStatus.CONFLICT, ((ElasticsearchStatusException) cause).status());
+                assertEquals("[" + (maxRunningJobsPerNode + 1) + "] expected job status [OPENED], but got [FAILED], reason " +
+                        "[failed to open, max running job capacity [" + maxRunningJobsPerNode + "] reached]", cause.getMessage());
+                logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
                 // now manually clean things up and see if we can succeed to start one new job
                 clearPrelertMetadata();
                 putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
                 assertTrue(putJobResponse.isAcknowledged());
-                assertBusy(() -> {
-                    try {
-                        GetJobsAction.Request getJobRequest = new GetJobsAction.Request();
-                        getJobRequest.setJobId(job.getId());
-                        getJobRequest.status(true);
-                        GetJobsAction.Response response = client().execute(GetJobsAction.INSTANCE, getJobRequest).get();
-                        GetJobsAction.Response.JobInfo jobInfo = response.getResponse().results().get(0);
-                        assertNotNull(jobInfo);
-                        assertEquals(JobStatus.CLOSED, jobInfo.getStatus());
-                    } catch (Exception e1) {
-                        fail("failure " + e1.getMessage());
-                    }
-                });
-                PostDataAction.Response postDataResponse = client().execute(PostDataAction.INSTANCE, postDataRequest).get();
-                assertEquals(1, postDataResponse.getDataCounts().getInputRecordCount());
+                OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()))
+                        .get();
+                assertTrue(openJobResponse.isAcknowledged());
                 return;
             }
         }
 
-        fail("shouldn't be able to add [" + maxNumJobs + "] jobs");
+        fail("shouldn't be able to add more than [" + maxRunningJobsPerNode + "] jobs");
     }
 
     private Job.Builder createJob(String id) {

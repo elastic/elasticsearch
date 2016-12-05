@@ -38,13 +38,12 @@ import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostDataCloseAction extends Action<PostDataCloseAction.Request, PostDataCloseAction.Response,
-        PostDataCloseAction.RequestBuilder> {
+public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
 
-    public static final PostDataCloseAction INSTANCE = new PostDataCloseAction();
-    public static final String NAME = "cluster:admin/prelert/data/post/close";
+    public static final CloseJobAction INSTANCE = new CloseJobAction();
+    public static final String NAME = "cluster:admin/prelert/job/close";
 
-    private PostDataCloseAction() {
+    private CloseJobAction() {
         super(NAME);
     }
 
@@ -61,6 +60,7 @@ public class PostDataCloseAction extends Action<PostDataCloseAction.Request, Pos
     public static class Request extends AcknowledgedRequest<Request> {
 
         private String jobId;
+        private TimeValue closeTimeout = TimeValue.timeValueMinutes(30);
 
         Request() {}
 
@@ -72,6 +72,14 @@ public class PostDataCloseAction extends Action<PostDataCloseAction.Request, Pos
             return jobId;
         }
 
+        public TimeValue getCloseTimeout() {
+            return closeTimeout;
+        }
+
+        public void setCloseTimeout(TimeValue closeTimeout) {
+            this.closeTimeout = closeTimeout;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -81,17 +89,19 @@ public class PostDataCloseAction extends Action<PostDataCloseAction.Request, Pos
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
+            closeTimeout = new TimeValue(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
+            closeTimeout.writeTo(out);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId);
+            return Objects.hash(jobId, closeTimeout);
         }
 
         @Override
@@ -103,13 +113,14 @@ public class PostDataCloseAction extends Action<PostDataCloseAction.Request, Pos
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId);
+            return Objects.equals(jobId, other.jobId) &&
+                    Objects.equals(closeTimeout, other.closeTimeout);
         }
     }
 
     static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, PostDataCloseAction action) {
+        public RequestBuilder(ElasticsearchClient client, CloseJobAction action) {
             super(client, action, new Request());
         }
     }
@@ -144,7 +155,7 @@ public class PostDataCloseAction extends Action<PostDataCloseAction.Request, Pos
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                JobManager jobManager) {
-            super(settings, PostDataCloseAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(settings, CloseJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;
         }

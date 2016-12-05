@@ -16,9 +16,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
-import org.elasticsearch.xpack.prelert.action.PauseJobAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
-import org.elasticsearch.xpack.prelert.action.ResumeJobAction;
+import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.StopJobSchedulerAction;
@@ -284,7 +283,7 @@ public class JobManager extends AbstractComponent {
             if (schedulerState != null && schedulerState.getStatus() != JobSchedulerStatus.STOPPED) {
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.JOB_CANNOT_DELETE_WHILE_SCHEDULER_RUNS, jobId));
             }
-            if (!allocation.getStatus().isAnyOf(JobStatus.CLOSED, JobStatus.PAUSED, JobStatus.FAILED)) {
+            if (!allocation.getStatus().isAnyOf(JobStatus.CLOSED, JobStatus.FAILED)) {
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(
                         Messages.JOB_CANNOT_DELETE_WHILE_RUNNING, jobId, allocation.getStatus()));
             }
@@ -446,52 +445,21 @@ public class JobManager extends AbstractComponent {
         });
     }
 
-    public void pauseJob(PauseJobAction.Request request, ActionListener<PauseJobAction.Response> actionListener) {
-        clusterService.submitStateUpdateTask("pause-job-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<PauseJobAction.Response>(request, actionListener) {
-
-                    @Override
-                    protected PauseJobAction.Response newResponse(boolean acknowledged) {
-                        return new PauseJobAction.Response(acknowledged);
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        Job job = getJobOrThrowIfUnknown(currentState, request.getJobId());
-                        Allocation allocation = getAllocation(currentState, job.getId());
-                        checkJobIsNotScheduled(job);
-                        if (!allocation.getStatus().isAnyOf(JobStatus.RUNNING, JobStatus.CLOSED)) {
-                            throw ExceptionsHelper.conflictStatusException(
-                                    Messages.getMessage(Messages.JOB_CANNOT_PAUSE, job.getId(), allocation.getStatus()));
-                        }
-
-                        ClusterState newState = innerSetJobStatus(job.getId(), JobStatus.PAUSING, currentState);
-                        Job.Builder jobBuilder = new Job.Builder(job);
-                        jobBuilder.setIgnoreDowntime(IgnoreDowntime.ONCE);
-                        return innerPutJob(jobBuilder.build(), true, newState);
-                    }
-                });
-    }
-
-    public void resumeJob(ResumeJobAction.Request request, ActionListener<ResumeJobAction.Response> actionListener) {
-        clusterService.submitStateUpdateTask("resume-job-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<ResumeJobAction.Response>(request, actionListener) {
+    public void openJob(OpenJobAction.Request request, ActionListener<OpenJobAction.Response> actionListener) {
+        clusterService.submitStateUpdateTask("open-job-" + request.getJobId(),
+                new AckedClusterStateUpdateTask<OpenJobAction.Response>(request, actionListener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                getJobOrThrowIfUnknown(request.getJobId());
-                Allocation allocation = getJobAllocation(request.getJobId());
-                if (allocation.getStatus() != JobStatus.PAUSED) {
-                    throw ExceptionsHelper.conflictStatusException(
-                            Messages.getMessage(Messages.JOB_CANNOT_RESUME, request.getJobId(), allocation.getStatus()));
-                }
-                Allocation.Builder builder = new Allocation.Builder(allocation);
-                builder.setStatus(JobStatus.CLOSED);
-                return innerUpdateAllocation(builder.build(), currentState);
+                PrelertMetadata.Builder builder = new PrelertMetadata.Builder(currentState.metaData().custom(PrelertMetadata.TYPE));
+                builder.createAllocation(request.getJobId(), request.isIgnoreDowntime());
+                return ClusterState.builder(currentState)
+                        .metaData(MetaData.builder(currentState.metaData()).putCustom(PrelertMetadata.TYPE, builder.build()))
+                        .build();
             }
 
             @Override
-            protected ResumeJobAction.Response newResponse(boolean acknowledged) {
-                return new ResumeJobAction.Response(acknowledged);
+            protected OpenJobAction.Response newResponse(boolean acknowledged) {
+                return new OpenJobAction.Response(acknowledged);
             }
         });
     }
@@ -506,7 +474,11 @@ public class JobManager extends AbstractComponent {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        return innerSetJobStatus(request.getJobId(), request.getStatus(), currentState);
+                        PrelertMetadata.Builder builder = new PrelertMetadata.Builder(currentState.metaData().custom(PrelertMetadata.TYPE));
+                        builder.updateStatus(request.getJobId(), request.getStatus(), request.getReason());
+                        return ClusterState.builder(currentState)
+                                .metaData(MetaData.builder(currentState.metaData()).putCustom(PrelertMetadata.TYPE, builder.build()))
+                                .build();
                     }
 
                     @Override
@@ -542,16 +514,4 @@ public class JobManager extends AbstractComponent {
         jobResultsPersister.commitWrites(jobId);
     }
 
-    private ClusterState innerSetJobStatus(String jobId, JobStatus newStatus, ClusterState currentState) {
-        Allocation allocation = getJobAllocation(jobId);
-        Allocation.Builder builder = new Allocation.Builder(allocation);
-        builder.setStatus(newStatus);
-        return innerUpdateAllocation(builder.build(), currentState);
-    }
-
-    private void checkJobIsNotScheduled(Job job) {
-        if (job.getSchedulerConfig() != null) {
-            throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_ACTION_NOT_ALLOWED_FOR_SCHEDULED_JOB));
-        }
-    }
 }

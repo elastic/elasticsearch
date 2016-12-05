@@ -20,7 +20,7 @@ import java.util.Locale;
  */
 public enum JobStatus implements Writeable {
 
-    RUNNING, CLOSING, CLOSED, FAILED, PAUSING, PAUSED;
+    CLOSING, CLOSED, OPENING, OPENED, FAILED;
 
     public static JobStatus fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

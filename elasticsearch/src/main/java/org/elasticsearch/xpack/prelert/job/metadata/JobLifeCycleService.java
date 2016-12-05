@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.job.metadata;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobService;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -29,10 +27,10 @@ import java.util.concurrent.Executor;
 
 public class JobLifeCycleService extends AbstractComponent implements ClusterStateListener {
 
-    volatile Set<String> localAllocatedJobs = Collections.emptySet();
+    volatile Set<String> localAssignedJobs = new HashSet<>();
     private final Client client;
     private final ScheduledJobService scheduledJobService;
-    private DataProcessor dataProcessor;
+    private final DataProcessor dataProcessor;
     private final Executor executor;
 
     public JobLifeCycleService(Settings settings, Client client, ClusterService clusterService, ScheduledJobService scheduledJobService,
@@ -54,7 +52,7 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
         }
 
         // Single volatile read:
-        Set<String> localAllocatedJobs = this.localAllocatedJobs;
+        Set<String> localAssignedJobs = this.localAssignedJobs;
 
         DiscoveryNode localNode = event.state().nodes().getLocalNode();
         for (Allocation allocation : prelertMetadata.getAllocations().values()) {
@@ -63,10 +61,10 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
             }
         }
 
-        for (String localAllocatedJob : localAllocatedJobs) {
+        for (String localAllocatedJob : localAssignedJobs) {
             Allocation allocation = prelertMetadata.getAllocations().get(localAllocatedJob);
             if (allocation != null) {
-                if (localNode.getId().equals(allocation.getNodeId()) == false) {
+                if (localNode.getId().equals(allocation.getNodeId()) && allocation.getStatus() == JobStatus.CLOSING) {
                     stopJob(localAllocatedJob);
                 }
             } else {
@@ -77,33 +75,13 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
 
     private void handleLocallyAllocatedJob(PrelertMetadata prelertMetadata, Allocation allocation) {
         Job job = prelertMetadata.getJobs().get(allocation.getJobId());
-        if (localAllocatedJobs.contains(allocation.getJobId()) == false) {
-            startJob(job);
+        if (localAssignedJobs.contains(allocation.getJobId()) == false) {
+            if (allocation.getStatus() == JobStatus.OPENING) {
+                startJob(allocation);
+            }
         }
 
-        handleJobStatusChange(job, allocation.getStatus());
         handleSchedulerStatusChange(job, allocation);
-    }
-
-    private void handleJobStatusChange(Job job, JobStatus status) {
-        switch (status) {
-            case PAUSING:
-                executor.execute(() -> pauseJob(job));
-                break;
-            case RUNNING:
-                break;
-            case CLOSING:
-                executor.execute(() -> closeJob(job));
-                break;
-            case CLOSED:
-                break;
-            case PAUSED:
-                break;
-            case FAILED:
-                break;
-            default:
-                throw new IllegalStateException("Unknown job status [" + status + "]");
-        }
     }
 
     private void handleSchedulerStatusChange(Job job, Allocation allocation) {
@@ -126,54 +104,47 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
         }
     }
 
-    void startJob(Job job) {
-        logger.info("Starting job [" + job.getId() + "]");
-        // noop now, but should delegate to a task / ProcessManager that actually starts the job
+    void startJob(Allocation allocation) {
+        logger.info("Starting job [" + allocation.getJobId() + "]");
+        executor.execute(() -> {
+            try {
+                dataProcessor.openJob(allocation.getJobId(), allocation.isIgnoreDowntime());
+            } catch (Exception e) {
+                logger.error("Failed to close job [" + allocation.getJobId() + "]", e);
+                updateJobStatus(allocation.getJobId(), JobStatus.FAILED, "failed to open, " + e.getMessage());
+            }
+        });
 
         // update which jobs are now allocated locally
-        Set<String> newSet = new HashSet<>(localAllocatedJobs);
-        newSet.add(job.getId());
-        localAllocatedJobs = newSet;
+        Set<String> newSet = new HashSet<>(localAssignedJobs);
+        newSet.add(allocation.getJobId());
+        localAssignedJobs = newSet;
     }
 
     void stopJob(String jobId) {
         logger.info("Stopping job [" + jobId + "]");
-        // noop now, but should delegate to a task / ProcessManager that actually stops the job
+        executor.execute(() -> {
+            try {
+                dataProcessor.closeJob(jobId);
+            } catch (Exception e) {
+                logger.error("Failed to close job [" + jobId + "]", e);
+                updateJobStatus(jobId, JobStatus.FAILED, "failed to close, " + e.getMessage());
+            }
+        });
 
         // update which jobs are now allocated locally
-        Set<String> newSet = new HashSet<>(localAllocatedJobs);
+        Set<String> newSet = new HashSet<>(localAssignedJobs);
         newSet.remove(jobId);
-        localAllocatedJobs = newSet;
+        localAssignedJobs = newSet;
     }
 
-    private void closeJob(Job job) {
-        try {
-            // NORELEASE Ensure this also removes the job auto-close timeout task
-            dataProcessor.closeJob(job.getId(), JobStatus.CLOSED);
-        } catch (ElasticsearchException e) {
-            logger.error("Failed to close job [" + job.getId() + "]", e);
-            updateJobStatus(job.getId(), JobStatus.FAILED);
-        }
-    }
-
-    private void pauseJob(Job job) {
-        try {
-            // NORELEASE Ensure this also removes the job auto-close timeout task
-            dataProcessor.closeJob(job.getId(), JobStatus.PAUSED);
-        } catch (ElasticsearchException e) {
-            logger.error("Failed to close job [" + job.getId() + "] while pausing", e);
-            updateJobStatus(job.getId(), JobStatus.FAILED);
-        }
-    }
-
-    private void updateJobStatus(String jobId, JobStatus status) {
+    private void updateJobStatus(String jobId, JobStatus status, String reason) {
         UpdateJobStatusAction.Request request = new UpdateJobStatusAction.Request(jobId, status);
+        request.setReason(reason);
         client.execute(UpdateJobStatusAction.INSTANCE, request, new ActionListener<UpdateJobStatusAction.Response>() {
             @Override
             public void onResponse(UpdateJobStatusAction.Response response) {
                 logger.info("Successfully set job status to [{}] for job [{}]", status, jobId);
-                // NORELEASE Audit job paused
-                // audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_PAUSED));
             }
 
             @Override

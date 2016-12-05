@@ -15,6 +15,15 @@ setup:
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
+
+  - do:
+      xpack.prelert.open_job:
+        job_id: foo
+
+  - do:
+      xpack.prelert.close_job:
+        job_id: foo
+
   - do:
       index:
         index:  prelertresults-foo

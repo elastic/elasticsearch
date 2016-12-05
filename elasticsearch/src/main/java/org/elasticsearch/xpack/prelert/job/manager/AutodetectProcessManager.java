@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -53,12 +54,11 @@ import java.util.function.Supplier;
 
 public class AutodetectProcessManager extends AbstractComponent implements DataProcessor {
 
-    // TODO (norelease) to be reconsidered
+    // TODO (norelease) default needs to be reconsidered
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 10, Setting.Property.NodeScope);
+            Setting.intSetting("max_running_jobs", 10, 1, 128, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     private final Client client;
-    private final int maxRunningJobs;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
     private final JobProvider jobProvider;
@@ -72,14 +72,16 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
 
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
 
+    private volatile int maxAllowedRunningJobs;
+
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
-            JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-            JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
-            AutodetectProcessFactory autodetectProcessFactory) {
+                                    JobProvider jobProvider, JobResultsPersister jobResultsPersister,
+                                    JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
+                                    AutodetectProcessFactory autodetectProcessFactory, ClusterSettings clusterSettings) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
-        this.maxRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
+        this.maxAllowedRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
         this.parser = parser;
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.jobManager = jobManager;
@@ -91,20 +93,21 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         this.jobDataCountsPersister = jobDataCountsPersister;
 
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
+        clusterSettings.addSettingsUpdateConsumer(MAX_RUNNING_JOBS_PER_NODE, val -> maxAllowedRunningJobs = val);
     }
 
     @Override
     public DataCounts processData(String jobId, InputStream input, DataLoadParams params, Supplier<Boolean> cancelled) {
         Allocation allocation = jobManager.getJobAllocation(jobId);
-        if (allocation.getStatus().isAnyOf(JobStatus.PAUSING, JobStatus.PAUSED)) {
-            return new DataCounts(jobId);
+        if (allocation.getStatus() != JobStatus.OPENED) {
+            throw new IllegalArgumentException("job [" + jobId + "] status is [" + allocation.getStatus() + "], but must be ["
+                    + JobStatus.OPENED + "] for processing data");
         }
 
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
-            AutodetectCommunicator c = create(id, params.isIgnoreDowntime());
-            setJobStatus(jobId, JobStatus.RUNNING);
-            return c;
-        });
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+        if (communicator == null) {
+            throw new IllegalStateException("job [" +  jobId + "] with status [" + allocation.getStatus() + "] hasn't been started");
+        }
         try {
             return communicator.writeToJob(input, params, cancelled);
             // TODO check for errors from autodetect
@@ -120,10 +123,47 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         }
     }
 
+    @Override
+    public void flushJob(String jobId, InterimResultsParams params) {
+        logger.debug("Flushing job {}", jobId);
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+        if (communicator == null) {
+            logger.debug("Cannot flush: no active autodetect process for job {}", jobId);
+            return;
+        }
+        try {
+            communicator.flushJob(params);
+            // TODO check for errors from autodetect
+        } catch (IOException ioe) {
+            String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobId);
+            logger.warn(msg);
+            throw ExceptionsHelper.serverError(msg, ioe);
+        }
+    }
+
+    public void writeUpdateConfigMessage(String jobId, String config) throws IOException {
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+        if (communicator == null) {
+            logger.debug("Cannot update config: no active autodetect process for job {}", jobId);
+            return;
+        }
+        communicator.writeUpdateConfigMessage(config);
+        // TODO check for errors from autodetect
+    }
+
+    @Override
+    public void openJob(String jobId, boolean ignoreDowntime) {
+        autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
+            AutodetectCommunicator communicator = create(id, ignoreDowntime);
+            setJobStatus(jobId, JobStatus.OPENED);
+            return communicator;
+        });
+    }
+
     AutodetectCommunicator create(String jobId, boolean ignoreDowntime) {
-        if (autoDetectCommunicatorByJob.size() == maxRunningJobs) {
-            throw new ElasticsearchStatusException("max running job capacity [" + maxRunningJobs + "] reached",
-                    RestStatus.FORBIDDEN);
+        if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
+            throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
+                    RestStatus.CONFLICT);
         }
 
         // TODO norelease, once we remove black hole process
@@ -154,35 +194,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     }
 
     @Override
-    public void flushJob(String jobId, InterimResultsParams params) {
-        logger.debug("Flushing job {}", jobId);
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
-        if (communicator == null) {
-            logger.debug("Cannot flush: no active autodetect process for job {}", jobId);
-            return;
-        }
-        try {
-            communicator.flushJob(params);
-            // TODO check for errors from autodetect
-        } catch (IOException ioe) {
-            String msg = String.format(Locale.ROOT, "Exception flushing process for job %s", jobId);
-            logger.warn(msg);
-            throw ExceptionsHelper.serverError(msg, ioe);
-        }
-    }
-
-    public void writeUpdateConfigMessage(String jobId, String config) throws IOException {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
-        if (communicator == null) {
-            logger.debug("Cannot update config: no active autodetect process for job {}", jobId);
-            return;
-        }
-        communicator.writeUpdateConfigMessage(config);
-        // TODO check for errors from autodetect
-    }
-
-    @Override
-    public void closeJob(String jobId, JobStatus nextStatus) {
+    public void closeJob(String jobId) {
         logger.debug("Closing job {}", jobId);
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobId);
         if (communicator == null) {
@@ -192,14 +204,14 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
 
         try {
             communicator.close();
-            setJobStatus(jobId, nextStatus);
+            setJobStatus(jobId, JobStatus.CLOSED);
         } catch (Exception e) {
             logger.warn("Exception closing stopped process input stream", e);
             throw ExceptionsHelper.serverError("Exception closing stopped process input stream", e);
         }
     }
 
-    int numberOfRunningJobs() {
+    int numberOfOpenJobs() {
         return autoDetectCommunicatorByJob.size();
     }
 

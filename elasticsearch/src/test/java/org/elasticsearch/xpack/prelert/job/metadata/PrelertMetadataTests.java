@@ -41,9 +41,12 @@ public class PrelertMetadataTests extends ESTestCase {
         builder.putJob(job2, false);
         builder.putJob(job3, false);
 
-        builder.putAllocation(job1.getId(), "node1");
-        builder.putAllocation(job2.getId(), "node1");
-        builder.putAllocation(job3.getId(), "node1");
+        builder.createAllocation(job1.getId(), false);
+        builder.assignToNode(job1.getId(), "node1");
+        builder.createAllocation(job2.getId(), false);
+        builder.assignToNode(job2.getId(), "node1");
+        builder.createAllocation(job3.getId(), false);
+        builder.assignToNode(job3.getId(), "node1");
 
         PrelertMetadata expected = builder.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -65,9 +68,12 @@ public class PrelertMetadataTests extends ESTestCase {
         builder.putJob(job2, false);
         builder.putJob(job3, false);
 
-        builder.putAllocation(job1.getId(), "node1");
-        builder.putAllocation(job2.getId(), "node1");
-        builder.putAllocation(job3.getId(), "node1");
+        builder.createAllocation(job1.getId(), false);
+        builder.assignToNode(job1.getId(), "node1");
+        builder.createAllocation(job2.getId(), false);
+        builder.assignToNode(job2.getId(), "node1");
+        builder.createAllocation(job3.getId(), false);
+        builder.assignToNode(job3.getId(), "node1");
 
         PrelertMetadata expected = builder.build();
 
@@ -104,19 +110,15 @@ public class PrelertMetadataTests extends ESTestCase {
     public void testUpdateAllocation_setFinishedTime() {
         PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
         builder.putJob(buildJobBuilder("_job_id").build(), false);
-        builder.putAllocation("_node_id", "_job_id");
-        PrelertMetadata prelertMetadata = builder.build();
+        builder.createAllocation("_job_id", false);
 
-        builder = new PrelertMetadata.Builder(prelertMetadata);
-        Allocation.Builder allocation = new Allocation.Builder();
-        allocation.setJobId("_job_id");
-        allocation.setNodeId("_node_id");
-        allocation.setStatus(JobStatus.RUNNING);
-        builder.updateAllocation("_job_id", allocation.build());
-        assertThat(builder.build().getJobs().get("_job_id").getFinishedTime(), nullValue());
-        allocation.setStatus(JobStatus.CLOSED);
-        builder.updateAllocation("_job_id", allocation.build());
-        assertThat(builder.build().getJobs().get("_job_id").getFinishedTime(), notNullValue());
+        builder.updateStatus("_job_id", JobStatus.OPENED, null);
+        PrelertMetadata prelertMetadata = builder.build();
+        assertThat(prelertMetadata.getJobs().get("_job_id").getFinishedTime(), nullValue());
+
+        builder.updateStatus("_job_id", JobStatus.CLOSED, null);
+        prelertMetadata = builder.build();
+        assertThat(prelertMetadata.getJobs().get("_job_id").getFinishedTime(), notNullValue());
     }
 
 }

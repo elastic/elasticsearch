@@ -16,6 +16,10 @@ setup:
             }
           }
 
+  - do:
+      xpack.prelert.open_job:
+        job_id: farequote
+
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
   - do:
@@ -41,7 +45,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      xpack.prelert.close_data:
+      xpack.prelert.close_job:
         job_id: farequote
   - match: { acknowledged: true }
 

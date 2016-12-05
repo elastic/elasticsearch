@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.prelert.job.data;
 
 import org.elasticsearch.xpack.prelert.job.DataCounts;
-import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 
@@ -47,11 +46,12 @@ public interface DataProcessor {
      */
     void flushJob(String jobId, InterimResultsParams interimResultsParams);
 
+    void openJob(String jobId, boolean ignoreDowntime);
+
     /**
      * Stop the running job and mark it as finished.<br>
+     *  @param jobId The job to stop
      *
-     * @param jobId The job to stop
-     * @param nextStatus The final status to set when analytical process has stopped
      */
-    void closeJob(String jobId, JobStatus nextStatus);
+    void closeJob(String jobId);
 }

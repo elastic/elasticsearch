@@ -38,14 +38,13 @@ import org.elasticsearch.xpack.prelert.action.GetJobsAction;
 import org.elasticsearch.xpack.prelert.action.GetListAction;
 import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.action.GetRecordsAction;
-import org.elasticsearch.xpack.prelert.action.PauseJobAction;
 import org.elasticsearch.xpack.prelert.action.PostDataAction;
-import org.elasticsearch.xpack.prelert.action.PostDataCloseAction;
+import org.elasticsearch.xpack.prelert.action.CloseJobAction;
 import org.elasticsearch.xpack.prelert.action.PostDataFlushAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.PutListAction;
 import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction;
-import org.elasticsearch.xpack.prelert.action.ResumeJobAction;
+import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.StopJobSchedulerAction;
@@ -76,14 +75,13 @@ import org.elasticsearch.xpack.prelert.job.scheduler.http.HttpDataExtractorFacto
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 import org.elasticsearch.xpack.prelert.rest.data.RestPostDataAction;
-import org.elasticsearch.xpack.prelert.rest.data.RestPostDataCloseAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.prelert.rest.data.RestPostDataFlushAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
-import org.elasticsearch.xpack.prelert.rest.job.RestPauseJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPutJobsAction;
-import org.elasticsearch.xpack.prelert.rest.job.RestResumeJobAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestOpenJobAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestGetListAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestPutListAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestDeleteModelSnapshotAction;
@@ -142,7 +140,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         StatusReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
                         StatusReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
-                        UsageReporter.UPDATE_INTERVAL_SETTING));
+                        UsageReporter.UPDATE_INTERVAL_SETTING,
+                        AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE));
     }
 
     @Override
@@ -175,7 +174,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         }
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, processFactory);
+                jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, processFactory, clusterService.getClusterSettings());
         ScheduledJobService scheduledJobService = new ScheduledJobService(threadPool, client, jobProvider, dataProcessor,
                 // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
                 new HttpDataExtractorFactory(client),
@@ -198,15 +197,14 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 RestGetJobsAction.class,
                 RestPutJobsAction.class,
                 RestDeleteJobAction.class,
-                RestPauseJobAction.class,
-                RestResumeJobAction.class,
+                RestOpenJobAction.class,
                 RestGetListAction.class,
                 RestPutListAction.class,
                 RestGetInfluencersAction.class,
                 RestGetRecordsAction.class,
                 RestGetBucketsAction.class,
                 RestPostDataAction.class,
-                RestPostDataCloseAction.class,
+                RestCloseJobAction.class,
                 RestPostDataFlushAction.class,
                 RestValidateDetectorAction.class,
                 RestValidateTransformAction.class,
@@ -227,8 +225,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetJobsAction.INSTANCE, GetJobsAction.TransportAction.class),
                 new ActionHandler<>(PutJobAction.INSTANCE, PutJobAction.TransportAction.class),
                 new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
-                new ActionHandler<>(PauseJobAction.INSTANCE, PauseJobAction.TransportAction.class),
-                new ActionHandler<>(ResumeJobAction.INSTANCE, ResumeJobAction.TransportAction.class),
+                new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),
                 new ActionHandler<>(UpdateJobStatusAction.INSTANCE, UpdateJobStatusAction.TransportAction.class),
                 new ActionHandler<>(UpdateJobSchedulerStatusAction.INSTANCE, UpdateJobSchedulerStatusAction.TransportAction.class),
                 new ActionHandler<>(GetListAction.INSTANCE, GetListAction.TransportAction.class),
@@ -237,7 +234,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),
                 new ActionHandler<>(PostDataAction.INSTANCE, PostDataAction.TransportAction.class),
-                new ActionHandler<>(PostDataCloseAction.INSTANCE, PostDataCloseAction.TransportAction.class),
+                new ActionHandler<>(CloseJobAction.INSTANCE, CloseJobAction.TransportAction.class),
                 new ActionHandler<>(PostDataFlushAction.INSTANCE, PostDataFlushAction.TransportAction.class),
                 new ActionHandler<>(ValidateDetectorAction.INSTANCE, ValidateDetectorAction.TransportAction.class),
                 new ActionHandler<>(ValidateTransformAction.INSTANCE, ValidateTransformAction.TransportAction.class),

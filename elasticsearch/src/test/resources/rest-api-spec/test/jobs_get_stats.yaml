@@ -17,6 +17,10 @@ setup:
           }
 
   - do:
+      xpack.prelert.open_job:
+        job_id: job-stats-test
+
+  - do:
       xpack.prelert.put_job:
         body:  >
           {
@@ -36,6 +40,9 @@ setup:
                 "types":["response"]
             }
           }
+  - do:
+      xpack.prelert.open_job:
+        job_id: scheduled-job
 
   - do:
       index:
@@ -119,7 +126,7 @@ setup:
   - is_false: jobs.0.data_counts
   - is_false: jobs.0.model_size_stats
   - is_false: jobs.0.scheduler_state
-  - match: { jobs.0.status: RUNNING }
+  - match: { jobs.0.status: OPENED }
 
   - do:
       xpack.prelert.get_jobs:
@@ -129,7 +136,7 @@ setup:
   - is_true: jobs.0.data_counts
   - is_false: jobs.0.scheduler_state
   - match: { jobs.0.job_id: job-stats-test }
-  - match: { jobs.0.status: RUNNING }
+  - match: { jobs.0.status: OPENED }
 
   - do:
       xpack.prelert.get_jobs:

@@ -43,13 +43,12 @@ public class JobManagerTests extends ESTestCase {
 
     private ClusterService clusterService;
     private JobProvider jobProvider;
-    private Auditor auditor;
 
     @Before
     public void setupMocks() {
         clusterService = mock(ClusterService.class);
         jobProvider = mock(JobProvider.class);
-        auditor = mock(Auditor.class);
+        Auditor auditor = mock(Auditor.class);
         when(jobProvider.audit(anyString())).thenReturn(auditor);
     }
 
@@ -65,7 +64,7 @@ public class JobManagerTests extends ESTestCase {
     }
 
     public void testFilter() {
-        Set<String> running = new HashSet<String>(Arrays.asList("henry", "dim", "dave"));
+        Set<String> running = new HashSet<>(Arrays.asList("henry", "dim", "dave"));
         Set<String> diff = new HashSet<>(Arrays.asList("dave", "tom")).stream().filter((s) -> !running.contains(s))
                 .collect(Collectors.toCollection(HashSet::new));
 
@@ -85,7 +84,7 @@ public class JobManagerTests extends ESTestCase {
         assertThat(prelertMetadata.getJobs().containsKey("foo"), is(false));
     }
 
-    public void testRemoveJobFromClusterState_GivenJobIsRunning() {
+    public void testRemoveJobFromClusterState_GivenJobIsOpened() {
         JobManager jobManager = createJobManager();
         ClusterState clusterState = createClusterState();
         Job job = buildJobBuilder("foo").build();
@@ -93,9 +92,10 @@ public class JobManagerTests extends ESTestCase {
         Allocation.Builder allocation = new Allocation.Builder();
         allocation.setNodeId("myNode");
         allocation.setJobId(job.getId());
-        allocation.setStatus(JobStatus.RUNNING);
+        allocation.setStatus(JobStatus.OPENING);
         PrelertMetadata.Builder newMetadata = new PrelertMetadata.Builder(clusterState.metaData().custom(PrelertMetadata.TYPE));
-        newMetadata.putAllocation("myNode", job.getId());
+        newMetadata.createAllocation(job.getId(), false);
+        newMetadata.assignToNode(job.getId(), "myNode");
         newMetadata.updateAllocation(job.getId(), allocation.build());
 
         ClusterState jobRunningClusterState = new ClusterState.Builder(clusterState)
@@ -104,7 +104,7 @@ public class JobManagerTests extends ESTestCase {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> jobManager.removeJobFromClusterState("foo", jobRunningClusterState));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
-        assertThat(e.getMessage(), equalTo("Cannot delete job 'foo' while it is RUNNING"));
+        assertThat(e.getMessage(), equalTo("Cannot delete job 'foo' while it is OPENING"));
     }
 
     public void testRemoveJobFromClusterState_jobMissing() {
@@ -137,7 +137,8 @@ public class JobManagerTests extends ESTestCase {
         Job job = buildJobBuilder("foo").build();
         PrelertMetadata prelertMetadata = new PrelertMetadata.Builder()
                 .putJob(job, false)
-                .putAllocation("nodeId", "foo")
+                .createAllocation("foo", false)
+                .assignToNode("foo", "nodeId")
                 .build();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata)).build();

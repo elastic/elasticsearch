@@ -29,7 +29,7 @@ public class SchedulerState extends ToXContentToBytes implements Writeable {
     public static final ParseField END_TIME_MILLIS = new ParseField("end");
 
     public static final ConstructingObjectParser<SchedulerState, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            TYPE_FIELD.getPreferredName(), a -> new SchedulerState((JobSchedulerStatus) a[0], (long) a[1], (Long) a[2]));
+            TYPE_FIELD.getPreferredName(), a -> new SchedulerState((JobSchedulerStatus) a[0], (Long) a[1], (Long) a[2]));
 
     static {
         PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> JobSchedulerStatus.fromString(p.text()), STATUS,

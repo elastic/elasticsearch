@@ -72,6 +72,8 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true));
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
+        OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
+        assertTrue(openJobResponse.isAcknowledged());
 
         SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTING, 0L, now);
         StartJobSchedulerAction.Request startSchedulerRequest = new StartJobSchedulerAction.Request("_job_id", schedulerState);
@@ -102,6 +104,8 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true));
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
+        OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
+        assertTrue(openJobResponse.isAcknowledged());
 
         SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTING, 0L, null);
         StartJobSchedulerAction.Request startSchedulerRequest = new StartJobSchedulerAction.Request("_job_id", schedulerState);
@@ -211,8 +215,8 @@ public class ScheduledJobsIT extends ESIntegTestCase {
                 // ignore
             }
             try {
-                PostDataCloseAction.Response response =
-                        client.execute(PostDataCloseAction.INSTANCE, new PostDataCloseAction.Request(jobId)).get();
+                CloseJobAction.Response response =
+                        client.execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).get();
                 assertTrue(response.isAcknowledged());
             } catch (Exception e) {
                 // ignore

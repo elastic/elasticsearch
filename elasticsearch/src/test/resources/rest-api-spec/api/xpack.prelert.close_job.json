@@ -1,5 +1,5 @@
 {
-  "xpack.prelert.close_data": {
+  "xpack.prelert.close_job": {
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/prelert/data/{job_id}/_close",
@@ -9,6 +9,10 @@
           "type": "string",
           "required": true,
           "description": "The name of the job to close"
+        },
+        "close_timeout": {
+          "type": "time",
+          "description": "Controls the time to wait until a job has closed. Default to 30 minutes"
         }
       }
     }

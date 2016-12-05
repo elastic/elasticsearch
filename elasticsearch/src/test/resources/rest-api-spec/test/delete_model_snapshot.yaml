@@ -17,6 +17,14 @@ setup:
           }
 
   - do:
+      xpack.prelert.open_job:
+        job_id: foo
+
+  - do:
+      xpack.prelert.close_job:
+        job_id: foo
+
+  - do:
       index:
         index:  prelertresults-foo
         type:   model_snapshot

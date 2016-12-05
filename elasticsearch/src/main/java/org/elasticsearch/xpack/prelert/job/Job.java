@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
 /**
  * This class represents a configured and created Job. The creation time is set
  * to the time the object was constructed, Status is set to
- * {@link JobStatus#RUNNING} and the finished time and last data time fields are
+ * {@link JobStatus#OPENING} and the finished time and last data time fields are
  * {@code null} until the job has seen some data or it is finished respectively.
  * If the job was created to read data from a list of files FileUrls will be a
  * non-empty list else the expects data to be streamed to it.

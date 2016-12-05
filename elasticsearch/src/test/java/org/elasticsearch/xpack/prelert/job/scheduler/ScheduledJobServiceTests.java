@@ -92,8 +92,8 @@ public class ScheduledJobServiceTests extends ESTestCase {
 
     public void testStart_GivenNewlyCreatedJobLoopBack() throws IOException {
         Job.Builder builder = createScheduledJob();
-        Allocation allocation =
-                new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STARTING, 0L, 60000L));
+        Allocation allocation = new Allocation("_nodeId", "foo", false, JobStatus.OPENED, null,
+                new SchedulerState(JobSchedulerStatus.STARTING, 0L, 60000L));
         DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
 
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation);
@@ -115,8 +115,8 @@ public class ScheduledJobServiceTests extends ESTestCase {
 
     public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws IOException {
         Job.Builder builder = createScheduledJob();
-        Allocation allocation =
-                new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STARTING, 0L, null));
+        Allocation allocation = new Allocation("_nodeId", "foo", false, JobStatus.OPENED, null,
+                new SchedulerState(JobSchedulerStatus.STARTING, 0L, null));
         DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation);
 
@@ -132,8 +132,8 @@ public class ScheduledJobServiceTests extends ESTestCase {
         verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME);
         verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME), any());
 
-        allocation = new Allocation(allocation.getNodeId(), allocation.getJobId(), allocation.getStatus(),
-                new SchedulerState(JobSchedulerStatus.STOPPING, 0L, 60000L));
+        allocation = new Allocation(allocation.getNodeId(), allocation.getJobId(), false, allocation.getStatus(),
+                null, new SchedulerState(JobSchedulerStatus.STOPPING, 0L, 60000L));
         scheduledJobService.stop(allocation);
         verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STOPPED)), any());
     }
@@ -146,7 +146,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
     public void testStop_GivenStartedScheduledJob() throws IOException {
         Job.Builder builder = createScheduledJob();
         Allocation allocation1 =
-                new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STARTED, 0L, null));
+                new Allocation("_nodeId", "foo", false, JobStatus.OPENED, null, new SchedulerState(JobSchedulerStatus.STARTED, 0L, null));
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation1);
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
@@ -160,7 +160,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
 
         // Properly stop it to avoid leaking threads in the test
         Allocation allocation2 =
-                new Allocation("_nodeId", "foo", JobStatus.RUNNING, new SchedulerState(JobSchedulerStatus.STOPPING, 0L, null));
+                new Allocation("_nodeId", "foo", false, JobStatus.OPENED, null, new SchedulerState(JobSchedulerStatus.STOPPING, 0L, null));
         scheduledJobService.registry.put("foo", scheduledJobService.createJobScheduler(builder.build()));
         scheduledJobService.stop(allocation2);
 

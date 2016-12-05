@@ -34,7 +34,7 @@ public class AutodetectResultsParser extends AbstractComponent {
         this.parseFieldMatcherSupplier = parseFieldMatcherSupplier;
     }
 
-    CloseableIterator<AutodetectResult> parseResults(InputStream in) throws ElasticsearchParseException {
+    public CloseableIterator<AutodetectResult> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(in);
             XContentParser.Token token = parser.nextToken();

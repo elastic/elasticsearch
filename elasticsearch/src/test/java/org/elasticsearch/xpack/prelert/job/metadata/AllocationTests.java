@@ -19,9 +19,11 @@ public class AllocationTests extends AbstractSerializingTestCase<Allocation> {
     protected Allocation createTestInstance() {
         String nodeId = randomAsciiOfLength(10);
         String jobId = randomAsciiOfLength(10);
+        boolean ignoreDowntime = randomBoolean();
         JobStatus jobStatus = randomFrom(JobStatus.values());
+        String statusReason = randomBoolean() ? randomAsciiOfLength(10) : null;
         SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTING, randomPositiveLong(), randomPositiveLong());
-        return new Allocation(nodeId, jobId, jobStatus, schedulerState);
+        return new Allocation(nodeId, jobId, ignoreDowntime, jobStatus, statusReason, schedulerState);
     }
 
     @Override
@@ -32,6 +34,15 @@ public class AllocationTests extends AbstractSerializingTestCase<Allocation> {
     @Override
     protected Allocation parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
         return Allocation.PARSER.apply(parser, () -> matcher).build();
+    }
+
+    public void testUnsetIgnoreDownTime() {
+        Allocation allocation = new Allocation("_node_id", "_job_id", true, JobStatus.OPENING, null, null);
+        assertTrue(allocation.isIgnoreDowntime());
+        Allocation.Builder builder = new Allocation.Builder(allocation);
+        builder.setStatus(JobStatus.OPENED);
+        allocation = builder.build();
+        assertFalse(allocation.isIgnoreDowntime());
     }
 
 }

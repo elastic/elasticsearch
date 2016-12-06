@@ -326,11 +326,6 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
             requests.add(new RequestAndHeaders(threadPool.getThreadContext().getHeaders(), request));
             return true;
         }
-
-        @Override
-        protected boolean apply(String action, ActionResponse response, ActionListener listener) {
-            return true;
-        }
     }
 
     private static class RequestAndHeaders {

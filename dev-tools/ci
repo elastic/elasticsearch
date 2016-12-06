@@ -2,7 +2,13 @@
 # This script is used as a single command to run the x-plugins tests.
 #
 # It will attempt to check out 'elasticsearch' into a sibling directory
-# unless the environment variable `USE_EXISTING_ES` has a value
+# unless the environment variable `USE_EXISTING_ES` has a value. The
+# branch of elasticsearch which will be checked out depends on
+# environment variables. If running locally, set GIT_BRANCH. When
+# running in Jenkins, that env var is set. When running a PR
+# jenkins job, the variables PR_SOURCE_BRANCH and PR_TARGET_BRANCH
+# will be set and the source branch will be looked for in elasticsearch
+# before falling back to the target branch name.
 #
 # It will also attempt to install the appropriate version of node.js
 # for the Kibana plugin tests using nvm, unless
@@ -62,8 +68,14 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
         echo "Either define 'USE_EXISTING_ES' or remove the existing 'elasticsearch' sibling."
         exit 1
     fi
-    echo "Checking out Elasticsearch 'master' branch..."
-    git clone https://github.com/elastic/elasticsearch.git --depth=1
+    BRANCH=${PR_SOURCE_BRANCH:-$GIT_BRANCH} # fall back to CI branch if not testing a PR
+    echo "Checking if branch '$BRANCH' has elasticsearch sibling..."
+    if [[ -z "$(git ls-remote --heads git@github.com:elastic/elasticsearch.git $BRANCH)" ]]; then
+      echo "No sibling branch, using PR target branch"
+      BRANCH=$PR_TARGET_BRANCH
+    fi
+    echo "Checking out Elasticsearch '$BRANCH' branch..."
+    git clone -b $BRANCH https://github.com/elastic/elasticsearch.git --depth=1
 else
     if [ -d "./elasticsearch" ]; then
         echo "Using existing 'elasticsearch' checkout"

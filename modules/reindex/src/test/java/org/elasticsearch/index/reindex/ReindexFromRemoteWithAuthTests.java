@@ -187,11 +187,5 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             }
             chain.proceed(task, action, request, listener);
         }
-
-        @Override
-        public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,
-                ActionFilterChain<?, Response> chain) {
-            chain.proceed(action, response, listener);
-        }
     }
 }

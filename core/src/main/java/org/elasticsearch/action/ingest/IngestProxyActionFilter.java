@@ -87,11 +87,6 @@ public final class IngestProxyActionFilter implements ActionFilter {
     }
 
     @Override
-    public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener, ActionFilterChain<?, Response> chain) {
-        chain.proceed(action, response, listener);
-    }
-
-    @Override
     public int order() {
         return Integer.MAX_VALUE;
     }

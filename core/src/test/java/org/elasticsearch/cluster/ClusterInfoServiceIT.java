@@ -101,11 +101,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionResponse response, ActionListener<?> listener) {
-            return true;
-        }
-
-        @Override
         public int order() {
             return 0;
         }

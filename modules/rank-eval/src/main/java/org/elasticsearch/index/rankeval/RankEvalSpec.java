@@ -23,23 +23,17 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -154,24 +148,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     }
 
     public static RankEvalSpec parse(XContentParser parser, RankEvalContext context, boolean templated) throws IOException {
-        RankEvalSpec spec = PARSER.parse(parser, context);
-
-        if (templated) {
-            for (RatedRequest query_spec : spec.getSpecifications()) {
-                Map<String, Object> params = query_spec.getParams();
-                Script scriptWithParams = new Script(spec.template.getType(), spec.template.getLang(), spec.template.getIdOrCode(), params);
-                String resolvedRequest = ((BytesReference) (context.getScriptService()
-                        .executable(scriptWithParams, ScriptContext.Standard.SEARCH).run())).utf8ToString();
-                try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
-                    QueryParseContext parseContext = new QueryParseContext(context.getSearchRequestParsers().queryParsers, subParser,
-                            context.getParseFieldMatcher());
-                    SearchSourceBuilder templateResult = SearchSourceBuilder.fromXContent(parseContext, context.getAggs(),
-                            context.getSuggesters(), context.getSearchExtParsers());
-                    query_spec.setTestRequest(templateResult);
-                }
-            }
-        }
-        return spec;
+        return PARSER.parse(parser, context);
     }
 
     @Override

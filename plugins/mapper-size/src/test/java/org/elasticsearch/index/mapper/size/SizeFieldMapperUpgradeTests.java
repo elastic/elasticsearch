@@ -30,7 +30,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
@@ -54,7 +53,7 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
     public void testUpgradeOldMapping() throws IOException, ExecutionException, InterruptedException {
         final String indexName = "index-mapper-size-2.0.0";
         final String indexUUID = "ENCw7sG0SWuTPcH60bHheg";
-        InternalTestCluster.Async<String> master = internalCluster().startNodeAsync();
+        internalCluster().startNode();
         Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
         Path backwardsIndex = getBwcIndicesPath().resolve(indexName + ".zip");
@@ -76,7 +75,6 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         Path src = unzipDataDir.resolve(indexName + "/nodes/0/indices");
         Files.move(src, dataPath);
         Files.move(dataPath.resolve(indexName), dataPath.resolve(indexUUID));
-        master.get();
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();
         ensureGreen(indexName);

@@ -4,9 +4,9 @@
     "url": {
       "path": "/_xpack/prelert/jobs/{job_id}",
       "paths": [
-        "/_xpack/prelert/jobs",
-        "/_xpack/prelert/jobs/{job_id}",
-        "/_xpack/prelert/jobs/{job_id}/{metric}"
+        "/_xpack/prelert/jobs/_stats",
+        "/_xpack/prelert/jobs/{job_id}/_stats",
+        "/_xpack/prelert/jobs/{job_id}/{metric}/_stats"
       ],
       "parts": {
         "job_id": {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.prelert;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -17,9 +16,7 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -38,9 +35,9 @@ import org.elasticsearch.xpack.prelert.action.GetJobsAction;
 import org.elasticsearch.xpack.prelert.action.GetListAction;
 import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.action.GetRecordsAction;
-import org.elasticsearch.xpack.prelert.action.PostDataAction;
+import org.elasticsearch.xpack.prelert.action.JobDataAction;
 import org.elasticsearch.xpack.prelert.action.CloseJobAction;
-import org.elasticsearch.xpack.prelert.action.PostDataFlushAction;
+import org.elasticsearch.xpack.prelert.action.FlushJobAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.PutListAction;
 import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction;
@@ -74,13 +71,13 @@ import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobService;
 import org.elasticsearch.xpack.prelert.job.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
-import org.elasticsearch.xpack.prelert.rest.data.RestPostDataAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestJobDataAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestCloseJobAction;
-import org.elasticsearch.xpack.prelert.rest.data.RestPostDataFlushAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestFlushJobAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
-import org.elasticsearch.xpack.prelert.rest.job.RestPutJobsAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestPutJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestOpenJobAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestGetListAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestPutListAction;
@@ -195,7 +192,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
     public List<Class<? extends RestHandler>> getRestHandlers() {
         return Arrays.asList(
                 RestGetJobsAction.class,
-                RestPutJobsAction.class,
+                RestPutJobAction.class,
                 RestDeleteJobAction.class,
                 RestOpenJobAction.class,
                 RestGetListAction.class,
@@ -203,9 +200,9 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 RestGetInfluencersAction.class,
                 RestGetRecordsAction.class,
                 RestGetBucketsAction.class,
-                RestPostDataAction.class,
+                RestJobDataAction.class,
                 RestCloseJobAction.class,
-                RestPostDataFlushAction.class,
+                RestFlushJobAction.class,
                 RestValidateDetectorAction.class,
                 RestValidateTransformAction.class,
                 RestValidateTransformsAction.class,
@@ -233,9 +230,9 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetBucketsAction.INSTANCE, GetBucketsAction.TransportAction.class),
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),
-                new ActionHandler<>(PostDataAction.INSTANCE, PostDataAction.TransportAction.class),
+                new ActionHandler<>(JobDataAction.INSTANCE, JobDataAction.TransportAction.class),
                 new ActionHandler<>(CloseJobAction.INSTANCE, CloseJobAction.TransportAction.class),
-                new ActionHandler<>(PostDataFlushAction.INSTANCE, PostDataFlushAction.TransportAction.class),
+                new ActionHandler<>(FlushJobAction.INSTANCE, FlushJobAction.TransportAction.class),
                 new ActionHandler<>(ValidateDetectorAction.INSTANCE, ValidateDetectorAction.TransportAction.class),
                 new ActionHandler<>(ValidateTransformAction.INSTANCE, ValidateTransformAction.TransportAction.class),
                 new ActionHandler<>(ValidateTransformsAction.INSTANCE, ValidateTransformsAction.TransportAction.class),

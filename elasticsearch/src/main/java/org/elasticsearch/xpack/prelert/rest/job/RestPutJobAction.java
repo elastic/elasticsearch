@@ -19,12 +19,12 @@ import org.elasticsearch.xpack.prelert.action.PutJobAction;
 
 import java.io.IOException;
 
-public class RestPutJobsAction extends BaseRestHandler {
+public class RestPutJobAction extends BaseRestHandler {
 
     private final PutJobAction.TransportAction transportPutJobAction;
 
     @Inject
-    public RestPutJobsAction(Settings settings, RestController controller, PutJobAction.TransportAction transportPutJobAction) {
+    public RestPutJobAction(Settings settings, RestController controller, PutJobAction.TransportAction transportPutJobAction) {
         super(settings);
         this.transportPutJobAction = transportPutJobAction;
         controller.registerHandler(RestRequest.Method.PUT, PrelertPlugin.BASE_PATH + "jobs", this);

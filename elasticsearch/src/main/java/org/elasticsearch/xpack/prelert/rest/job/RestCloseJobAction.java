@@ -28,7 +28,7 @@ public class RestCloseJobAction extends BaseRestHandler {
         super(settings);
         this.closeJobAction = closeJobAction;
         controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH
-                + "data/{" + Job.ID.getPreferredName() + "}/_close", this);
+                + "jobs/{" + Job.ID.getPreferredName() + "}/_close", this);
     }
 
     @Override

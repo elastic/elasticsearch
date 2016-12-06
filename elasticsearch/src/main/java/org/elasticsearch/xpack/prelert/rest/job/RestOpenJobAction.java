@@ -27,7 +27,7 @@ public class RestOpenJobAction extends BaseRestHandler {
     public RestOpenJobAction(Settings settings, RestController controller, OpenJobAction.TransportAction openJobAction) {
         super(settings);
         this.openJobAction = openJobAction;
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "data/{" + Job.ID.getPreferredName() + "}/_open",
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_open",
                 this);
     }
 

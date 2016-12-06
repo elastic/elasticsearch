@@ -1,12 +1,12 @@
 {
-  "xpack.prelert.flush_data": {
+  "xpack.prelert.flush_job": {
     "methods": [
       "POST"
     ],
     "url": {
-      "path": "/_xpack/prelert/data/{job_id}/_flush",
+      "path": "/_xpack/prelert/jobs/{job_id}/_flush",
       "paths": [
-        "/_xpack/prelert/data/{job_id}/_flush"
+        "/_xpack/prelert/jobs/{job_id}/_flush"
       ],
       "parts": {
         "job_id": {

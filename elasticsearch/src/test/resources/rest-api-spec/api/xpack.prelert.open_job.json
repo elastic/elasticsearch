@@ -2,8 +2,8 @@
   "xpack.prelert.open_job": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/prelert/data/{job_id}/_open",
-      "paths": [ "/_xpack/prelert/data/{job_id}/_open" ],
+      "path": "/_xpack/prelert/jobs/{job_id}/_open",
+      "paths": [ "/_xpack/prelert/jobs/{job_id}/_open" ],
       "parts": {
         "job_id": {
           "type": "string",

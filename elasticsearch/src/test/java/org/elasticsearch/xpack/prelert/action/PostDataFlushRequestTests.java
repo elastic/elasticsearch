@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-import org.elasticsearch.xpack.prelert.action.PostDataFlushAction.Request;
+import org.elasticsearch.xpack.prelert.action.FlushJobAction.Request;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
 public class PostDataFlushRequestTests extends AbstractStreamableTestCase<Request> {

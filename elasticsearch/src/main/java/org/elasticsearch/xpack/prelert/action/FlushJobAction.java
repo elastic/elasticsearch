@@ -37,13 +37,12 @@ import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostDataFlushAction extends Action<PostDataFlushAction.Request, PostDataFlushAction.Response,
-PostDataFlushAction.RequestBuilder> {
+public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobAction.Response, FlushJobAction.RequestBuilder> {
 
-    public static final PostDataFlushAction INSTANCE = new PostDataFlushAction();
-    public static final String NAME = "cluster:admin/prelert/data/post/flush";
+    public static final FlushJobAction INSTANCE = new FlushJobAction();
+    public static final String NAME = "cluster:admin/prelert/job/flush";
 
-    private PostDataFlushAction() {
+    private FlushJobAction() {
         super(NAME);
     }
 
@@ -196,7 +195,7 @@ PostDataFlushAction.RequestBuilder> {
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, PostDataFlushAction action) {
+        public RequestBuilder(ElasticsearchClient client, FlushJobAction action) {
             super(client, action, new Request());
         }
     }
@@ -231,14 +230,14 @@ PostDataFlushAction.RequestBuilder> {
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver, AutodetectProcessManager processManager) {
-            super(settings, PostDataFlushAction.NAME, false, threadPool, transportService, actionFilters,
-                    indexNameExpressionResolver, PostDataFlushAction.Request::new);
+            super(settings, FlushJobAction.NAME, false, threadPool, transportService, actionFilters,
+                    indexNameExpressionResolver, FlushJobAction.Request::new);
 
             this.processManager = processManager;
         }
 
         @Override
-        protected final void doExecute(PostDataFlushAction.Request request, ActionListener<PostDataFlushAction.Response> listener) {
+        protected final void doExecute(FlushJobAction.Request request, ActionListener<FlushJobAction.Response> listener) {
             threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() -> {
                 try {
                     TimeRange timeRange = TimeRange.builder().startTime(request.getStart()).endTime(request.getEnd()).build();

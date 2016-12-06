@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
-public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostDataAction.Request> {
+public class PostDataActionRequestTests extends AbstractStreamableTestCase<JobDataAction.Request> {
     @Override
-    protected PostDataAction.Request createTestInstance() {
-        PostDataAction.Request request = new PostDataAction.Request(randomAsciiOfLengthBetween(1, 20));
+    protected JobDataAction.Request createTestInstance() {
+        JobDataAction.Request request = new JobDataAction.Request(randomAsciiOfLengthBetween(1, 20));
         request.setIgnoreDowntime(randomBoolean());
         if (randomBoolean()) {
             request.setResetStart(randomAsciiOfLengthBetween(1, 20));
@@ -22,7 +22,7 @@ public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostD
     }
 
     @Override
-    protected PostDataAction.Request createBlankInstance() {
-        return new PostDataAction.Request();
+    protected JobDataAction.Request createBlankInstance() {
+        return new JobDataAction.Request();
     }
 }

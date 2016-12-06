@@ -69,7 +69,7 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
         exit 1
     fi
     # AWAITSFIX: the fallback to master should be removed, see https://github.com/elastic/infra/issues/1557
-    BRANCH=${PR_SOURCE_BRANCH:-${GIT_BRANCH#/}} # GIT_BRANCH starts with the repo, i.e., origin/master
+    BRANCH=${PR_SOURCE_BRANCH:-${GIT_BRANCH#*/}} # GIT_BRANCH starts with the repo, i.e., origin/master
     BRANCH=${BRANCH:-master} # fall back to CI branch if not testing a PR
     echo "Checking if branch '$BRANCH' has elasticsearch sibling..."
     if [[ -z "$(git ls-remote --heads git@github.com:elastic/elasticsearch.git $BRANCH)" ]]; then

@@ -130,7 +130,7 @@ The following parameters are required when percolating a document:
 `document_type`:: The type / mapping of the document being percolated. This is a required parameter.
 `document`:: The source of the document being percolated.
 
-Instead of specifying a the source of the document being percolated, the source can also be retrieved from an already
+Instead of specifying the source of the document being percolated, the source can also be retrieved from an already
 stored document. The `percolate` query will then internally execute a get request to fetch that document.
 
 In that case the `document` parameter can be substituted with the following parameters:

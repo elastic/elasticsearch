@@ -1208,7 +1208,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         for (String node : nodes) {
             assertNoMaster(node);
         }
-        isolateAllNodes.stopDisrupting();
+        internalCluster().clearDisruptionScheme();
         ensureStableCluster(3);
         final String preferredMasterName = internalCluster().getMasterName();
         final DiscoveryNode preferredMaster = internalCluster().clusterService(preferredMasterName).localNode();

@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig.DataSource;
 import org.elasticsearch.xpack.prelert.job.condition.Condition;
 import org.elasticsearch.xpack.prelert.job.condition.Operator;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
@@ -80,9 +79,17 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals(IgnoreDowntime.ONCE, job.getIgnoreDowntime());
     }
 
-    public void testConstructor_GivenJobConfigurationWithElasticsearchScheduler_ShouldFillDefaults() {
-        SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(DataSource.ELASTICSEARCH);
-        expectThrows(NullPointerException.class, () -> schedulerConfig.setQuery(null));
+    public void testConstructor_GivenJobConfigurationWithScheduler_ShouldFillDefaults() {
+        Job.Builder builder = new Job.Builder("foo");
+        DataDescription.Builder dataDescriptionBuilder = new DataDescription.Builder();
+        dataDescriptionBuilder.setFormat(DataDescription.DataFormat.ELASTICSEARCH);
+        builder.setDataDescription(dataDescriptionBuilder);
+        Detector.Builder detectorBuilder = new Detector.Builder();
+        detectorBuilder.setFunction("count");
+        builder.setAnalysisConfig(new AnalysisConfig.Builder(Arrays.asList(detectorBuilder.build())));
+        builder.setSchedulerConfig(new SchedulerConfig.Builder(Arrays.asList("my_index"), Arrays.asList("my_type")));
+
+        assertEquals(60L, builder.build().getSchedulerConfig().getQueryDelay().longValue());
     }
 
     public void testEquals_noId() {
@@ -470,9 +477,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testVerify_GivenElasticsearchSchedulerWithAggsAndNoSummaryCountField() throws IOException {
-        String errorMessage = Messages.getMessage(
-                Messages.JOB_CONFIG_SCHEDULER_AGGREGATIONS_REQUIRES_SUMMARY_COUNT_FIELD,
-                DataSource.ELASTICSEARCH.toString(), SchedulerConfig.DOC_COUNT);
+        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_AGGREGATIONS_REQUIRES_SUMMARY_COUNT_FIELD,
+                SchedulerConfig.DOC_COUNT);
         SchedulerConfig.Builder schedulerConfig = createValidElasticsearchSchedulerConfigWithAggs();
         Job.Builder builder = buildJobBuilder("foo");
         builder.setSchedulerConfig(schedulerConfig);
@@ -489,8 +495,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testVerify_GivenElasticsearchSchedulerWithAggsAndWrongSummaryCountField() throws IOException {
         String errorMessage = Messages.getMessage(
-                Messages.JOB_CONFIG_SCHEDULER_AGGREGATIONS_REQUIRES_SUMMARY_COUNT_FIELD,
-                DataSource.ELASTICSEARCH.toString(), SchedulerConfig.DOC_COUNT);
+                Messages.JOB_CONFIG_SCHEDULER_AGGREGATIONS_REQUIRES_SUMMARY_COUNT_FIELD, SchedulerConfig.DOC_COUNT);
         SchedulerConfig.Builder schedulerConfig = createValidElasticsearchSchedulerConfigWithAggs();
         Job.Builder builder = buildJobBuilder("foo");
         builder.setSchedulerConfig(schedulerConfig);
@@ -516,11 +521,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     private static SchedulerConfig.Builder createValidElasticsearchSchedulerConfig() {
-        SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(DataSource.ELASTICSEARCH);
-        schedulerConfig.setBaseUrl("http://localhost:9200");
-        schedulerConfig.setIndexes(Arrays.asList("myIndex"));
-        schedulerConfig.setTypes(Arrays.asList("myType"));
-        return schedulerConfig;
+        return new SchedulerConfig.Builder(Arrays.asList("myIndex"), Arrays.asList("myType"));
     }
 
     private static SchedulerConfig.Builder createValidElasticsearchSchedulerConfigWithAggs()
@@ -588,11 +589,15 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         analysisConfig.setBucketSpan(100L);
         builder.setAnalysisConfig(analysisConfig);
         builder.setAnalysisLimits(new AnalysisLimits(randomPositiveLong(), randomPositiveLong()));
-        SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(SchedulerConfig.DataSource.FILE);
-        schedulerConfig.setFilePath("/file/path");
-        builder.setSchedulerConfig(schedulerConfig);
         if (randomBoolean()) {
             builder.setDataDescription(new DataDescription.Builder());
+        }
+        if (randomBoolean()) {
+            SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(randomStringList(1, 10), randomStringList(1, 10));
+            builder.setSchedulerConfig(schedulerConfig);
+            DataDescription.Builder dataDescriptionBuilder = new DataDescription.Builder();
+            dataDescriptionBuilder.setFormat(DataDescription.DataFormat.ELASTICSEARCH);
+            builder.setDataDescription(dataDescriptionBuilder);
         }
         String[] outputs;
         TransformType[] transformTypes ;
@@ -635,5 +640,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setModelSnapshotId(randomAsciiOfLength(10));
         }
         return builder.build();
+    }
+
+    private static List<String> randomStringList(int min, int max) {
+        int size = scaledRandomIntBetween(min, max);
+        List<String> list = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            list.add(randomAsciiOfLength(10));
+        }
+        return list;
     }
 }

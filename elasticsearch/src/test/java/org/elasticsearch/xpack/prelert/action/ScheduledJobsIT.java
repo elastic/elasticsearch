@@ -150,13 +150,11 @@ public class ScheduledJobsIT extends ESIntegTestCase {
     }
 
     private Job.Builder createJob() {
-        SchedulerConfig.Builder scheduler = new SchedulerConfig.Builder(SchedulerConfig.DataSource.ELASTICSEARCH);
+        SchedulerConfig.Builder scheduler = new SchedulerConfig.Builder(Collections.singletonList("data"),
+                Collections.singletonList("type"));
         scheduler.setQueryDelay(1);
         scheduler.setFrequency(2);
         InetSocketAddress address = cluster().httpAddresses()[0];
-        scheduler.setBaseUrl("http://" + NetworkAddress.format(address.getAddress()) + ":" + address.getPort());
-        scheduler.setIndexes(Collections.singletonList("data"));
-        scheduler.setTypes(Collections.singletonList("type"));
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.ELASTICSEARCH);

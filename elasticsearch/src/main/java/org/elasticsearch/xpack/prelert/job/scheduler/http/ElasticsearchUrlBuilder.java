@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.elasticsearch.common.settings.Settings;
 
 public class ElasticsearchUrlBuilder {
 
@@ -31,11 +32,15 @@ public class ElasticsearchUrlBuilder {
         this.types = Objects.requireNonNull(types);
     }
 
-    public static ElasticsearchUrlBuilder create(String baseUrl, List<String> indexes, List<String> types) {
-        String sanitisedBaseUrl = baseUrl.endsWith(SLASH) ? baseUrl : baseUrl + SLASH;
+    public static ElasticsearchUrlBuilder create(List<String> indexes, List<String> types) {
+        // norelease: This class will be removed once we switch to a client based data extractor
+        return create(indexes, types, "http://localhost:9200/");
+    }
+
+    public static ElasticsearchUrlBuilder create(List<String> indexes, List<String> types, String baseUrl) {
         String indexesAsString = indexes.stream().collect(Collectors.joining(COMMA));
         String typesAsString = types.stream().collect(Collectors.joining(COMMA));
-        return new ElasticsearchUrlBuilder(sanitisedBaseUrl, indexesAsString, typesAsString);
+        return new ElasticsearchUrlBuilder(baseUrl, indexesAsString, typesAsString);
     }
 
     public String buildIndexSettingsUrl(String index) {

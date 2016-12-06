@@ -689,7 +689,7 @@ public class ElasticsearchDataExtractorTests extends ESTestCase {
 
     private void createExtractor(MockHttpRequester httpRequester) {
         ElasticsearchQueryBuilder queryBuilder = new ElasticsearchQueryBuilder(SEARCH, aggregations, scriptFields, fields, TIME_FIELD);
-        ElasticsearchUrlBuilder urlBuilder = ElasticsearchUrlBuilder.create(BASE_URL, INDEXES, TYPES);
+        ElasticsearchUrlBuilder urlBuilder = ElasticsearchUrlBuilder.create(INDEXES, TYPES);
         extractor = new ElasticsearchDataExtractor(httpRequester, urlBuilder, queryBuilder, 1000);
     }
 

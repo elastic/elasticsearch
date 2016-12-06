@@ -138,13 +138,13 @@ public class ScheduledJobIT extends ESRestTestCase {
 
     private Response createScheduledJob(String id) throws Exception {
         HttpHost httpHost = getClusterHosts().get(0);
+        logger.info("Http host = " + httpHost.toURI());
         String job = "{\n" + "    \"job_id\":\"" + id + "\",\n" + "    \"description\":\"Analysis of response time by airline\",\n"
                 + "    \"analysis_config\" : {\n" + "        \"bucket_span\":3600,\n"
                 + "        \"detectors\" :[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
                 + "    },\n" + "    \"data_description\" : {\n" + "        \"format\":\"ELASTICSEARCH\",\n"
                 + "        \"time_field\":\"time\",\n" + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    },\n"
-                + "    \"scheduler_config\" : {\n" + "        \"data_source\":\"ELASTICSEARCH\",\n"
-                + "        \"base_url\":\"" + httpHost.toURI() + "\",\n" + "        \"indexes\":[\"airline-data\"],\n"
+                + "    \"scheduler_config\" : {\n" +  "        \"indexes\":[\"airline-data\"],\n"
                 + "        \"types\":[\"response\"],\n" + "        \"retrieve_whole_source\":true\n" + "    }\n" + "}";
 
         return client().performRequest("put", PrelertPlugin.BASE_PATH + "jobs", Collections.emptyMap(), new StringEntity(job));

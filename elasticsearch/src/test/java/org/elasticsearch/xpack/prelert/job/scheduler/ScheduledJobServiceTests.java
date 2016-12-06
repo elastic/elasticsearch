@@ -39,19 +39,19 @@ import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.when;
-import static org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction.Request;
 import static org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction.INSTANCE;
+import static org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction.Request;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.same;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ScheduledJobServiceTests extends ESTestCase {
 
@@ -174,10 +174,7 @@ public class ScheduledJobServiceTests extends ESTestCase {
         acBuilder.setBucketSpan(3600L);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
 
-        SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(SchedulerConfig.DataSource.ELASTICSEARCH);
-        schedulerConfig.setBaseUrl("http://localhost");
-        schedulerConfig.setIndexes(Arrays.asList("myIndex"));
-        schedulerConfig.setTypes(Arrays.asList("myType"));
+        SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(Arrays.asList("myIndex"), Arrays.asList("myType"));
 
         Job.Builder builder = new Job.Builder("foo");
         builder.setAnalysisConfig(acBuilder);

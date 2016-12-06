@@ -5,7 +5,12 @@
  */
 package org.elasticsearch.xpack.prelert.job.scheduler.http;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.prelert.job.Job;
@@ -19,18 +24,16 @@ import java.util.Map;
 
 public class HttpDataExtractorFactory implements DataExtractorFactory {
 
-    public HttpDataExtractorFactory() {}
+    private static final Logger LOGGER = Loggers.getLogger(HttpDataExtractorFactory.class);
+
+    private final Client client;
+
+    public HttpDataExtractorFactory(Client client) {
+        this.client = client;
+    }
 
     @Override
     public DataExtractor newExtractor(Job job) {
-        SchedulerConfig schedulerConfig = job.getSchedulerConfig();
-        if (schedulerConfig.getDataSource() == SchedulerConfig.DataSource.ELASTICSEARCH) {
-            return createElasticsearchDataExtractor(job);
-        }
-        throw new IllegalArgumentException();
-    }
-
-    private DataExtractor createElasticsearchDataExtractor(Job job) {
         String timeField = job.getDataDescription().getTimeField();
         SchedulerConfig schedulerConfig = job.getSchedulerConfig();
         ElasticsearchQueryBuilder queryBuilder = new ElasticsearchQueryBuilder(
@@ -41,8 +44,16 @@ public class HttpDataExtractorFactory implements DataExtractorFactory {
                         timeField);
         HttpRequester httpRequester = new HttpRequester();
         ElasticsearchUrlBuilder urlBuilder = ElasticsearchUrlBuilder
-                .create(schedulerConfig.getBaseUrl(), schedulerConfig.getIndexes(), schedulerConfig.getTypes());
+                .create(schedulerConfig.getIndexes(), schedulerConfig.getTypes(), getBaseUrl());
         return new ElasticsearchDataExtractor(httpRequester, urlBuilder, queryBuilder, schedulerConfig.getScrollSize());
+    }
+
+    private String getBaseUrl() {
+        NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
+        TransportAddress address = nodesInfoResponse.getNodes().get(0).getHttp().getAddress().publishAddress();
+        String baseUrl = "http://" + address.getAddress() + ":" + address.getPort() + "/";
+        LOGGER.info("Base URL: " + baseUrl);
+        return baseUrl;
     }
 
     String stringifyElasticsearchQuery(Map<String, Object> queryMap) {

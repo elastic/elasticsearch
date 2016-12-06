@@ -184,10 +184,8 @@ public class JobAllocatorTests extends ESTestCase {
     public void testScheduledJobHasDefaultSchedulerState() {
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
 
-        SchedulerConfig.Builder schedulerConfigBuilder = new SchedulerConfig.Builder(SchedulerConfig.DataSource.ELASTICSEARCH);
-        schedulerConfigBuilder.setBaseUrl("http://server");
-        schedulerConfigBuilder.setIndexes(Collections.singletonList("foo"));
-        schedulerConfigBuilder.setTypes(Collections.singletonList("bar"));
+        SchedulerConfig.Builder schedulerConfigBuilder = new SchedulerConfig.Builder(Collections.singletonList("foo"),
+                Collections.singletonList("bar"));
 
         Job.Builder jobBuilder = buildJobBuilder("_job_id");
         jobBuilder.setSchedulerConfig(schedulerConfigBuilder);

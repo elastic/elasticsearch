@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.prelert;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -16,7 +17,9 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -174,7 +177,9 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, processFactory);
         ScheduledJobService scheduledJobService = new ScheduledJobService(threadPool, client, jobProvider, dataProcessor,
-                new HttpDataExtractorFactory(), System::currentTimeMillis);
+                // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
+                new HttpDataExtractorFactory(client),
+                System::currentTimeMillis);
         return Arrays.asList(
                 jobProvider,
                 jobManager,

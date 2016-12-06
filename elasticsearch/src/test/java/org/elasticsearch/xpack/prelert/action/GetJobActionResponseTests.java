@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
@@ -50,8 +51,7 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
             AnalysisConfig analysisConfig = new AnalysisConfig.Builder(
                     Collections.singletonList(new Detector.Builder("metric", "some_field").build())).build();
             AnalysisLimits analysisLimits = new AnalysisLimits(randomPositiveLong(), randomPositiveLong());
-            SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(SchedulerConfig.DataSource.FILE);
-            schedulerConfig.setFilePath("/file/path");
+            SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(Arrays.asList("myIndex"), Arrays.asList("myType"));
             DataDescription dataDescription = randomBoolean() ? new DataDescription.Builder().build() : null;
             int numTransformers = randomIntBetween(0, 32);
             List<TransformConfig> transformConfigList = new ArrayList<>(numTransformers);

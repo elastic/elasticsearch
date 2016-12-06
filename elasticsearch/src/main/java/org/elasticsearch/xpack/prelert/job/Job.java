@@ -690,21 +690,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 if (analysisConfig.getBucketSpan() == null) {
                     throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_REQUIRES_BUCKET_SPAN));
                 }
-                if (schedulerConfig.getDataSource() == SchedulerConfig.DataSource.ELASTICSEARCH) {
-                    if (analysisConfig.getLatency() != null && analysisConfig.getLatency() > 0) {
-                        throw new IllegalArgumentException(
-                                Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_ELASTICSEARCH_DOES_NOT_SUPPORT_LATENCY));
-                    }
-                    if (schedulerConfig.getAggregationsOrAggs() != null
-                            && !SchedulerConfig.DOC_COUNT.equals(analysisConfig.getSummaryCountFieldName())) {
-                        throw new IllegalArgumentException(
-                                Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_AGGREGATIONS_REQUIRES_SUMMARY_COUNT_FIELD,
-                                                    SchedulerConfig.DataSource.ELASTICSEARCH.toString(), SchedulerConfig.DOC_COUNT));
-                    }
-                    if (dataDescription == null || dataDescription.getFormat() != DataDescription.DataFormat.ELASTICSEARCH) {
-                        throw new IllegalArgumentException(
-                                Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_ELASTICSEARCH_REQUIRES_DATAFORMAT_ELASTICSEARCH));
-                    }
+                if (analysisConfig.getLatency() != null && analysisConfig.getLatency() > 0) {
+                    throw new IllegalArgumentException(
+                            Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_ELASTICSEARCH_DOES_NOT_SUPPORT_LATENCY));
+                }
+                if (schedulerConfig.getAggregationsOrAggs() != null
+                        && !SchedulerConfig.DOC_COUNT.equals(analysisConfig.getSummaryCountFieldName())) {
+                    throw new IllegalArgumentException(
+                            Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_AGGREGATIONS_REQUIRES_SUMMARY_COUNT_FIELD,
+                                    SchedulerConfig.DOC_COUNT));
+                }
+                if (dataDescription == null || dataDescription.getFormat() != DataDescription.DataFormat.ELASTICSEARCH) {
+                    throw new IllegalArgumentException(
+                            Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_ELASTICSEARCH_REQUIRES_DATAFORMAT_ELASTICSEARCH));
                 }
             }
             if (transforms != null && transforms.isEmpty() == false) {

@@ -32,11 +32,8 @@ setup:
                 "time_format":"yyyy-MM-dd'T'HH:mm:ssX"
             },
             "scheduler_config": {
-                "data_source":"ELASTICSEARCH",
-                "base_url":"http://marple:9202",
                 "indexes":["farequote"],
-                "types":["response"],
-                "retrieve_whole_source":true
+                "types":["response"]
             }
           }
 

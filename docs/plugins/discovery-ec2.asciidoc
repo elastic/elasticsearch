@@ -133,7 +133,7 @@ with the right signer to use.
 ===== Read timeout
 
 Read timeout determines the amount of time to wait for data to be transferred over an established,
-open connection before the connection is timed out.
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50 s`).
 It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.ec2.read_timeout`) setting:
 
 [source, yaml]

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.aws;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.ec2.AmazonEC2;
 import org.elasticsearch.common.settings.Setting;
@@ -83,8 +84,8 @@ public interface AwsEc2Service {
     /**
      * cloud.aws.read_timeout: Socket read timeout. Shared with repository-s3 plugin
      */
-    Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout", TimeValue.MINUS_ONE,
-        Property.NodeScope, Property.Shared);
+    Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout",
+        TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope, Property.Shared);
 
     /**
      * Defines specific ec2 settings starting with cloud.aws.ec2.

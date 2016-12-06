@@ -80,12 +80,12 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
-        internalCluster().startNodesAsync(2, masterNodeSettings).get();
+        internalCluster().startNodes(2, masterNodeSettings);
         Settings dateNodeSettings = Settings.builder()
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
-        internalCluster().startNodesAsync(2, dateNodeSettings).get();
+        internalCluster().startNodes(2, dateNodeSettings);
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("4")
@@ -100,13 +100,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
         final String oldMaster = internalCluster().getMasterName();
         internalCluster().stopCurrentMasterNode();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                String current = internalCluster().getMasterName();
-                assertThat(current, notNullValue());
-                assertThat(current, not(equalTo(oldMaster)));
-            }
+        assertBusy(() -> {
+            String current = internalCluster().getMasterName();
+            assertThat(current, notNullValue());
+            assertThat(current, not(equalTo(oldMaster)));
         });
         ensureSearchable("test");
 
@@ -130,7 +127,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
-        internalCluster().startNodesAsync(2, dateNodeSettings).get();
+        internalCluster().startNodes(2, dateNodeSettings);
         client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
 
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
@@ -155,8 +152,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testNodeRejectsClusterStateWithWrongMasterNode() throws Exception {
-        List<String> nodeNames = internalCluster().startNodesAsync(2).get();
-        client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
+        List<String> nodeNames = internalCluster().startNodes(2);
 
         List<String> nonMasterNodes = new ArrayList<>(nodeNames);
         nonMasterNodes.remove(internalCluster().getMasterName());

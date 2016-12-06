@@ -43,7 +43,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -174,7 +173,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodes(2);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).addMapping("type").get();
         ensureGreen("test");
@@ -213,7 +212,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
             .build();
-        final List<String> nodeNames = internalCluster().startNodesAsync(2, settings).get();
+        final List<String> nodeNames = internalCluster().startNodes(2, settings);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();
@@ -328,11 +327,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Here we want to test that everything goes well if the mappings that
         // are needed for a document are not available on the replica at the
         // time of indexing it
-        final List<String> nodeNames = internalCluster().startNodesAsync(2,
+        final List<String> nodeNames = internalCluster().startNodes(2,
             Settings.builder()
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
                 .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
-                .build()).get();
+                .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();

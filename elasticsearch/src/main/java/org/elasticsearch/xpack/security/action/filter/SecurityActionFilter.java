@@ -141,11 +141,6 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     }
 
     @Override
-    public void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
-        chain.proceed(action, response, listener);
-    }
-
-    @Override
     public int order() {
         return Integer.MIN_VALUE;
     }

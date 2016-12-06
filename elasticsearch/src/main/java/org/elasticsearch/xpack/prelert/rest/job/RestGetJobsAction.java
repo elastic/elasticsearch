@@ -38,14 +38,14 @@ public class RestGetJobsAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_stats",
                 this);
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/{metric}/_stats", this);
+                PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_stats/{metric}", this);
         controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "jobs/_stats", this);
 
         // POSTs
         controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_stats",
                 this);
         controller.registerHandler(RestRequest.Method.POST,
-                PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/{metric}/_stats", this);
+                PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_stats/{metric}", this);
         controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "jobs/_stats", this);
     }
 

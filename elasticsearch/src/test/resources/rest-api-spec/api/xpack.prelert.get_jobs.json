@@ -6,7 +6,7 @@
       "paths": [
         "/_xpack/prelert/jobs/_stats",
         "/_xpack/prelert/jobs/{job_id}/_stats",
-        "/_xpack/prelert/jobs/{job_id}/{metric}/_stats"
+        "/_xpack/prelert/jobs/{job_id}/_stats/{metric}"
       ],
       "parts": {
         "job_id": {

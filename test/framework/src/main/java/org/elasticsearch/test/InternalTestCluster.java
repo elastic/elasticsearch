@@ -1756,7 +1756,8 @@ public final class InternalTestCluster extends TestCluster {
 
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
-        clearDisruptionScheme();
+        assert activeDisruptionScheme == null :
+            "there is already and active disruption [" + activeDisruptionScheme + "]. call clearDisruptionScheme first";
         scheme.applyToCluster(this);
         activeDisruptionScheme = scheme;
     }

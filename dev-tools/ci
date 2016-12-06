@@ -68,7 +68,8 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
         echo "Either define 'USE_EXISTING_ES' or remove the existing 'elasticsearch' sibling."
         exit 1
     fi
-    BRANCH=${PR_SOURCE_BRANCH:-$GIT_BRANCH} # fall back to CI branch if not testing a PR
+    # AWAITSFIX: the fallback to master should be removed, see https://github.com/elastic/infra/issues/1557
+    BRANCH=${PR_SOURCE_BRANCH:-${GIT_BRANCH:-master}} # fall back to CI branch if not testing a PR
     echo "Checking if branch '$BRANCH' has elasticsearch sibling..."
     if [[ -z "$(git ls-remote --heads git@github.com:elastic/elasticsearch.git $BRANCH)" ]]; then
       echo "No sibling branch, using PR target branch"

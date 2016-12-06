@@ -240,7 +240,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertRealtimeGetWorks(indexName);
         assertNewReplicasWork(indexName);
         assertUpgradeWorks(client(), indexName, version);
-        assertDeleteByQueryWorked(indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
         assertAliasWithBadName(indexName, version);
         unloadIndex(indexName);
@@ -407,17 +406,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         logger.debug("--> recovery status:\n{}", XContentHelper.toString(client().admin().indices().prepareRecoveries(indexName).get()));
 
         // TODO: do something with the replicas! query? index?
-    }
-
-    // #10067: create-bwc-index.py deleted any doc with long_sort:[10-20]
-    void assertDeleteByQueryWorked(String indexName, Version version) throws Exception {
-        if (version.onOrAfter(Version.V_2_0_0_beta1)) {
-            // TODO: remove this once #10262 is fixed
-            return;
-        }
-        // these documents are supposed to be deleted by a delete by query operation in the translog
-        SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.queryStringQuery("long_sort:[10 TO 20]"));
-        assertEquals(0, searchReq.get().getHits().getTotalHits());
     }
 
     void assertPositionIncrementGapDefaults(String indexName, Version version) throws Exception {

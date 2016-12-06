@@ -299,7 +299,7 @@ Response:
 
 Field stats index constraints allows to omit all field stats for indices that don't match with the constraint. An index
 constraint can exclude indices' field stats based on the `min_value` and `max_value` statistic. This option is only
-useful if the `level` option is set to `indices`.
+useful if the `level` option is set to `indices`. Fields that are not indexed (not searchable) are always omitted when an index constraint is defined.
 
 For example index constraints can be useful to find out the min and max value of a particular property of your data in
 a time based scenario. The following request only returns field stats for the `answer_count` property for indices

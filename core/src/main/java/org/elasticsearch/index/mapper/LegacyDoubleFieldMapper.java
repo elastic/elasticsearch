@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -169,9 +169,13 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
         @Override
         public FieldStats.Double stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
+            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+            if (fi == null) {
+                return null;
+            }
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return null;
+                return new FieldStats.Double(maxDoc, 0, -1, -1, isSearchable(), isAggregatable());
             }
             double minValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMinLong(terms));
             double maxValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMaxLong(terms));

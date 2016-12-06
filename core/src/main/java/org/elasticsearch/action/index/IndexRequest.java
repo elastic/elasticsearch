@@ -79,7 +79,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private OpType opType = OpType.INDEX;
 
-    private long version = Versions.NOT_SET;
+    private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
@@ -442,17 +442,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Resolves the version based on operation type {@link #opType()}. Not explicitly setting any version if OpType == CREATE corresponds
-     * to setting Versions.MATCH_DELETED and not explicitly setting any version if OpType == INDEX corresponds to setting Versions.MATCH_ANY
+     * to setting Versions.MATCH_DELETED.
      */
     private long resolveVersionDefaults() {
-        if (version == Versions.NOT_SET) {
-            if (opType == OpType.CREATE) {
-                return Versions.MATCH_DELETED;
-            } else {
-                return Versions.MATCH_ANY;
-            }
+        if (opType == OpType.CREATE && version == Versions.MATCH_ANY) {
+            return Versions.MATCH_DELETED;
         } else {
-            return this.version;
+            return version;
         }
     }
 
@@ -530,7 +526,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
-        // ES versions below 5.1.1 don't know about Versions.NOT_SET but resolve the version eagerly (which messes with validation).
+        // ES versions below 5.1.1 don't know about resolveVersionDefaults but resolve the version eagerly (which messes with validation).
         if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
             out.writeLong(resolveVersionDefaults());
         } else {

@@ -391,7 +391,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         StoredScriptSource source = StoredScriptSource.parse(request.lang(), request.content());
 
         if (isLangSupported(source.getLang()) == false) {
-            throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() +"]");
+            throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() + "]");
         }
 
         try {
@@ -401,7 +401,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 Object compiled = scriptEngineService.compile(request.id(), source.getCode(), Collections.emptyMap());
 
                 if (compiled == null) {
-                    throw new IllegalArgumentException("failed to compile stored script [" + request.id() + "]");
+                    throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
+                        (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"));
                 }
             } else {
                 throw new IllegalArgumentException(
@@ -410,7 +411,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         } catch (ScriptException good) {
             throw good;
         } catch (Exception exception) {
-            throw new IllegalArgumentException("failed to compile stored script [" + request.id() + "]", exception);
+            throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
         }
 
         clusterService.submitStateUpdateTask("put-script-" + request.id(),

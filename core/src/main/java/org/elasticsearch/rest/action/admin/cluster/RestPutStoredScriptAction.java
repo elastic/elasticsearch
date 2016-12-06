@@ -39,8 +39,11 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     public RestPutStoredScriptAction(Settings settings, RestController controller) {
         super(settings);
 
-        controller.registerHandler(POST, "/_scripts/{id}", this);
-        controller.registerHandler(PUT, "/_scripts/{id}", this);
+        // Note {lang} is actually {id} in the first two handlers.  It appears
+        // parameters as part of the path must be of the same ordering relative
+        // to name or they will not work as expected.
+        controller.registerHandler(POST, "/_scripts/{lang}", this);
+        controller.registerHandler(PUT, "/_scripts/{lang}", this);
         controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
         controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
     }
@@ -49,6 +52,14 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
         String lang = request.param("lang");
+
+        // In the case where only {lang} is not null, we make it {id} because of
+        // name ordering issues in the handlers' paths.
+        if (id == null) {
+            id = lang;
+            lang = null;
+        }
+
         BytesReference content = request.content();
 
         if (lang != null) {

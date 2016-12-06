@@ -48,14 +48,27 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     public RestGetStoredScriptAction(Settings settings, RestController controller) {
         super(settings);
 
-        controller.registerHandler(GET, "/_scripts/{id}", this);
+        // Note {lang} is actually {id} in the first handler.  It appears
+        // parameters as part of the path must be of the same ordering relative
+        // to name or they will not work as expected.
+        controller.registerHandler(GET, "/_scripts/{lang}", this);
         controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        String id = request.param("id");
-        String lang = request.param("lang");
+        String id;
+        String lang;
+
+        // In the case where only {lang} is not null, we make it {id} because of
+        // name ordering issues in the handlers' paths.
+        if (request.param("id") == null) {
+            id = request.param("lang");;
+            lang = null;
+        } else {
+            id = request.param("id");
+            lang = request.param("lang");
+        }
 
         if (lang != null) {
             deprecationLogger.deprecated(

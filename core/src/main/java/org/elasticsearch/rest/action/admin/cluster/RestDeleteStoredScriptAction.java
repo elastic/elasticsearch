@@ -38,7 +38,10 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
     public RestDeleteStoredScriptAction(Settings settings, RestController controller) {
         super(settings);
 
-        controller.registerHandler(DELETE, "/_scripts/{id}", this);
+        // Note {lang} is actually {id} in the first handler.  It appears
+        // parameters as part of the path must be of the same ordering relative
+        // to name or they will not work as expected.
+        controller.registerHandler(DELETE, "/_scripts/{lang}", this);
         controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
     }
 
@@ -46,6 +49,13 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
         String lang = request.param("lang");
+
+        // In the case where only {lang} is not null, we make it {id} because of
+        // name ordering issues in the handlers' paths.
+        if (id == null) {
+            id = lang;
+            lang = null;
+        }
 
         if (lang != null) {
             deprecationLogger.deprecated(

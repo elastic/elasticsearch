@@ -74,6 +74,8 @@
 ---
 "Test script processor with stored script":
   - do:
+      warnings:
+        - "specifying lang [painless] as part of the url path is deprecated, use request content instead"
       put_script:
         id: "sum_bytes"
         lang: "painless"

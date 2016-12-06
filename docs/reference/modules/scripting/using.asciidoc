@@ -54,11 +54,11 @@ GET my_index/_search
     setting `script.default_lang` to the appropriate language.
 
 
-`inline`, `id`, `file`::
+`inline`, `stored`, `file`::
 
     Specifies the source of the script.  An `inline` script is specified
-    `inline` as in the example above, a stored script with the specified `id`
-    is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>),
+    `inline` as in the example above, a `stored` script is specified `stored`
+    and is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>),
     and a `file` script is retrieved from a file in the `config/scripts`
     directory (see <<modules-scripting-file-scripts, File Scripts>>).
 +
@@ -185,19 +185,24 @@ Scripts may be stored in and retrieved from the cluster state using the
 
 [source,js]
 -----------------------------------
-/_scripts/{lang}/{id} <1> <2>
+/_scripts/{id} <1>
 -----------------------------------
-<1> The `lang` represents the script language.
-<2> The `id` is a unique identifier or script name.
+<1> The `id` is a unique identifier for the stored script.  Note that
+stored search templates and stored scripts share the same namespace.  If
+a stored template is saved with the id of a stored script, it will overwrite
+the existing stored script.
 
 This example stores a Painless script called `calculate-score` in the cluster
 state:
 
 [source,js]
 -----------------------------------
-POST _scripts/painless/calculate-score
+POST _scripts/calculate-score
 {
-  "script": "Math.log(_score * 2) + params.my_modifier"
+  "script": {
+    "lang": "painless",
+    "code": "Math.log(_score * 2) + params.my_modifier"
+  }
 }
 -----------------------------------
 // CONSOLE
@@ -206,7 +211,7 @@ This same script can be retrieved with:
 
 [source,js]
 -----------------------------------
-GET _scripts/painless/calculate-score
+GET _scripts/calculate-score
 -----------------------------------
 // CONSOLE
 // TEST[continued]
@@ -237,7 +242,7 @@ And deleted with:
 
 [source,js]
 -----------------------------------
-DELETE _scripts/painless/calculate-score
+DELETE _scripts/calculate-score
 -----------------------------------
 // CONSOLE
 // TEST[continued]

@@ -54,7 +54,7 @@
         body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
 
   - do:
-      catch: /Unable\sto\sparse.*/
+      catch: /failed\sto\sparse.*/
       put_template:
         id: "1"
         body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }

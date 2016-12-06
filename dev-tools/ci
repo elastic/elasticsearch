@@ -71,7 +71,7 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
     BRANCH=${PR_SOURCE_BRANCH:-${GIT_BRANCH#*/}} # GIT_BRANCH starts with the repo, i.e., origin/master
     BRANCH=${BRANCH:-master} # fall back to CI branch if not testing a PR
     echo "Checking if branch '$BRANCH' has elasticsearch sibling..."
-    if [[ -z "$(git ls-remote --heads git@github.com:elastic/elasticsearch.git $BRANCH)" ]]; then
+    if [[ -z "$(git ls-remote --heads https://github.com/elastic/elasticsearch.git $BRANCH)" ]]; then
       echo "No sibling branch, using PR target branch"
       BRANCH=$PR_TARGET_BRANCH
     fi

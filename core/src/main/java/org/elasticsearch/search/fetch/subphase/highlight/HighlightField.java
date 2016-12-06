@@ -19,18 +19,25 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * A field highlighted with its highlighted fragments.
  */
-public class HighlightField implements Streamable {
+public class HighlightField implements ToXContent, Streamable {
 
     private String name;
 
@@ -40,7 +47,7 @@ public class HighlightField implements Streamable {
     }
 
     public HighlightField(String name, Text[] fragments) {
-        this.name = name;
+        this.name = Objects.requireNonNull(name, "missing highlight field name");
         this.fragments = fragments;
     }
 
@@ -112,4 +119,62 @@ public class HighlightField implements Streamable {
             }
         }
     }
+
+    public static HighlightField fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        assert token == XContentParser.Token.FIELD_NAME;
+        String fieldName = parser.currentName();
+        Text[] fragments = null;
+        token = parser.nextToken();
+        if (token == XContentParser.Token.START_ARRAY) {
+            fragments = parseValues(parser);
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            fragments = null;
+        } else {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected token type [" + token + "]");
+        }
+        return new HighlightField(fieldName, fragments);
+    }
+
+    private static Text[] parseValues(XContentParser parser) throws IOException {
+        List<Text> values = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            values.add(new Text(parser.text()));
+        }
+        return values.toArray(new Text[values.size()]);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(name);
+        if (fragments == null) {
+            builder.nullValue();
+        } else {
+            builder.startArray();
+            for (Text fragment : fragments) {
+                builder.value(fragment);
+            }
+            builder.endArray();
+        }
+        return builder;
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        HighlightField other = (HighlightField) obj;
+        return Objects.equals(name, other.name) && Arrays.equals(fragments, other.fragments);
+    }
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(name, Arrays.hashCode(fragments));
+    }
+
 }

@@ -468,7 +468,8 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         for (SearchHitField field : metaFields) {
-            builder.field(field.name(), (Object) field.value());
+            Object value = (Object) field.value();
+            builder.field(field.name(), value); 
         }
         if (source != null) {
             XContentHelper.writeRawField("_source", source, builder, params);
@@ -487,16 +488,7 @@ public class InternalSearchHit implements SearchHit {
         if (highlightFields != null && !highlightFields.isEmpty()) {
             builder.startObject(Fields.HIGHLIGHT);
             for (HighlightField field : highlightFields.values()) {
-                builder.field(field.name());
-                if (field.fragments() == null) {
-                    builder.nullValue();
-                } else {
-                    builder.startArray();
-                    for (Text fragment : field.fragments()) {
-                        builder.value(fragment);
-                    }
-                    builder.endArray();
-                }
+                field.toXContent(builder, params);
             }
             builder.endObject();
         }

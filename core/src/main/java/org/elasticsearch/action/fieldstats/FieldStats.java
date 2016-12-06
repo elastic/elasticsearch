@@ -267,15 +267,12 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         isAggregatable |= other.isAggregatable;
 
         assert type == other.getType();
-        if (other.hasMinMax == false) {
-            return;
-        }
-        if (hasMinMax == false) {
-            hasMinMax = true;
-            minValue = (T) other.minValue;
-            maxValue = (T) other.maxValue;
-        } else {
+        if (hasMinMax && other.hasMinMax) {
             updateMinMax((T) other.minValue, (T) other.maxValue);
+        } else {
+            hasMinMax = false;
+            minValue = null;
+            maxValue = null;
         }
     }
 

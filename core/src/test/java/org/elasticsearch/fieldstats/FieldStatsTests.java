@@ -313,6 +313,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertEquals(stat.isSearchable(), true);
         assertEquals(stat.isAggregatable(), true);
         assertEquals(stat.getDisplayType(), "integer");
+        assertNull(stat.getMaxValue());
+        assertNull(stat.getMinValue());
     }
 
     public void testNumberFiltering() {

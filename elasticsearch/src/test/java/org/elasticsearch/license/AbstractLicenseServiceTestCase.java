@@ -41,7 +41,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     @Before
     public void init() throws Exception {
         clusterService = mock(ClusterService.class);
-        clock = new ClockMock();
+        clock = ClockMock.frozen();
         discoveryNodes = mock(DiscoveryNodes.class);
         resourceWatcherService = mock(ResourceWatcherService.class);
         environment = mock(Environment.class);

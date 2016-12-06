@@ -83,7 +83,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
     public void testSimpleFailure() throws Exception {
         // we need 3 hosts here because we stop the master and start another - it doesn't restart the pre-existing node...
         config = new ClusterDiscoveryConfiguration.UnicastZen(3, Settings.EMPTY);
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodes(2);
         createIndex("my-index");
         ensureWatcherStarted(false);
 
@@ -135,16 +135,8 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
     public void testDedicatedMasterNodeLayout() throws Exception {
         // Only the master nodes are in the unicast nodes list:
         config = new ClusterDiscoveryConfiguration.UnicastZen(11, 3, Settings.EMPTY);
-        Settings settings = Settings.builder()
-                .put("node.data", false)
-                .put("node.master", true)
-                .build();
-        internalCluster().startNodesAsync(3, settings).get();
-        settings = Settings.builder()
-                .put("node.data", true)
-                .put("node.master", false)
-                .build();
-        internalCluster().startNodesAsync(7, settings).get();
+        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startDataOnlyNodes(7);
         ensureWatcherStarted(false);
         ensureLicenseEnabled();
 
@@ -189,7 +181,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         int numberOfWatches = scaledRandomIntBetween(numberOfFailures, 12);
         logger.info("number of failures [{}], number of watches [{}]", numberOfFailures, numberOfWatches);
         config = new ClusterDiscoveryConfiguration.UnicastZen(2 + numberOfFailures, Settings.EMPTY);
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodes(2);
         createIndex("my-index");
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
 

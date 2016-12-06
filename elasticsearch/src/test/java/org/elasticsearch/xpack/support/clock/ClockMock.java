@@ -7,73 +7,95 @@ package org.elasticsearch.xpack.support.clock;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 
 /**
  * A clock that can be modified for testing.
  */
 public class ClockMock extends Clock {
 
-    private final ZoneId zoneId;
-    private DateTime now;
+    private volatile Clock wrappedClock;
 
     public ClockMock() {
-        zoneId = ZoneOffset.UTC;
-        now = DateTime.now(DateTimeZone.UTC);
+        this(Clock.systemUTC());
     }
 
-    private ClockMock(ZoneId zoneId) {
-        this.zoneId = zoneId;
-        now = DateTime.now(DateTimeZone.forID(zoneId.getId()));
+    /**
+     * a utility method to create a new {@link ClockMock} and immediately call its {@link #freeze()} method
+     */
+    public static ClockMock frozen() {
+        return new ClockMock().freeze();
     }
+
+    private ClockMock(Clock wrappedClock) {
+        this.wrappedClock = wrappedClock;
+    }
+
 
     @Override
     public ZoneId getZone() {
-        return ZoneOffset.UTC;
+        return wrappedClock.getZone();
     }
 
     @Override
-    public Clock withZone(ZoneId zoneId) {
-        if (zoneId.equals(this.zoneId)) {
+    public synchronized Clock withZone(ZoneId zoneId) {
+        if (zoneId.equals(wrappedClock.getZone())) {
             return this;
         }
-
-        return new ClockMock(zoneId);
+        return new ClockMock(wrappedClock.withZone(zoneId));
     }
 
     @Override
     public long millis() {
-        return now.getMillis();
+        return wrappedClock.millis();
     }
 
     @Override
     public Instant instant() {
-        return Instant.ofEpochMilli(now.getMillis());
+        return wrappedClock.instant();
     }
 
-    public ClockMock setTime(DateTime now) {
-        this.now = now;
+    public synchronized void setTime(DateTime now) {
+        setTime(Instant.ofEpochMilli(now.getMillis()));
+    }
+
+    private void setTime(Instant now) {
+        assert Thread.holdsLock(this);
+        this.wrappedClock = Clock.fixed(now, getZone());
+    }
+
+    /** freeze the time for this clock, preventing it from advancing */
+    public synchronized ClockMock freeze() {
+        setTime(instant());
         return this;
     }
 
-    public ClockMock fastForward(TimeValue timeValue) {
-        return setTime(now.plusMillis((int) timeValue.millis()));
+    /** the clock will be reset to current time and will advance from now */
+    public synchronized ClockMock unfreeze() {
+        wrappedClock = Clock.system(getZone());
+        return this;
     }
 
-    public ClockMock fastForwardSeconds(int seconds) {
-        return fastForward(TimeValue.timeValueSeconds(seconds));
+    /** freeze the clock if not frozen and advance it by the given time */
+    public synchronized void fastForward(TimeValue timeValue) {
+        setTime(instant().plusMillis(timeValue.getMillis()));
     }
 
-    public ClockMock rewind(TimeValue timeValue) {
-        return setTime(now.minusMillis((int) timeValue.millis()));
+    /** freeze the clock if not frozen and advance it by the given amount of seconds */
+    public void fastForwardSeconds(int seconds) {
+        fastForward(TimeValue.timeValueSeconds(seconds));
     }
 
-    public ClockMock rewindSeconds(int seconds) {
-        return rewind(TimeValue.timeValueSeconds(seconds));
+    /** freeze the clock if not frozen and rewind it by the given time */
+    public synchronized void rewind(TimeValue timeValue) {
+        setTime(instant().minusMillis((int) timeValue.millis()));
+    }
+
+    /** freeze the clock if not frozen and rewind it by the given number of seconds */
+    public void rewindSeconds(int seconds) {
+        rewind(TimeValue.timeValueSeconds(seconds));
     }
 }

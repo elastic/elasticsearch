@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.TimeWarpedXPackPlugin;
@@ -281,6 +282,13 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     private void startWatcherIfNodesExist() throws Exception {
         if (internalCluster().size() > 0) {
             ensureLicenseEnabled();
+            if (timeWarped()) {
+                // now that the license is enabled and valid we can freeze all nodes clocks
+                logger.info("[{}#{}]: freezing time on nodes", getTestClass().getSimpleName(), getTestName());
+                TimeFreezeDisruption ice = new TimeFreezeDisruption();
+                internalCluster().setDisruptionScheme(ice);
+                ice.startDisrupting();
+            }
             WatcherState state = getInstanceFromMaster(WatcherService.class).state();
             if (state == WatcherState.STOPPED) {
                 logger.info("[{}#{}]: starting watcher", getTestClass().getSimpleName(), getTestName());
@@ -585,12 +593,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected void ensureLicenseEnabled() throws Exception {
-        if (timeWarped()) {
-            // the master generates a license which starts now. We have to make sure all nodes
-            // advance their time so that the license will be valid
-            progressClocksAboveMaster(internalCluster());
-        }
-
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
                 assertThat(licenseState.isWatcherAllowed(), is(true));
@@ -797,4 +799,70 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
     }
 
+    /**
+     * A disruption that prevents time from advancing on nodes. This is needed to allow time sensitive tests
+     * to have full control of time. This disruption requires {@link ClockMock} being available on the nodes.
+     */
+    private static class TimeFreezeDisruption implements ServiceDisruptionScheme {
+
+        private InternalTestCluster cluster;
+        private boolean frozen;
+
+        @Override
+        public void applyToCluster(InternalTestCluster cluster) {
+            this.cluster = cluster;
+        }
+
+        @Override
+        public void removeFromCluster(InternalTestCluster cluster) {
+            stopDisrupting();
+        }
+
+        @Override
+        public void removeAndEnsureHealthy(InternalTestCluster cluster) {
+            stopDisrupting();
+        }
+
+        @Override
+        public synchronized void applyToNode(String node, InternalTestCluster cluster) {
+            if (frozen) {
+                ((ClockMock)cluster.getInstance(Clock.class, node)).freeze();
+            }
+        }
+
+        @Override
+        public void removeFromNode(String node, InternalTestCluster cluster) {
+            ((ClockMock)cluster.getInstance(Clock.class, node)).unfreeze();
+        }
+
+        @Override
+        public synchronized void startDisrupting() {
+            frozen = true;
+            for (String node: cluster.getNodeNames()) {
+                applyToNode(node, cluster);
+            }
+        }
+
+        @Override
+        public void stopDisrupting() {
+            frozen = false;
+            for (String node: cluster.getNodeNames()) {
+                removeFromNode(node, cluster);
+            }
+        }
+
+        @Override
+        public void testClusterClosed() {
+        }
+
+        @Override
+        public TimeValue expectedTimeToHeal() {
+            return TimeValue.ZERO;
+        }
+
+        @Override
+        public String toString() {
+            return "time frozen";
+        }
+    }
 }

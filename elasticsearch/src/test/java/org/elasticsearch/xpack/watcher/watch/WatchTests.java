@@ -166,7 +166,7 @@ public class WatchTests extends ESTestCase {
 
     public void testParserSelfGenerated() throws Exception {
         DateTime now = new DateTime(UTC);
-        ClockMock clock = new ClockMock();
+        ClockMock clock = ClockMock.frozen();
         clock.setTime(now);
         TransformRegistry transformRegistry = transformRegistry();
         boolean includeStatus = randomBoolean();
@@ -219,7 +219,7 @@ public class WatchTests extends ESTestCase {
     }
 
     public void testParserBadActions() throws Exception {
-        ClockMock clock = new ClockMock();
+        ClockMock clock = ClockMock.frozen();
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
@@ -434,7 +434,7 @@ public class WatchTests extends ESTestCase {
         parsers.put(ArrayCompareCondition.TYPE, (c, id, p) -> ArrayCompareCondition.parse(c, id, p));
         parsers.put(CompareCondition.TYPE, (c, id, p) -> CompareCondition.parse(c, id, p));
         parsers.put(ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p));
-        return new ConditionRegistry(parsers, new ClockMock());
+        return new ConditionRegistry(parsers, ClockMock.frozen());
     }
 
     private ExecutableTransform randomTransform() {

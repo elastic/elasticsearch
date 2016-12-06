@@ -13,12 +13,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -49,22 +47,19 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
 
         int n = randomIntBetween(1, 2);
         logger.debug("--> starting {} master only nodes", n);
-        InternalTestCluster.Async<List<String>> masterNodes = internalCluster().startMasterOnlyNodesAsync(n);
-        masterNodes.get();
+        internalCluster().startMasterOnlyNodes(n);
         nodes += n;
 
         n = randomIntBetween(2, 3);
         logger.debug("--> starting {} data only nodes", n);
-        InternalTestCluster.Async<List<String>> dataNodes = internalCluster().startDataOnlyNodesAsync(n);
-        dataNodes.get();
+        internalCluster().startDataOnlyNodes(n);
         nodes += n;
 
         n = randomIntBetween(1, 2);
         logger.debug("--> starting {} client only nodes", n);
-        InternalTestCluster.Async<List<String>> clientNodes = internalCluster().startNodesAsync(n,
+        internalCluster().startNodes(n,
                 Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), false)
                         .put(Node.NODE_INGEST_SETTING.getKey(), false).build());
-        clientNodes.get();
         nodes += n;
 
         n = randomIntBetween(1, 2);

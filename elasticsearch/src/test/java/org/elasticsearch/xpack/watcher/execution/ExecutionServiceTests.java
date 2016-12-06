@@ -98,7 +98,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(executor.queue()).thenReturn(new ArrayBlockingQueue<>(1));
 
         watchLockService = mock(WatchLockService.class);
-        clock = new ClockMock();
+        clock = ClockMock.frozen();
         threadPool = mock(ThreadPool.class);
         executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore,
                 watchLockService, clock, threadPool);

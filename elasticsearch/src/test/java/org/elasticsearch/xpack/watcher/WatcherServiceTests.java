@@ -58,7 +58,7 @@ public class WatcherServiceTests extends ESTestCase {
         watchParser = mock(Watch.Parser.class);
         ExecutionService executionService = mock(ExecutionService.class);
         WatchLockService watchLockService = mock(WatchLockService.class);
-        clock = new ClockMock();
+        clock = ClockMock.frozen();
         WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = mock(WatcherIndexTemplateRegistry.class);
         watcherService = new WatcherService(Settings.EMPTY, clock, triggerService, watchStore, watchParser, executionService,
                 watchLockService, watcherIndexTemplateRegistry);

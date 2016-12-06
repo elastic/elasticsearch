@@ -134,7 +134,7 @@ public class CompareConditionTests extends ESTestCase {
     }
 
     public void testExecuteDateMath() throws Exception {
-        ClockMock clock = new ClockMock();
+        ClockMock clock = ClockMock.frozen();
         boolean met = randomBoolean();
         Op op = met ? randomFrom(CompareCondition.Op.GT, CompareCondition.Op.GTE, CompareCondition.Op.NOT_EQ) :
                 randomFrom(CompareCondition.Op.LT, CompareCondition.Op.LTE, CompareCondition.Op.EQ);
@@ -147,7 +147,7 @@ public class CompareConditionTests extends ESTestCase {
     }
 
     public void testExecutePath() throws Exception {
-        ClockMock clock = new ClockMock();
+        ClockMock clock = ClockMock.frozen();
         boolean met = randomBoolean();
         Op op = met ? CompareCondition.Op.EQ : CompareCondition.Op.NOT_EQ;
         String value = "{{ctx.payload.value}}";
@@ -171,7 +171,7 @@ public class CompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        CompareCondition condition = (CompareCondition) CompareCondition.parse(new ClockMock(), "_id", parser);
+        CompareCondition condition = (CompareCondition) CompareCondition.parse(ClockMock.frozen(), "_id", parser);
 
         assertThat(condition, notNullValue());
         assertThat(condition.getPath(), is("key1.key2"));
@@ -188,7 +188,7 @@ public class CompareConditionTests extends ESTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         try {
-            CompareCondition.parse(new ClockMock(), "_id", parser);
+            CompareCondition.parse(ClockMock.frozen(), "_id", parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("expected an object but found [null] instead"));
@@ -207,7 +207,7 @@ public class CompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {
-            CompareCondition.parse(new ClockMock(), "_id", parser);
+            CompareCondition.parse(ClockMock.frozen(), "_id", parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("unknown comparison operator [foobar]"));
@@ -227,7 +227,7 @@ public class CompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {
-            CompareCondition.parse(new ClockMock(), "_id", parser);
+            CompareCondition.parse(ClockMock.frozen(), "_id", parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("must either be a numeric, string, boolean or null value, but found ["));

@@ -144,7 +144,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testExecuteDateMath() {
-        ClockMock clock = new ClockMock();
+        ClockMock clock = ClockMock.frozen();
         boolean met = randomBoolean();
         ArrayCompareCondition.Op op = met ?
                 randomFrom(ArrayCompareCondition.Op.GT, ArrayCompareCondition.Op.GTE, ArrayCompareCondition.Op.NOT_EQ) :
@@ -183,7 +183,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        ArrayCompareCondition condition = (ArrayCompareCondition) ArrayCompareCondition.parse(new ClockMock(), "_id", parser);
+        ArrayCompareCondition condition = (ArrayCompareCondition) ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
 
         assertThat(condition, notNullValue());
         assertThat(condition.getArrayPath(), is("key1.key2"));
@@ -218,7 +218,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("duplicate comparison operator");
 
-        ArrayCompareCondition.parse(new ClockMock(), "_id", parser);
+        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
 
     public void testParseContainsUnknownOperator() throws IOException {
@@ -241,7 +241,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("unknown comparison operator");
 
-        ArrayCompareCondition.parse(new ClockMock(), "_id", parser);
+        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
 
     public void testParseContainsDuplicateValue() throws IOException {
@@ -266,7 +266,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("duplicate field \"value\"");
 
-        ArrayCompareCondition.parse(new ClockMock(), "_id", parser);
+        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
 
     public void testParseContainsDuplicateQuantifier() throws IOException {
@@ -291,7 +291,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("duplicate field \"quantifier\"");
 
-        ArrayCompareCondition.parse(new ClockMock(), "_id", parser);
+        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
 
     public void testParseContainsUnknownQuantifier() throws IOException {
@@ -314,7 +314,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("unknown comparison quantifier");
 
-        ArrayCompareCondition.parse(new ClockMock(), "_id", parser);
+        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
 
     public void testParseContainsUnexpectedFieldInComparisonOperator() throws IOException {
@@ -339,6 +339,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("expected a field indicating the comparison value or comparison quantifier");
 
-        ArrayCompareCondition.parse(new ClockMock(), "_id", parser);
+        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
 }

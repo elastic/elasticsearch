@@ -117,12 +117,10 @@ public class DocumentMapperParser {
             MetadataFieldMapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
             if (typeParser != null) {
                 iterator.remove();
-                Map<String, Object> fieldNodeMap;
-                try {
-                    fieldNodeMap = (Map<String, Object>) fieldNode;
-                } catch (ClassCastException e) {
+                if (false == fieldNode instanceof Map) {
                     throw new IllegalArgumentException("[_parent] must be an object containing [type]");
                 }
+                Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
                 docBuilder.put(typeParser.parse(fieldName, fieldNodeMap, parserContext));
                 fieldNodeMap.remove("type");
                 checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());

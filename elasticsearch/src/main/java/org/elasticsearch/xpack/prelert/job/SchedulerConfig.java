@@ -47,7 +47,6 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
      */
     public static final String DOC_COUNT = "doc_count";
 
-    // NORELEASE: no camel casing:
     public static final ParseField QUERY_DELAY = new ParseField("query_delay");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField INDEXES = new ParseField("indexes");
@@ -57,10 +56,6 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
-    /**
-     * Named to match Elasticsearch, hence lowercase_with_underscores instead of
-     * camelCase
-     */
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
 
     @SuppressWarnings("unchecked")

@@ -145,11 +145,13 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String host = hostMatcher.group("host");
         int port = Integer.parseInt(hostMatcher.group("port"));
         Map<String, String> headers = extractStringStringMap(remote, "headers");
+        TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
+        TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
             throw new IllegalArgumentException(
                     "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
-        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers);
+        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers, socketTimeout, connectTimeout);
     }
 
     /**
@@ -200,6 +202,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         @SuppressWarnings("unchecked") // We just checked....
         Map<String, String> safe = (Map<String, String>) map;
         return safe;
+    }
+
+    private static TimeValue extractTimeValue(Map<String, Object> source, String name, TimeValue defaultValue) {
+        String string = extractString(source, name);
+        return string == null ? defaultValue : parseTimeValue(string, name);
     }
 
     private static BytesReference queryForRemote(Map<String, Object> source) throws IOException {

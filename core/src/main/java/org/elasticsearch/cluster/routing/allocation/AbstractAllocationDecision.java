@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,47 +40,31 @@ import java.util.stream.Collectors;
 public abstract class AbstractAllocationDecision implements ToXContent, Writeable {
 
     @Nullable
-    protected final Type decision;
-    @Nullable
     protected final DiscoveryNode targetNode;
     @Nullable
     protected final List<NodeAllocationResult> nodeDecisions;
 
-    protected AbstractAllocationDecision(@Nullable Type decision, @Nullable DiscoveryNode targetNode,
-                                         @Nullable List<NodeAllocationResult> nodeDecisions) {
-        this.decision = decision;
+    protected AbstractAllocationDecision(@Nullable DiscoveryNode targetNode, @Nullable List<NodeAllocationResult> nodeDecisions) {
         this.targetNode = targetNode;
         this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
     }
 
     protected AbstractAllocationDecision(StreamInput in) throws IOException {
-        decision = in.readOptionalWriteable(Type::readFrom);
         targetNode = in.readOptionalWriteable(DiscoveryNode::new);
         nodeDecisions = in.readBoolean() ? Collections.unmodifiableList(in.readList(NodeAllocationResult::new)) : null;
     }
 
     /**
-     * Returns <code>true</code> if a decision was taken by the allocator, {@code false} otherwise.
+     * Returns {@code true} if a decision was taken by the allocator, {@code false} otherwise.
      * If no decision was taken, then the rest of the fields in this object cannot be accessed and will
      * throw an {@code IllegalStateException}.
      */
-    public boolean isDecisionTaken() {
-        return decision != null;
-    }
+    public abstract boolean isDecisionTaken();
 
     /**
-     * Returns the decision made by the allocator on whether to assign the shard.  If {@link #isDecisionTaken()}
-     * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
-     */
-    public Type getDecisionType() {
-        checkDecisionState();
-        return decision;
-    }
-
-    /**
-     * Get the node that the allocator will assign the shard to, unless {@link #getDecisionType()} returns
-     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.  If
-     * {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
+     * Get the node that the allocator will assign the shard to, returning {@code null} if there is no node to
+     * which the shard will be assigned or moved.  If {@link #isDecisionTaken()} returns {@code false}, then
+     * invoking this method will throw an {@code IllegalStateException}.
      */
     @Nullable
     public DiscoveryNode getTargetNode() {
@@ -90,8 +73,8 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     }
 
     /**
-     * Gets the sorted list of individual node-level decisions that went into making the final decision as
-     * represented by {@link #getDecisionType()}.  If {@link #isDecisionTaken()} returns {@code false}, then
+     * Gets the sorted list of individual node-level decisions that went into making the ultimate decision whether
+     * to allocate or move the shard.  If {@link #isDecisionTaken()} returns {@code false}, then
      * invoking this method will throw an {@code IllegalStateException}.
      */
     @Nullable
@@ -108,7 +91,6 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(decision);
         out.writeOptionalWriteable(targetNode);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
@@ -158,7 +140,7 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
         throws IOException {
 
         if (nodeDecisions != null) {
-            builder.startArray("node_decisions");
+            builder.startArray("node_allocation_decisions");
             {
                 for (NodeAllocationResult explanation : nodeDecisions) {
                     explanation.toXContent(builder, params);
@@ -177,7 +159,7 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
             return false;
         }
         for (NodeAllocationResult result : nodeDecisions) {
-            if (result.getNodeDecisionType() == Type.YES) {
+            if (result.getNodeDecision() == AllocationDecision.YES) {
                 return true;
             }
         }

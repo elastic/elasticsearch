@@ -36,44 +36,44 @@ import java.util.List;
  */
 public final class MoveDecision extends AbstractAllocationDecision {
     /** a constant representing no decision taken */
-    public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, null, null, null, false, 0);
+    public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
     /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
     private static final MoveDecision CACHED_STAY_DECISION =
-        new MoveDecision(Decision.YES, null, Type.NO, null, null, false, 0);
+        new MoveDecision(Decision.YES, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
     private static final MoveDecision CACHED_CANNOT_MOVE_DECISION =
-        new MoveDecision(Decision.NO, null, Type.NO, null, null, false, 0);
+        new MoveDecision(Decision.NO, null, AllocationDecision.NO, null, null, 0);
 
+    @Nullable
+    AllocationDecision allocationDecision;
     @Nullable
     private final Decision canRemainDecision;
     @Nullable
     private final Decision canRebalanceDecision;
-    private final boolean fetchPending;
     private final int currentNodeRanking;
 
-    private MoveDecision(Decision canRemainDecision, Decision canRebalanceDecision, Type finalDecision,
-                         DiscoveryNode assignedNode, List<NodeAllocationResult> nodeDecisions, boolean fetchPending,
-                         int currentNodeRanking) {
-        super(finalDecision, assignedNode, nodeDecisions);
+    private MoveDecision(Decision canRemainDecision, Decision canRebalanceDecision, AllocationDecision allocationDecision,
+                         DiscoveryNode assignedNode, List<NodeAllocationResult> nodeDecisions, int currentNodeRanking) {
+        super(assignedNode, nodeDecisions);
+        this.allocationDecision = allocationDecision;
         this.canRemainDecision = canRemainDecision;
         this.canRebalanceDecision = canRebalanceDecision;
-        this.fetchPending = fetchPending;
         this.currentNodeRanking = currentNodeRanking;
     }
 
     public MoveDecision(StreamInput in) throws IOException {
         super(in);
+        allocationDecision = in.readOptionalWriteable(AllocationDecision::readFrom);
         canRemainDecision = in.readOptionalWriteable(Decision::readFrom);
         canRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
-        fetchPending = in.readBoolean();
         currentNodeRanking = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeOptionalWriteable(allocationDecision);
         out.writeOptionalWriteable(canRemainDecision);
         out.writeOptionalWriteable(canRebalanceDecision);
-        out.writeBoolean(fetchPending);
         out.writeVInt(currentNodeRanking);
     }
 
@@ -84,7 +84,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public static MoveDecision stay(Decision canRemainDecision) {
         if (canRemainDecision != null) {
             assert canRemainDecision.type() != Type.NO;
-            return new MoveDecision(canRemainDecision, null, Type.NO, null, null, false, 0);
+            return new MoveDecision(canRemainDecision, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
         } else {
             return CACHED_STAY_DECISION;
         }
@@ -94,39 +94,44 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a move decision for the shard not being allowed to remain on its current node.
      *
      * @param canRemainDecision the decision for whether the shard is allowed to remain on its current node
-     * @param finalDecision the decision of whether to move the shard to another node
+     * @param allocationDecision the {@link AllocationDecision} for moving the shard to another node
      * @param assignedNode the node where the shard should move to
      * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
      * @return the {@link MoveDecision} for moving the shard to another node
      */
-    public static MoveDecision cannotRemain(Decision canRemainDecision, Type finalDecision, DiscoveryNode assignedNode,
+    public static MoveDecision cannotRemain(Decision canRemainDecision, AllocationDecision allocationDecision, DiscoveryNode assignedNode,
                                             List<NodeAllocationResult> nodeDecisions) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
-        if (nodeDecisions == null && finalDecision == Type.NO) {
+        if (nodeDecisions == null && allocationDecision == AllocationDecision.NO) {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
-            assert ((assignedNode == null) == (finalDecision != Type.YES));
-            return new MoveDecision(canRemainDecision, null, finalDecision, assignedNode, nodeDecisions, false, 0);
+            assert ((assignedNode == null) == (allocationDecision != AllocationDecision.YES));
+            return new MoveDecision(canRemainDecision, null, allocationDecision, assignedNode, nodeDecisions, 0);
         }
     }
 
     /**
      * Creates a move decision for when rebalancing the shard is not allowed.
      */
-    public static MoveDecision cannotRebalance(Decision canRebalanceDecision, int currentNodeRanking,
-                                               List<NodeAllocationResult> nodeDecisions, boolean fetchPending) {
-        return new MoveDecision(null, canRebalanceDecision, Type.NO, null, nodeDecisions, fetchPending, currentNodeRanking);
+    public static MoveDecision cannotRebalance(Decision canRebalanceDecision, AllocationDecision allocationDecision, int currentNodeRanking,
+                                               List<NodeAllocationResult> nodeDecisions) {
+        return new MoveDecision(null, canRebalanceDecision, allocationDecision, null, nodeDecisions, currentNodeRanking);
     }
 
     /**
      * Creates a decision for whether to move the shard to a different node to form a better cluster balance.
      */
-    public static MoveDecision rebalance(Decision canRebalanceDecision, Type finalDecision,
+    public static MoveDecision rebalance(Decision canRebalanceDecision, AllocationDecision allocationDecision,
                                          @Nullable DiscoveryNode assignedNode, int currentNodeRanking,
                                          List<NodeAllocationResult> nodeDecisions) {
-        return new MoveDecision(null, canRebalanceDecision, finalDecision, assignedNode, nodeDecisions, false, currentNodeRanking);
+        return new MoveDecision(null, canRebalanceDecision, allocationDecision, assignedNode, nodeDecisions, currentNodeRanking);
+    }
+
+    @Override
+    public boolean isDecisionTaken() {
+        return this != NOT_TAKEN;
     }
 
     /**
@@ -136,21 +141,41 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean forceMove() {
         checkDecisionState();
-        return cannotRemain() && getDecisionType() == Type.YES;
+        return canRemain() == false && allocationDecision == AllocationDecision.YES;
     }
 
     /**
-     * Returns {@code true} if the shard cannot remain on its current node.  If {@link #isDecisionTaken()} returns
-     * {@code false}, then invoking this method will throw an {@code IllegalStateException}.
+     * Returns {@code true} if the shard can remain on its current node, returns {@code false} otherwise.
+     * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
-    public boolean cannotRemain() {
+    public boolean canRemain() {
         checkDecisionState();
-        return isDecisionTaken() && canRemainDecision.type() == Type.NO;
+        return canRemainDecision.type() == Type.YES;
+    }
+
+    /**
+     * Returns the decision for the shard being allowed to remain on its current node.  If {@link #isDecisionTaken()}
+     * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
+     */
+    public Decision getCanRemainDecision() {
+        checkDecisionState();
+        return canRemainDecision;
+    }
+
+    /**
+     * Returns {@code true} if the shard is allowed to be rebalanced to another node in the cluster,
+     * returns {@code false} otherwise.  If {@link #getCanRebalanceDecision()} returns {@code null}, then
+     * the result of this method is meaningless, as no rebalance decision was taken.  If {@link #isDecisionTaken()}
+     * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
+     */
+    public boolean canRebalance() {
+        checkDecisionState();
+        return canRebalanceDecision.type() == Type.YES;
     }
 
     /**
      * Returns the decision for being allowed to rebalance the shard.  Invoking this method will return
-     * {@code null} if {@link #cannotRemain()} returns {@code true}, which means the node is not allowed to
+     * {@code null} if {@link #canRemain()} ()} returns {@code false}, which means the node is not allowed to
      * remain on its current node, so the cluster is forced to attempt to move the shard to a different node,
      * as opposed to attempting to rebalance the shard if a better cluster balance is possible by moving it.
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an
@@ -160,6 +185,15 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public Decision getCanRebalanceDecision() {
         checkDecisionState();
         return canRebalanceDecision;
+    }
+
+    /**
+     * Returns the {@link AllocationDecision} for moving this shard to another node.  If {@link #isDecisionTaken()} returns
+     * {@code false}, then invoking this method will throw an {@code IllegalStateException}.
+     */
+    @Nullable
+    public AllocationDecision getAllocationDecision() {
+        return allocationDecision;
     }
 
     /**
@@ -180,7 +214,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         String explanation;
         if (canRebalanceDecision != null) {
             // it was a decision to rebalance the shard, because the shard was allowed to remain on its current node
-            if (fetchPending) {
+            if (allocationDecision == AllocationDecision.FETCH_PENDING) {
                 explanation = "cannot rebalance as information about existing copies of this shard in the cluster is still being gathered";
             } else if (canRebalanceDecision.type() == Type.NO) {
                 explanation = "rebalancing is not allowed on the cluster" + (atLeastOneNodeWithYesDecision() ? ", even though there " +
@@ -189,7 +223,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 explanation = "rebalancing is throttled";
             } else {
                 if (getTargetNode() != null) {
-                    if (getDecisionType() == Type.THROTTLE) {
+                    if (allocationDecision == AllocationDecision.THROTTLE) {
                         explanation = "shard rebalancing throttled";
                     } else {
                         explanation = "can rebalance shard";
@@ -201,14 +235,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
             }
         } else {
             // it was a decision to force move the shard
-            if (cannotRemain() == false) {
+            if (canRemain()) {
                 explanation = "shard can remain on its current node";
-            } else if (getDecisionType() == Type.YES) {
+            } else if (allocationDecision == AllocationDecision.YES) {
                 explanation = "shard cannot remain on this node and is force-moved to another node";
-            } else if (getDecisionType() == Type.THROTTLE) {
+            } else if (allocationDecision == AllocationDecision.THROTTLE) {
                 explanation = "shard cannot remain on this node but is throttled on moving to another node";
             } else {
-                assert getDecisionType() == Type.NO;
+                assert allocationDecision == AllocationDecision.NO;
                 explanation = "cannot move shard to another node, even though it is not allowed to remain on its current node";
             }
         }
@@ -218,27 +252,32 @@ public final class MoveDecision extends AbstractAllocationDecision {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         checkDecisionState();
-        builder.field(canRebalanceDecision != null ? "rebalance_decision" : "move_decision", decision.toString());
-        builder.field("explanation", getExplanation());
         if (targetNode != null) {
             builder.startObject("target_node");
             discoveryNodeToXContent(targetNode, true, builder);
             builder.endObject();
         }
-        builder.field("can_remain_decision", canRemainDecision.type().toString());
-        if (canRemainDecision.getDecisions().isEmpty() == false) {
-            builder.startArray("can_remain_details");
+        builder.field("can_remain_on_current_node", canRemain());
+        if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
+            builder.startArray("can_remain_decisions");
             canRemainDecision.toXContent(builder, params);
             builder.endArray();
         }
         if (canRebalanceDecision != null) {
-            builder.field("can_rebalance_decision", canRebalanceDecision.type().toString());
-            if (canRebalanceDecision.getDecisions().isEmpty() == false) {
-                builder.startArray("can_rebalance_details");
+            AllocationDecision rebalanceDecision = AllocationDecision.fromDecisionType(canRebalanceDecision.type());
+            builder.field("can_rebalance_cluster", rebalanceDecision);
+            if (rebalanceDecision != AllocationDecision.YES && canRebalanceDecision.getDecisions().isEmpty() == false) {
+                builder.startArray("can_rebalance_cluster_decisions");
                 canRebalanceDecision.toXContent(builder, params);
                 builder.endArray();
             }
         }
+        if (canRebalanceDecision != null) {
+            builder.field("can_rebalance_to_other_node", allocationDecision);
+        } else {
+            builder.field("can_move_to_other_node", forceMove());
+        }
+        builder.field(canRebalanceDecision != null ? "rebalance_explanation" : "move_explanation", getExplanation());
         nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;
     }

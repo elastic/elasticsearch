@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,14 +40,14 @@ import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDec
 public class NodeAllocationResult implements ToXContent, Writeable, Comparable<NodeAllocationResult> {
 
     private static final Comparator<NodeAllocationResult> nodeResultComparator =
-        Comparator.comparing(NodeAllocationResult::getNodeDecisionType)
+        Comparator.comparing(NodeAllocationResult::getNodeDecision)
             .thenComparingInt(NodeAllocationResult::getWeightRanking)
             .thenComparing(r -> r.getNode().getId());
 
     private final DiscoveryNode node;
     @Nullable
     private final ShardStoreInfo shardStoreInfo;
-    private final Type nodeDecisionType;
+    private final AllocationDecision nodeDecision;
     private final Decision canAllocateDecision;
     private final int weightRanking;
 
@@ -56,15 +55,15 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         this.node = node;
         this.shardStoreInfo = shardStoreInfo;
         this.canAllocateDecision = decision;
-        this.nodeDecisionType = canAllocateDecision.type();
+        this.nodeDecision = AllocationDecision.fromDecisionType(canAllocateDecision.type());
         this.weightRanking = 0;
     }
 
-    public NodeAllocationResult(DiscoveryNode node, Type nodeDecisionType, Decision canAllocate, int weightRanking) {
+    public NodeAllocationResult(DiscoveryNode node, AllocationDecision nodeDecision, Decision canAllocate, int weightRanking) {
         this.node = node;
         this.shardStoreInfo = null;
         this.canAllocateDecision = canAllocate;
-        this.nodeDecisionType = nodeDecisionType;
+        this.nodeDecision = nodeDecision;
         this.weightRanking = weightRanking;
     }
 
@@ -72,7 +71,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         this.node = node;
         this.shardStoreInfo = null;
         this.canAllocateDecision = decision;
-        this.nodeDecisionType = decision.type();
+        this.nodeDecision = AllocationDecision.fromDecisionType(decision.type());
         this.weightRanking = weightRanking;
     }
 
@@ -80,7 +79,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         node = new DiscoveryNode(in);
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
         canAllocateDecision = Decision.readFrom(in);
-        nodeDecisionType = Type.readFrom(in);
+        nodeDecision = AllocationDecision.readFrom(in);
         weightRanking = in.readVInt();
     }
 
@@ -89,7 +88,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         node.writeTo(out);
         out.writeOptionalWriteable(shardStoreInfo);
         canAllocateDecision.writeTo(out);
-        nodeDecisionType.writeTo(out);
+        nodeDecision.writeTo(out);
         out.writeVInt(weightRanking);
     }
 
@@ -109,7 +108,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     }
 
     /**
-     * The decision for allocating to the node.
+     * The decision details for allocating to this node.
      */
     public Decision getCanAllocateDecision() {
         return canAllocateDecision;
@@ -136,10 +135,10 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     }
 
     /**
-     * Gets the decision type for allocating to this node.
+     * Gets the {@link AllocationDecision} for allocating to this node.
      */
-    public Type getNodeDecisionType() {
-        return nodeDecisionType;
+    public AllocationDecision getNodeDecision() {
+        return nodeDecision;
     }
 
     @Override
@@ -147,15 +146,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         builder.startObject();
         {
             discoveryNodeToXContent(node, false, builder);
-            builder.field("node_decision", getNodeDecisionType());
-            if (getNodeDecisionType() == Type.NO && canAllocateDecision.type() == Type.YES && isWeightRanked()) {
-                // if the node decision is NO, despite the canAllocate decision returning YES, it might not seem
-                // intuitive why the node has a NO decision, so we provide an extra explanation in this case
-                // to denote the reason for the NO decision was that the balance was not improved
-                builder.field("explanation", "not rebalancing to this node because the weight ranking is not better " +
-                                                 "than the current node, therefore moving the shard to this node will not achieve a " +
-                                                 "better cluster balance");
-            }
+            builder.field("node_decision", nodeDecision);
             if (shardStoreInfo != null) {
                 shardStoreInfo.toXContent(builder, params);
             }

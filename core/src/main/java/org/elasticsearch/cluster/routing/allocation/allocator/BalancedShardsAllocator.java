@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -418,26 +419,29 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             List<NodeAllocationResult> nodeDecisions = new ArrayList<>(modelNodes.length - 1);
             for (Tuple<ModelNode, Decision> result : betterBalanceNodes) {
                 nodeDecisions.add(new NodeAllocationResult(
-                    result.v1().routingNode.node(), result.v2().type(), result.v2(), ++weightRanking)
+                    result.v1().routingNode.node(), AllocationDecision.fromDecisionType(result.v2().type()), result.v2(), ++weightRanking)
                 );
             }
             int currentNodeWeightRanking = ++weightRanking;
             for (Tuple<ModelNode, Decision> result : sameBalanceNodes) {
+                AllocationDecision nodeDecision = result.v2().type() == Type.NO ? AllocationDecision.NO : AllocationDecision.WORSE_BALANCE;
                 nodeDecisions.add(new NodeAllocationResult(
-                    result.v1().routingNode.node(), Type.NO, result.v2(), currentNodeWeightRanking)
+                    result.v1().routingNode.node(), nodeDecision, result.v2(), currentNodeWeightRanking)
                 );
             }
             for (Tuple<ModelNode, Decision> result : worseBalanceNodes) {
+                AllocationDecision nodeDecision = result.v2().type() == Type.NO ? AllocationDecision.NO : AllocationDecision.WORSE_BALANCE;
                 nodeDecisions.add(new NodeAllocationResult(
-                    result.v1().routingNode.node(), Type.NO, result.v2(), ++weightRanking)
+                    result.v1().routingNode.node(), nodeDecision, result.v2(), ++weightRanking)
                 );
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                return MoveDecision.cannotRebalance(canRebalance, currentNodeWeightRanking,
-                    nodeDecisions, allocation.hasPendingAsyncFetch());
+                AllocationDecision allocationDecision = allocation.hasPendingAsyncFetch() ? AllocationDecision.FETCH_PENDING :
+                                                            AllocationDecision.fromDecisionType(canRebalance.type());
+                return MoveDecision.cannotRebalance(canRebalance, allocationDecision, currentNodeWeightRanking, nodeDecisions);
             } else {
-                return MoveDecision.rebalance(canRebalance, rebalanceDecisionType,
+                return MoveDecision.rebalance(canRebalance, AllocationDecision.fromDecisionType(rebalanceDecisionType),
                     assignedNode != null ? assignedNode.routingNode.node() : null, currentNodeWeightRanking, nodeDecisions);
             }
         }
@@ -651,7 +655,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                     }
-                } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
+                } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
             }
@@ -663,8 +667,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          *   1. If the shard is not started, no decision will be taken and {@link MoveDecision#isDecisionTaken()} will return false.
          *   2. If the shard is allowed to remain on its current node, no attempt will be made to move the shard and
          *      {@link MoveDecision#canRemainDecision} will have a decision type of YES.  All other fields in the object will be null.
-         *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getDecisionType()} will be populated
-         *      with the decision of moving to another node.  If {@link MoveDecision#getDecisionType()} returns YES, then
+         *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getAllocationDecision()} will be
+         *      populated with the decision of moving to another node.  If {@link MoveDecision#forceMove()} ()} returns {@code true}, then
          *      {@link MoveDecision#targetNode} will return a non-null value, otherwise the assignedNodeId will be null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#nodeDecisions} will have a non-null value.
@@ -719,7 +723,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
             }
 
-            return MoveDecision.cannotRemain(canRemain, bestDecision, targetNode != null ? targetNode.node() : null, nodeExplanationMap);
+            return MoveDecision.cannotRemain(canRemain, AllocationDecision.fromDecisionType(bestDecision),
+                targetNode != null ? targetNode.node() : null, nodeExplanationMap);
         }
 
         /**
@@ -803,12 +808,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 for (int i = 0; i < primaryLength; i++) {
                     ShardRouting shard = primary[i];
                     AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard, throttledNodes);
-                    final Type decisionType = allocationDecision.getDecisionType();
                     final String assignedNodeId = allocationDecision.getTargetNode() != null ?
                                                       allocationDecision.getTargetNode().getId() : null;
                     final ModelNode minNode = assignedNodeId != null ? nodes.get(assignedNodeId) : null;
 
-                    if (decisionType == Type.YES) {
+                    if (allocationDecision.getAllocationDecision() == AllocationDecision.YES) {
                         if (logger.isTraceEnabled()) {
                             logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                         }
@@ -827,12 +831,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     } else {
                         // did *not* receive a YES decision
                         if (logger.isTraceEnabled()) {
-                            logger.trace("No eligible node found to assign shard [{}] decision [{}]", shard, decisionType);
+                            logger.trace("No eligible node found to assign shard [{}] allocation_status [{}]", shard,
+                                allocationDecision.getAllocationStatus());
                         }
 
                         if (minNode != null) {
                             // throttle decision scenario
-                            assert decisionType == Type.THROTTLE;
+                            assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
                             final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard, allocation,
                                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                             minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
@@ -840,23 +845,22 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             final Decision.Type nodeLevelDecision = deciders.canAllocate(node, allocation).type();
                             if (nodeLevelDecision != Type.YES) {
                                 if (logger.isTraceEnabled()) {
-                                    logger.trace("Can not allocate on node [{}] remove from round decision [{}]", node, decisionType);
+                                    logger.trace("Can not allocate on node [{}] remove from round decision [{}]", node,
+                                        allocationDecision.getAllocationStatus());
                                 }
                                 assert nodeLevelDecision == Type.NO;
                                 throttledNodes.add(minNode);
                             }
                         } else {
-                            assert decisionType == Type.NO;
                             if (logger.isTraceEnabled()) {
                                 logger.trace("No Node found to assign shard [{}]", shard);
                             }
                         }
 
-                        AllocationStatus allocationStatus = AllocationStatus.fromDecision(decisionType);
-                        unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
+                        unassigned.ignoreShard(shard, allocationDecision.getAllocationStatus(), allocation.changes());
                         if (!shard.primary()) { // we could not allocate it and we are a replica - check if we can ignore the other replicas
                             while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
-                                unassigned.ignoreShard(primary[++i], allocationStatus, allocation.changes());
+                                unassigned.ignoreShard(primary[++i], allocationDecision.getAllocationStatus(), allocation.changes());
                             }
                         }
                     }

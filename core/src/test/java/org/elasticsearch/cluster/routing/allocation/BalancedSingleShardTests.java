@@ -74,7 +74,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         routingAllocation.setHasPendingAsyncFetch();
         MoveDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertNotNull(rebalanceDecision.getCanRebalanceDecision());
-        assertEquals(Type.NO, rebalanceDecision.getDecisionType());
+        assertEquals(AllocationDecision.FETCH_PENDING, rebalanceDecision.getAllocationDecision());
         assertThat(rebalanceDecision.getExplanation(),
             startsWith("cannot rebalance as information about existing copies of this shard in the cluster is still being gathered"));
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
@@ -98,7 +98,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             new AllocationDeciders(Settings.EMPTY, Collections.singleton(noRebalanceDecider)), clusterState);
         MoveDecision rebalanceDecision = allocator.decideRebalance(shard, routingAllocation);
         assertEquals(canRebalanceDecision.type(), rebalanceDecision.getCanRebalanceDecision().type());
-        assertEquals(Type.NO, rebalanceDecision.getDecisionType());
+        assertEquals(AllocationDecision.fromDecisionType(canRebalanceDecision.type()), rebalanceDecision.getAllocationDecision());
         assertThat(rebalanceDecision.getExplanation(), containsString(canRebalanceDecision.type() == Type.THROTTLE ?
             "rebalancing is throttled" : "rebalancing is not allowed"));
         assertNotNull(rebalanceDecision.getNodeDecisions());
@@ -137,9 +137,9 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         ClusterState clusterState = rebalance.v1();
         MoveDecision rebalanceDecision = rebalance.v2();
         assertEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
-        assertEquals(Type.NO, rebalanceDecision.getDecisionType());
+        assertEquals(AllocationDecision.NO, rebalanceDecision.getAllocationDecision());
         assertThat(rebalanceDecision.getExplanation(), startsWith(
-            "cannot rebalance as no target node node exists that can both allocate this shard and improve the cluster balance"));
+            "cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance"));
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getTargetNode());
         int prevRanking = 0;
@@ -162,7 +162,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         ClusterState clusterState = rebalance.v1();
         MoveDecision rebalanceDecision = rebalance.v2();
         assertEquals(Type.YES, rebalanceDecision.getCanRebalanceDecision().type());
-        assertEquals(Type.NO, rebalanceDecision.getDecisionType());
+        assertEquals(AllocationDecision.NO, rebalanceDecision.getAllocationDecision());
         assertNotNull(rebalanceDecision.getExplanation());
         assertEquals(clusterState.nodes().getSize() - 1, rebalanceDecision.getNodeDecisions().size());
         assertNull(rebalanceDecision.getTargetNode());

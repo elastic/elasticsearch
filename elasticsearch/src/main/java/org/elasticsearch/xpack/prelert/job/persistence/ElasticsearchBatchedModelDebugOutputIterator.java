@@ -16,22 +16,18 @@ import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 
 import java.io.IOException;
 
-class ElasticsearchBatchedModelDebugOutputIterator extends ElasticsearchBatchedDocumentsIterator<ModelDebugOutput>
-{
-    public ElasticsearchBatchedModelDebugOutputIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher)
-    {
+class ElasticsearchBatchedModelDebugOutputIterator extends ElasticsearchBatchedDocumentsIterator<ModelDebugOutput> {
+    public ElasticsearchBatchedModelDebugOutputIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher) {
         super(client, JobResultsPersister.getJobIndexName(jobId), parserFieldMatcher);
     }
 
     @Override
-    protected String getType()
-    {
+    protected String getType() {
         return ModelDebugOutput.TYPE.getPreferredName();
     }
 
     @Override
-    protected ModelDebugOutput map(SearchHit hit)
-    {
+    protected ModelDebugOutput map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {

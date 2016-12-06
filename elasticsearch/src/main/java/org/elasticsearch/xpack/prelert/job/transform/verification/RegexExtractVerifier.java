@@ -12,8 +12,7 @@ import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class RegexExtractVerifier implements ArgumentVerifier
-{
+public class RegexExtractVerifier implements ArgumentVerifier {
     @Override
     public void verify(String arg, TransformConfig tc) {
         new RegexPatternVerifier().verify(arg, tc);

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.prelert.job.extraction;
 
 import org.elasticsearch.xpack.prelert.job.Job;
 
-public interface DataExtractorFactory
-{
+public interface DataExtractorFactory {
     DataExtractor newExtractor(Job job);
 }

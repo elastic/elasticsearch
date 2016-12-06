@@ -7,8 +7,7 @@ package org.elasticsearch.xpack.prelert.utils.time;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class TimeUtilsTests extends ESTestCase
-{
+public class TimeUtilsTests extends ESTestCase {
     public void testdateStringToEpoch() {
         assertEquals(1462096800000L, TimeUtils.dateStringToEpoch("2016-05-01T10:00:00Z"));
         assertEquals(1462096800333L, TimeUtils.dateStringToEpoch("2016-05-01T10:00:00.333Z"));

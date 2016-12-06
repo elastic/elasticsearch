@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.prelert.job.persistence;
  * This may create a new JobProvider or return an existing
  * one if it is thread safe and shareable.
  */
-public interface JobProviderFactory
-{
+public interface JobProviderFactory {
     /**
      * Get a {@linkplain JobProvider}
      */

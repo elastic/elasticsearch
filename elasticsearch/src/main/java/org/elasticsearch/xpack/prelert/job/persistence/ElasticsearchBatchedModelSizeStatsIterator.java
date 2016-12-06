@@ -17,22 +17,18 @@ import java.io.IOException;
 
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 
-public class ElasticsearchBatchedModelSizeStatsIterator extends ElasticsearchBatchedDocumentsIterator<ModelSizeStats>
-{
-    public ElasticsearchBatchedModelSizeStatsIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher)
-    {
+public class ElasticsearchBatchedModelSizeStatsIterator extends ElasticsearchBatchedDocumentsIterator<ModelSizeStats> {
+    public ElasticsearchBatchedModelSizeStatsIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher) {
         super(client, JobResultsPersister.getJobIndexName(jobId), parserFieldMatcher);
     }
 
     @Override
-    protected String getType()
-    {
+    protected String getType() {
         return ModelSizeStats.TYPE.getPreferredName();
     }
 
     @Override
-    protected ModelSizeStats map(SearchHit hit)
-    {
+    protected ModelSizeStats map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {

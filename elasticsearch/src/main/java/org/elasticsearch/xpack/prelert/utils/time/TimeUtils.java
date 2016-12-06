@@ -27,8 +27,7 @@ public final class TimeUtils {
     public static long dateStringToEpoch(String date) {
         try {
             long epoch = Long.parseLong(date);
-            if (date.trim().length() <= 10) // seconds
-            {
+            if (date.trim().length() <= 10) { // seconds
                 return epoch * 1000;
             } else {
                 return epoch;

@@ -12,8 +12,7 @@ import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-public class RegexPatternVerifier implements ArgumentVerifier
-{
+public class RegexPatternVerifier implements ArgumentVerifier {
     @Override
     public void verify(String arg, TransformConfig tc) throws ElasticsearchParseException {
         try {

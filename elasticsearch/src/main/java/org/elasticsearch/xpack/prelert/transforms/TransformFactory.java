@@ -43,8 +43,7 @@ public class TransformFactory {
                 index = scratchAreaIndexesMap.get(field);
                 if (index != null) {
                     readIndexes.add(new TransformIndex(SCRATCH_ARRAY_INDEX, index));
-                } else if (outputIndexesMap.containsKey(field)) // also check the outputs array for this input
-                {
+                } else if (outputIndexesMap.containsKey(field)) { // also check the outputs array for this input
                     index = outputIndexesMap.get(field);
                     readIndexes.add(new TransformIndex(SCRATCH_ARRAY_INDEX, index));
                 } else {

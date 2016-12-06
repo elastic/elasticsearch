@@ -17,8 +17,7 @@ import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 
 import java.util.Optional;
 
-public interface JobResultsProvider
-{
+public interface JobResultsProvider {
     /**
      * Search for buckets with the parameters in the {@link BucketsQueryBuilder}
      * @return QueryPage of Buckets

@@ -16,15 +16,13 @@ import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
  * Interprets field names containing dots as nested JSON structures.
  * This matches what Elasticsearch does.
  */
-class ElasticsearchDotNotationReverser
-{
+class ElasticsearchDotNotationReverser {
     private static final char DOT = '.';
     private static final Pattern DOT_PATTERN = Pattern.compile("\\.");
 
     private final Map<String, Object> resultsMap;
 
-    public ElasticsearchDotNotationReverser()
-    {
+    public ElasticsearchDotNotationReverser() {
         resultsMap = new TreeMap<>();
     }
 
@@ -33,6 +31,7 @@ class ElasticsearchDotNotationReverser
     // results are only strings, so it's not "minimum viable product" right
     // now.  Hence this method only takes fieldValue as a String and there are
     // no overloads.
+
     /**
      * Given a field name and value, convert it to a map representation of the
      * (potentially nested) JSON structure Elasticsearch would use to store it.
@@ -41,18 +40,14 @@ class ElasticsearchDotNotationReverser
      * <code>foo.bar = y</code> goes to <code>{ "foo" : { "bar" : "y" } }</code>
      */
     @SuppressWarnings("unchecked")
-    public void add(String fieldName, String fieldValue)
-    {
-        if (fieldName == null || fieldValue == null)
-        {
+    public void add(String fieldName, String fieldValue) {
+        if (fieldName == null || fieldValue == null) {
             return;
         }
 
         // Minimise processing in the simple case of no dots in the field name.
-        if (fieldName.indexOf(DOT) == -1)
-        {
-            if (ReservedFieldNames.RESERVED_FIELD_NAMES.contains(fieldName))
-            {
+        if (fieldName.indexOf(DOT) == -1) {
+            if (ReservedFieldNames.RESERVED_FIELD_NAMES.contains(fieldName)) {
                 return;
             }
             resultsMap.put(fieldName, fieldValue);
@@ -63,39 +58,27 @@ class ElasticsearchDotNotationReverser
 
         // If any segment created by the split is a reserved word then ignore
         // the whole field.
-        for (String segment : segments)
-        {
-            if (ReservedFieldNames.RESERVED_FIELD_NAMES.contains(segment))
-            {
+        for (String segment : segments) {
+            if (ReservedFieldNames.RESERVED_FIELD_NAMES.contains(segment)) {
                 return;
             }
         }
 
         Map<String, Object> layerMap = resultsMap;
-        for (int i = 0; i < segments.length; ++i)
-        {
+        for (int i = 0; i < segments.length; ++i) {
             String segment = segments[i];
-            if (i == segments.length - 1)
-            {
+            if (i == segments.length - 1) {
                 layerMap.put(segment, fieldValue);
-            }
-            else
-            {
+            } else {
                 Object existingLayerValue = layerMap.get(segment);
-                if (existingLayerValue == null)
-                {
+                if (existingLayerValue == null) {
                     Map<String, Object> nextLayerMap = new TreeMap<>();
                     layerMap.put(segment, nextLayerMap);
                     layerMap = nextLayerMap;
-                }
-                else
-                {
-                    if (existingLayerValue instanceof Map)
-                    {
-                        layerMap = (Map<String, Object>)existingLayerValue;
-                    }
-                    else
-                    {
+                } else {
+                    if (existingLayerValue instanceof Map) {
+                        layerMap = (Map<String, Object>) existingLayerValue;
+                    } else {
                         // This implies an inconsistency - different additions
                         // imply the same path leads to both an object and a
                         // value.  For example:
@@ -108,8 +91,7 @@ class ElasticsearchDotNotationReverser
         }
     }
 
-    public Map<String, Object> getResultsMap()
-    {
+    public Map<String, Object> getResultsMap() {
         return resultsMap;
     }
 
@@ -117,35 +99,27 @@ class ElasticsearchDotNotationReverser
      * Mappings for a given hierarchical structure are more complex than the
      * basic results.
      */
-    public Map<String, Object> getMappingsMap()
-    {
+    public Map<String, Object> getMappingsMap() {
         Map<String, Object> mappingsMap = new TreeMap<>();
         recurseMappingsLevel(resultsMap, mappingsMap);
         return mappingsMap;
     }
 
     @SuppressWarnings("unchecked")
-    private void recurseMappingsLevel(Map<String, Object> resultsMap,
-            Map<String, Object> mappingsMap)
-    {
-        for (Map.Entry<String, Object> entry : resultsMap.entrySet())
-        {
+    private void recurseMappingsLevel(Map<String, Object> resultsMap, Map<String, Object> mappingsMap) {
+        for (Map.Entry<String, Object> entry : resultsMap.entrySet()) {
             Map<String, Object> typeMap = new TreeMap<>();
 
             String name = entry.getKey();
             Object value = entry.getValue();
-            if (value instanceof Map)
-            {
+            if (value instanceof Map) {
                 Map<String, Object> propertiesMap = new TreeMap<>();
-                recurseMappingsLevel((Map<String, Object>)value, propertiesMap);
+                recurseMappingsLevel((Map<String, Object>) value, propertiesMap);
 
-                typeMap.put(ElasticsearchMappings.TYPE,
-                        ElasticsearchMappings.OBJECT);
+                typeMap.put(ElasticsearchMappings.TYPE, ElasticsearchMappings.OBJECT);
                 typeMap.put(ElasticsearchMappings.PROPERTIES, propertiesMap);
                 mappingsMap.put(name, typeMap);
-            }
-            else
-            {
+            } else {
                 String fieldType = value.getClass().getSimpleName().toLowerCase(Locale.ROOT);
                 if ("string".equals(fieldType)) {
                     fieldType = "keyword";

@@ -21,8 +21,7 @@ public class ProblemTrackerTests extends ESTestCase {
     private ProblemTracker problemTracker;
 
     @Before
-    public void setUpTests()
-    {
+    public void setUpTests() {
         auditor = mock(Auditor.class);
         problemTracker = new ProblemTracker(() -> auditor);
     }

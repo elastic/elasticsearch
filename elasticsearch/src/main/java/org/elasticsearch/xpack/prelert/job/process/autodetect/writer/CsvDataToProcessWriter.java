@@ -74,8 +74,8 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
 
         try (CsvListReader csvReader = new CsvListReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8), csvPref)) {
             String[] header = csvReader.getHeader(true);
-            if (header == null) // null if EoF
-            {
+            if (header == null) { // null if EoF
+
                 return statusReporter.incrementalStats();
             }
 

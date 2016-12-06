@@ -443,8 +443,7 @@ public class ElasticsearchJobProvider implements JobProvider {
 
     private List<PerPartitionMaxProbabilities> partitionMaxNormalisedProbabilities(String jobId, Object epochStart, Object epochEnd,
                                                                                    String partitionFieldValue)
-                    throws ResourceNotFoundException
-    {
+                    throws ResourceNotFoundException {
         QueryBuilder timeRangeQuery = new ResultsFilterBuilder()
                 .timeRange(ElasticsearchMappings.ES_TIMESTAMP, epochStart, epochEnd)
                 .build();

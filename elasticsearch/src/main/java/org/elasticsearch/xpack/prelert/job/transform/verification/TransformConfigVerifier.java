@@ -13,10 +13,8 @@ import org.elasticsearch.xpack.prelert.job.transform.TransformType;
 
 import java.util.List;
 
-public final class TransformConfigVerifier
-{
-    private TransformConfigVerifier()
-    {
+public final class TransformConfigVerifier {
+    private TransformConfigVerifier() {
         // Hide default constructor
     }
 

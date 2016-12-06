@@ -11,8 +11,7 @@ import java.time.format.DateTimeParseException;
  * A converter that enables conversions of textual timestamps to epoch seconds
  * or milliseconds according to a given pattern.
  */
-public interface TimestampConverter
-{
+public interface TimestampConverter {
     /**
      * Converts the a textual timestamp into an epoch in seconds
      *

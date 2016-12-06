@@ -17,22 +17,18 @@ import java.io.IOException;
 
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 
-class ElasticsearchBatchedModelSnapshotIterator extends ElasticsearchBatchedDocumentsIterator<ModelSnapshot>
-{
-    public ElasticsearchBatchedModelSnapshotIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher)
-    {
+class ElasticsearchBatchedModelSnapshotIterator extends ElasticsearchBatchedDocumentsIterator<ModelSnapshot> {
+    public ElasticsearchBatchedModelSnapshotIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher) {
         super(client, JobResultsPersister.getJobIndexName(jobId), parserFieldMatcher);
     }
 
     @Override
-    protected String getType()
-    {
+    protected String getType() {
         return ModelSnapshot.TYPE.getPreferredName();
     }
 
     @Override
-    protected ModelSnapshot map(SearchHit hit)
-    {
+    protected ModelSnapshot map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {

@@ -25,15 +25,12 @@ import java.time.temporal.TemporalAccessor;
  * <p> Objects of this class are <b>immutable</b> and <b>thread-safe</b>
  *
  */
-public class DateTimeFormatterTimestampConverter implements TimestampConverter
-{
+public class DateTimeFormatterTimestampConverter implements TimestampConverter {
     private final DateTimeFormatter formatter;
     private final boolean hasTimeZone;
     private final ZoneId defaultZoneId;
 
-    private DateTimeFormatterTimestampConverter(DateTimeFormatter dateTimeFormatter,
-            boolean hasTimeZone, ZoneId defaultTimezone)
-    {
+    private DateTimeFormatterTimestampConverter(DateTimeFormatter dateTimeFormatter, boolean hasTimeZone, ZoneId defaultTimezone) {
         formatter = dateTimeFormatter;
         this.hasTimeZone = hasTimeZone;
         defaultZoneId = defaultTimezone;
@@ -48,8 +45,7 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter
      * @throws IllegalArgumentException if the pattern is invalid or cannot produce a full timestamp
      * (e.g. contains a date but not a time)
      */
-    public static TimestampConverter ofPattern(String pattern)
-    {
+    public static TimestampConverter ofPattern(String pattern) {
         return ofPattern(pattern, ZoneOffset.systemDefault());
     }
 
@@ -62,8 +58,7 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter
      * @throws IllegalArgumentException if the pattern is invalid or cannot produce a full timestamp
      * (e.g. contains a date but not a time)
      */
-    public static TimestampConverter ofPattern(String pattern, ZoneId defaultTimezone)
-    {
+    public static TimestampConverter ofPattern(String pattern, ZoneId defaultTimezone) {
         DateTimeFormatter formatter = new DateTimeFormatterBuilder()
                 .parseLenient()
                 .appendPattern(pattern)
@@ -71,43 +66,35 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter
                 .toFormatter();
 
         String now = formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochSecond(0), ZoneOffset.UTC));
-        try
-        {
+        try {
             TemporalAccessor parsed = formatter.parse(now);
             boolean hasTimeZone = parsed.isSupported(ChronoField.INSTANT_SECONDS);
-            if (hasTimeZone)
-            {
+            if (hasTimeZone) {
                 Instant.from(parsed);
             }
-            else
-            {
+            else {
                 LocalDateTime.from(parsed);
             }
             return new DateTimeFormatterTimestampConverter(formatter, hasTimeZone, defaultTimezone);
         }
-        catch (DateTimeException e)
-        {
+        catch (DateTimeException e) {
             throw new IllegalArgumentException("Timestamp cannot be derived from pattern: " + pattern);
         }
     }
 
     @Override
-    public long toEpochSeconds(String timestamp)
-    {
+    public long toEpochSeconds(String timestamp) {
         return toInstant(timestamp).getEpochSecond();
     }
 
     @Override
-    public long toEpochMillis(String timestamp)
-    {
+    public long toEpochMillis(String timestamp) {
         return toInstant(timestamp).toEpochMilli();
     }
 
-    private Instant toInstant(String timestamp)
-    {
+    private Instant toInstant(String timestamp) {
         TemporalAccessor parsed = formatter.parse(timestamp);
-        if (hasTimeZone)
-        {
+        if (hasTimeZone) {
             return Instant.from(parsed);
         }
         return LocalDateTime.from(parsed).atZone(defaultZoneId).toInstant();

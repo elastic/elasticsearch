@@ -12,8 +12,7 @@ import java.util.NoSuchElementException;
  * An iterator useful to fetch a big number of documents of type T
  * and iterate through them in batches.
  */
-public interface BatchedDocumentsIterator<T>
-{
+public interface BatchedDocumentsIterator<T> {
     /**
      * Query documents whose timestamp is within the given time range
      *

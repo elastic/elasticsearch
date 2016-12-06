@@ -17,17 +17,14 @@ import java.io.IOException;
 
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 
-class ElasticsearchBatchedInfluencersIterator extends ElasticsearchBatchedResultsIterator<Influencer>
-{
+class ElasticsearchBatchedInfluencersIterator extends ElasticsearchBatchedResultsIterator<Influencer> {
     public ElasticsearchBatchedInfluencersIterator(Client client, String jobId,
-            ParseFieldMatcher parserFieldMatcher)
-    {
+                                                   ParseFieldMatcher parserFieldMatcher) {
         super(client, jobId, Influencer.RESULT_TYPE_VALUE, parserFieldMatcher);
     }
 
     @Override
-    protected Influencer map(SearchHit hit)
-    {
+    protected Influencer map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {

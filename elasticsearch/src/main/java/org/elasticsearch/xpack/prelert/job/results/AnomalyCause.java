@@ -21,8 +21,7 @@ import java.util.Objects;
  * Anomaly Cause POJO.
  * Used as a nested level inside population anomaly records.
  */
-public class AnomalyCause extends ToXContentToBytes implements Writeable
-{
+public class AnomalyCause extends ToXContentToBytes implements Writeable {
     public static final ParseField ANOMALY_CAUSE = new ParseField("anomaly_cause");
     /**
      * Result fields
@@ -188,150 +187,121 @@ public class AnomalyCause extends ToXContentToBytes implements Writeable
     }
 
 
-    public double getProbability()
-    {
+    public double getProbability() {
         return probability;
     }
 
-    public void setProbability(double value)
-    {
+    public void setProbability(double value) {
         probability = value;
     }
 
 
-    public String getByFieldName()
-    {
+    public String getByFieldName() {
         return byFieldName;
     }
 
-    public void setByFieldName(String value)
-    {
+    public void setByFieldName(String value) {
         byFieldName = value.intern();
     }
 
-    public String getByFieldValue()
-    {
+    public String getByFieldValue() {
         return byFieldValue;
     }
 
-    public void setByFieldValue(String value)
-    {
+    public void setByFieldValue(String value) {
         byFieldValue = value.intern();
     }
 
-    public String getCorrelatedByFieldValue()
-    {
+    public String getCorrelatedByFieldValue() {
         return correlatedByFieldValue;
     }
 
-    public void setCorrelatedByFieldValue(String value)
-    {
+    public void setCorrelatedByFieldValue(String value) {
         correlatedByFieldValue = value.intern();
     }
 
-    public String getPartitionFieldName()
-    {
+    public String getPartitionFieldName() {
         return partitionFieldName;
     }
 
-    public void setPartitionFieldName(String field)
-    {
+    public void setPartitionFieldName(String field) {
         partitionFieldName = field.intern();
     }
 
-    public String getPartitionFieldValue()
-    {
+    public String getPartitionFieldValue() {
         return partitionFieldValue;
     }
 
-    public void setPartitionFieldValue(String value)
-    {
+    public void setPartitionFieldValue(String value) {
         partitionFieldValue = value.intern();
     }
 
-    public String getFunction()
-    {
+    public String getFunction() {
         return function;
     }
 
-    public void setFunction(String name)
-    {
+    public void setFunction(String name) {
         function = name.intern();
     }
 
-    public String getFunctionDescription()
-    {
+    public String getFunctionDescription() {
         return functionDescription;
     }
 
-    public void setFunctionDescription(String functionDescription)
-    {
+    public void setFunctionDescription(String functionDescription) {
         this.functionDescription = functionDescription.intern();
     }
 
-    public List<Double> getTypical()
-    {
+    public List<Double> getTypical() {
         return typical;
     }
 
-    public void setTypical(List<Double> typical)
-    {
+    public void setTypical(List<Double> typical) {
         this.typical = typical;
     }
 
-    public List<Double> getActual()
-    {
+    public List<Double> getActual() {
         return actual;
     }
 
-    public void setActual(List<Double> actual)
-    {
+    public void setActual(List<Double> actual) {
         this.actual = actual;
     }
 
-    public String getFieldName()
-    {
+    public String getFieldName() {
         return fieldName;
     }
 
-    public void setFieldName(String field)
-    {
+    public void setFieldName(String field) {
         fieldName = field.intern();
     }
 
-    public String getOverFieldName()
-    {
+    public String getOverFieldName() {
         return overFieldName;
     }
 
-    public void setOverFieldName(String name)
-    {
+    public void setOverFieldName(String name) {
         overFieldName = name.intern();
     }
 
-    public String getOverFieldValue()
-    {
+    public String getOverFieldValue() {
         return overFieldValue;
     }
 
-    public void setOverFieldValue(String value)
-    {
+    public void setOverFieldValue(String value) {
         overFieldValue = value.intern();
     }
 
-    public List<Influence> getInfluencers()
-    {
+    public List<Influence> getInfluencers() {
         return influencers;
     }
 
-    public void setInfluencers(List<Influence> influencers)
-    {
+    public void setInfluencers(List<Influence> influencers) {
         this.influencers = influencers;
     }
 
     @Override
-    public int hashCode()
-    {
+    public int hashCode() {
         return Objects.hash(probability,
                 actual,
                 typical,
@@ -349,15 +319,12 @@ public class AnomalyCause extends ToXContentToBytes implements Writeable
     }
 
     @Override
-    public boolean equals(Object other)
-    {
-        if (this == other)
-        {
+    public boolean equals(Object other) {
+        if (this == other) {
             return true;
         }
 
-        if (other instanceof AnomalyCause == false)
-        {
+        if (other instanceof AnomalyCause == false) {
             return false;
         }
 

@@ -275,6 +275,16 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
+     * Get the content of the request or the contents of the {@code source} param.
+     *
+     * @deprecated Use this only to support deprecated code. Prefer {@link #contentOrSourceParamParser()}.
+     */
+    @Deprecated
+    public final BytesReference contentOrSourceParam() {
+        return contentOrSource();
+    }
+
+    /**
      * The String representation of the body if there is one or the {@code source} parameter if there isn't a body.
      */
     public final String contentOrSourceParamString() throws IOException {

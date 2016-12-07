@@ -165,8 +165,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         // simulate the cluster state change on the node
         localState = adaptClusterStateToLocalNode(newClusterState, node);
         previousLocalState = adaptClusterStateToLocalNode(stateWithIndex, node);
-        indicesCSSvc.applyClusterState(new ClusterChangedEvent("cluster state change with a new cluster UUID (and doesn't contain the index)",
-            localState, previousLocalState));
+        indicesCSSvc.applyClusterState(new ClusterChangedEvent(
+            "cluster state change with a new cluster UUID (and doesn't contain the index)", localState, previousLocalState));
 
         // check that in memory data structures have been removed once the new cluster state is applied,
         // but the persistent data is still there

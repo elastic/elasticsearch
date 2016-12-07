@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -178,6 +179,8 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
     private void export(Collection<MonitoringDoc> docs) throws Exception {
         Exporters exporters = internalCluster().getInstance(Exporters.class);
         assertThat(exporters, notNullValue());
+        // make sure exporters has been started, otherwise we might miss some of the exporters
+        assertBusy(() -> assertEquals(State.STARTED, exporters.lifecycleState()));
 
         // Wait for exporting bulks to be ready to export
         assertBusy(() -> exporters.forEach(exporter -> assertThat(exporter.openBulk(), notNullValue())));

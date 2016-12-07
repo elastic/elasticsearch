@@ -441,7 +441,7 @@ public class TransportService extends AbstractLifecycleComponent {
         return futureHandler;
     }
 
-    public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
+    public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {
         sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
@@ -626,7 +626,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param executor       The executor the request handling will be executed on
      * @param handler        The handler itself that implements the request handling
      */
-    public final <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory,
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory,
                                                     String executor, TransportRequestHandler<Request> handler) {
         handler = interceptor.interceptHandler(action, executor, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
@@ -644,7 +644,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
      * @param handler               The handler itself that implements the request handling
      */
-    public final <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request,
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request,
                                                                           String executor, boolean forceExecution,
                                                                           boolean canTripCircuitBreaker,
                                                                           TransportRequestHandler<Request> handler) {

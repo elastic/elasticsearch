@@ -65,8 +65,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnPrimary;
-import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnReplica;
+import static org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnPrimary;
+import static org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnReplica;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 

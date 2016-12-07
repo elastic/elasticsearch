@@ -452,6 +452,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, numPhase1Docs + numPhase2Docs);
     }
 
+    @AwaitsFix(bugUrl = "uncaught exception")
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()

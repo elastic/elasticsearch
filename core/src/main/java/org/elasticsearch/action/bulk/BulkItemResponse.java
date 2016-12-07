@@ -90,10 +90,10 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
         private final String index;
         private final String type;
         private final String id;
-        private final Throwable cause;
+        private final Exception cause;
         private final RestStatus status;
 
-        public Failure(String index, String type, String id, Throwable cause) {
+        public Failure(String index, String type, String id, Exception cause) {
             this.index = index;
             this.type = type;
             this.id = id;
@@ -159,7 +159,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
         /**
          * The actual cause of the failure.
          */
-        public Throwable getCause() {
+        public Exception getCause() {
             return cause;
         }
 

@@ -121,23 +121,21 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        checkWriteAction(
-                false, timeout,
+        checkWriteAction(timeout,
                 client().prepareUpdate("test", "type1", "1")
                         .setScript(new Script(
                             ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
 
-        checkWriteAction(
-                autoCreateIndex, timeout,
+        checkWriteAction(timeout,
                 client().prepareUpdate("no_index", "type1", "1")
                         .setScript(new Script(
                             ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
 
 
-        checkWriteAction(false, timeout,
+        checkWriteAction(timeout,
                 client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
-        checkWriteAction(autoCreateIndex, timeout,
+        checkWriteAction(timeout,
                 client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -154,18 +152,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 
-    void checkWriteAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
+    void checkWriteAction(TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
         // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
         long now = System.currentTimeMillis();
         try {
             builder.get();
             fail("expected ClusterBlockException or MasterNotDiscoveredException");
         } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            if (e instanceof MasterNotDiscoveredException) {
-                assertTrue(autoCreateIndex);
-            } else {
-                assertFalse(autoCreateIndex);
-            }
             // verify we waited before giving up...
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
@@ -195,7 +188,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             } else {
                 // timeout is 5000
-                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() - 50));
+                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() + 50));
             }
         }
     }

@@ -174,7 +174,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
 
     @Override
     public boolean isDecisionTaken() {
-        return this != NOT_TAKEN;
+        return this.equals(NOT_TAKEN) == false;
     }
 
     /**
@@ -243,27 +243,29 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             explanation = "can allocate the shard";
         } else if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
             explanation = "allocation temporarily throttled";
-        } else if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
-            explanation = "cannot allocate because information about existing shard data is still being retrieved from " +
-                              "some of the nodes";
-        } else if (allocationStatus == AllocationStatus.NO_VALID_SHARD_COPY) {
-            if (getNodeDecisions() != null && getNodeDecisions().size() > 0) {
-                explanation = "cannot allocate because all existing copies of the shard are unreadable";
-            } else {
-                explanation = "cannot allocate because a previous copy of the shard existed but could not be found";
-            }
-        } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            explanation = "cannot allocate because the cluster is still waiting " +
-                              TimeValue.timeValueMillis(remainingDelayInMillis) +
-                              " for the departed node holding a replica to rejoin" +
-                              (atLeastOneNodeWithYesDecision() ?
-                                   ", despite being allowed to allocate the shard to at least one other node" : "");
         } else {
-            assert allocationStatus == AllocationStatus.DECIDERS_NO;
-            if (reuseStore) {
-                explanation = "cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy";
+            if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
+                explanation = "cannot allocate because information about existing shard data is still being retrieved from " +
+                                  "some of the nodes";
+            } else if (allocationStatus == AllocationStatus.NO_VALID_SHARD_COPY) {
+                if (getNodeDecisions() != null && getNodeDecisions().size() > 0) {
+                    explanation = "cannot allocate because all existing copies of the shard are unreadable";
+                } else {
+                    explanation = "cannot allocate because a previous copy of the shard existed but could not be found";
+                }
+            } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
+                explanation = "cannot allocate because the cluster is still waiting " +
+                                  TimeValue.timeValueMillis(remainingDelayInMillis) +
+                                  " for the departed node holding a replica to rejoin" +
+                                  (atLeastOneNodeWithYesDecision() ?
+                                       ", despite being allowed to allocate the shard to at least one other node" : "");
             } else {
-                explanation = "cannot allocate because allocation is not permitted to any of the nodes";
+                assert allocationStatus == AllocationStatus.DECIDERS_NO;
+                if (reuseStore) {
+                    explanation = "cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy";
+                } else {
+                    explanation = "cannot allocate because allocation is not permitted to any of the nodes";
+                }
             }
         }
         return explanation;
@@ -298,6 +300,28 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         out.writeBoolean(reuseStore);
         out.writeVLong(remainingDelayInMillis);
         out.writeVLong(configuredDelayInMillis);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (super.equals(other) == false) {
+            return false;
+        }
+        if (other instanceof AllocateUnassignedDecision == false) {
+            return false;
+        }
+        @SuppressWarnings("unchecked") AllocateUnassignedDecision that = (AllocateUnassignedDecision) other;
+        return Objects.equals(allocationStatus, that.allocationStatus)
+                   && Objects.equals(allocationId, that.allocationId)
+                   && reuseStore == that.reuseStore
+                   && configuredDelayInMillis == that.configuredDelayInMillis
+                   && remainingDelayInMillis == that.remainingDelayInMillis;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * super.hashCode() + Objects.hash(allocationStatus, allocationId, reuseStore,
+            configuredDelayInMillis, remainingDelayInMillis);
     }
 
 }

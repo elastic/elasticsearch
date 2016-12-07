@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -55,24 +56,6 @@ public class GatewayAllocator extends AbstractComponent {
         super(settings);
         this.primaryShardAllocator = new InternalPrimaryShardAllocator(settings, startedAction);
         this.replicaShardAllocator = new InternalReplicaShardAllocator(settings, storeAction);
-    }
-
-    /**
-     * Returns true if the given shard has an async fetch pending
-     */
-    public boolean hasFetchPending(ShardId shardId, boolean primary) {
-        if (primary) {
-            AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shardId);
-            if (fetch != null) {
-                return fetch.getNumberOfInFlightFetches() > 0;
-            }
-        } else {
-            AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shardId);
-            if (fetch != null) {
-                return fetch.getNumberOfInFlightFetches() > 0;
-            }
-        }
-        return false;
     }
 
     public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
@@ -137,6 +120,18 @@ public class GatewayAllocator extends AbstractComponent {
         replicaShardAllocator.allocateUnassigned(allocation);
     }
 
+    /**
+     * Computes and returns the design for allocating a single unassigned shard.  If called on an assigned shard,
+     * {@link AllocateUnassignedDecision#NOT_TAKEN} is returned.
+     */
+    public AllocateUnassignedDecision decideUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
+        if (unassignedShard.primary()) {
+            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+        } else {
+            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+        }
+    }
+
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
         public InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
@@ -164,7 +159,11 @@ public class GatewayAllocator extends AbstractComponent {
             AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shard.shardId());
             if (fetch == null) {
                 fetch = new InternalAsyncFetch<>(logger, "shard_started", shard.shardId(), startedAction);
-                asyncFetchStarted.put(shard.shardId(), fetch);
+                AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> previousFetch =
+                    asyncFetchStarted.putIfAbsent(shard.shardId(), fetch);
+                if (previousFetch != null) {
+                    fetch = previousFetch;
+                }
             }
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
@@ -190,7 +189,11 @@ public class GatewayAllocator extends AbstractComponent {
             AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shard.shardId());
             if (fetch == null) {
                 fetch = new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction);
-                asyncFetchStore.put(shard.shardId(), fetch);
+                AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> previousFetch =
+                    asyncFetchStore.putIfAbsent(shard.shardId(), fetch);
+                if (previousFetch != null) {
+                    fetch = previousFetch;
+                }
             }
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));

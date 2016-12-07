@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Represents a decision to move a started shard, either because it is no longer allowed to remain on its current node
@@ -131,7 +132,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     @Override
     public boolean isDecisionTaken() {
-        return this != NOT_TAKEN;
+        return this.equals(NOT_TAKEN) == false;
+    }
+
+    /**
+     * Creates a new move decision from this decision, plus adding a remain decision.
+     */
+    public MoveDecision withRemainDecision(Decision canRemainDecision) {
+        return new MoveDecision(canRemainDecision, canRebalanceDecision, allocationDecision, targetNode, nodeDecisions, currentNodeRanking);
     }
 
     /**
@@ -280,6 +288,26 @@ public final class MoveDecision extends AbstractAllocationDecision {
         builder.field(canRebalanceDecision != null ? "rebalance_explanation" : "move_explanation", getExplanation());
         nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (super.equals(other) == false) {
+            return false;
+        }
+        if (other instanceof MoveDecision == false) {
+            return false;
+        }
+        @SuppressWarnings("unchecked") MoveDecision that = (MoveDecision) other;
+        return Objects.equals(allocationDecision, that.allocationDecision)
+                   && Objects.equals(canRemainDecision, that.canRemainDecision)
+                   && Objects.equals(canRebalanceDecision, that.canRebalanceDecision)
+                   && currentNodeRanking == that.currentNodeRanking;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * super.hashCode() + Objects.hash(allocationDecision, canRemainDecision, canRebalanceDecision, currentNodeRanking);
     }
 
 }

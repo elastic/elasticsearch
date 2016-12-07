@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -28,6 +30,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
  */
 public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
 
+    //NORELEASE TODO: fix these or just use the IT tests?
     public void testShardExplain() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings("index.number_of_shards", 1, "index.number_of_replicas", 1).get();
@@ -39,25 +42,20 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals("test", cae.getShard().getIndexName());
         assertEquals(0, cae.getShard().getId());
         assertEquals(false, cae.isPrimary());
-        assertNull(cae.getAssignedNodeId());
-        assertFalse(cae.isStillFetchingShardData());
+        assertNull(cae.getShardAllocationDecision().getAllocateDecision().getTargetNode());
+        assertNotEquals(AllocationDecision.FETCH_PENDING, cae.getShardAllocationDecision().getAllocateDecision().getAllocationDecision());
         assertNotNull(cae.getUnassignedInfo());
-        NodeExplanation explanation = cae.getNodeExplanations().values().iterator().next();
-        ClusterAllocationExplanation.FinalDecision fd = explanation.getFinalDecision();
-        ClusterAllocationExplanation.StoreCopy storeCopy = explanation.getStoreCopy();
-        Decision d = explanation.getDecision();
+        NodeAllocationResult explanation = cae.getShardAllocationDecision().getAllocateDecision().getNodeDecisions().iterator().next();
+        Decision d = explanation.getCanAllocateDecision();
         assertNotNull("should have a decision", d);
         assertEquals(Decision.Type.NO, d.type());
-        assertEquals(ClusterAllocationExplanation.FinalDecision.NO, fd);
-        assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, storeCopy);
+        assertEquals(AllocationDecision.NO, explanation.getNodeDecision());
         assertTrue(d.toString(), d.toString().contains("NO(the shard cannot be allocated to the same node"));
         assertTrue(d instanceof Decision.Multi);
         Decision.Multi md = (Decision.Multi) d;
         Decision ssd = md.getDecisions().get(0);
         assertEquals(Decision.Type.NO, ssd.type());
         assertTrue(ssd.toString(), ssd.toString().contains("NO(the shard cannot be allocated to the same node"));
-        Float weight = explanation.getWeight();
-        assertNotNull("should have a weight", weight);
 
         resp = client().admin().cluster().prepareAllocationExplain().setIndex("test").setShard(0).setPrimary(true).get();
 
@@ -66,17 +64,13 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals("test", cae.getShard().getIndexName());
         assertEquals(0, cae.getShard().getId());
         assertEquals(true, cae.isPrimary());
-        assertFalse(cae.isStillFetchingShardData());
-        assertNotNull("shard should have assigned node id", cae.getAssignedNodeId());
+        assertEquals(AllocationDecision.NO, cae.getShardAllocationDecision().getMoveDecision().getAllocationDecision());
+        assertNotNull("shard should have assigned node id", cae.getCurrentNode());
         assertNull("assigned shard should not have unassigned info", cae.getUnassignedInfo());
-        explanation = cae.getNodeExplanations().values().iterator().next();
-        d = explanation.getDecision();
-        fd = explanation.getFinalDecision();
-        storeCopy = explanation.getStoreCopy();
+        explanation = cae.getShardAllocationDecision().getMoveDecision().getNodeDecisions().iterator().next();
+        d = explanation.getCanAllocateDecision();
         assertNotNull("should have a decision", d);
         assertEquals(Decision.Type.NO, d.type());
-        assertEquals(ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED, fd);
-        assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, storeCopy);
         assertTrue(d.toString(), d.toString().contains(
             "NO(the shard cannot be allocated to the node on which it already exists [[test][0]"));
         assertTrue(d instanceof Decision.Multi);
@@ -85,8 +79,6 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(Decision.Type.NO, ssd.type());
         assertTrue(ssd.toString(), ssd.toString().contains(
             "NO(the shard cannot be allocated to the node on which it already exists [[test][0]"));
-        weight = explanation.getWeight();
-        assertNotNull("should have a weight", weight);
 
         resp = client().admin().cluster().prepareAllocationExplain().useAnyUnassignedShard().get();
         cae = resp.getExplanation();

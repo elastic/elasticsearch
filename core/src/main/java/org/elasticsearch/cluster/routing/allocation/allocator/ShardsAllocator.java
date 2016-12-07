@@ -21,7 +21,10 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 
 import java.util.Map;
 /**
@@ -52,5 +55,20 @@ public interface ShardsAllocator {
      * @param shard shard to weigh
      * @return map of nodes to float weights
      */
+    @Deprecated
     Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard);
+
+    /**
+     * Returns the decision for where a shard should reside in the cluster.  If the shard is unassigned,
+     * then the {@link AllocateUnassignedDecision} will be non-null.  If the shard is not in the unassigned
+     * state, then the {@link MoveDecision} will be non-null.
+     *
+     * This method is primarily used by the cluster allocation explain API to provide detailed explanations
+     * for the allocation of a single shard.  Implementations of the {@link #allocate(RoutingAllocation)} method
+     * may use the results of this method implementation to decide on allocating shards in the routing table
+     * to the cluster.
+     */
+    default ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+        throw new UnsupportedOperationException(getClass().getName() + " must implement decideShardAllocation");
+    }
 }

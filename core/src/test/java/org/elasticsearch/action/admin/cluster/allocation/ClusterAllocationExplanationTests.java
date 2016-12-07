@@ -75,6 +75,8 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         noDecision.add(Decision.single(Decision.Type.NO, "no label", "no thanks"));
     }
 
+    // NORELEASE TODO: use or remove?
+    /*
     private void assertExplanations(NodeExplanation ne, String finalExplanation, ClusterAllocationExplanation.FinalDecision finalDecision,
                                     ClusterAllocationExplanation.StoreCopy storeCopy) {
         assertEquals(finalExplanation, ne.getFinalExplanation());
@@ -247,5 +249,5 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                         "\":\"yes label\",\"decision\":\"YES\",\"explanation\":\"yes please\"},{\"decider\":\"throttle la" +
                         "bel\",\"decision\":\"THROTTLE\",\"explanation\":\"wait a sec\"}]}}}",
                 builder.string());
-    }
+    }*/
 }

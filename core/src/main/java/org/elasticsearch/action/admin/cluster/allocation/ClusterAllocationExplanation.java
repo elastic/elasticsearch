@@ -22,92 +22,61 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+
+import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
 /**
- * A {@code ClusterAllocationExplanation} is an explanation of why a shard may or may not be allocated to nodes. It also includes weights
- * for where the shard is likely to be assigned. It is an immutable class
+ * A {@code ClusterAllocationExplanation} is an explanation of why a shard is unassigned,
+ * or if it is not unassigned, then which nodes it could possibly be relocated to.
+ * It is an immutable class.
  */
 public final class ClusterAllocationExplanation implements ToXContent, Writeable {
 
     private final ShardId shard;
     private final boolean primary;
-    private final boolean hasPendingAsyncFetch;
-    private final String assignedNodeId;
+    private final DiscoveryNode currentNode;
     private final UnassignedInfo unassignedInfo;
-    private final long allocationDelayMillis;
-    private final long remainingDelayMillis;
-    private final Map<DiscoveryNode, NodeExplanation> nodeExplanations;
     private final ClusterInfo clusterInfo;
+    private final ShardAllocationDecision shardAllocationDecision;
 
-    public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId, long allocationDelayMillis,
-                                        long remainingDelayMillis, @Nullable UnassignedInfo unassignedInfo, boolean hasPendingAsyncFetch,
-                                        Map<DiscoveryNode, NodeExplanation> nodeExplanations, @Nullable ClusterInfo clusterInfo) {
+    public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable DiscoveryNode currentNode,
+                                        @Nullable UnassignedInfo unassignedInfo, @Nullable ClusterInfo clusterInfo,
+                                        ShardAllocationDecision shardAllocationDecision) {
         this.shard = shard;
         this.primary = primary;
-        this.hasPendingAsyncFetch = hasPendingAsyncFetch;
-        this.assignedNodeId = assignedNodeId;
+        this.currentNode = currentNode;
         this.unassignedInfo = unassignedInfo;
-        this.allocationDelayMillis = allocationDelayMillis;
-        this.remainingDelayMillis = remainingDelayMillis;
-        this.nodeExplanations = nodeExplanations;
         this.clusterInfo = clusterInfo;
+        this.shardAllocationDecision = shardAllocationDecision;
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
         this.shard = ShardId.readShardId(in);
         this.primary = in.readBoolean();
-        this.hasPendingAsyncFetch = in.readBoolean();
-        this.assignedNodeId = in.readOptionalString();
+        this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
         this.unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
-        this.allocationDelayMillis = in.readVLong();
-        this.remainingDelayMillis = in.readVLong();
-
-        int mapSize = in.readVInt();
-        Map<DiscoveryNode, NodeExplanation> nodeToExplanation = new HashMap<>(mapSize);
-        for (int i = 0; i < mapSize; i++) {
-            NodeExplanation nodeExplanation = new NodeExplanation(in);
-            nodeToExplanation.put(nodeExplanation.getNode(), nodeExplanation);
-        }
-        this.nodeExplanations = nodeToExplanation;
-        if (in.readBoolean()) {
-            this.clusterInfo = new ClusterInfo(in);
-        } else {
-            this.clusterInfo = null;
-        }
+        this.clusterInfo = in.readOptionalWriteable(ClusterInfo::new);
+        this.shardAllocationDecision = new ShardAllocationDecision(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         this.getShard().writeTo(out);
         out.writeBoolean(this.isPrimary());
-        out.writeBoolean(this.isStillFetchingShardData());
-        out.writeOptionalString(this.getAssignedNodeId());
+        out.writeOptionalWriteable(currentNode);
         out.writeOptionalWriteable(this.getUnassignedInfo());
-        out.writeVLong(allocationDelayMillis);
-        out.writeVLong(remainingDelayMillis);
-
-        out.writeVInt(this.nodeExplanations.size());
-        for (NodeExplanation explanation : this.nodeExplanations.values()) {
-            explanation.writeTo(out);
-        }
-        if (this.clusterInfo != null) {
-            out.writeBoolean(true);
-            this.clusterInfo.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(this.getClusterInfo());
+        shardAllocationDecision.writeTo(out);
     }
 
     /** Return the shard that the explanation is about */
@@ -120,20 +89,17 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return this.primary;
     }
 
-    /** Return turn if shard data is still being fetched for the allocation */
-    public boolean isStillFetchingShardData() {
-        return this.hasPendingAsyncFetch;
-    }
-
-    /** Return turn if the shard is assigned to a node */
+    /**
+     * Returns {@code true} if the explained shard is currently assigned to a node, returns {@code false} otherwise.
+     */
     public boolean isAssigned() {
-        return this.assignedNodeId != null;
+        return currentNode != null;
     }
 
-    /** Return the assigned node id or null if not assigned */
+    /** Return the currently assigned node, or null if the shard is unassigned */
     @Nullable
-    public String getAssignedNodeId() {
-        return this.assignedNodeId;
+    public DiscoveryNode getCurrentNode() {
+        return currentNode;
     }
 
     /** Return the unassigned info for the shard or null if the shard is assigned */
@@ -142,164 +108,68 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return this.unassignedInfo;
     }
 
-    /** Return the configured delay before the shard can be allocated in milliseconds */
-    public long getAllocationDelayMillis() {
-        return this.allocationDelayMillis;
-    }
-
-    /** Return the remaining allocation delay for this shard in milliseconds */
-    public long getRemainingDelayMillis() {
-        return this.remainingDelayMillis;
-    }
-
-    /** Return a map of node to the explanation for that node */
-    public Map<DiscoveryNode, NodeExplanation> getNodeExplanations() {
-        return this.nodeExplanations;
-    }
-
     /** Return the cluster disk info for the cluster or null if none available */
     @Nullable
     public ClusterInfo getClusterInfo() {
         return this.clusterInfo;
     }
 
+    /** Return the shard allocation decision for attempting to assign or move the shard. */
+    public ShardAllocationDecision getShardAllocationDecision() {
+        return shardAllocationDecision;
+    }
+
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(); {
-            builder.startObject("shard"); {
-                builder.field("index", shard.getIndexName());
-                builder.field("index_uuid", shard.getIndex().getUUID());
-                builder.field("id", shard.getId());
-                builder.field("primary", primary);
-            }
-            builder.endObject(); // end shard
-            builder.field("assigned", this.assignedNodeId != null);
-            // If assigned, show the node id of the node it's assigned to
-            if (assignedNodeId != null) {
-                builder.field("assigned_node_id", this.assignedNodeId);
-            }
-            builder.field("shard_state_fetch_pending", this.hasPendingAsyncFetch);
-            // If we have unassigned info, show that
+            builder.field("index_name", shard.getIndexName());
+            builder.field("shard", shard.getId());
+            builder.field("primary", primary);
+            builder.field("assigned_to_node", this.currentNode != null);
             if (unassignedInfo != null) {
-                unassignedInfo.toXContent(builder, params);
-                builder.timeValueField("allocation_delay_in_millis", "allocation_delay", TimeValue.timeValueMillis(allocationDelayMillis));
-                builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayMillis));
+                unassignedInfoToXContent(unassignedInfo, builder, params);
             }
-            builder.startObject("nodes"); {
-                for (NodeExplanation explanation : nodeExplanations.values()) {
-                    explanation.toXContent(builder, params);
+            if (currentNode != null) {
+                builder.startObject("current_node");
+                {
+                    discoveryNodeToXContent(currentNode, true, builder);
+                    if (shardAllocationDecision.getMoveDecision().isDecisionTaken()
+                            && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
+                        builder.field("weight_ranking", shardAllocationDecision.getMoveDecision().getCurrentNodeRanking());
+                    }
                 }
+                builder.endObject();
             }
-            builder.endObject(); // end nodes
             if (this.clusterInfo != null) {
                 builder.startObject("cluster_info"); {
                     this.clusterInfo.toXContent(builder, params);
                 }
                 builder.endObject(); // end "cluster_info"
             }
+            shardAllocationDecision.toXContent(builder, params);
         }
         builder.endObject(); // end wrapping object
         return builder;
     }
 
-    /** An Enum representing the final decision for a shard allocation on a node */
-    public enum FinalDecision {
-        // Yes, the shard can be assigned
-        YES((byte) 0),
-        // No, the shard cannot be assigned
-        NO((byte) 1),
-        // The shard is already assigned to this node
-        ALREADY_ASSIGNED((byte) 2);
+    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder, Params params)
+        throws IOException {
 
-        private final byte id;
-
-        FinalDecision (byte id) {
-            this.id = id;
+        builder.startObject("unassigned_info");
+        builder.field("reason", unassignedInfo.getReason());
+        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.printer().print(unassignedInfo.getUnassignedTimeInMillis()));
+        if (unassignedInfo.getNumFailedAllocations() >  0) {
+            builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }
-
-        private static FinalDecision fromId(byte id) {
-            switch (id) {
-                case 0: return YES;
-                case 1: return NO;
-                case 2: return ALREADY_ASSIGNED;
-                default:
-                    throw new IllegalArgumentException("unknown id for final decision: [" + id + "]");
-            }
+        if (primary == false) {
+            // delayed allocation only makes sense when explaining a replica shard
+            builder.field("delayed", unassignedInfo.isDelayed());
         }
-
-        @Override
-        public String toString() {
-            switch (id) {
-                case 0: return "YES";
-                case 1: return "NO";
-                case 2: return "ALREADY_ASSIGNED";
-                default:
-                    throw new IllegalArgumentException("unknown id for final decision: [" + id + "]");
-            }
+        String details = unassignedInfo.getDetails();
+        if (details != null) {
+            builder.field("details", details);
         }
-
-        static FinalDecision readFrom(StreamInput in) throws IOException {
-            return fromId(in.readByte());
-        }
-
-        void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(id);
-        }
-    }
-
-    /** An Enum representing the state of the shard store's copy of the data on a node */
-    public enum StoreCopy {
-        // No data for this shard is on the node
-        NONE((byte) 0),
-        // A copy of the data is available on this node
-        AVAILABLE((byte) 1),
-        // The copy of the data on the node is corrupt
-        CORRUPT((byte) 2),
-        // There was an error reading this node's copy of the data
-        IO_ERROR((byte) 3),
-        // The copy of the data on the node is stale
-        STALE((byte) 4),
-        // It's unknown what the copy of the data is
-        UNKNOWN((byte) 5);
-
-        private final byte id;
-
-        StoreCopy (byte id) {
-            this.id = id;
-        }
-
-        private static StoreCopy fromId(byte id) {
-            switch (id) {
-                case 0: return NONE;
-                case 1: return AVAILABLE;
-                case 2: return CORRUPT;
-                case 3: return IO_ERROR;
-                case 4: return STALE;
-                case 5: return UNKNOWN;
-                default:
-                    throw new IllegalArgumentException("unknown id for store copy: [" + id + "]");
-            }
-        }
-
-        @Override
-        public String toString() {
-            switch (id) {
-                case 0: return "NONE";
-                case 1: return "AVAILABLE";
-                case 2: return "CORRUPT";
-                case 3: return "IO_ERROR";
-                case 4: return "STALE";
-                case 5: return "UNKNOWN";
-                default:
-                    throw new IllegalArgumentException("unknown id for store copy: [" + id + "]");
-            }
-        }
-
-        static StoreCopy readFrom(StreamInput in) throws IOException {
-            return fromId(in.readByte());
-        }
-
-        void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(id);
-        }
+        builder.field("last_allocation_status", unassignedInfo.getLastAllocationStatus().value());
+        builder.endObject();
+        return builder;
     }
 }

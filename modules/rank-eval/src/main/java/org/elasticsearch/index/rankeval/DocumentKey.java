@@ -20,6 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -47,6 +48,16 @@ public class DocumentKey extends ToXContentToBytes implements Writeable {
     }
 
     public DocumentKey(String index, String type, String docId) {
+        if (Strings.isNullOrEmpty(index)) {
+            throw new IllegalArgumentException("Index must be set for each rated document");
+        }
+        if(Strings.isNullOrEmpty(type)) {
+            throw new IllegalArgumentException("Type must be set for each rated document");
+        }
+        if (Strings.isNullOrEmpty(docId)) {
+            throw new IllegalArgumentException("DocId must be set for each rated document");
+        }
+
         this.index = index;
         this.type = type;
         this.docId = docId;

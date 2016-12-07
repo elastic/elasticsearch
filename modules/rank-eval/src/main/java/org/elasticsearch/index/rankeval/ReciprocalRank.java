@@ -57,7 +57,7 @@ public class ReciprocalRank implements RankedListQualityMetric {
     }
 
     public ReciprocalRank(StreamInput in) throws IOException {
-        this.relevantRatingThreshhold = in.readInt();
+        this.relevantRatingThreshhold = in.readVInt();
     }
 
     @Override
@@ -69,6 +69,10 @@ public class ReciprocalRank implements RankedListQualityMetric {
      * Sets the rating threshold above which ratings are considered to be "relevant" for this metric.
      * */
     public void setRelevantRatingThreshhold(int threshold) {
+        if (threshold < 0) {
+            throw new IllegalArgumentException("Relevant rating threshold for precision must be positive integer.");
+        }
+
         this.relevantRatingThreshhold = threshold;
     }
 

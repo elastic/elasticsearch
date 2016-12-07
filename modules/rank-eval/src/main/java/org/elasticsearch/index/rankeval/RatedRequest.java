@@ -289,12 +289,14 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
+
         RatedRequest other = (RatedRequest) obj;
+        
         return Objects.equals(specId, other.specId) &&
                 Objects.equals(testRequest, other.testRequest) &&
                 Objects.equals(indices, other.indices) &&
                 Objects.equals(types, other.types) &&
-                Objects.equals(summaryFields, summaryFields) &&
+                Objects.equals(summaryFields, other.summaryFields) &&
                 Objects.equals(ratedDocs, other.ratedDocs) &&
                 Objects.equals(params, other.params);
     }

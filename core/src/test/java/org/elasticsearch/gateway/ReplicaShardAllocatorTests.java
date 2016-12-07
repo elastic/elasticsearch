@@ -386,5 +386,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             }
             return new AsyncShardFetch.FetchResult<>(shardId, tData, Collections.<String>emptySet(), Collections.<String>emptySet());
         }
+
+        @Override
+        protected boolean hasInitiatedFetching(ShardRouting shard) {
+            return fetchDataCalled.get();
+        }
     }
 }

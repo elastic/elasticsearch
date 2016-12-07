@@ -188,93 +188,6 @@ public class RatedRequestsTests extends ESTestCase {
         List<String> types = original.getTypes();
         Map<String, Object> params = original.getParams();
         List<String> summaryFields = original.getSummaryFields();
-        
-        switch (randomIntBetween(0, 6)) {
-        case 0:
-        {            
-            String mutation = randomAsciiOfLength(10);
-            while (mutation.equals(specId)) {
-                mutation = randomAsciiOfLength(10);
-            }
-            specId = mutation;
-            break;
-        }
-        case 1:
-        {
-            int mutation = randomInt();
-            while (mutation == size) {
-                mutation = randomInt();
-            }
-            size = mutation;
-            break;
-        }
-        case 2:
-        {
-            int mutation = randomIntBetween(0, 10);
-            while (mutation == ratedDocs.size()) {
-                mutation = randomIntBetween(0, 10);
-            }
-
-            ratedDocs = new ArrayList<>();
-            for (int i = 0; i < mutation; i++) {
-                ratedDocs.add(RatedDocumentTests.createRatedDocument());
-            }
-            break;
-        }
-        case 3:
-        {
-            int mutation = randomIntBetween(0, 10);
-            while (mutation == indices.size()) {
-                mutation = randomIntBetween(0, 10);
-            }
-
-            indices = new ArrayList<>();
-            for (int i = 0; i < mutation; i++) {
-                indices.add(randomAsciiOfLengthBetween(0, 50));
-            }
-            break;
-        }
-        case 4:
-        {
-            int mutation = randomIntBetween(0, 10);
-            while (mutation == types.size()) {
-                mutation = randomIntBetween(0, 10);
-            }
-
-            indices = new ArrayList<>();
-            for (int i = 0; i < mutation; i++) {
-                types.add(randomAsciiOfLengthBetween(0, 50));
-            }
-            break;
-        }
-        case 5:
-        {
-            int mutation = randomIntBetween(0, 10);
-            while (mutation == params.size()) {
-                mutation = randomIntBetween(0, 10);
-            }
-
-            params = new HashMap<>();
-            for (int i = 0; i < mutation; i++) {
-                params.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
-            }
-            break;
-        }
-        case 6:
-        {
-            int mutation = randomIntBetween(0, 10);
-            while (mutation == summaryFields.size()) {
-                mutation = randomIntBetween(0, 10);
-            }
-            summaryFields = new ArrayList<>();
-            for (int i = 0; i < mutation; i++) {
-                summaryFields.add(randomAsciiOfLength(5));
-            }
-            break;
-        }
-        default:
-            throw new IllegalStateException("The test should only allow seven parameters mutated");
-        }
 
         SearchSourceBuilder testRequest = new SearchSourceBuilder();
         testRequest.size(size);
@@ -286,6 +199,24 @@ public class RatedRequestsTests extends ESTestCase {
         ratedRequest.setParams(params);
         ratedRequest.setSummaryFields(summaryFields);
 
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> ratedRequest.setSpecId(randomValueOtherThan(specId, () -> randomAsciiOfLength(10))));
+        mutators.add(() -> ratedRequest.getTestRequest().size(randomValueOtherThan(size, () -> randomInt())));
+        mutators.add(() -> ratedRequest.setRatedDocs(
+                Arrays.asList(randomValueOtherThanMany(ratedDocs::contains, () -> RatedDocumentTests.createRatedDocument()))));
+        mutators.add(() -> ratedRequest.setIndices(
+                Arrays.asList(randomValueOtherThanMany(indices::contains, () -> randomAsciiOfLength(10)))));
+
+        HashMap<String, Object> modified = new HashMap<>();
+        modified.putAll(params);
+        modified.put("one_more_key", "one_more_value");
+        mutators.add(() -> ratedRequest.setParams(modified));
+
+        mutators.add(() -> ratedRequest.setSummaryFields(
+                Arrays.asList(randomValueOtherThanMany(summaryFields::contains, () -> randomAsciiOfLength(10)))));
+
+        
+        randomFrom(mutators).run();
         return ratedRequest;
     }
 

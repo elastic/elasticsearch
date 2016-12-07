@@ -28,8 +28,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,8 +123,7 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     public void testXContentRoundtrip() throws IOException {
-        ReciprocalRank testItem = new ReciprocalRank();
-        testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
+        ReciprocalRank testItem = createTestItem();
         XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
@@ -149,9 +146,14 @@ public class ReciprocalRankTests extends ESTestCase {
         return hits;
     }
     
+    private ReciprocalRank createTestItem() {
+        ReciprocalRank testItem = new ReciprocalRank();
+        testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
+        return testItem;
+    }
+
     public void testSerialization() throws IOException {
-        ReciprocalRank original = new ReciprocalRank();
-        original.setRelevantRatingThreshhold(randomIntBetween(0, 20));
+        ReciprocalRank original = createTestItem();
 
         ReciprocalRank deserialized = RankEvalTestHelper.copy(original, ReciprocalRank::new);
         assertEquals(deserialized, original);
@@ -160,32 +162,20 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        ReciprocalRank testItem = new ReciprocalRank();
-        testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
-
+        ReciprocalRank testItem = createTestItem();
         RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
                 RankEvalTestHelper.copy(testItem, ReciprocalRank::new));
     }
 
     private ReciprocalRank mutateTestItem(ReciprocalRank testItem) {
         int relevantThreshold = testItem.getRelevantRatingThreshold();
-        
-        int mutation = randomIntBetween(0, 10);
-        while (mutation == relevantThreshold) {
-            mutation = randomIntBetween(0, 10);
-        }
-
         ReciprocalRank rank = new ReciprocalRank();
-        rank.setRelevantRatingThreshhold(mutation);
+        rank.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10)));
         return rank;
     }
-    
-    @Rule
-    public final ExpectedException exception = ExpectedException.none();
 
     public void testInvalidRelevantThreshold() {
         ReciprocalRank prez = new ReciprocalRank();
-        exception.expect(IllegalArgumentException.class);
-        prez.setRelevantRatingThreshhold(-1);
+        expectThrows(IllegalArgumentException.class, () -> prez.setRelevantRatingThreshhold(-1));
     }
 }

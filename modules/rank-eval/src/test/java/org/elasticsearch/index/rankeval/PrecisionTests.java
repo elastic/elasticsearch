@@ -28,8 +28,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -169,13 +167,9 @@ public class PrecisionTests extends ESTestCase {
         assertEquals(0.3, metric.combine(partialResults), Double.MIN_VALUE);
     }
 
-    @Rule
-    public final ExpectedException exception = ExpectedException.none();
-
     public void testInvalidRelevantThreshold() {
         Precision prez = new Precision();
-        exception.expect(IllegalArgumentException.class);
-        prez.setRelevantRatingThreshhold(-1);
+        expectThrows(IllegalArgumentException.class, () -> prez.setRelevantRatingThreshhold(-1));
     }
 
     public static Precision createTestItem() {
@@ -212,32 +206,17 @@ public class PrecisionTests extends ESTestCase {
                 RankEvalTestHelper.copy(testItem, Precision::new));
     }
 
-    private Precision mutateTestItem(Precision testItem) {
-        boolean ignoreUnlabeled = testItem.getIgnoreUnlabeled();
-        int relevantThreshold = testItem.getRelevantRatingThreshold();
-        
-        int mutate = randomIntBetween(0, 1);
-        switch (mutate) {
-            case 0:
-            {
-                ignoreUnlabeled = ! ignoreUnlabeled;
-                break;
-            }
-            case 1:
-            {
-                int mutation = randomIntBetween(0, 10);
-                while (mutation == relevantThreshold) {
-                    mutation = randomIntBetween(0, 10);
-                }
-                relevantThreshold = mutation;
-                break;
-            }
-            default:
-                throw new IllegalStateException("The test should only allow two parameters mutated");
-        }
+    private Precision mutateTestItem(Precision original) {
+        boolean ignoreUnlabeled = original.getIgnoreUnlabeled();
+        int relevantThreshold = original.getRelevantRatingThreshold();
         Precision precision = new Precision();
         precision.setIgnoreUnlabeled(ignoreUnlabeled);
         precision.setRelevantRatingThreshhold(relevantThreshold);
+
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> precision.setIgnoreUnlabeled(! ignoreUnlabeled));
+        mutators.add(() -> precision.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10))));
+        randomFrom(mutators).run();
         return precision;
     }
 

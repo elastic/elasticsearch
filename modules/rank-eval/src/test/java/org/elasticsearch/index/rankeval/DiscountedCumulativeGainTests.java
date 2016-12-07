@@ -229,32 +229,17 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                 RankEvalTestHelper.copy(testItem, DiscountedCumulativeGain::new));
     }
 
-    private DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain testItem) {
-        boolean normalise = testItem.getNormalize();
-        int unknownDocRating = testItem.getUnknownDocRating();
-        
-        int mutate = randomIntBetween(0, 1);
-        switch (mutate) {
-            case 0:
-            {
-                normalise = ! normalise;
-                break;
-            }
-            case 1:
-            {
-                int mutation = randomIntBetween(0, 10);
-                while (mutation == unknownDocRating) {
-                    mutation = randomIntBetween(0, 10);
-                }
-                unknownDocRating = mutation;
-                break;
-            }
-            default:
-                throw new IllegalStateException("The test should only allow two parameters mutated");
-        }
+    private DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {
+        boolean normalise = original.getNormalize();
+        int unknownDocRating = original.getUnknownDocRating();
         DiscountedCumulativeGain gain = new DiscountedCumulativeGain();
         gain.setNormalize(normalise);
         gain.setUnknownDocRating(unknownDocRating);
+
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> gain.setNormalize(! original.getNormalize()));
+        mutators.add(() -> gain.setUnknownDocRating(randomValueOtherThan(unknownDocRating, () -> randomIntBetween(0, 10))));
+        randomFrom(mutators).run();
         return gain;
     }
 }

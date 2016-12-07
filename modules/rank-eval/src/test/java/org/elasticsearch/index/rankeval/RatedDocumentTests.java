@@ -22,8 +22,6 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 
@@ -61,27 +59,13 @@ public class RatedDocumentTests extends ESTestCase {
                 RankEvalTestHelper.copy(testItem, RatedDocument::new));
     }
 
-    @Rule
-    public final ExpectedException exception = ExpectedException.none();
-
     public void testInvalidParsing() throws IOException {
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(null, randomAsciiOfLength(10), randomAsciiOfLength(10), randomInt());
-        
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument("", randomAsciiOfLength(10), randomAsciiOfLength(10), randomInt());
-
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(randomAsciiOfLength(10), null, randomAsciiOfLength(10), randomInt());
-        
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(randomAsciiOfLength(10), "", randomAsciiOfLength(10), randomInt());
-        
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(randomAsciiOfLength(10), randomAsciiOfLength(10), null, randomInt());
-
-        exception.expect(IllegalArgumentException.class);
-        new RatedDocument(randomAsciiOfLength(10), randomAsciiOfLength(10), "", randomInt());
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument(null, "abc", "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("", "abc", "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", null, "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "", "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "abc", null, 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "abc", "", 10));
     }
 
     private static RatedDocument mutateTestItem(RatedDocument original) {
@@ -89,43 +73,20 @@ public class RatedDocumentTests extends ESTestCase {
         String index = original.getIndex();
         String type = original.getType();
         String docId = original.getDocID();
+
         switch (randomIntBetween(0, 3)) {
         case 0:
-        {
-            int mutation = randomInt();
-            while (mutation == rating) {
-                mutation = randomInt();
-            }
-            rating = mutation;
+            rating = randomValueOtherThan(rating, () -> randomInt());
             break;
-        }
         case 1:
-        {
-            String mutation = randomAsciiOfLength(10);
-            while (mutation.equals(index)) {
-                mutation = randomAsciiOfLength(10);
-            }
-            index = mutation;
+            index = randomValueOtherThan(index, () -> randomAsciiOfLength(10));
             break;
-        }
         case 2:
-        {
-            String mutation = randomAsciiOfLength(10);
-            while (mutation.equals(type)) {
-                mutation = randomAsciiOfLength(10);
-            }
-            type = mutation;
+            type = randomValueOtherThan(type, () -> randomAsciiOfLength(10));
             break;
-        }
         case 3:
-        {
-            String mutation = randomAsciiOfLength(10);
-            while (mutation.equals(docId)) {
-                mutation = randomAsciiOfLength(10);
-            }
-            docId = mutation;
+            docId = randomValueOtherThan(docId, () -> randomAsciiOfLength(10));
             break;
-        }
         default:
             throw new IllegalStateException("The test should only allow two parameters mutated");
         }

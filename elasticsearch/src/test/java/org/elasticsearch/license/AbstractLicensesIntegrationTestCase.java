@@ -95,4 +95,17 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
         });
         latch.await();
     }
+
+    protected void assertLicenseActive(boolean active) throws InterruptedException {
+        boolean success = awaitBusy(() -> {
+            for (XPackLicenseState licenseState : internalCluster().getDataNodeInstances(XPackLicenseState.class)) {
+                if (licenseState.isActive() == active) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        assertTrue(success);
+    }
+
 }

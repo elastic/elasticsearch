@@ -24,13 +24,8 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
+@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
-
-    @Override
-    protected Settings transportClientSettings() {
-        return super.transportClientSettings();
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -60,9 +55,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
         int numNodes = randomIntBetween(1, 5);
         logger.info("--> starting {} node(s)", numNodes);
-        for (int i = 0; i < numNodes; i++) {
-            internalCluster().startNode();
-        }
+        internalCluster().startNodes(numNodes);
         ensureGreen();
 
         logger.info("--> put signed license");
@@ -98,9 +91,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
         int numNodes = randomIntBetween(1, 5);
         logger.info("--> starting {} node(s)", numNodes);
-        for (int i = 0; i < numNodes; i++) {
-            internalCluster().startNode();
-        }
+        internalCluster().startNodes(numNodes);
         ensureGreen();
 
         logger.info("--> put signed license");
@@ -154,26 +145,6 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         ensureYellow();
         logger.info("--> await node for disabled");
         assertLicenseActive(false);
-    }
-
-    public void testClusterNotRecovered() throws Exception {
-        logger.info("--> start one master out of two [recovery state]");
-        internalCluster().startNode(nodeSettingsBuilder(0).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
-        logger.info("--> start second master out of two [recovered state]");
-        internalCluster().startNode(nodeSettingsBuilder(1).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
-        assertLicenseActive(true);
-    }
-
-    private void assertLicenseActive(boolean active) throws InterruptedException {
-        boolean success = awaitBusy(() -> {
-            for (XPackLicenseState licenseState : internalCluster().getDataNodeInstances(XPackLicenseState.class)) {
-                if (licenseState.isActive() == active) {
-                    return true;
-                }
-            }
-            return false;
-        });
-        assertTrue(success);
     }
 
     private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {

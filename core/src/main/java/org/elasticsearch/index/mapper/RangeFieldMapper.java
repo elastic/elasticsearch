@@ -728,8 +728,8 @@ public class RangeFieldMapper extends FieldMapper {
         public Query rangeQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo,
                 ShapeRelation relation, @Nullable DateTimeZone timeZone, @Nullable DateMathParser dateMathParser,
                 QueryShardContext context) {
-            Number lower = from == null ? minValue() : numberType.parse(from);
-            Number upper = to == null ? maxValue() : numberType.parse(to);
+            Number lower = from == null ? minValue() : numberType.parse(from, false);
+            Number upper = to == null ? maxValue() : numberType.parse(to, false);
             if (relation == ShapeRelation.WITHIN) {
                 return withinQuery(field, lower, upper, includeFrom, includeTo);
             } else if (relation == ShapeRelation.CONTAINS) {

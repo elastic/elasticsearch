@@ -38,6 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -144,7 +145,7 @@ public class NumberFieldMapper extends FieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(type.parse(propNode));
+                    builder.nullValue(type.parse(propNode, false));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
@@ -161,8 +162,8 @@ public class NumberFieldMapper extends FieldMapper {
     public enum NumberType {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
-            Float parse(Object value) {
-                return (Float) FLOAT.parse(value);
+            Float parse(Object value, boolean coerce) {
+                return (Float) FLOAT.parse(value, false);
             }
 
             @Override
@@ -172,7 +173,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Query termQuery(String field, Object value) {
-                float v = parse(value);
+                float v = parse(value, false);
                 return HalfFloatPoint.newExactQuery(field, v);
             }
 
@@ -180,7 +181,7 @@ public class NumberFieldMapper extends FieldMapper {
             Query termsQuery(String field, List<Object> values) {
                 float[] v = new float[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
-                    v[i] = parse(values.get(i));
+                    v[i] = (float) parse(values.get(i), false);
                 }
                 return HalfFloatPoint.newSetQuery(field, v);
             }
@@ -191,14 +192,14 @@ public class NumberFieldMapper extends FieldMapper {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm);
+                    l = parse(lowerTerm, false);
                     if (includeLower) {
                         l = Math.nextDown(l);
                     }
                     l = HalfFloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm);
+                    u = parse(upperTerm, false);
                     if (includeUpper) {
                         u = Math.nextUp(u);
                     }
@@ -241,7 +242,7 @@ public class NumberFieldMapper extends FieldMapper {
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
-            Float parse(Object value) {
+            Float parse(Object value, boolean coerce) {
                 if (value instanceof Number) {
                     return ((Number) value).floatValue();
                 }
@@ -258,7 +259,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Query termQuery(String field, Object value) {
-                float v = parse(value);
+                float v = parse(value, false);
                 return FloatPoint.newExactQuery(field, v);
             }
 
@@ -266,7 +267,7 @@ public class NumberFieldMapper extends FieldMapper {
             Query termsQuery(String field, List<Object> values) {
                 float[] v = new float[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
-                    v[i] = parse(values.get(i));
+                    v[i] = parse(values.get(i), false);
                 }
                 return FloatPoint.newSetQuery(field, v);
             }
@@ -277,13 +278,13 @@ public class NumberFieldMapper extends FieldMapper {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm);
+                    l = parse(lowerTerm, false);
                     if (includeLower == false) {
                         l = Math.nextUp(l);
                     }
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm);
+                    u = parse(upperTerm, false);
                     if (includeUpper == false) {
                         u = Math.nextDown(u);
                     }
@@ -325,7 +326,7 @@ public class NumberFieldMapper extends FieldMapper {
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
-            Double parse(Object value) {
+            Double parse(Object value, boolean coerce) {
                 if (value instanceof Number) {
                     return ((Number) value).doubleValue();
                 }
@@ -342,7 +343,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Query termQuery(String field, Object value) {
-                double v = parse(value);
+                double v = parse(value, false);
                 return DoublePoint.newExactQuery(field, v);
             }
 
@@ -350,7 +351,7 @@ public class NumberFieldMapper extends FieldMapper {
             Query termsQuery(String field, List<Object> values) {
                 double[] v = new double[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
-                    v[i] = parse(values.get(i));
+                    v[i] = parse(values.get(i), false);
                 }
                 return DoublePoint.newSetQuery(field, v);
             }
@@ -361,13 +362,13 @@ public class NumberFieldMapper extends FieldMapper {
                 double l = Double.NEGATIVE_INFINITY;
                 double u = Double.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm);
+                    l = parse(lowerTerm, false);
                     if (includeLower == false) {
                         l = Math.nextUp(l);
                     }
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm);
+                    u = parse(upperTerm, false);
                     if (includeUpper == false) {
                         u = Math.nextDown(u);
                     }
@@ -409,11 +410,14 @@ public class NumberFieldMapper extends FieldMapper {
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
-            Byte parse(Object value) {
+            Byte parse(Object value, boolean coerce) {
                 if (value instanceof Number) {
                     double doubleValue = ((Number) value).doubleValue();
                     if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
                         throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                    }
+                    if (!coerce && doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                     }
                     return ((Number) value).byteValue();
                 }
@@ -467,11 +471,14 @@ public class NumberFieldMapper extends FieldMapper {
         },
         SHORT("short", NumericType.SHORT) {
             @Override
-            Short parse(Object value) {
+            Short parse(Object value, boolean coerce) {
                 if (value instanceof Number) {
                     double doubleValue = ((Number) value).doubleValue();
                     if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
                         throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
+                    }
+                    if (!coerce && doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                     }
                     return ((Number) value).shortValue();
                 }
@@ -525,11 +532,14 @@ public class NumberFieldMapper extends FieldMapper {
         },
         INTEGER("integer", NumericType.INT) {
             @Override
-            Integer parse(Object value) {
+            Integer parse(Object value, boolean coerce) {
                 if (value instanceof Number) {
                     double doubleValue = ((Number) value).doubleValue();
                     if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
                         throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
+                    }
+                    if (!coerce && doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                     }
                     return ((Number) value).intValue();
                 }
@@ -546,15 +556,29 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Query termQuery(String field, Object value) {
-                int v = parse(value);
+                if (hasDecimalPart(value)) {
+                    return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
+                }
+                int v = parse(value, true);
                 return IntPoint.newExactQuery(field, v);
             }
 
             @Override
             Query termsQuery(String field, List<Object> values) {
-                int[] v = new int[values.size()];
-                for (int i = 0; i < values.size(); ++i) {
-                    v[i] = parse(values.get(i));
+                final List<Object> nonDecimalValues = new ArrayList<>();
+
+                values.forEach(value -> {
+                    if (!hasDecimalPart(value)) {
+                        nonDecimalValues.add(value);
+                    }
+                });
+                if (nonDecimalValues.isEmpty()) {
+                    return Queries.newMatchNoDocsQuery("All values have a decimal part");
+                }
+
+                int[] v = new int[nonDecimalValues.size()];
+                for (int i = 0; i < nonDecimalValues.size(); ++i) {
+                    v[i] = parse(nonDecimalValues.get(i), true);
                 }
                 return IntPoint.newSetQuery(field, v);
             }
@@ -565,7 +589,7 @@ public class NumberFieldMapper extends FieldMapper {
                 int l = Integer.MIN_VALUE;
                 int u = Integer.MAX_VALUE;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm);
+                    l = parse(lowerTerm, true);
                     if (includeLower == false || hasDecimalPart(lowerTerm)) {
                         if (l == Integer.MAX_VALUE) {
                             return new MatchNoDocsQuery();
@@ -574,7 +598,7 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm);
+                    u = parse(upperTerm, true);
                     if (includeUpper == false && !hasDecimalPart(upperTerm)) {
                         if (u == Integer.MIN_VALUE) {
                             return new MatchNoDocsQuery();
@@ -618,11 +642,14 @@ public class NumberFieldMapper extends FieldMapper {
         },
         LONG("long", NumericType.LONG) {
             @Override
-            Long parse(Object value) {
+            Long parse(Object value, boolean coerce) {
                 if (value instanceof Number) {
                     double doubleValue = ((Number) value).doubleValue();
                     if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
                         throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
+                    }
+                    if (!coerce && doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                     }
                     return ((Number) value).longValue();
                 }
@@ -639,15 +666,29 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Query termQuery(String field, Object value) {
-                long v = parse(value);
+                if (hasDecimalPart(value)) {
+                    return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
+                }
+                long v = parse(value, true);
                 return LongPoint.newExactQuery(field, v);
             }
 
             @Override
             Query termsQuery(String field, List<Object> values) {
-                long[] v = new long[values.size()];
-                for (int i = 0; i < values.size(); ++i) {
-                    v[i] = parse(values.get(i));
+                final List<Object> nonDecimalValues = new ArrayList<>();
+
+                values.forEach(value -> {
+                    if (!hasDecimalPart(value)) {
+                        nonDecimalValues.add(value);
+                    }
+                });
+                if (nonDecimalValues.isEmpty()) {
+                    return Queries.newMatchNoDocsQuery("All values have a decimal part");
+                }
+
+                long[] v = new long[nonDecimalValues.size()];
+                for (int i = 0; i < nonDecimalValues.size(); ++i) {
+                    v[i] = parse(nonDecimalValues.get(i), true);
                 }
                 return LongPoint.newSetQuery(field, v);
             }
@@ -658,7 +699,7 @@ public class NumberFieldMapper extends FieldMapper {
                 long l = Long.MIN_VALUE;
                 long u = Long.MAX_VALUE;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm);
+                    l = parse(lowerTerm, true);
                     if (includeLower == false || hasDecimalPart(lowerTerm)) {
                         if (l == Long.MAX_VALUE) {
                             return new MatchNoDocsQuery();
@@ -667,7 +708,7 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm);
+                    u = parse(upperTerm, true);
                     if (includeUpper == false && !hasDecimalPart(upperTerm)) {
                         if (u == Long.MIN_VALUE) {
                             return new MatchNoDocsQuery();
@@ -731,7 +772,7 @@ public class NumberFieldMapper extends FieldMapper {
         abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                   boolean includeLower, boolean includeUpper);
         abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
-        abstract Number parse(Object value);
+        abstract Number parse(Object value, boolean coerce);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
         abstract FieldStats<? extends Number> stats(IndexReader reader, String fieldName,
@@ -747,6 +788,9 @@ public class NumberFieldMapper extends FieldMapper {
             if (number instanceof Number) {
                 double doubleValue = ((Number) number).doubleValue();
                 return doubleValue % 1 != 0;
+            }
+            if (number instanceof String) {
+                return Double.parseDouble((String) number) % 1 != 0;
             }
             return false;
         }
@@ -921,7 +965,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         if (numericValue == null) {
-            numericValue = fieldType().type.parse(value);
+            numericValue = fieldType().type.parse(value, coerce.value());
         }
 
         if (includeInAll) {

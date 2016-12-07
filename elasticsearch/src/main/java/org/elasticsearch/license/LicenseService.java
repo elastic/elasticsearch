@@ -424,6 +424,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     // remove operationModeFileWatcher to gc the old license object
                     previousLicense.removeOperationModeFileWatcher();
                 }
+                logger.info("license [{}] mode [{}] - valid", license.uid(),
+                        license.operationMode().name().toLowerCase(Locale.ROOT));
             }
             updateLicenseState(license);
         }

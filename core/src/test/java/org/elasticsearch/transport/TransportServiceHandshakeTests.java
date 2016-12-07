@@ -35,6 +35,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -97,7 +98,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         threadPool = null;
     }
 
-    public void testConnectToNodeLight() {
+    public void testConnectToNodeLight() throws IOException {
         Settings settings = Settings.builder().put("cluster.name", "test").build();
 
         NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
@@ -113,7 +114,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         DiscoveryNode connectedNode =
-                handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
+                handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout, true);
         assertNotNull(connectedNode);
 
         // the name and version should be updated
@@ -133,7 +134,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handleA.transportService.connectToNodeAndHandshake(
-                discoveryNode, timeout));
+                discoveryNode, timeout, true));
         assertThat(ex.getMessage(), containsString("handshake failed, mismatched cluster name [Cluster [b]]"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
 }
@@ -150,12 +151,12 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handleA.transportService.connectToNodeAndHandshake(
-            discoveryNode, timeout));
+            discoveryNode, timeout, true));
         assertThat(ex.getMessage(), containsString("handshake failed, incompatible version"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }
 
-    public void testIgnoreMismatchedClusterName() {
+    public void testIgnoreMismatchedClusterName() throws IOException {
         Settings settings = Settings.builder().put("cluster.name", "a").build();
 
         NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);

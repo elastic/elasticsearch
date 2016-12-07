@@ -57,6 +57,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -493,14 +495,13 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                     @Override
-                    public void sendRequest(DiscoveryNode node, long requestId, String action,
-                                            TransportRequest request, TransportRequestOptions options)
-                            throws IOException, TransportException {
+                    protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                               TransportRequestOptions options) throws IOException {
                         if (keepFailing.get() && action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {
                             logger.info("--> failing translog ops");
                             throw new ElasticsearchException("failing on purpose");
                         }
-                        super.sendRequest(node, requestId, action, request, options);
+                        super.sendRequest(connection, requestId, action, request, options);
                     }
                 });
 

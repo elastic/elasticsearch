@@ -19,7 +19,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
@@ -92,11 +91,11 @@ public final class AssertingTransportInterceptor implements TransportInterceptor
     public AsyncSender interceptSender(final AsyncSender sender) {
         return new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options,
                                                                   final TransportResponseHandler<T> handler) {
                 assertVersionSerializable(request);
-                sender.sendRequest(node, action, request, options, new TransportResponseHandler<T>() {
+                sender.sendRequest(connection, action, request, options, new TransportResponseHandler<T>() {
                     @Override
                     public T newInstance() {
                         return handler.newInstance();

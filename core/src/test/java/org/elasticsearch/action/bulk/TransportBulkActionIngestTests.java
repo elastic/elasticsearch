@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -135,7 +134,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);
             when(event.state()).thenReturn(state);
-            ((ClusterStateListener)invocation.getArguments()[0]).clusterChanged(event);
+            ((ClusterStateApplier)invocation.getArguments()[0]).applyClusterState(event);
             return null;
         }).when(clusterService).add(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls

@@ -39,10 +39,6 @@ public class ParsedDocument {
 
     private final String routing;
 
-    private final long timestamp;
-
-    private final long ttl;
-
     private final List<Document> documents;
 
     private BytesReference source;
@@ -57,8 +53,6 @@ public class ParsedDocument {
         String id,
         String type,
         String routing,
-        long timestamp,
-        long ttl,
         List<Document> documents,
         BytesReference source,
         Mapping dynamicMappingsUpdate) {
@@ -68,8 +62,6 @@ public class ParsedDocument {
         this.type = type;
         this.uid = Uid.createUidAsBytes(type, id);
         this.routing = routing;
-        this.timestamp = timestamp;
-        this.ttl = ttl;
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
@@ -97,14 +89,6 @@ public class ParsedDocument {
 
     public String routing() {
         return this.routing;
-    }
-
-    public long timestamp() {
-        return this.timestamp;
-    }
-
-    public long ttl() {
-        return this.ttl;
     }
 
     public Document rootDoc() {

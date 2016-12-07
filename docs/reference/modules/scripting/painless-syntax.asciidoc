@@ -189,6 +189,12 @@ NOTE: Unlike Groovy, Painless' `?:` operator only coalesces `null`, not `false`
 or http://groovy-lang.org/semantics.html#Groovy-Truth[falsy] values. Strictly
 speaking Painless' `?:` is more like Kotlin's `?:` than Groovy's `?:`.
 
+NOTE: The result of `?.` and `?:` can't be assigned to primitives. So
+`int[] someArray = null; int l = someArray?.length` and
+`int s = params.size ?: 100` don't work. Do
+`def someArray = null; def l = someArray?.length` and
+`def s = params.size ?: 100` instead.
+
 
 [float]
 [[painless-control-flow]]

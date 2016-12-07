@@ -281,15 +281,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndexVersionCreated();
     }
 
-    public boolean matchesIndices(String... indices) {
-        for (String index : indices) {
-            if (indexSettings.matchesIndexName(index)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public ParsedQuery toFilter(QueryBuilder queryBuilder) {
         return toQuery(queryBuilder, q -> {
             Query filter = q.toFilter(this);

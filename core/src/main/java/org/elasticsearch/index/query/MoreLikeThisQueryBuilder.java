@@ -55,7 +55,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
@@ -80,7 +79,6 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "mlt");
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
@@ -94,7 +92,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
 
     private static final Set<Class<? extends MappedFieldType>> SUPPORTED_FIELD_TYPES = new HashSet<>(
-            Arrays.asList(StringFieldType.class, TextFieldType.class, KeywordFieldType.class));
+            Arrays.asList(TextFieldType.class, KeywordFieldType.class));
 
     private interface Field {
         ParseField FIELDS = new ParseField("fields");

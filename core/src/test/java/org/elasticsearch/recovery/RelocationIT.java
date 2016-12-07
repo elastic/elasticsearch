@@ -470,7 +470,7 @@ public class RelocationIT extends ESIntegTestCase {
             Stream.generate(() -> Settings.builder().put("node.attr.color", "blue").build()).limit(halfNodes),
             Stream.generate(() -> Settings.builder().put("node.attr.color", "red").build()).limit(halfNodes)
             ).toArray(Settings[]::new);
-        List<String> nodes = internalCluster().startNodesAsync(nodeSettings).get();
+        List<String> nodes = internalCluster().startNodes(nodeSettings);
         String[] blueNodes = nodes.subList(0, halfNodes).stream().toArray(String[]::new);
         String[] redNodes = nodes.subList(halfNodes, nodes.size()).stream().toArray(String[]::new);
         logger.info("blue nodes: {}", (Object)blueNodes);

@@ -19,12 +19,14 @@
 
 package org.elasticsearch.cloud.aws;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Locale;
 import java.util.function.Function;
@@ -76,6 +78,11 @@ public interface AwsS3Service extends LifecycleComponent {
      */
     Setting<String> REGION_SETTING =
         new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Shared);
+    /**
+     * cloud.aws.read_timeout: Socket read timeout. Shared with discovery-ec2 plugin
+     */
+    Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout",
+        TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope, Property.Shared);
 
     /**
      * Defines specific s3 settings starting with cloud.aws.s3.
@@ -150,6 +157,12 @@ public interface AwsS3Service extends LifecycleComponent {
          * cloud.aws.s3.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */
         Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.s3.endpoint", Property.NodeScope);
+        /**
+         * cloud.aws.s3.read_timeout: Socket read timeout. Defaults to cloud.aws.read_timeout
+         * @see AwsS3Service#READ_TIMEOUT
+         */
+        Setting<TimeValue> READ_TIMEOUT =
+            Setting.timeSetting("cloud.aws.s3.read_timeout", AwsS3Service.READ_TIMEOUT, Property.NodeScope);
     }
 
     AmazonS3 client(Settings repositorySettings, String endpoint, Protocol protocol, String region, Integer maxRetries,

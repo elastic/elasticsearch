@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
@@ -101,45 +100,6 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
                 containsString("id is too long, must be no longer than 512 bytes but was: 513"));
-}
-
-    public void testSetTTLAsTimeValue() {
-        IndexRequest indexRequest = new IndexRequest();
-        TimeValue ttl = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
-        indexRequest.ttl(ttl);
-        assertThat(indexRequest.ttl(), equalTo(ttl));
-    }
-
-    public void testSetTTLAsString() {
-        IndexRequest indexRequest = new IndexRequest();
-        String ttlAsString = randomTimeValue();
-        TimeValue ttl = TimeValue.parseTimeValue(ttlAsString, null, "ttl");
-        indexRequest.ttl(ttlAsString);
-        assertThat(indexRequest.ttl(), equalTo(ttl));
-    }
-
-    public void testSetTTLAsLong() {
-        IndexRequest indexRequest = new IndexRequest();
-        String ttlAsString = randomTimeValue();
-        TimeValue ttl = TimeValue.parseTimeValue(ttlAsString, null, "ttl");
-        indexRequest.ttl(ttl.millis());
-        assertThat(indexRequest.ttl(), equalTo(ttl));
-    }
-
-    public void testValidateTTL() {
-        IndexRequest indexRequest = new IndexRequest("index", "type");
-        if (randomBoolean()) {
-            indexRequest.ttl(randomIntBetween(Integer.MIN_VALUE, -1));
-        } else {
-            if (randomBoolean()) {
-                indexRequest.ttl(new TimeValue(randomIntBetween(Integer.MIN_VALUE, -1)));
-            } else {
-                indexRequest.ttl(randomIntBetween(Integer.MIN_VALUE, -1) + "ms");
-            }
-        }
-        ActionRequestValidationException validate = indexRequest.validate();
-        assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(), containsString("ttl must not be negative"));
     }
 
     public void testWaitForActiveShards() {

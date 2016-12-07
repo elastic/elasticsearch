@@ -43,12 +43,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -185,7 +183,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         new NewPendingClusterStateListener(),
                         discoverySettings,
                         clusterService.getClusterName());
-        this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, this::localNode, new MembershipListener());
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
         transportService.registerRequestHandler(
@@ -303,7 +301,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (!clusterChangedEvent.state().getNodes().isLocalNodeElectedMaster()) {
             throw new IllegalStateException("Shouldn't publish state when not master");
         }
-
         try {
             publishClusterState.publish(clusterChangedEvent, electMaster.minimumMasterNodes(), ackListener);
         } catch (FailedToCommitClusterStateException t) {
@@ -851,12 +848,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     void handleJoinRequest(final DiscoveryNode node, final ClusterState state, final MembershipAction.JoinCallback callback) {
-        if (!transportService.addressSupported(node.getAddress().getClass())) {
-            // TODO, what should we do now? Maybe inform that node that its crap?
-            logger.warn("received a wrong address type from [{}], ignoring...", node);
-        } else if (nodeJoinController == null) {
+        if (nodeJoinController == null) {
             throw new IllegalStateException("discovery module is not yet started");
         } else {
+            // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+            // to ensure we fail as fast as possible.
+            MembershipAction.ensureIndexCompatibility(node.getVersion().minimumIndexCompatibilityVersion(), state.getMetaData());
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 

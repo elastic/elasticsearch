@@ -59,7 +59,7 @@ public class HttpServerTests extends ESTestCase {
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        RestController restController = new RestController(settings, Collections.emptySet());
+        RestController restController = new RestController(settings, Collections.emptySet(), null);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));

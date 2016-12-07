@@ -51,7 +51,7 @@ only the title field is being included in the source.
                             }
                         ],
                         "_source": {
-                            "include": [
+                            "includes": [
                                 "title"
                             ]
                         },

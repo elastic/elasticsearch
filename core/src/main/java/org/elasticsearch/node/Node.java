@@ -28,6 +28,8 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.Client;
@@ -95,7 +97,6 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -115,7 +116,6 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtRegistry;
@@ -342,9 +342,8 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
             SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
-            ActionModule actionModule = new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
-                clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
-                pluginsService.filterPlugins(ActionPlugin.class));
+            ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
+                settingsModule.getClusterSettings(), threadPool, pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
@@ -423,6 +422,9 @@ public class Node implements Closeable {
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
                         threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase()));
+                    b.bind(SearchTransportService.class).toInstance(new SearchTransportService(settings, transportService));
+                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings, bigArrays,
+                            scriptModule.getScriptService()));
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
@@ -536,13 +538,11 @@ public class Node implements Closeable {
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
-        injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
-        injector.getInstance(RestController.class).start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -585,11 +585,13 @@ public class Node implements Closeable {
         discovery.start();
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-        // tribe nodes don't have a master so we shouldn't register an observer
-        if (DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis() > 0) {
+        // tribe nodes don't have a master so we shouldn't register an observer         s
+        final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
+        if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
             if (observer.observedState().nodes().getMasterNodeId() == null) {
+                logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -603,10 +605,10 @@ public class Node implements Closeable {
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         logger.warn("timed out while waiting for initial discovery state - timeout: {}",
-                            DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                            initialStateTimeout);
                         latch.countDown();
                     }
-                }, state -> state.nodes().getMasterNodeId() != null, DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
 
                 try {
                     latch.await();
@@ -658,14 +660,12 @@ public class Node implements Closeable {
         // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
         injector.getInstance(Discovery.class).stop();
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
-        injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
@@ -709,7 +709,6 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
         toClose.add(injector.getInstance(IndicesClusterStateService.class));
         toClose.add(() -> stopWatch.stop().start("indices"));
-        toClose.add(injector.getInstance(IndicesTTLService.class));
         toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
@@ -727,8 +726,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));
         toClose.add(injector.getInstance(SearchService.class));
-        toClose.add(() -> stopWatch.stop().start("rest"));
-        toClose.add(injector.getInstance(RestController.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
 

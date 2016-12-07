@@ -20,10 +20,10 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -41,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -75,10 +74,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
     @Nullable
     private String parent;
-    @Nullable
-    private String timestamp;
-    @Nullable
-    private TimeValue ttl;
 
     private BytesReference source;
 
@@ -162,12 +157,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         if (versionType == VersionType.FORCE) {
             validationException = addValidationError("version type [force] may no longer be used", validationException);
-        }
-
-        if (ttl != null) {
-            if (ttl.millis() < 0) {
-                validationException = addValidationError("ttl must not be negative", validationException);
-            }
         }
 
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
@@ -266,49 +255,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Sets the timestamp either as millis since the epoch, or, in the configured date format.
-     */
-    public IndexRequest timestamp(String timestamp) {
-        this.timestamp = timestamp;
-        return this;
-    }
-
-    public String timestamp() {
-        return this.timestamp;
-    }
-
-    /**
-     * Sets the ttl value as a time value expression.
-     */
-    public IndexRequest ttl(String ttl) {
-        this.ttl = TimeValue.parseTimeValue(ttl, null, "ttl");
-        return this;
-    }
-
-    /**
-     * Sets the ttl as a {@link TimeValue} instance.
-     */
-    public IndexRequest ttl(TimeValue ttl) {
-        this.ttl = ttl;
-        return this;
-    }
-
-    /**
-     * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
-     */
-    public IndexRequest ttl(long ttl) {
-        this.ttl = new TimeValue(ttl);
-        return this;
-    }
-
-    /**
-     * Returns the ttl as a {@link TimeValue}
-     */
-    public TimeValue ttl() {
-        return this.ttl;
-    }
-
-    /**
      * Sets the ingest pipeline to be executed before indexing the document
      */
     public IndexRequest setPipeline(String pipeline) {
@@ -377,46 +323,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-    public IndexRequest source(String field1, Object value1) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).field(field4, value4).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
+    /**
+     * Sets the content source to index.
+     * <p>
+     * <b>Note: the number of objects passed to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
     public IndexRequest source(Object... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
@@ -537,11 +451,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
 
     public void process(@Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
-        // resolve timestamp if provided externally
-        if (timestamp != null) {
-            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
-                    mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
-        }
         if (mappingMd != null) {
             // might as well check for routing here
             if (mappingMd.routing().required() && routing == null) {
@@ -563,30 +472,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             autoGeneratedTimestamp = Math.max(0, System.currentTimeMillis()); // extra paranoia
             id(UUIDs.base64UUID());
         }
-
-        // generate timestamp if not provided, we always have one post this stage...
-        if (timestamp == null) {
-            String defaultTimestamp = TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP;
-            if (mappingMd != null && mappingMd.timestamp() != null) {
-                // If we explicitly ask to reject null timestamp
-                if (mappingMd.timestamp().ignoreMissing() != null && mappingMd.timestamp().ignoreMissing() == false) {
-                    throw new TimestampParsingException("timestamp is required by mapping");
-                }
-                defaultTimestamp = mappingMd.timestamp().defaultTimestamp();
-            }
-
-            if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
-                timestamp = Long.toString(System.currentTimeMillis());
-            } else {
-                // if we are here, the defaultTimestamp is not
-                // TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP but
-                // this can only happen if defaultTimestamp was
-                // assigned again because mappingMd and
-                // mappingMd#timestamp() are not null
-                assert mappingMd != null;
-                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter());
-            }
-        }
     }
 
     /* resolve the routing if needed */
@@ -601,8 +486,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
-        timestamp = in.readOptionalString();
-        ttl = in.readOptionalWriteable(TimeValue::new);
+        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            in.readOptionalString(); // timestamp
+            in.readOptionalWriteable(TimeValue::new); // ttl
+        }
         source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
@@ -619,8 +506,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
-        out.writeOptionalString(timestamp);
-        out.writeOptionalWriteable(ttl);
+        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeOptionalString(null);
+            out.writeOptionalWriteable(null);
+        }
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
         out.writeLong(version);

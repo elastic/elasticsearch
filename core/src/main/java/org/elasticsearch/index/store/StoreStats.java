@@ -74,7 +74,7 @@ public class StoreStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
             in.readVLong(); // throttleTimeInNanos
         }
     }
@@ -82,7 +82,7 @@ public class StoreStats implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
             out.writeVLong(0L); // throttleTimeInNanos
         }
     }

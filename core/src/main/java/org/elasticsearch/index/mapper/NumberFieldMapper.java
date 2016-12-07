@@ -27,15 +27,16 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
@@ -47,7 +48,6 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
@@ -65,6 +65,11 @@ public class NumberFieldMapper extends FieldMapper {
     // this is private since it has a different default
     static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
+
+    public static class Defaults {
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
+        public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
+    }
 
     public static class Builder extends FieldMapper.Builder<Builder, NumberFieldMapper> {
 
@@ -130,24 +135,6 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
-                switch (type) {
-                case BYTE:
-                    return new LegacyByteFieldMapper.TypeParser().parse(name, node, parserContext);
-                case SHORT:
-                    return new LegacyShortFieldMapper.TypeParser().parse(name, node, parserContext);
-                case INTEGER:
-                    return new LegacyIntegerFieldMapper.TypeParser().parse(name, node, parserContext);
-                case LONG:
-                    return new LegacyLongFieldMapper.TypeParser().parse(name, node, parserContext);
-                case FLOAT:
-                    return new LegacyFloatFieldMapper.TypeParser().parse(name, node, parserContext);
-                case DOUBLE:
-                    return new LegacyDoubleFieldMapper.TypeParser().parse(name, node, parserContext);
-                default:
-                    throw new AssertionError();
-                }
-            }
             Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -241,14 +228,18 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Double stats(IndexReader reader, String fieldName,
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
+                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
+                if (fi == null) {
+                    return null;
+                }
                 long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return null;
+                    return new FieldStats.Double(reader.maxDoc(), 0, -1, -1, isSearchable, isAggregatable);
                 }
                 int docCount = PointValues.getDocCount(reader, fieldName);
                 byte[] min = PointValues.getMinPackedValue(reader, fieldName);
                 byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-                return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
+                return new FieldStats.Double(reader.maxDoc(), docCount, -1L, size,
                     isSearchable, isAggregatable,
                     HalfFloatPoint.decodeDimension(min, 0), HalfFloatPoint.decodeDimension(max, 0));
             }
@@ -325,9 +316,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Double stats(IndexReader reader, String fieldName,
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
+                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
+                if (fi == null) {
+                    return null;
+                }
                 long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return null;
+                    return new FieldStats.Double(reader.maxDoc(), 0, -1, -1, isSearchable, isAggregatable);
                 }
                 int docCount = PointValues.getDocCount(reader, fieldName);
                 byte[] min = PointValues.getMinPackedValue(reader, fieldName);
@@ -409,9 +404,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Double stats(IndexReader reader, String fieldName,
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
+                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
+                if (fi == null) {
+                    return null;
+                }
                 long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return null;
+                    return new FieldStats.Double(reader.maxDoc(),0, -1, -1, isSearchable, isAggregatable);
                 }
                 int docCount = PointValues.getDocCount(reader, fieldName);
                 byte[] min = PointValues.getMinPackedValue(reader, fieldName);
@@ -627,9 +626,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Long stats(IndexReader reader, String fieldName,
                                   boolean isSearchable, boolean isAggregatable) throws IOException {
+                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
+                if (fi == null) {
+                    return null;
+                }
                 long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return null;
+                    return new FieldStats.Long(reader.maxDoc(), 0, -1, -1, isSearchable, isAggregatable);
                 }
                 int docCount = PointValues.getDocCount(reader, fieldName);
                 byte[] min = PointValues.getMinPackedValue(reader, fieldName);
@@ -723,9 +726,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             FieldStats.Long stats(IndexReader reader, String fieldName,
                                   boolean isSearchable, boolean isAggregatable) throws IOException {
+                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
+                if (fi == null) {
+                    return null;
+                }
                 long size = PointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return null;
+                    return new FieldStats.Long(reader.maxDoc(), 0, -1, -1, isSearchable, isAggregatable);
                 }
                 int docCount = PointValues.getDocCount(reader, fieldName);
                 byte[] min = PointValues.getMinPackedValue(reader, fieldName);
@@ -895,7 +902,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         final boolean includeInAll = context.includeInAll(this.includeInAll, this);
 
         XContentParser parser = context.parser();

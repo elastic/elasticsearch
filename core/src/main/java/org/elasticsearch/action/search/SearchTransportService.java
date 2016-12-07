@@ -23,8 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -75,7 +73,7 @@ public class SearchTransportService extends AbstractComponent {
 
     private final TransportService transportService;
 
-    SearchTransportService(Settings settings, TransportService transportService) {
+    public SearchTransportService(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
     }

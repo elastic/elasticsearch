@@ -25,8 +25,6 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.text.DateFormat;
@@ -56,8 +54,7 @@ public final class IngestDocument {
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
-    public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp,
-                          String ttl, Map<String, Object> source) {
+    public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -68,12 +65,6 @@ public final class IngestDocument {
         }
         if (parent != null) {
             this.sourceAndMetadata.put(MetaData.PARENT.getFieldName(), parent);
-        }
-        if (timestamp != null) {
-            this.sourceAndMetadata.put(MetaData.TIMESTAMP.getFieldName(), timestamp);
-        }
-        if (ttl != null) {
-            this.sourceAndMetadata.put(MetaData.TTL.getFieldName(), ttl);
         }
 
         this.ingestMetadata = new HashMap<>();
@@ -639,9 +630,7 @@ public final class IngestDocument {
         TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
-        PARENT(ParentFieldMapper.NAME),
-        TIMESTAMP(TimestampFieldMapper.NAME),
-        TTL(TTLFieldMapper.NAME);
+        PARENT(ParentFieldMapper.NAME);
 
         private final String fieldName;
 

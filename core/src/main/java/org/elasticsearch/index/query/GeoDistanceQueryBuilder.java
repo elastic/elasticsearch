@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
-import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -36,13 +34,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
-import org.elasticsearch.index.mapper.LegacyGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -299,25 +292,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         double normDistance = geoDistance.normalize(this.distance, DistanceUnit.DEFAULT);
 
-        if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            return LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), normDistance);
-        } else if (indexVersionCreated.before(Version.V_2_2_0)) {
-            LegacyGeoPointFieldMapper.LegacyGeoPointFieldType geoFieldType = (LegacyGeoPointFieldMapper.LegacyGeoPointFieldType) fieldType;
-            IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
-            String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;
-            return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance,
-                    geoFieldType, indexFieldData, bboxOptimization, shardContext);
-        }
-
-        // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
-        // if index created V_2_3 > use prefix encoded postings format
-        final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
-            GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-        // Lucene 6.0 and earlier requires a radial restriction
-        if (indexVersionCreated.before(Version.V_5_0_0_alpha4)) {
-            normDistance = GeoUtils.maxRadialDistance(center, normDistance);
-        }
-        return new GeoPointDistanceQuery(fieldType.name(), encoding, center.lat(), center.lon(), normDistance);
+        return LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), normDistance);
     }
 
     @Override
@@ -371,11 +346,11 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (currentName.equals(GeoPointFieldMapper.Names.LAT)) {
+                        if (currentName.equals("lat")) {
                             point.resetLat(parser.doubleValue());
-                        } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
+                        } else if (currentName.equals("lon")) {
                             point.resetLon(parser.doubleValue());
-                        } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
+                        } else if (currentName.equals("geohash")) {
                             point.resetFromGeoHash(parser.text());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -394,12 +369,12 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                     unit = DistanceUnit.fromString(parser.text());
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, DISTANCE_TYPE_FIELD)) {
                     geoDistance = GeoDistance.fromString(parser.text());
-                } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LAT_SUFFIX)) {
+                } else if (currentFieldName.endsWith(".lat")) {
                     point.resetLat(parser.doubleValue());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LAT_SUFFIX.length());
-                } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LON_SUFFIX)) {
+                    fieldName = currentFieldName.substring(0, currentFieldName.length() - ".lat".length());
+                } else if (currentFieldName.endsWith(".lon")) {
                     point.resetLon(parser.doubleValue());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
+                    fieldName = currentFieldName.substring(0, currentFieldName.length() - ".lon".length());
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {

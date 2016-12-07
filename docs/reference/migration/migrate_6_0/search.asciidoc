@@ -10,6 +10,18 @@
   only the strings `"true"` and `"false"` will be parsed into their boolean
   counterparts. Other strings will cause an error to be thrown.
 
+* The `in` query (a synonym for the `terms` query) has been removed
+
+* The `geo_bbox` query (a synonym for the `geo_bounding_box` query) has been removed
+
+* The `mlt` query (a synonym for the `more_like_this` query) has been removed
+
+* The `fuzzy_match` and `match_fuzzy` query (synonyma for the `match` query) have been removed
+
+* The `terms` query now always returns scores equal to `1` and is not subject to
+  `indices.query.bool.max_clause_count` anymore.
+
+* The deprecated `indices` query has been removed.
 
 ==== Search shards API
 

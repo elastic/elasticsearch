@@ -46,8 +46,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
     public void testQuorumRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
-        internalCluster().startNodesAsync(3).get();
-
+        internalCluster().startNodes(3);
 
         createIndex("test");
         ensureGreen();

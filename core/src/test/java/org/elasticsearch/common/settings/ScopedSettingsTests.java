@@ -213,20 +213,44 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testDiff() throws IOException {
         Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
         Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Settings> someGroup = Setting.groupSetting("some.group.", Property.Dynamic, Property.NodeScope);
+        Setting<Boolean> someAffix = Setting.affixKeySetting("some.prefix.", "somekey", "true", Boolean::parseBoolean, Property.NodeScope);
         Setting<List<String>> foorBarQuux =
                 Setting.listSetting("foo.bar.quux", Arrays.asList("a", "b", "c"), Function.identity(), Property.NodeScope);
-        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux)));
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
+            someGroup, someAffix)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
-        assertThat(diff.getAsMap().size(), equalTo(2));
+        assertEquals(4, diff.getAsMap().size()); // 4 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
-        assertThat(diff.get("foo.bar.quux", null), equalTo("[\"a\",\"b\",\"c\"]"));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
 
         diff = settings.diff(
                 Settings.builder().put("foo.bar", 5).build(),
-                Settings.builder().put("foo.bar.baz", 17).put("foo.bar.quux", "d,e,f").build());
-        assertThat(diff.getAsMap().size(), equalTo(2));
+                Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
+        assertEquals(4, diff.getAsMap().size()); // 4 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
-        assertThat(diff.get("foo.bar.quux", null), equalTo("[\"d\",\"e\",\"f\"]"));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
+
+        diff = settings.diff(
+            Settings.builder().put("some.group.foo", 5).build(),
+            Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
+        assertEquals(6, diff.getAsMap().size()); // 6 since foo.bar.quux has 3 values essentially
+        assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
+        assertNull(diff.get("some.group.foo"));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+
+        diff = settings.diff(
+            Settings.builder().put("some.prefix.foo.somekey", 5).build(),
+            Settings.builder().put("some.prefix.foobar.somekey", 17,
+                "some.prefix.foo.somekey", 18).build());
+        assertEquals(6, diff.getAsMap().size()); // 6 since foo.bar.quux has 3 values essentially
+        assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
+        assertNull(diff.get("some.prefix.foo.somekey"));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
     }
 
     public void testUpdateTracer() {

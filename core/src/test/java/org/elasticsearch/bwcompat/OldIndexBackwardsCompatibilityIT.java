@@ -61,7 +61,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.OldIndexUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -129,24 +128,23 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void setupCluster() throws Exception {
-        InternalTestCluster.Async<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
+        List<String> replicas = internalCluster().startNodes(1); // for replicas
 
         Path baseTempDir = createTempDir();
         // start single data path node
         Settings.Builder nodeSettings = Settings.builder()
                 .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("single-path").toAbsolutePath())
                 .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
-        InternalTestCluster.Async<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+        singleDataPathNodeName = internalCluster().startNode(nodeSettings);
 
         // start multi data path node
         nodeSettings = Settings.builder()
                 .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir
                         .resolve("multi-path2").toAbsolutePath())
                 .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
-        InternalTestCluster.Async<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+        multiDataPathNodeName = internalCluster().startNode(nodeSettings);
 
         // find single data path dir
-        singleDataPathNodeName = singleDataPathNode.get();
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, singleDataPathNodeName).nodeDataPaths();
         assertEquals(1, nodePaths.length);
         singleDataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
@@ -155,7 +153,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         logger.info("--> Single data path: {}", singleDataPath);
 
         // find multi data path dirs
-        multiDataPathNodeName = multiDataPathNode.get();
         nodePaths = internalCluster().getInstance(NodeEnvironment.class, multiDataPathNodeName).nodeDataPaths();
         assertEquals(2, nodePaths.length);
         multiDataPath = new Path[]{nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER),
@@ -165,8 +162,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Files.createDirectories(multiDataPath[0]);
         Files.createDirectories(multiDataPath[1]);
         logger.info("--> Multi data paths: {}, {}", multiDataPath[0], multiDataPath[1]);
-
-        replicas.get(); // wait for replicas
     }
 
     void upgradeIndexFolder() throws Exception {

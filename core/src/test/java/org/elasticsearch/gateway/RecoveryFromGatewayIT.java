@@ -316,7 +316,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        internalCluster().startNodesAsync(2, Settings.builder().put("gateway.recover_after_nodes", 2).build()).get();
+        internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
@@ -366,7 +366,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         logger.info("--> starting the two nodes back");
 
-        internalCluster().startNodesAsync(2, Settings.builder().put("gateway.recover_after_nodes", 2).build()).get();
+        internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
@@ -392,7 +392,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4)
             .put(MockFSDirectoryService.CRASH_INDEX_SETTING.getKey(), false).build();
 
-        internalCluster().startNodesAsync(4, settings).get();
+        internalCluster().startNodes(4, settings);
         // prevent any rebalance actions during the peer recovery
         // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
         // we reuse the files on disk after full restarts for replicas.

@@ -126,7 +126,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     }
 
     public void testClusterInfoServiceCollectsInformation() throws Exception {
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodes(2);
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
@@ -174,10 +174,9 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     }
 
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
-        internalCluster().startNodesAsync(2,
+        internalCluster().startNodes(2,
                 // manually control publishing
-                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build())
-                .get();
+                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build());
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();

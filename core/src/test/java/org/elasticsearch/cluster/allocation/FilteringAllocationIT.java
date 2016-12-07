@@ -43,7 +43,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
     public void testDecommissionNodeNoReplicas() throws Exception {
         logger.info("--> starting 2 nodes");
-        List<String> nodesIds = internalCluster().startNodesAsync(2).get();
+        List<String> nodesIds = internalCluster().startNodes(2);
         final String node_0 = nodesIds.get(0);
         final String node_1 = nodesIds.get(1);
         assertThat(cluster().size(), equalTo(2));
@@ -82,7 +82,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
     public void testDisablingAllocationFiltering() throws Exception {
         logger.info("--> starting 2 nodes");
-        List<String> nodesIds = internalCluster().startNodesAsync(2).get();
+        List<String> nodesIds = internalCluster().startNodes(2);
         final String node_0 = nodesIds.get(0);
         final String node_1 = nodesIds.get(1);
         assertThat(cluster().size(), equalTo(2));

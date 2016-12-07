@@ -18,12 +18,13 @@ import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
-import org.elasticsearch.xpack.prelert.utils.CloseableIterator;
 import org.mockito.InOrder;
 
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.inOrder;
@@ -39,11 +40,14 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     public void testProcess() {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
         @SuppressWarnings("unchecked")
-        CloseableIterator<AutodetectResult> iterator = mock(CloseableIterator.class);
+        Stream<AutodetectResult> stream = mock(Stream.class);
+        @SuppressWarnings("unchecked")
+        Iterator<AutodetectResult> iterator = mock(Iterator.class);
+        when(stream.iterator()).thenReturn(iterator);
         when(iterator.hasNext()).thenReturn(true).thenReturn(false);
         when(iterator.next()).thenReturn(autodetectResult);
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
-        when(parser.parseResults(any())).thenReturn(iterator);
+        when(parser.parseResults(any())).thenReturn(stream);
 
         Renormaliser renormaliser = mock(Renormaliser.class);
         JobResultsPersister persister = mock(JobResultsPersister.class);

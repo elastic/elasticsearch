@@ -21,14 +21,14 @@ import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
-import org.elasticsearch.xpack.prelert.utils.CloseableIterator;
 
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Stream;
 
 /**
  * A runnable class that reads the autodetect process output
@@ -67,8 +67,9 @@ public class AutoDetectResultProcessor {
     }
 
     public void process(String jobId, InputStream in, boolean isPerPartitionNormalisation) {
-        try (CloseableIterator<AutodetectResult> iterator = parser.parseResults(in)) {
+        try (Stream<AutodetectResult> stream = parser.parseResults(in)) {
             int bucketCount = 0;
+            Iterator<AutodetectResult> iterator = stream.iterator();
             Context context = new Context(jobId, isPerPartitionNormalisation);
             while (iterator.hasNext()) {
                 AutodetectResult result = iterator.next();

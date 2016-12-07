@@ -229,7 +229,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(METRIC_OUTPUT_SAMPLE.getBytes(StandardCharsets.UTF_8));
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY, () -> ParseFieldMatcher.STRICT);
         List<AutodetectResult> results = new ArrayList<>();
-        parser.parseResults(inputStream).forEachRemaining(results::add);
+        parser.parseResults(inputStream).iterator().forEachRemaining(results::add);
         List<Bucket> buckets = results.stream().map(AutodetectResult::getBucket)
                 .filter(b -> b != null)
                 .collect(Collectors.toList());
@@ -324,7 +324,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(POPULATION_OUTPUT_SAMPLE.getBytes(StandardCharsets.UTF_8));
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY, () -> ParseFieldMatcher.STRICT);
         List<AutodetectResult> results = new ArrayList<>();
-        parser.parseResults(inputStream).forEachRemaining(results::add);
+        parser.parseResults(inputStream).iterator().forEachRemaining(results::add);
         List<Bucket> buckets = results.stream().map(AutodetectResult::getBucket)
                 .filter(b -> b != null)
                 .collect(Collectors.toList());
@@ -351,7 +351,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
         String json = "[]";
         InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY, () -> ParseFieldMatcher.STRICT);
-        assertFalse(parser.parseResults(inputStream).hasNext());
+        assertFalse(parser.parseResults(inputStream).iterator().hasNext());
     }
 
     public void testParse_GivenModelSizeStats() throws ElasticsearchParseException, IOException {
@@ -360,7 +360,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
 
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY, () -> ParseFieldMatcher.STRICT);
         List<AutodetectResult> results = new ArrayList<>();
-        parser.parseResults(inputStream).forEachRemaining(results::add);
+        parser.parseResults(inputStream).iterator().forEachRemaining(results::add);
 
         assertEquals(1, results.size());
         assertEquals(300, results.get(0).getModelSizeStats().getModelBytes());
@@ -371,7 +371,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY, () -> ParseFieldMatcher.STRICT);
         List<AutodetectResult> results = new ArrayList<>();
-        parser.parseResults(inputStream).forEachRemaining(results::add);
+        parser.parseResults(inputStream).iterator().forEachRemaining(results::add);
 
         assertEquals(1, results.size());
         assertEquals(18, results.get(0).getCategoryDefinition().getCategoryId());
@@ -382,7 +382,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY, () -> ParseFieldMatcher.STRICT);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
+                () -> parser.parseResults(inputStream).iterator().forEachRemaining(a -> {}));
         assertEquals("[autodetect_result] unknown field [unknown], parser not found", e.getMessage());
     }
 
@@ -391,7 +391,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY, () -> ParseFieldMatcher.STRICT);
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
+                () -> parser.parseResults(inputStream).iterator().forEachRemaining(a -> {}));
         assertEquals("unexpected token [START_ARRAY]", e.getMessage());
     }
 

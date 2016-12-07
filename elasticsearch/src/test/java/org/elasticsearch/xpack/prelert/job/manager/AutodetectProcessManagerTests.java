@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadPar
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;
-import org.elasticsearch.xpack.prelert.utils.CloseableIterator;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -45,9 +44,11 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.elasticsearch.mock.orig.Mockito.doThrow;
@@ -119,9 +120,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(PrelertPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME)).thenReturn(executorService);
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         @SuppressWarnings("unchecked")
-        CloseableIterator<AutodetectResult> iterator = mock(CloseableIterator.class);
+        Stream<AutodetectResult> stream = mock(Stream.class);
+        @SuppressWarnings("unchecked")
+        Iterator<AutodetectResult> iterator = mock(Iterator.class);
+        when(stream.iterator()).thenReturn(iterator);
         when(iterator.hasNext()).thenReturn(false);
-        when(parser.parseResults(any())).thenReturn(iterator);
+        when(parser.parseResults(any())).thenReturn(stream);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.getPersistStream()).thenReturn(new ByteArrayInputStream(new byte[0]));

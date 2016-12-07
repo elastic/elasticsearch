@@ -64,7 +64,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
-        if (RestActions.hasBodyContent(request)) {
+        if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = XContentFactory.xContent(RestActions.guessBodyContentType(request))
                 .createParser(RestActions.getRestContent(request))) {
                 TermVectorsRequest.parseRequest(termVectorsRequest, parser);

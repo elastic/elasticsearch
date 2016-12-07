@@ -74,7 +74,7 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
+        BytesReference restContent = request.hasContentOrSourceParam() ? RestActions.getRestContent(request) : null;
         parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, restContent);
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));

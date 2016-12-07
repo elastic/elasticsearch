@@ -72,7 +72,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
 
         Exception bodyParsingException = null;
-        if (RestActions.hasBodyContent(request)) {
+        if (request.hasContentOrSourceParam()) {
             try {
                 validateQueryRequest.query(
                     RestActions.getQueryContent(RestActions.getRestContent(request), indicesQueriesRegistry, parseFieldMatcher));

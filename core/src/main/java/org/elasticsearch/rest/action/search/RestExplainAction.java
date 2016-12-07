@@ -69,7 +69,7 @@ public class RestExplainAction extends BaseRestHandler {
         explainRequest.routing(request.param("routing"));
         explainRequest.preference(request.param("preference"));
         String queryString = request.param("q");
-        if (RestActions.hasBodyContent(request)) {
+        if (request.hasContentOrSourceParam()) {
             BytesReference restContent = RestActions.getRestContent(request);
             explainRequest.query(RestActions.getQueryContent(restContent, indicesQueriesRegistry, parseFieldMatcher));
         } else if (queryString != null) {

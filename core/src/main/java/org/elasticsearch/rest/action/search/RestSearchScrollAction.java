@@ -64,7 +64,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        if (RestActions.hasBodyContent(request)) {
+        if (request.hasContentOrSourceParam()) {
             XContentType type = XContentFactory.xContentType(RestActions.getRestContent(request));
             if (type == null) {
                 if (scrollId == null) {

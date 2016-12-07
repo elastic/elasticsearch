@@ -70,7 +70,7 @@ public class RestSuggestAction extends BaseRestHandler {
         final SearchRequest searchRequest = new SearchRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        if (RestActions.hasBodyContent(request)) {
+        if (request.hasContentOrSourceParam()) {
             final BytesReference sourceBytes = RestActions.getRestContent(request);
             try (XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes)) {
                 final QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);

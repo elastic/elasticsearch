@@ -22,11 +22,16 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -222,4 +227,47 @@ public abstract class RestRequest implements ToXContent.Params {
         return params;
     }
 
+    /**
+     * Does this request have content or a {@code source} parameter? Use this instead of {@link #hasContent()} if this
+     * {@linkplain RestHandler} treats the {@code source} parameter like the body content.
+     */
+    public final boolean hasContentOrSourceParam() {
+        return hasContent() || hasParam("source");
+    }
+
+    /**
+     * The content type for the body if there is one or the source {@code source} parameter if there isn't a body or null if there isn't
+     * any content or the type can't be guessed.
+     */
+    @Nullable
+    public final XContentType contentOrSourceParamContentType() {
+        BytesReference content = contentOrSource();
+        return content == null ? null : XContentFactory.xContentType(content);
+    }
+
+    /**
+     * A parser for the body if there is one or the contents of the {@code source} parameter if there isn't a body.
+     */
+    public final XContentParser contentOrSourceParamParser() throws IOException {
+        BytesReference content = contentOrSource();
+        return XContentFactory.xContent(content).createParser(content);
+    }
+
+    /**
+     * The String representation of the body if there is one or the {@code source} parameter if there isn't a body.
+     */
+    public final String contentOrSourceParamString() throws IOException {
+        return contentOrSource().utf8ToString();
+    }
+
+    private BytesReference contentOrSource() {
+        if (hasContent()) {
+            return content();
+        }
+        String source = param("source");
+        if (source != null) {
+            return new BytesArray(source);
+        }
+        return BytesArray.EMPTY;
+    }
 }

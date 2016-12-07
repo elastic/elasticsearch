@@ -243,13 +243,6 @@ public class RestActions {
     }
 
     /**
-     * Returns <code>true</code> if either payload or source parameter is present. Otherwise <code>false</code>
-     */
-    public static boolean hasBodyContent(final RestRequest request) {
-        return request.hasContent() || request.hasParam("source");
-    }
-
-    /**
      * {@code NodesResponseRestBuilderListener} automatically translates any {@link BaseNodesResponse} (multi-node) response that is
      * {@link ToXContent}-compatible into a {@link RestResponse} with the necessary header info (e.g., "cluster_name").
      * <p>

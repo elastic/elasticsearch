@@ -89,7 +89,7 @@ public abstract class AbstractBulkByQueryRestHandler<
          * should get better when SearchRequest has full ObjectParser support
          * then we can delegate and stuff.
          */
-        BytesReference content = RestActions.hasBodyContent(restRequest) ? RestActions.getRestContent(restRequest) : null;
+        BytesReference content = restRequest.hasContentOrSourceParam() ? RestActions.getRestContent(restRequest) : null;
         if ((content != null) && (consumers != null && consumers.size() > 0)) {
             Tuple<XContentType, Map<String, Object>> body = XContentHelper.convertToMap(content, false);
             boolean modified = false;

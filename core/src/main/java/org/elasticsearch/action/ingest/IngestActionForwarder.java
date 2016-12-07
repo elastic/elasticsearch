@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.transport.TransportService;
@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * TODO: move this into IngestService and make index/bulk actions call that
  */
-public final class IngestActionForwarder implements ClusterStateListener {
+public final class IngestActionForwarder implements ClusterStateApplier {
 
     private final TransportService transportService;
     private final AtomicInteger ingestNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
@@ -62,7 +62,7 @@ public final class IngestActionForwarder implements ClusterStateListener {
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
     }
 }

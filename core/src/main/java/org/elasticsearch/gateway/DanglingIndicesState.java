@@ -66,7 +66,7 @@ public class DanglingIndicesState extends AbstractComponent implements ClusterSt
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
-        clusterService.addPostApplied(this);
+        clusterService.addListener(this);
     }
 
     /**

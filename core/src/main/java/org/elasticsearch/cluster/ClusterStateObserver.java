@@ -175,7 +175,7 @@ public class ClusterStateObserver {
             final ClusterState state = event.state();
             if (context.statePredicate.test(state)) {
                 if (observingContext.compareAndSet(context, null)) {
-                    clusterService.remove(this);
+                    clusterService.removeTimeoutListener(this);
                     logger.trace("observer: accepting cluster state change ({})", state);
                     lastObservedState.set(state);
                     context.listener.onNewClusterState(state);
@@ -200,7 +200,7 @@ public class ClusterStateObserver {
                 // double check we're still listening
                 if (observingContext.compareAndSet(context, null)) {
                     logger.trace("observer: post adding listener: accepting current cluster state ({})", newState);
-                    clusterService.remove(this);
+                    clusterService.removeTimeoutListener(this);
                     lastObservedState.set(newState);
                     context.listener.onNewClusterState(newState);
                 } else {
@@ -217,7 +217,7 @@ public class ClusterStateObserver {
 
             if (context != null) {
                 logger.trace("observer: cluster service closed. notifying listener.");
-                clusterService.remove(this);
+                clusterService.removeTimeoutListener(this);
                 context.listener.onClusterServiceClose();
             }
         }
@@ -226,7 +226,7 @@ public class ClusterStateObserver {
         public void onTimeout(TimeValue timeout) {
             ObservingContext context = observingContext.getAndSet(null);
             if (context != null) {
-                clusterService.remove(this);
+                clusterService.removeTimeoutListener(this);
                 long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
                 logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStartMS));
                 // update to latest, in case people want to retry

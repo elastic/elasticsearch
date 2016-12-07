@@ -320,7 +320,7 @@ public class Node implements Closeable {
             final NetworkService networkService = new NetworkService(settings,
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
-            clusterService.add(scriptModule.getScriptService());
+            clusterService.addListener(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final TribeService tribeService = new TribeService(settings, clusterService, nodeId,
                 s -> newTribeClientNode(s, classpathPlugins));

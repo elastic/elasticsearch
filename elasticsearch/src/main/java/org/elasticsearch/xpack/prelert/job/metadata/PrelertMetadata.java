@@ -205,6 +205,18 @@ public class PrelertMetadata implements MetaData.Custom {
                 throw ExceptionsHelper.jobAlreadyExists(job.getId());
             }
             this.jobs.put(job.getId(), job);
+
+            Allocation allocation = allocations.get(job.getId());
+            if (allocation == null) {
+                Allocation.Builder builder = new Allocation.Builder();
+                builder.setJobId(job.getId());
+                boolean addSchedulderState = job.getSchedulerConfig() != null;
+                if (addSchedulderState) {
+                    builder.setSchedulerState(new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
+                }
+                builder.setStatus(JobStatus.CLOSED);
+                allocations.put(job.getId(), builder.build());
+            }
             return this;
         }
 
@@ -249,35 +261,6 @@ public class PrelertMetadata implements MetaData.Custom {
             return new PrelertMetadata(jobs, allocations);
         }
 
-        public Builder createAllocation(String jobId, boolean ignoreDowntime) {
-            Job job = jobs.get(jobId);
-            if (job == null) {
-                throw ExceptionsHelper.missingJobException(jobId);
-            }
-
-            Allocation allocation = allocations.get(jobId);
-            Allocation.Builder builder;
-            if (allocation == null) {
-                builder = new Allocation.Builder();
-                builder.setJobId(jobId);
-                boolean addSchedulderState = job.getSchedulerConfig() != null;
-                if (addSchedulderState) {
-                    builder.setSchedulerState(new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
-                }
-            } else {
-                if (allocation.getStatus() != JobStatus.CLOSED) {
-                    throw ExceptionsHelper.conflictStatusException("[" + jobId + "] expected status [" + JobStatus.CLOSED
-                            + "], but got [" + allocation.getStatus() +"]");
-                }
-                builder = new Allocation.Builder(allocation);
-            }
-
-            builder.setStatus(JobStatus.OPENING);
-            builder.setIgnoreDowntime(ignoreDowntime);
-            allocations.put(jobId, builder.build());
-            return this;
-        }
-
         public Builder assignToNode(String jobId, String nodeId) {
             Allocation allocation = allocations.get(jobId);
             if (allocation == null) {
@@ -304,6 +287,17 @@ public class PrelertMetadata implements MetaData.Custom {
                 job.setFinishedTime(new Date());
                 this.jobs.put(job.getId(), job.build());
             }
+            allocations.put(jobId, builder.build());
+            return this;
+        }
+
+        public Builder setIgnoreDowntime(String jobId) {
+            Allocation allocation = allocations.get(jobId);
+            if (allocation == null) {
+                throw new IllegalStateException("[" + jobId + "] no allocation to ignore downtime");
+            }
+            Allocation.Builder builder = new Allocation.Builder(allocation);
+            builder.setIgnoreDowntime(true);
             allocations.put(jobId, builder.build());
             return this;
         }

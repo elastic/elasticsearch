@@ -63,7 +63,7 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     }
 
     public Allocation(StreamInput in) throws IOException {
-        this.nodeId = in.readString();
+        this.nodeId = in.readOptionalString();
         this.jobId = in.readString();
         this.ignoreDowntime = in.readBoolean();
         this.status = JobStatus.fromStream(in);
@@ -107,7 +107,7 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(nodeId);
+        out.writeOptionalString(nodeId);
         out.writeString(jobId);
         out.writeBoolean(ignoreDowntime);
         status.writeTo(out);
@@ -118,7 +118,9 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
+        if (nodeId != null) {
+            builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
+        }
         builder.field(JOB_ID_FIELD.getPreferredName(), jobId);
         builder.field(IGNORE_DOWNTIME_FIELD.getPreferredName(), ignoreDowntime);
         builder.field(STATUS.getPreferredName(), status);
@@ -209,7 +211,7 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
                         }
                         break;
                     case OPENING:
-                        if (this.status.isAnyOf(JobStatus.CLOSED, JobStatus.FAILED)) {
+                        if (this.status.isAnyOf(JobStatus.CLOSED, JobStatus.FAILED) == false) {
                             throw new IllegalArgumentException("[" + jobId + "] expected status [" + JobStatus.CLOSED
                                     + "] or [" + JobStatus.FAILED + "], but got [" + status +"]");
                         }

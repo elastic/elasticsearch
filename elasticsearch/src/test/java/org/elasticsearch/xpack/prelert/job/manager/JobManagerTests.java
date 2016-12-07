@@ -94,7 +94,6 @@ public class JobManagerTests extends ESTestCase {
         allocation.setJobId(job.getId());
         allocation.setStatus(JobStatus.OPENING);
         PrelertMetadata.Builder newMetadata = new PrelertMetadata.Builder(clusterState.metaData().custom(PrelertMetadata.TYPE));
-        newMetadata.createAllocation(job.getId(), false);
         newMetadata.assignToNode(job.getId(), "myNode");
         newMetadata.updateAllocation(job.getId(), allocation.build());
 
@@ -137,7 +136,6 @@ public class JobManagerTests extends ESTestCase {
         Job job = buildJobBuilder("foo").build();
         PrelertMetadata prelertMetadata = new PrelertMetadata.Builder()
                 .putJob(job, false)
-                .createAllocation("foo", false)
                 .assignToNode("foo", "nodeId")
                 .build();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))

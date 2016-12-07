@@ -434,7 +434,10 @@ public class JobManager extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PrelertMetadata.Builder builder = new PrelertMetadata.Builder(currentState.metaData().custom(PrelertMetadata.TYPE));
-                builder.createAllocation(request.getJobId(), request.isIgnoreDowntime());
+                builder.updateStatus(request.getJobId(), JobStatus.OPENING, null);
+                if (request.isIgnoreDowntime()) {
+                    builder.setIgnoreDowntime(request.getJobId());
+                }
                 return ClusterState.builder(currentState)
                         .metaData(MetaData.builder(currentState.metaData()).putCustom(PrelertMetadata.TYPE, builder.build()))
                         .build();

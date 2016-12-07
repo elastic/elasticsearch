@@ -206,19 +206,18 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 public void onNewClusterState(ClusterState state) {
                     String jobId = request.getJobId();
                     PrelertMetadata metadata = state.getMetaData().custom(PrelertMetadata.TYPE);
-                    if (metadata != null) {
-                        Allocation allocation = metadata.getAllocations().get(jobId);
-                        if (allocation != null) {
-                            if (allocation.getStatus() == JobStatus.OPENED) {
-                                listener.onResponse(new Response(true));
-                            } else {
-                                String message = "[" +  jobId + "] expected job status [" + JobStatus.OPENED + "], but got [" +
-                                        allocation.getStatus() + "], reason [" + allocation.getStatusReason() + "]";
-                                listener.onFailure(new ElasticsearchStatusException(message, RestStatus.CONFLICT));
-                            }
+                    Allocation allocation = metadata.getAllocations().get(jobId);
+                    if (allocation != null) {
+                        if (allocation.getStatus() == JobStatus.OPENED) {
+                            listener.onResponse(new Response(true));
+                        } else {
+                            String message = "[" +  jobId + "] expected job status [" + JobStatus.OPENED + "], but got [" +
+                                    allocation.getStatus() + "], reason [" + allocation.getStatusReason() + "]";
+                            listener.onFailure(new ElasticsearchStatusException(message, RestStatus.CONFLICT));
                         }
+                    } else {
+                        listener.onFailure(new IllegalStateException("no allocation for job [" + jobId + "]"));
                     }
-                    listener.onFailure(new IllegalStateException("no allocation for job [" + jobId + "]"));
                 }
 
                 @Override

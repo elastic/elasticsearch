@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.persistence;
 
-import static org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider.PRELERT_USAGE_INDEX;
+import static org.elasticsearch.xpack.prelert.job.persistence.JobProvider.PRELERT_USAGE_INDEX;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;

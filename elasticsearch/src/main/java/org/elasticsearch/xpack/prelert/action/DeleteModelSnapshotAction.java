@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -30,9 +29,8 @@ import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
-import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
@@ -139,7 +137,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ElasticsearchJobProvider jobProvider, JobManager jobManager, ClusterService clusterService,
+                               JobProvider jobProvider, JobManager jobManager, ClusterService clusterService,
                                JobDataDeleterFactory bulkDeleterFactory) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;

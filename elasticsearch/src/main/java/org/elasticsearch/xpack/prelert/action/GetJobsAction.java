@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.PageParams;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -459,12 +459,12 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
         private final JobManager jobManager;
         private final AutodetectProcessManager processManager;
-        private final ElasticsearchJobProvider jobProvider;
+        private final JobProvider jobProvider;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                 ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                JobManager jobManager, AutodetectProcessManager processManager, ElasticsearchJobProvider jobProvider) {
+                JobManager jobManager, AutodetectProcessManager processManager, JobProvider jobProvider) {
             super(settings, GetJobsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;

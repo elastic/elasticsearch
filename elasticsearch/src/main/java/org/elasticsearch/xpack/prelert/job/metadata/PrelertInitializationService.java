@@ -15,16 +15,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 
 public class PrelertInitializationService extends AbstractComponent implements ClusterStateListener {
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final ElasticsearchJobProvider jobProvider;
+    private final JobProvider jobProvider;
 
     public PrelertInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                        ElasticsearchJobProvider jobProvider) {
+                                        JobProvider jobProvider) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -55,7 +55,7 @@ public class PrelertInitializationService extends AbstractComponent implements C
                     });
                 });
             }
-            if (metaData.hasIndex(ElasticsearchJobProvider.PRELERT_USAGE_INDEX) == false) {
+            if (metaData.hasIndex(JobProvider.PRELERT_USAGE_INDEX) == false) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                     jobProvider.createUsageMeteringIndex((result, error) -> {
                         if (result) {

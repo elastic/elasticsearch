@@ -60,7 +60,7 @@ import org.elasticsearch.xpack.prelert.job.metadata.PrelertInitializationService
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.NativeController;
 import org.elasticsearch.xpack.prelert.job.process.ProcessCtrl;
@@ -148,14 +148,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
             ResourceWatcherService resourceWatcherService, ScriptService scriptService,
             SearchRequestParsers searchRequestParsers) {
 
-        // All components get binded in the guice context to the instances returned here
-        // and interfaces are not bound to their concrete classes.
-        // instead of `bind(Interface.class).to(Implementation.class);` this happens:
-        //  `bind(Implementation.class).toInstance(INSTANCE);`
-        // For this reason we can't use interfaces in the constructor of transport actions.
-        // This ok for now as we will remove Guice soon
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
-        ElasticsearchJobProvider jobProvider = new ElasticsearchJobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());
+        JobProvider jobProvider = new JobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);

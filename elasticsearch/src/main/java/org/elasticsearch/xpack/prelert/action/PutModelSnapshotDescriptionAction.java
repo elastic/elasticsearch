@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -248,11 +248,11 @@ PutModelSnapshotDescriptionAction.RequestBuilder> {
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final JobManager jobManager;
-        private final ElasticsearchJobProvider jobProvider;
+        private final JobProvider jobProvider;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, ElasticsearchJobProvider jobProvider) {
+                IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, JobProvider jobProvider) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;
             this.jobProvider = jobProvider;

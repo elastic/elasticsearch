@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -247,10 +248,29 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * A parser for the body if there is one or the contents of the {@code source} parameter if there isn't a body.
+     * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
+     * otherwise throws an {@link ElasticsearchParseException}. Use {@link #contentOrSourceParamParserOrNull()} instead if you need to
+     * handle the absence of a body gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         BytesReference content = contentOrSource();
+        if (content.length() == 0) {
+            throw new ElasticsearchParseException("Body required");
+        }
+        return XContentFactory.xContent(content).createParser(content);
+    }
+
+    /**
+     * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
+     * otherwise {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception back to the user when there isn't
+     * a body.
+     */
+    @Nullable
+    public final XContentParser contentOrSourceParamParserOrNull() throws IOException {
+        BytesReference content = contentOrSource();
+        if (content.length() == 0) {
+            return null;
+        }
         return XContentFactory.xContent(content).createParser(content);
     }
 

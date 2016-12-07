@@ -19,24 +19,21 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.function.Consumer;
-
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchRequestParsers;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 
@@ -53,7 +50,7 @@ public abstract class AbstractBulkByQueryRestHandler<
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,
-                                        Map<String, Consumer<Object>> consumers) throws IOException {
+                                        Map<String, Consumer<Object>> bodyConsumers) throws IOException {
         assert internal != null : "Request should not be null";
         assert restRequest != null : "RestRequest should not be null";
 
@@ -61,7 +58,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         int scrollSize = searchRequest.source().size();
         searchRequest.source().size(SIZE_ALL_MATCHES);
 
-        parseSearchRequest(searchRequest, restRequest, consumers);
+        parseSearchRequest(searchRequest, restRequest, bodyConsumers);
 
         internal.setSize(searchRequest.source().size());
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", scrollSize));
@@ -78,7 +75,7 @@ public abstract class AbstractBulkByQueryRestHandler<
     }
 
     protected void parseSearchRequest(SearchRequest searchRequest, RestRequest restRequest,
-                                      Map<String, Consumer<Object>> consumers) throws IOException {
+                                      Map<String, Consumer<Object>> bodyConsumers) throws IOException {
         assert searchRequest != null : "SearchRequest should not be null";
         assert restRequest != null : "RestRequest should not be null";
 
@@ -89,25 +86,29 @@ public abstract class AbstractBulkByQueryRestHandler<
          * should get better when SearchRequest has full ObjectParser support
          * then we can delegate and stuff.
          */
-        BytesReference content = restRequest.hasContentOrSourceParam() ? RestActions.getRestContent(restRequest) : null;
-        if ((content != null) && (consumers != null && consumers.size() > 0)) {
-            Tuple<XContentType, Map<String, Object>> body = XContentHelper.convertToMap(content, false);
-            boolean modified = false;
-            for (Map.Entry<String, Consumer<Object>> consumer : consumers.entrySet()) {
-                Object value = body.v2().remove(consumer.getKey());
-                if (value != null) {
-                    consumer.getValue().accept(value);
-                    modified = true;
+        XContentParser parser = restRequest.contentOrSourceParamParserOrNull();
+        try {
+            if (parser != null && (bodyConsumers != null && bodyConsumers.size() > 0)) {
+                Map<String, Object> body = parser.map();
+                parser.close();
+                boolean modified = false;
+                for (Map.Entry<String, Consumer<Object>> consumer : bodyConsumers.entrySet()) {
+                    Object value = body.remove(consumer.getKey());
+                    if (value != null) {
+                        consumer.getValue().accept(value);
+                        modified = true;
+                    }
                 }
-            }
 
-            if (modified) {
-                try (XContentBuilder builder = XContentFactory.contentBuilder(body.v1())) {
-                    content = builder.map(body.v2()).bytes();
+                if (modified) {
+                    try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
+                        parser = parser.contentType().xContent().createParser(builder.map(body).bytes());
+                    }
                 }
             }
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, parser);
+        } finally {
+            IOUtils.close(parser);
         }
-
-        RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, content);
     }
 }

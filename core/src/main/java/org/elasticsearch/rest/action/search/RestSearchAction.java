@@ -19,16 +19,15 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -74,8 +73,12 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        BytesReference restContent = request.hasContentOrSourceParam() ? RestActions.getRestContent(request) : null;
-        parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, restContent);
+        XContentParser parser = request.contentOrSourceParamParserOrNull();
+        try {
+            parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, parser);
+        } finally {
+            IOUtils.close(parser);
+        }
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
@@ -90,18 +93,16 @@ public class RestSearchAction extends BaseRestHandler {
      *            RestAction.hasBodyContent.
      */
     public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, SearchRequestParsers searchRequestParsers,
-                                          ParseFieldMatcher parseFieldMatcher, BytesReference restContent) throws IOException {
+                                          ParseFieldMatcher parseFieldMatcher, XContentParser requestContentParser) throws IOException {
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-        if (restContent != null) {
-            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-                searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
-                        searchRequestParsers.searchExtParsers);
-            }
+        if (requestContentParser != null) {
+            QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, requestContentParser, parseFieldMatcher);
+            searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
+                    searchRequestParsers.searchExtParsers);
         }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types

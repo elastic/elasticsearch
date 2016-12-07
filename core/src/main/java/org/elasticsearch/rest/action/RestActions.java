@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -227,19 +226,6 @@ public class RestActions {
         } catch (IOException e) {
             throw new ElasticsearchException("failed to parse source", e);
         }
-    }
-
-    /**
-     * guesses the content type from either payload or source parameter
-     * @param request Rest request
-     * @return rest content type or <code>null</code> if not applicable.
-     */
-    public static XContentType guessBodyContentType(final RestRequest request) {
-        final BytesReference restContent = RestActions.getRestContent(request);
-        if (restContent == null) {
-            return null;
-        }
-        return XContentFactory.xContentType(restContent);
     }
 
     /**

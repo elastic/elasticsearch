@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -56,15 +55,14 @@ public class RestClearScrollAction extends BaseRestHandler {
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
         if (request.hasContentOrSourceParam()) {
-            XContentType type = RestActions.guessBodyContentType(request);
-           if (type == null) {
-               scrollIds = RestActions.getRestContent(request).utf8ToString();
-               clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
-           } else {
-               // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value
-               clearRequest.setScrollIds(null);
-               buildFromContent(RestActions.getRestContent(request), clearRequest);
-           }
+            if (request.contentOrSourceParamXContentType() == null) {
+                scrollIds = RestActions.getRestContent(request).utf8ToString();
+                clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
+            } else {
+                // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value
+                clearRequest.setScrollIds(null);
+                buildFromContent(RestActions.getRestContent(request), clearRequest);
+            }
         }
 
         return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<ClearScrollResponse>(channel));

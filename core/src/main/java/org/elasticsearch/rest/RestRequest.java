@@ -236,11 +236,12 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * The content type for the body if there is one or the source {@code source} parameter if there isn't a body or null if there isn't
-     * any content or the type can't be guessed.
+     * The {@linkplain XContentType} of either the request body or the {@code source} param if either exists and can be guessed, otherwise
+     * {@code null}. Only use this if you need to do something different if the request is plain text. Use
+     * {@link #contentOrSourceParamParser()} if you need a parser.
      */
     @Nullable
-    public final XContentType contentOrSourceParamContentType() {
+    public final XContentType contentOrSourceParamXContentType() {
         BytesReference content = contentOrSource();
         return content == null ? null : XContentFactory.xContentType(content);
     }

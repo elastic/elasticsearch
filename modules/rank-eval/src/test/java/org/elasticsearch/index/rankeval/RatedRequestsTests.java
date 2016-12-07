@@ -70,7 +70,7 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public static RatedRequest createTestItem(List<String> indices, List<String> types) {
-        String specId = randomAsciiOfLength(50);
+        String requestId = randomAsciiOfLength(50);
 
         SearchSourceBuilder testRequest = new SearchSourceBuilder();
         testRequest.size(randomInt());
@@ -82,8 +82,7 @@ public class RatedRequestsTests extends ESTestCase {
             ratedDocs.add(RatedDocumentTests.createRatedDocument());
         }
 
-        RatedRequest ratedRequest = new RatedRequest(specId, testRequest, indices, types, ratedDocs);
-
+        RatedRequest ratedRequest = new RatedRequest(requestId, testRequest, indices, types, ratedDocs);
 
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
@@ -168,7 +167,7 @@ public class RatedRequestsTests extends ESTestCase {
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
                 searchRequestParsers, null);
         RatedRequest specification = RatedRequest.fromXContent(parser, rankContext);
-        assertEquals("my_qa_query", specification.getSpecId());
+        assertEquals("my_qa_query", specification.getId());
         assertNotNull(specification.getTestRequest());
         List<RatedDocument> ratedDocs = specification.getRatedDocs();
         assertEquals(3, ratedDocs.size());

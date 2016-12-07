@@ -48,7 +48,7 @@ import java.util.Set;
  * */
 @SuppressWarnings("unchecked")
 public class RatedRequest extends ToXContentToBytes implements Writeable {
-    private String specId;
+    private String id;
     private SearchSourceBuilder testRequest;
     private List<String> indices = new ArrayList<>();
     private List<String> types = new ArrayList<>();
@@ -63,9 +63,9 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         // TODO decide if we can require only id as mandatory, set default values for the rest?
     }
 
-    public RatedRequest(String specId, SearchSourceBuilder testRequest, List<String> indices, List<String> types,
+    public RatedRequest(String id, SearchSourceBuilder testRequest, List<String> indices, List<String> types,
             List<RatedDocument> ratedDocs) {
-        this.specId = specId;
+        this.id = id;
         this.testRequest = testRequest;
         this.indices = indices;
         this.types = types;
@@ -73,7 +73,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     }
 
     public RatedRequest(StreamInput in) throws IOException {
-        this.specId = in.readString();
+        this.id = in.readString();
         testRequest = in.readOptionalWriteable(SearchSourceBuilder::new);
 
         int indicesSize = in.readInt();
@@ -101,7 +101,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(specId);
+        out.writeString(id);
         out.writeOptionalWriteable(testRequest);
 
         out.writeInt(indices.size());
@@ -148,13 +148,13 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     }
 
     /** Returns a user supplied spec id for easier referencing. */
-    public String getSpecId() {
-        return specId;
+    public String getId() {
+        return id;
     }
 
     /** Sets a user supplied spec id for easier referencing. */
     public void setSpecId(String specId) {
-        this.specId = specId;
+        this.id = specId;
     }
 
     /** Returns a list of rated documents to evaluate. */
@@ -256,7 +256,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID_FIELD.getPreferredName(), this.specId);
+        builder.field(ID_FIELD.getPreferredName(), this.id);
         if (testRequest != null) {
             builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
         }
@@ -290,7 +290,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
             return false;
         }
         RatedRequest other = (RatedRequest) obj;
-        return Objects.equals(specId, other.specId) &&
+        return Objects.equals(id, other.id) &&
                 Objects.equals(testRequest, other.testRequest) &&
                 Objects.equals(indices, other.indices) &&
                 Objects.equals(types, other.types) &&
@@ -301,6 +301,6 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
 
     @Override
     public final int hashCode() {
-        return Objects.hash(specId, testRequest, indices, types, summaryFields, ratedDocs, params);
+        return Objects.hash(id, testRequest, indices, types, summaryFields, ratedDocs, params);
     }
 }

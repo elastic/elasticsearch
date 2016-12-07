@@ -79,7 +79,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec qualityTask = request.getRankEvalSpec();
 
-        Collection<RatedRequest> specifications = qualityTask.getSpecifications();
+        Collection<RatedRequest> specifications = qualityTask.getRatedRequests();
         AtomicInteger responseCounter = new AtomicInteger(specifications.size());
         Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(specifications.size());
         Map<String, Exception> errors = new ConcurrentHashMap<>(specifications.size());
@@ -142,14 +142,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         @Override
         public void onResponse(SearchResponse searchResponse) {
             SearchHit[] hits = searchResponse.getHits().getHits();
-            EvalQueryQuality queryQuality = metric.evaluate(specification.getSpecId(), hits, specification.getRatedDocs());
-            requestDetails.put(specification.getSpecId(), queryQuality);
+            EvalQueryQuality queryQuality = metric.evaluate(specification.getId(), hits, specification.getRatedDocs());
+            requestDetails.put(specification.getId(), queryQuality);
             handleResponse();
         }
 
         @Override
         public void onFailure(Exception exception) {
-            errors.put(specification.getSpecId(), exception);
+            errors.put(specification.getId(), exception);
             handleResponse();
         }
 

@@ -41,9 +41,11 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
@@ -70,23 +72,17 @@ public class RankEvalSpecTests extends ESTestCase {
         searchRequestParsers = null;
     }
 
-    public void testRoundtripping() throws IOException {
-        List<String> indices = new ArrayList<>();
-        int size = randomIntBetween(0, 20);
+    private static <T> List<T> randomList(Supplier<T> randomSupplier) {
+        List<T> result = new ArrayList<>();
+        int size = randomIntBetween(1, 20);
         for (int i = 0; i < size; i++) {
-            indices.add(randomAsciiOfLengthBetween(0, 50));
+            result.add(randomSupplier.get());
         }
+        return result;
+    }
 
-        List<String> types = new ArrayList<>();
-        size = randomIntBetween(0, 20);
-        for (int i = 0; i < size; i++) {
-            types.add(randomAsciiOfLengthBetween(0, 50));
-        }
-        List<RatedRequest> specs = new ArrayList<>();
-        size = randomIntBetween(1, 2); // TODO I guess requests with no query spec should be rejected...
-        for (int i = 0; i < size; i++) {
-            specs.add(RatedRequestsTests.createTestItem(indices, types));
-        }
+    private RankEvalSpec createTestItem(List<String> indices, List<String> types) throws IOException {
+        List<RatedRequest> ratedRequests = randomList(() -> RatedRequestsTests.createTestItem(indices, types));
 
         RankedListQualityMetric metric;
         if (randomBoolean()) {
@@ -95,8 +91,7 @@ public class RankEvalSpecTests extends ESTestCase {
             metric = DiscountedCumulativeGainTests.createTestItem();
         }
 
-        RankEvalSpec testItem = new RankEvalSpec(specs, metric);
-
+        Script template = null;
         if (randomBoolean()) {
             final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
             ScriptType scriptType = randomFrom(ScriptType.values());
@@ -112,8 +107,16 @@ public class RankEvalSpecTests extends ESTestCase {
                 script = randomAsciiOfLengthBetween(1, 5);
             }
 
-            testItem.setTemplate(new Script(scriptType, randomFrom("_lang1", "_lang2"), script, params));
+            template = new Script(scriptType, randomFrom("_lang1", "_lang2"), script, params);
         }
+
+        return new RankEvalSpec(ratedRequests, metric, template); 
+    }
+
+    public void testRoundtripping() throws IOException {
+        List<String> indices = randomList(() -> randomAsciiOfLengthBetween(0, 50));
+        List<String> types = randomList(() -> randomAsciiOfLengthBetween(0, 50));
+        RankEvalSpec testItem = createTestItem(indices, types);
 
         XContentBuilder shuffled = ESTestCase.shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
@@ -122,12 +125,34 @@ public class RankEvalSpecTests extends ESTestCase {
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
                 searchRequestParsers, null);
 
-        RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext, false);
+        RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext);
         // IRL these come from URL parameters - see RestRankEvalAction
-        parsedItem.getSpecifications().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);});
+        parsedItem.getRatedRequests().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);});
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
 
+    public void testMissingRatedRequestsFailsParsing() {
+        RankedListQualityMetric metric = new Precision();
+        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(new ArrayList<>(), metric));
+        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(null, metric));
+    }
+    
+    public void testMissingMetricFailsParsing() {
+        List<String> indices = randomList(() -> randomAsciiOfLengthBetween(0, 50));
+        List<String> types = randomList(() -> randomAsciiOfLengthBetween(0, 50));
+        List<RatedRequest> ratedRequests = randomList(() -> RatedRequestsTests.createTestItem(indices, types));
+        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, null));
+    }
+
+    public void testMissingTemplateAndSearchRequestFailsParsing() {
+        List<String> indices = randomList(() -> randomAsciiOfLengthBetween(0, 50));
+        List<String> types = randomList(() -> randomAsciiOfLengthBetween(0, 50));
+        RatedRequest request = RatedRequestsTests.createTestItem(indices, types);
+        request.setTestRequest(null);
+        List<RatedRequest> ratedRequests = Arrays.asList(request);
+        
+        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, new Precision()));
+    }
 }

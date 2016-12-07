@@ -39,7 +39,7 @@
       indices.refresh: {}
 
   - do:
-      rank_eval_template:
+      rank_eval:
         body: {
           "template": { 
             "inline": "{\"query\": { \"match\" : {\"text\" : \"{{query_string}}\" }}}"

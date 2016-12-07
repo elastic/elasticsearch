@@ -93,13 +93,13 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         specifications.add(berlinRequest);
 
         Precision metric = new Precision();
-        RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        task.setTemplate(
+
+        Script template = 
                 new Script(
                         ScriptType.INLINE,
                         "mustache", "{\"query\": {\"match\": {\"text\": \"{{querystring}}\"}}}",
-                        new HashMap<>()));
-
+                        new HashMap<>());
+        RankEvalSpec task = new RankEvalSpec(specifications, metric, template);
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 

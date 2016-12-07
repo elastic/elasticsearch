@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -59,7 +60,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         String name = "_field";
         indexFieldDataCache = new DummyAccountingFieldDataCache();
         sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  name,
-                circuitBreakerService);
+                circuitBreakerService, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
         pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, indexFieldDataCache,
                 circuitBreakerService, TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,

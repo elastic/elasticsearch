@@ -257,7 +257,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             discoveryNodeToXContent(targetNode, true, builder);
             builder.endObject();
         }
-        builder.field("can_remain_on_current_node", canRemain());
+        builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
         if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
             builder.startArray("can_remain_decisions");
             canRemainDecision.toXContent(builder, params);
@@ -275,7 +275,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         if (canRebalanceDecision != null) {
             builder.field("can_rebalance_to_other_node", allocationDecision);
         } else {
-            builder.field("can_move_to_other_node", forceMove());
+            builder.field("can_move_to_other_node", forceMove() ? "yes" : "no");
         }
         builder.field(canRebalanceDecision != null ? "rebalance_explanation" : "move_explanation", getExplanation());
         nodeDecisionsToXContent(nodeDecisions, builder, params);

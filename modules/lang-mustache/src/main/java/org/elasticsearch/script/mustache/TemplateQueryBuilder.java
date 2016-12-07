@@ -136,7 +136,15 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public static TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        Script template = Script.parse(parser, parseContext.getParseFieldMatcher(), "mustache");
+
+        Script template = Script.parse(parser, parseContext.getParseFieldMatcher(), Script.DEFAULT_TEMPLATE_LANG);
+
+        // for deprecation of stored script namespaces the default lang is ignored,
+        // so the template lang must be set for a stored script
+        if (template.getType() == ScriptType.STORED) {
+            template = new Script(ScriptType.STORED, Script.DEFAULT_TEMPLATE_LANG, template.getIdOrCode(), template.getParams());
+        }
+
         return new TemplateQueryBuilder(template);
     }
 }

@@ -55,7 +55,7 @@ public final class ScriptMetaData implements MetaData.Custom {
             scripts.put(source.getLang() + "#" + id, source);
 
             if (previous != null && previous.getLang().equals(source.getLang()) == false) {
-                deprecationLogger.deprecated("stored script [" + id + "] already exists using a different lang " +
+                DEPRECATION_LOGGER.deprecated("stored script [" + id + "] already exists using a different lang " +
                     "[" + previous.getLang() + "], the new namespace for stored scripts will only use (id) instead of (lang, id)");
             }
 
@@ -119,11 +119,11 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
+    private static final Logger LOGGER = ESLoggerFactory.getLogger(ScriptMetaData.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
+
     public static final String TYPE = "stored_scripts";
     public static final ScriptMetaData PROTO = new ScriptMetaData(Collections.emptyMap());
-
-    private static final Logger logger = ESLoggerFactory.getLogger(ScriptMetaData.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     static ClusterState putStoredScript(ClusterState currentState, String id, StoredScriptSource source) {
         ScriptMetaData scriptMetadata = currentState.metaData().custom(TYPE);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -50,6 +53,16 @@ import java.util.Objects;
  * based on the {@link ScriptType}.
  */
 public final class Script implements ToXContent, Writeable {
+
+    /**
+     * Standard logger necessary for allocation of the deprecation logger.
+     */
+    private static final Logger LOGGER = ESLoggerFactory.getLogger(ScriptMetaData.class);
+
+    /**
+     * Deprecation logger necessary for namespace changes related to stored scripts.
+     */
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
 
     /**
      * The name of the of the default scripting language.
@@ -199,6 +212,16 @@ public final class Script implements ToXContent, Writeable {
                         "or [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
             }
 
+            if (type == ScriptType.STORED) {
+                if (lang != null) {
+                    DEPRECATION_LOGGER.deprecated("specifying " + LANG_PARSE_FIELD.getPreferredName() + " [" + lang + "] " +
+                        "as part of the namespace for " + ScriptType.STORED + " scripts is deprecated; use only the field " +
+                        "[" + ScriptType.STORED.getParseField().getPreferredName() + "] to specify an <id>");
+                }
+            } else if (lang == null) {
+                lang = defaultLang;
+            }
+
             if (idOrCode == null) {
                 throw new IllegalArgumentException("must specify an id or code for a script");
             }
@@ -207,7 +230,7 @@ public final class Script implements ToXContent, Writeable {
                 throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
             }
 
-            return new Script(type, this.lang == null ? defaultLang : this.lang, idOrCode, options, params);
+            return new Script(type, lang, idOrCode, options, params);
         }
     }
 
@@ -304,6 +327,7 @@ public final class Script implements ToXContent, Writeable {
      * @param defaultLang  The default language to use if no language is specified.  The default language isn't necessarily
      *                     the one defined by {@link Script#DEFAULT_SCRIPT_LANG} due to backwards compatiblity requirements
      *                     related to stored queries using previously default languauges.
+     *
      * @return             The parsed {@link Script}.
      */
     public static Script parse(XContentParser parser, ParseFieldMatcher matcher, String defaultLang) throws IOException {
@@ -360,7 +384,13 @@ public final class Script implements ToXContent, Writeable {
     public Script(ScriptType type, String lang, String idOrCode, Map<String, String> options, Map<String, Object> params) {
         this.idOrCode = Objects.requireNonNull(idOrCode);
         this.type = Objects.requireNonNull(type);
-        this.lang = Objects.requireNonNull(lang);
+
+        if (type == ScriptType.STORED) {
+            this.lang = lang;
+        } else {
+            this.lang = Objects.requireNonNull(lang);
+        }
+
         this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
         this.params = Collections.unmodifiableMap(Objects.requireNonNull(params));
 

@@ -62,3 +62,65 @@ setup:
           {
             "items": ["abc", "xyz"]
           }
+
+---
+"Test delete in-use list":
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"farequote2",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"mean","field_name":"airline",
+                  "detector_rules": [
+                    {
+                      "rule_conditions": [
+                        {
+                          "condition_type": "categorical",
+                          "value_list": "foo"
+                        }
+                      ]
+                    }
+                  ]}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - do:
+      catch: conflict
+      xpack.prelert.delete_list:
+        list_id: "foo"
+
+---
+"Test non-existing list":
+  - do:
+      catch: missing
+      xpack.prelert.delete_list:
+        list_id: "does_not_exist"
+
+---
+"Test valid delete list":
+
+  - do:
+      xpack.prelert.get_lists:
+        list_id: "foo"
+
+  - match: { count:   1 }
+  - match:
+      lists.0:
+        id: "foo"
+        items: ["abc", "xyz"]
+
+  - do:
+      xpack.prelert.delete_list:
+        list_id: "foo"
+
+  - do:
+      catch: missing
+      xpack.prelert.get_lists:
+        list_id: "foo"

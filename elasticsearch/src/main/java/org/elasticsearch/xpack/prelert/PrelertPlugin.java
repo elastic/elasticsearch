@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
+import org.elasticsearch.xpack.prelert.action.DeleteListAction;
 import org.elasticsearch.xpack.prelert.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.GetBucketsAction;
 import org.elasticsearch.xpack.prelert.action.GetCategoriesDefinitionAction;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 import org.elasticsearch.xpack.prelert.rest.job.RestJobDataAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestFlushJobAction;
+import org.elasticsearch.xpack.prelert.rest.list.RestDeleteListAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
@@ -197,6 +199,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 RestOpenJobAction.class,
                 RestGetListAction.class,
                 RestPutListAction.class,
+                RestDeleteListAction.class,
                 RestGetInfluencersAction.class,
                 RestGetRecordsAction.class,
                 RestGetBucketsAction.class,
@@ -227,6 +230,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(UpdateJobSchedulerStatusAction.INSTANCE, UpdateJobSchedulerStatusAction.TransportAction.class),
                 new ActionHandler<>(GetListAction.INSTANCE, GetListAction.TransportAction.class),
                 new ActionHandler<>(PutListAction.INSTANCE, PutListAction.TransportAction.class),
+                new ActionHandler<>(DeleteListAction.INSTANCE, DeleteListAction.TransportAction.class),
                 new ActionHandler<>(GetBucketsAction.INSTANCE, GetBucketsAction.TransportAction.class),
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),

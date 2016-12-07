@@ -19,10 +19,25 @@
 
 package org.elasticsearch.action.bulk;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -51,25 +66,11 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
@@ -426,7 +427,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     static final class BulkRequestModifier implements Iterator<DocWriteRequest> {
 
         final BulkRequest bulkRequest;
-        final Set<Integer> failedSlots;
+        final SparseFixedBitSet failedSlots;
         final List<BulkItemResponse> itemResponses;
 
         int currentSlot = -1;
@@ -434,7 +435,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         BulkRequestModifier(BulkRequest bulkRequest) {
             this.bulkRequest = bulkRequest;
-            this.failedSlots = new HashSet<>();
+            this.failedSlots = new SparseFixedBitSet(bulkRequest.requests().size());
             this.itemResponses = new ArrayList<>(bulkRequest.requests().size());
         }
 
@@ -458,10 +459,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 modifiedBulkRequest.timeout(bulkRequest.timeout());
 
                 int slot = 0;
-                originalSlots = new int[bulkRequest.requests().size() - failedSlots.size()];
-                for (int i = 0; i < bulkRequest.requests().size(); i++) {
-                    DocWriteRequest request = bulkRequest.requests().get(i);
-                    if (failedSlots.contains(i) == false) {
+                List<DocWriteRequest> requests = bulkRequest.requests();
+                originalSlots = new int[requests.size()]; // oversize, but that's ok
+                for (int i = 0; i < requests.size(); i++) {
+                    DocWriteRequest request = requests.get(i);
+                    if (failedSlots.get(i) == false) {
                         modifiedBulkRequest.add(request);
                         originalSlots[slot++] = i;
                     }
@@ -472,17 +474,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
-                return new ActionListener<BulkResponse>() {
-                    @Override
-                    public void onResponse(BulkResponse response) {
-                        actionListener.onResponse(new BulkResponse(response.getItems(), response.getTookInMillis(), ingestTookInMillis));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        actionListener.onFailure(e);
-                    }
-                };
+                return ActionListener.wrap(
+                    response -> actionListener.onResponse(
+                        new BulkResponse(response.getItems(), response.getTookInMillis(), ingestTookInMillis)),
+                    actionListener::onFailure);
             } else {
                 return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }
@@ -494,7 +489,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
-            failedSlots.add(currentSlot);
+            failedSlots.set(currentSlot);
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
             itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType(), failure));
         }
@@ -517,7 +512,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         @Override
         public void onResponse(BulkResponse response) {
-            for (int i = 0; i < response.getItems().length; i++) {
+            BulkItemResponse[] items = response.getItems();
+            for (int i = 0; i < items.length; i++) {
                 itemResponses.add(originalSlots[i], response.getItems()[i]);
             }
             actionListener.onResponse(new BulkResponse(itemResponses.toArray(new BulkItemResponse[itemResponses.size()]), response.getTookInMillis(), ingestTookInMillis));

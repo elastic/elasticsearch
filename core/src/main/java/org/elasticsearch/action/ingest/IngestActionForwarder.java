@@ -25,8 +25,9 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.transport.TransportService;
@@ -36,15 +37,18 @@ import org.elasticsearch.transport.TransportService;
  *
  * TODO: move this into IngestService and make index/bulk actions call that
  */
-public class IngestActionForwarder {
+public final class IngestActionForwarder implements ClusterStateListener {
 
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final AtomicInteger ingestNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
+    private DiscoveryNode[] ingestNodes;
 
     public IngestActionForwarder(ClusterService clusterService, TransportService transportService) {
         this.clusterService = clusterService;
         this.transportService = transportService;
+        ingestNodes = new DiscoveryNode[0];
+        clusterService.add(this);
     }
 
     public void forwardIngestRequest(Action<?, ?, ?> action, ActionRequest request, ActionListener<?> listener) {
@@ -54,22 +58,16 @@ public class IngestActionForwarder {
 
     private DiscoveryNode randomIngestNode() {
         assert clusterService.localNode().isIngestNode() == false;
-        DiscoveryNodes nodes = clusterService.state().getNodes();
-        DiscoveryNode[] ingestNodes = nodes.getIngestNodes().values().toArray(DiscoveryNode.class);
-        if (ingestNodes.length == 0) {
+        final DiscoveryNode[] nodes = ingestNodes;
+        if (nodes.length == 0) {
             throw new IllegalStateException("There are no ingest nodes in this cluster, unable to forward request to an ingest node.");
         }
 
-        int index = getNodeNumber();
-        return ingestNodes[(index) % ingestNodes.length];
+        return nodes[Math.floorMod(ingestNodeGenerator.incrementAndGet(), nodes.length)];
     }
 
-    private int getNodeNumber() {
-        int index = ingestNodeGenerator.incrementAndGet();
-        if (index < 0) {
-            index = 0;
-            ingestNodeGenerator.set(0);
-        }
-        return index;
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
     }
 }

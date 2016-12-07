@@ -25,7 +25,9 @@ import java.util.function.Consumer;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -120,6 +123,12 @@ public class TransportIndexActionIngestTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         when(clusterService.state()).thenReturn(state);
+        doAnswer(invocation -> {
+            ClusterChangedEvent event = mock(ClusterChangedEvent.class);
+            when(event.state()).thenReturn(state);
+            ((ClusterStateListener)invocation.getArguments()[0]).clusterChanged(event);
+            return null;
+        }).when(clusterService).add(any(ClusterStateListener.class));
         // setup the mocked ingest service for capturing calls
         ingestService = mock(IngestService.class);
         executionService = mock(PipelineExecutionService.class);

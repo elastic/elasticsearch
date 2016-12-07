@@ -6,7 +6,7 @@
 === Settings
 
 The setting `bootstrap.mlockall` has been renamed to
-<<bootstrap.memory_lock,`bootstrap.memory_lock`>>. Future versions of
+<<setup-configuration-memory,`bootstrap.memory_lock`>>. Future versions of
 Elasticsearch will refuse to start if `bootstrap.mlockall` is set. You
 can switch to the new setting now.
 

@@ -116,7 +116,7 @@ You will need to set `swappiness` to `1` to still allow swapping in
 emergencies.
 --
 
-* **`mlockall`**
+* **`bootstrap.memory_lock`**
 +
 --
 The third option is to use

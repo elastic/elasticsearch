@@ -37,6 +37,11 @@
   - match: { jobs.0.config.job_id: "farequote" }
 
   - do:
+      xpack.prelert.get_jobs: {}
+  - match: { count: 1 }
+  - match: { jobs.0.config.job_id: "farequote" }
+
+  - do:
       xpack.prelert.delete_job:
         job_id: "farequote"
   - match: { acknowledged: true }
@@ -95,3 +100,48 @@
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
+
+---
+"Test jobid + from and/or size":
+  - do:
+      catch: request
+      xpack.prelert.get_jobs:
+        job_id: "job-stats-test"
+        from: 0
+
+  - do:
+      catch: request
+      xpack.prelert.get_jobs:
+        job_id: "job-stats-test"
+        size: 100
+
+  - do:
+      catch: request
+      xpack.prelert.get_jobs:
+        job_id: "job-stats-test"
+        from: 0
+        size: 100
+
+---
+"Test jobid + from and/or size (via body)":
+  - do:
+      catch: request
+      xpack.prelert.get_jobs:
+        body:
+          job_id: "job-stats-test"
+          from: 0
+
+  - do:
+      catch: request
+      xpack.prelert.get_jobs:
+        body:
+          job_id: "job-stats-test"
+          size: 100
+
+  - do:
+      catch: request
+      xpack.prelert.get_jobs:
+        body:
+          job_id: "job-stats-test"
+          from: 0
+          size: 100

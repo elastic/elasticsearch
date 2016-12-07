@@ -93,8 +93,6 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
         public static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
         public static final ParseField METRIC = new ParseField("metric");
 
-
-
         static {
             PARSER.declareString(Request::setJobId, Job.ID);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
@@ -104,20 +102,23 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             }, METRIC);
         }
 
-        private String jobId;
+        private String jobId = null;
+        private PageParams pageParams = null;
         private boolean config;
         private boolean dataCounts;
         private boolean modelSizeStats;
         private boolean schedulerStatus;
         private boolean status;
-        private PageParams pageParams;
+
 
         public Request() {
-            pageParams = new PageParams();
             config = true;
         }
 
         public void setJobId(String jobId) {
+            if (pageParams != null) {
+                throw new IllegalArgumentException("Cannot set [from, size] when getting a single job.");
+            }
             this.jobId = jobId;
         }
 
@@ -130,6 +131,9 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
         }
 
         public void setPageParams(PageParams pageParams) {
+            if (jobId != null) {
+                throw new IllegalArgumentException("Cannot set [jobId] when getting multiple jobs.");
+            }
             this.pageParams = ExceptionsHelper.requireNonNull(pageParams, PageParams.PAGE.getPreferredName());
         }
 
@@ -508,9 +512,11 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                         request.getJobId(), jobConfig, dataCounts, modelSizeStats, schedulerStatus, jobStatus);
                 response = new QueryPage<>(Collections.singletonList(jobInfo), 1, Job.RESULTS_FIELD);
 
-            } else {
+            } else if (request.getPageParams() != null) {
                 // Multiple Jobs
-                QueryPage<Job> jobsPage = jobManager.getJobs(request.pageParams.getFrom(), request.pageParams.getSize(), state);
+
+                PageParams pageParams = request.getPageParams();
+                QueryPage<Job> jobsPage = jobManager.getJobs(pageParams.getFrom(), pageParams.getSize(), state);
                 List<Response.JobInfo> jobInfoList = new ArrayList<>();
                 for (Job job : jobsPage.results()) {
                     Job jobConfig = request.config() ? job : null;
@@ -523,6 +529,8 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                     jobInfoList.add(jobInfo);
                 }
                 response = new QueryPage<>(jobInfoList, jobsPage.count(), Job.RESULTS_FIELD);
+            } else {
+                throw new IllegalStateException("Both jobId and pageParams are null");
             }
 
             listener.onResponse(new Response(response));

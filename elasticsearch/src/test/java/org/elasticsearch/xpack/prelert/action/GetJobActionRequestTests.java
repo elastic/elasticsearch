@@ -24,8 +24,7 @@ public class GetJobActionRequestTests extends AbstractStreamableTestCase<GetJobs
             int maxSize = PageParams.MAX_FROM_SIZE_SUM - from;
             int size = randomInt(maxSize);
             instance.setPageParams(new PageParams(from, size));
-        }
-        if (randomBoolean()) {
+        } else {
             instance.setJobId(randomAsciiOfLengthBetween(1, 20));
         }
         return instance;

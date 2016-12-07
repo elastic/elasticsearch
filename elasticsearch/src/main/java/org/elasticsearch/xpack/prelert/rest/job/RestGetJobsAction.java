@@ -57,13 +57,21 @@ public class RestGetJobsAction extends BaseRestHandler {
             XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
             request = GetJobsAction.Request.PARSER.apply(parser, () -> parseFieldMatcher);
         } else {
+            String jobId = restRequest.param(Job.ID.getPreferredName());
             request = new GetJobsAction.Request();
-            request.setJobId(restRequest.param(Job.ID.getPreferredName()));
+            if (jobId != null && !jobId.isEmpty()) {
+                request.setJobId(jobId);
+            }
+            if (restRequest.hasParam(PageParams.FROM.getPreferredName())
+                    || restRequest.hasParam(PageParams.SIZE.getPreferredName())
+                    || jobId == null) {
+                request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                        restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+            }
             Set<String> stats = Strings.splitStringByCommaToSet(
                     restRequest.param(GetJobsAction.Request.METRIC.getPreferredName(), "config"));
             request.setStats(stats);
-            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+
         }
 
         return channel -> transportGetJobAction.execute(request, new RestStatusToXContentListener<>(channel));

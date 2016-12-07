@@ -5,6 +5,24 @@
  */
 package org.elasticsearch.xpack.prelert.job.persistence;
 
-public interface JobDataDeleterFactory {
-    JobDataDeleter newDeleter(String jobId);
+import org.elasticsearch.client.Client;
+
+import java.util.function.Function;
+
+/**
+ * TODO This is all just silly static typing shenanigans because Guice can't inject
+ * anonymous lambdas.  This can all be removed once Guice goes away.
+ */
+public class JobDataDeleterFactory implements Function<String, JobDataDeleter> {
+
+    private final Client client;
+
+    public JobDataDeleterFactory(Client client) {
+        this.client = client;
+    }
+
+    @Override
+    public JobDataDeleter apply(String jobId) {
+        return new JobDataDeleter(client, jobId);
+    }
 }

@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
@@ -311,13 +311,13 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
         private final JobManager jobManager;
         private final JobProvider jobProvider;
-        private final ElasticsearchBulkDeleterFactory bulkDeleterFactory;
+        private final JobDataDeleterFactory bulkDeleterFactory;
         private final JobDataCountsPersister jobDataCountsPersister;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, ElasticsearchJobProvider jobProvider,
-                ClusterService clusterService, ElasticsearchBulkDeleterFactory bulkDeleterFactory,
+                ClusterService clusterService, JobDataDeleterFactory bulkDeleterFactory,
                 JobDataCountsPersister jobDataCountsPersister) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;

@@ -17,9 +17,9 @@ import java.util.function.Function;
  */
 public class OldDataRemover {
 
-    private final Function<String, ElasticsearchBulkDeleter> dataDeleterFactory;
+    private final Function<String, JobDataDeleter> dataDeleterFactory;
 
-    public OldDataRemover(Function<String, ElasticsearchBulkDeleter> dataDeleterFactory) {
+    public OldDataRemover(Function<String, JobDataDeleter> dataDeleterFactory) {
         this.dataDeleterFactory = Objects.requireNonNull(dataDeleterFactory);
     }
 

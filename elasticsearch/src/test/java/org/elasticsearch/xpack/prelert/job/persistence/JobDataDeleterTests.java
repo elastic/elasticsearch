@@ -24,7 +24,7 @@ import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
-public class ElasticsearchBulkDeleterTests extends ESTestCase {
+public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteResultsFromTime() {
 
@@ -39,7 +39,7 @@ public class ElasticsearchBulkDeleterTests extends ESTestCase {
                                 .prepareSearchScrollExecuteListener(response)
                                 .prepareBulk(bulkResponse).build();
 
-        ElasticsearchBulkDeleter bulkDeleter = new ElasticsearchBulkDeleter(client, "foo");
+        JobDataDeleter bulkDeleter = new JobDataDeleter(client, "foo");
 
         // because of the mocking this runs in the current thread
         bulkDeleter.deleteResultsFromTime(new Date().getTime(), new ActionListener<Boolean>() {

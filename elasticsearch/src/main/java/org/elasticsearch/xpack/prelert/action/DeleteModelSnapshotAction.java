@@ -29,9 +29,9 @@ import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleter;
-import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchBulkDeleterFactory;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchJobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -134,13 +134,13 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         private final JobProvider jobProvider;
         private final JobManager jobManager;
         private final ClusterService clusterService;
-        private final ElasticsearchBulkDeleterFactory bulkDeleterFactory;
+        private final JobDataDeleterFactory bulkDeleterFactory;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ElasticsearchJobProvider jobProvider, JobManager jobManager, ClusterService clusterService,
-                               ElasticsearchBulkDeleterFactory bulkDeleterFactory) {
+                               JobDataDeleterFactory bulkDeleterFactory) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
             this.jobManager = jobManager;
@@ -181,7 +181,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
             }
 
             // Delete the snapshot and any associated state files
-            ElasticsearchBulkDeleter deleter = bulkDeleterFactory.apply(request.getJobId());
+            JobDataDeleter deleter = bulkDeleterFactory.apply(request.getJobId());
             deleter.deleteModelSnapshot(deleteCandidate);
             deleter.commit(new ActionListener<BulkResponse>() {
                 @Override

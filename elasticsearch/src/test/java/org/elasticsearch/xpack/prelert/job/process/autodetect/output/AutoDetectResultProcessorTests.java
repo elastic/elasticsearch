@@ -65,6 +65,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
+        when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormaliser, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
@@ -75,6 +76,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processor.processResult(context, result);
 
         verify(bulkBuilder, times(1)).persistBucket(bucket);
+        verify(bulkBuilder, times(1)).executeRequest();
         verify(persister, times(1)).bulkPersisterBuilder(JOB_ID);
         verify(persister, never()).deleteInterimResults(JOB_ID);
         verifyNoMoreInteractions(persister);
@@ -85,6 +87,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
+        when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormaliser, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
@@ -94,6 +97,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processor.processResult(context, result);
 
         verify(bulkBuilder, times(1)).persistBucket(bucket);
+        verify(bulkBuilder, times(1)).executeRequest();
         verify(persister, times(1)).deleteInterimResults(JOB_ID);
         verify(persister, times(1)).bulkPersisterBuilder(JOB_ID);
         verifyNoMoreInteractions(persister);

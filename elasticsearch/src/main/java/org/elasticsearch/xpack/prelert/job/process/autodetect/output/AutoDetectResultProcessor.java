@@ -109,7 +109,7 @@ public class AutoDetectResultProcessor {
 
             // persist after deleting interim results in case the new
             // results are also interim
-            context.bulkResultsPersister.persistBucket(bucket);
+            context.bulkResultsPersister.persistBucket(bucket).executeRequest();
 
             context.bulkResultsPersister = persister.bulkPersisterBuilder(context.jobId);
 

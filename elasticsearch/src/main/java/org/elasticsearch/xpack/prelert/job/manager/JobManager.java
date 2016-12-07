@@ -168,34 +168,26 @@ public class JobManager extends AbstractComponent {
      */
     public void putJob(PutJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
         Job job = request.getJob();
-        ActionListener<Boolean> delegateListener = new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean jobSaved) {
-                jobProvider.createJobRelatedIndices(job, new ActionListener<Boolean>() {
-                    @Override
-                    public void onResponse(Boolean indicesCreated) {
-                         audit(job.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
+        ActionListener<Boolean> delegateListener = ActionListener.wrap(jobSaved -> {
+            jobProvider.createJobRelatedIndices(job, new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean indicesCreated) {
+                    audit(job.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
 
-                        // Also I wonder if we need to audit log infra
-                        // structure in prelert as when we merge into xpack
-                        // we can use its audit trailing. See:
-                        // https://github.com/elastic/prelert-legacy/issues/48
-                        actionListener.onResponse(new PutJobAction.Response(jobSaved && indicesCreated, job));
-                    }
+                    // Also I wonder if we need to audit log infra
+                    // structure in prelert as when we merge into xpack
+                    // we can use its audit trailing. See:
+                    // https://github.com/elastic/prelert-legacy/issues/48
+                    actionListener.onResponse(new PutJobAction.Response(jobSaved && indicesCreated, job));
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        actionListener.onFailure(e);
+                @Override
+                public void onFailure(Exception e) {
+                    actionListener.onFailure(e);
 
-                    }
-                });
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        };
+                }
+            });
+        }, actionListener::onFailure);
         clusterService.submitStateUpdateTask("put-job-" + job.getId(),
                 new AckedClusterStateUpdateTask<Boolean>(request, delegateListener) {
 
@@ -240,23 +232,14 @@ public class JobManager extends AbstractComponent {
         String jobId = request.getJobId();
         LOGGER.debug("Deleting job '" + jobId + "'");
 
-        ActionListener<Boolean> delegateListener = new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean jobDeleted) {
-                if (jobDeleted) {
-                    jobProvider.deleteJobRelatedIndices(request.getJobId(), actionListener);
-                    audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
-                } else {
-                    actionListener.onResponse(new DeleteJobAction.Response(false));
-                }
+        ActionListener<Boolean> delegateListener = ActionListener.wrap(jobDeleted -> {
+            if (jobDeleted) {
+                jobProvider.deleteJobRelatedIndices(request.getJobId(), actionListener);
+                audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
+            } else {
+                actionListener.onResponse(new DeleteJobAction.Response(false));
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        };
-
+        }, actionListener::onFailure);
         clusterService.submitStateUpdateTask("delete-job-" + jobId,
                 new AckedClusterStateUpdateTask<Boolean>(request, delegateListener) {
 

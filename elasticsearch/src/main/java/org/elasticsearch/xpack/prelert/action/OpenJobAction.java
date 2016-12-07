@@ -189,18 +189,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            ActionListener<Response> delegateListener = new ActionListener<Response>() {
-
-                @Override
-                public void onResponse(Response response) {
-                    respondWhenJobIsOpened(request, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            };
+            ActionListener<Response> delegateListener = ActionListener.wrap(response -> respondWhenJobIsOpened(request, listener),
+                    listener::onFailure);
             jobManager.openJob(request, delegateListener);
         }
 

@@ -173,19 +173,8 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             UpdateJobStatusAction.Request updateStatusRequest = new UpdateJobStatusAction.Request(request.getJobId(), JobStatus.CLOSING);
-            ActionListener<UpdateJobStatusAction.Response> delegateListener = new ActionListener<UpdateJobStatusAction.Response>() {
-
-                @Override
-                public void onResponse(UpdateJobStatusAction.Response response) {
-                    respondWhenJobIsClosed(request.getJobId(), listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            };
-
+            ActionListener<UpdateJobStatusAction.Response> delegateListener = ActionListener.wrap(
+                    response -> respondWhenJobIsClosed(request.getJobId(), listener), listener::onFailure);
             jobManager.setJobStatus(updateStatusRequest, delegateListener);
         }
 

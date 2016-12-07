@@ -297,10 +297,10 @@ Ordering the buckets by single value metrics sub-aggregation (identified by the 
         "genres" : {
             "terms" : {
                 "field" : "genre",
-                "order" : { "avg_play_count" : "desc" }
+                "order" : { "max_play_count" : "desc" }
             },
             "aggs" : {
-                "avg_play_count" : { "avg" : { "field" : "play_count" } }
+                "max_play_count" : { "max" : { "field" : "play_count" } }
             }
         }
     }
@@ -316,7 +316,7 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
         "genres" : {
             "terms" : {
                 "field" : "genre",
-                "order" : { "playback_stats.avg" : "desc" }
+                "order" : { "playback_stats.max" : "desc" }
             },
             "aggs" : {
                 "playback_stats" : { "stats" : { "field" : "play_count" } }

@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.transport.TransportService;
 
@@ -39,16 +38,13 @@ import org.elasticsearch.transport.TransportService;
  */
 public final class IngestActionForwarder implements ClusterStateListener {
 
-    private final ClusterService clusterService;
     private final TransportService transportService;
     private final AtomicInteger ingestNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
     private DiscoveryNode[] ingestNodes;
 
-    public IngestActionForwarder(ClusterService clusterService, TransportService transportService) {
-        this.clusterService = clusterService;
+    public IngestActionForwarder(TransportService transportService) {
         this.transportService = transportService;
         ingestNodes = new DiscoveryNode[0];
-        clusterService.add(this);
     }
 
     public void forwardIngestRequest(Action<?, ?, ?> action, ActionRequest request, ActionListener<?> listener) {
@@ -57,7 +53,6 @@ public final class IngestActionForwarder implements ClusterStateListener {
     }
 
     private DiscoveryNode randomIngestNode() {
-        assert clusterService.localNode().isIngestNode() == false;
         final DiscoveryNode[] nodes = ingestNodes;
         if (nodes.length == 0) {
             throw new IllegalStateException("There are no ingest nodes in this cluster, unable to forward request to an ingest node.");

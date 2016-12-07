@@ -90,7 +90,8 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
         this.clusterService = clusterService;
         this.ingestService = ingestService;
-        this.ingestForwarder = new IngestActionForwarder(clusterService, transportService);
+        this.ingestForwarder = new IngestActionForwarder(transportService);
+        clusterService.add(this.ingestForwarder);
     }
 
     @Override

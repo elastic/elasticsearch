@@ -23,8 +23,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
@@ -60,8 +60,8 @@ public abstract class BaseGatewayShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            if (allocateUnassignedDecision.getFinalDecisionSafe() == Decision.Type.YES) {
-                unassignedIterator.initialize(allocateUnassignedDecision.getAssignedNodeId(),
+            if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
+                unassignedIterator.initialize(allocateUnassignedDecision.getTargetNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
                     shard.primary() ? ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE :
                                       allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),

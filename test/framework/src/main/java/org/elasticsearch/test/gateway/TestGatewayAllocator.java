@@ -89,6 +89,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
             return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), Collections.emptySet(),
                 allocation.getIgnoreNodes(shardId));
         }
+
+        @Override
+        protected boolean hasInitiatedFetching(ShardRouting shard) {
+            return true;
+        }
     };
 
     public TestGatewayAllocator() {

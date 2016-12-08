@@ -229,10 +229,11 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
-                if(parserContext.isWithinMultiField()) {
-                    throw new MapperParsingException("sub-fields shouldn't contain property: include_in_all, and current node is:" + name);
+                if (parserContext.isWithinMultiField()) {
+                    throw new MapperParsingException("include_in_all in multi fields is not allowed. Found the include_in_all in field [" + name + "] which is within a multi field.");
+                } else {
+                    builder.includeInAll(nodeBooleanValue("include_in_all", propNode, parserContext));
                 }
-                builder.includeInAll(nodeBooleanValue("include_in_all", propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());

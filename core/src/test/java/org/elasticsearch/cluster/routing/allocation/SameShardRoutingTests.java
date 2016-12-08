@@ -30,13 +30,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
@@ -109,10 +108,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         );
 
         // can't force allocate same shard copy to the same node
-        ShardRouting newPrimary = ShardRouting.newUnassigned(primaryShard.shardId(), true,
-            randomFrom(RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
-                RecoverySource.PeerRecoverySource.INSTANCE, RecoverySource.LocalShardsRecoverySource.INSTANCE),
-            new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "test"));
+        ShardRouting newPrimary = TestShardRouting.newShardRouting(primaryShard.shardId(), null, true, ShardRoutingState.UNASSIGNED);
         Decision decision = decider.canForceAllocatePrimary(newPrimary, routingNode, routingAllocation);
         assertEquals(Decision.Type.NO, decision.type());
 

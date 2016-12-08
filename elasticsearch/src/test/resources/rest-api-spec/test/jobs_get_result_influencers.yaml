@@ -18,7 +18,7 @@ setup:
       index:
         index:  prelertresults-farequote
         type:   result
-        id:     1
+        id:     farequote_1464739200000_1_1
         body:
           {
             "job_id": "farequote",
@@ -26,14 +26,16 @@ setup:
             "influencer_field_name": "foo",
             "influencer_field_value": "bar",
             "anomaly_score": 80.0,
-            "result_type" : "influencer"
+            "result_type" : "influencer",
+            "bucket_span" : 1,
+            "sequence_num" : 1
           }
 
   - do:
       index:
         index:  prelertresults-farequote
         type:   result
-        id:     2
+        id:     farequote_1464825600000_1_2
         body:
           {
             "job_id": "farequote",
@@ -41,7 +43,9 @@ setup:
             "influencer_field_name": "foo",
             "influencer_field_value": "zoo",
             "anomaly_score": 50.0,
-            "result_type" : "influencer"
+            "result_type" : "influencer",
+            "bucket_span" : 1,
+            "sequence_num" : 2
           }
   - do:
       indices.refresh:

@@ -48,7 +48,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<PerPartitionMaxProbabilities, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a ->
-                    new PerPartitionMaxProbabilities((String) a[0], (Date) a[1], (List<PartitionProbability>) a[2]));
+                    new PerPartitionMaxProbabilities((String) a[0], (Date) a[1], (long) a[2], (List<PartitionProbability>) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -61,18 +61,21 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + Bucket.TIMESTAMP.getPreferredName() + "]");
         }, Bucket.TIMESTAMP, ObjectParser.ValueType.VALUE);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), Bucket.BUCKET_SPAN);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), PartitionProbability.PARSER, PER_PARTITION_MAX_PROBABILITIES);
         PARSER.declareString((p, s) -> {}, Result.RESULT_TYPE);
     }
 
     private final String jobId;
     private final Date timestamp;
+    private final long bucketSpan;
     private final List<PartitionProbability> perPartitionMaxProbabilities;
-    private String id;
 
-    public PerPartitionMaxProbabilities(String jobId, Date timestamp, List<PartitionProbability> partitionProbabilities) {
+    public PerPartitionMaxProbabilities(String jobId, Date timestamp, long bucketSpan,
+                                        List<PartitionProbability> partitionProbabilities) {
         this.jobId = jobId;
         this.timestamp = timestamp;
+        this.bucketSpan = bucketSpan;
         this.perPartitionMaxProbabilities = partitionProbabilities;
     }
 
@@ -82,22 +85,23 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
         }
         this.jobId = records.get(0).getJobId();
         this.timestamp = records.get(0).getTimestamp();
+        this.bucketSpan = records.get(0).getBucketSpan();
         this.perPartitionMaxProbabilities = calcMaxNormalizedProbabilityPerPartition(records);
     }
 
     public PerPartitionMaxProbabilities(StreamInput in) throws IOException {
         jobId = in.readString();
         timestamp = new Date(in.readLong());
+        bucketSpan = in.readLong();
         perPartitionMaxProbabilities = in.readList(PartitionProbability::new);
-        id = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeLong(timestamp.getTime());
+        out.writeLong(bucketSpan);
         out.writeList(perPartitionMaxProbabilities);
-        out.writeOptionalString(id);
     }
 
     public String getJobId() {
@@ -105,11 +109,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     }
 
     public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
+        return jobId + "_" + timestamp.getTime() + "_" + bucketSpan + "_" + RESULT_TYPE_VALUE;
     }
 
     public Date getTimestamp() {
@@ -170,6 +170,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Bucket.TIMESTAMP.getPreferredName(), timestamp.getTime());
+        builder.field(Bucket.BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(PER_PARTITION_MAX_PROBABILITIES.getPreferredName(), perPartitionMaxProbabilities);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.endObject();
@@ -178,7 +179,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, perPartitionMaxProbabilities, id);
+        return Objects.hash(jobId, timestamp, perPartitionMaxProbabilities, bucketSpan);
     }
 
     @Override
@@ -195,7 +196,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
 
         return Objects.equals(this.jobId, that.jobId)
                 && Objects.equals(this.timestamp, that.timestamp)
-                && Objects.equals(this.id, that.id)
+                && this.bucketSpan == that.bucketSpan
                 && Objects.equals(this.perPartitionMaxProbabilities, that.perPartitionMaxProbabilities);
     }
 

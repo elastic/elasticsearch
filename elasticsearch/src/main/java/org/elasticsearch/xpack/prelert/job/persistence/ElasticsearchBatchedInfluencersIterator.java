@@ -33,8 +33,6 @@ class ElasticsearchBatchedInfluencersIterator extends ElasticsearchBatchedResult
             throw new ElasticsearchParseException("failed to parser influencer", e);
         }
 
-        Influencer influencer = Influencer.PARSER.apply(parser, () -> parseFieldMatcher);
-        influencer.setId(hit.getId());
-        return influencer;
+        return Influencer.PARSER.apply(parser, () -> parseFieldMatcher);
     }
 }

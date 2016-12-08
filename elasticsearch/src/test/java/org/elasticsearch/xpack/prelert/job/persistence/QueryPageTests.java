@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.support.AbstractWireSerializingTestCase;
 import java.util.ArrayList;
+import java.util.Date;
 
 public class QueryPageTests extends AbstractWireSerializingTestCase<QueryPage<Influencer>> {
 
@@ -19,7 +20,7 @@ public class QueryPageTests extends AbstractWireSerializingTestCase<QueryPage<In
         ArrayList<Influencer> hits = new ArrayList<>();
         for (int i = 0; i < hitCount; i++) {
             hits.add(new Influencer(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
-                    randomAsciiOfLengthBetween(1, 20)));
+                    randomAsciiOfLengthBetween(1, 20), new Date(), randomPositiveLong(), i + 1));
         }
         return new QueryPage<>(hits, hitCount, new ParseField("test"));
     }

@@ -31,26 +31,30 @@ setup:
       index:
         index:  prelertresults-farequote
         type:   result
-        id:     2
+        id:     farequote_1464739200000_1_1
         body:
           {
             "job_id": "farequote",
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
-            "anomaly_score": 60.0
+            "anomaly_score": 60.0,
+            "bucket_span": 1,
+            "sequence_num": 1
           }
 
   - do:
         index:
           index:  prelertresults-farequote
           type:   result
-          id:     3
+          id:     farequote_1464825600000_1_2
           body:
             {
               "job_id": "farequote",
               "result_type": "record",
               "timestamp": "2016-06-02T00:00:00Z",
-              "anomaly_score": 80.0
+              "anomaly_score": 80.0,
+              "bucket_span": 1,
+              "sequence_num": 2
             }
 
   - do:

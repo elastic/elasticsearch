@@ -51,7 +51,7 @@ public class JobRenormaliser extends AbstractComponent {
      * @param records The updated records
      */
     public void updateRecords(String jobId, List<AnomalyRecord> records) {
-        jobResultsPersister.bulkPersisterBuilder(jobId).persistRecords(records, false).executeRequest();
+        jobResultsPersister.bulkPersisterBuilder(jobId).persistRecords(records).executeRequest();
     }
 
     /**
@@ -64,8 +64,7 @@ public class JobRenormaliser extends AbstractComponent {
      */
     public void updatePerPartitionMaxProbabilities(String jobId, String documentId, List<AnomalyRecord> records) {
         PerPartitionMaxProbabilities ppMaxProbs = new PerPartitionMaxProbabilities(records);
-        ppMaxProbs.setId(documentId);
-        jobResultsPersister.bulkPersisterBuilder(jobId).persistPerPartitionMaxProbabilities(ppMaxProbs, false).executeRequest();
+        jobResultsPersister.bulkPersisterBuilder(jobId).persistPerPartitionMaxProbabilities(ppMaxProbs).executeRequest();
     }
 
     /**
@@ -76,7 +75,7 @@ public class JobRenormaliser extends AbstractComponent {
      * @param influencers The updated influencers
      */
     public void updateInfluencer(String jobId, List<Influencer> influencers) {
-        jobResultsPersister.bulkPersisterBuilder(jobId).persistInfluencers(influencers, false).executeRequest();
+        jobResultsPersister.bulkPersisterBuilder(jobId).persistInfluencers(influencers).executeRequest();
     }
 }
 

@@ -88,7 +88,7 @@ public class AutoDetectResultProcessor {
             LOGGER.info("[{}] {} buckets parsed from autodetect output - about to refresh indexes", jobId, bucketCount);
             LOGGER.info("[{}] Parse results Complete", jobId);
         } catch (Exception e) {
-            LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("[{}] error parsing autodetect output", new Object[] {jobId}, e));
+            LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", new Object[] {jobId}), e);
         } finally {
             completionLatch.countDown();
             flushListener.clear();
@@ -116,14 +116,14 @@ public class AutoDetectResultProcessor {
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
-            context.bulkResultsPersister.persistRecords(records, true);
+            context.bulkResultsPersister.persistRecords(records);
             if (context.isPerPartitionNormalization) {
-                context.bulkResultsPersister.persistPerPartitionMaxProbabilities(new PerPartitionMaxProbabilities(records), true);
+                context.bulkResultsPersister.persistPerPartitionMaxProbabilities(new PerPartitionMaxProbabilities(records));
             }
         }
         List<Influencer> influencers = result.getInfluencers();
         if (influencers != null && !influencers.isEmpty()) {
-            context.bulkResultsPersister.persistInfluencers(influencers, true);
+            context.bulkResultsPersister.persistInfluencers(influencers);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {

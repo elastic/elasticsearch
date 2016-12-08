@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
      * Result fields (all detector types)
      */
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
+    public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
@@ -77,19 +79,11 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public static final ParseField INITIAL_NORMALIZED_PROBABILITY = new ParseField("initial_normalized_probability");
 
     public static final ConstructingObjectParser<AnomalyRecord, ParseFieldMatcherSupplier> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new AnomalyRecord((String) a[0]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
-        PARSER.declareDouble(AnomalyRecord::setAnomalyScore, ANOMALY_SCORE);
-        PARSER.declareDouble(AnomalyRecord::setNormalizedProbability, NORMALIZED_PROBABILITY);
-        PARSER.declareDouble(AnomalyRecord::setInitialNormalizedProbability, INITIAL_NORMALIZED_PROBABILITY);
-        PARSER.declareLong(AnomalyRecord::setBucketSpan, BUCKET_SPAN);
-        PARSER.declareInt(AnomalyRecord::setDetectorIndex, DETECTOR_INDEX);
-        PARSER.declareBoolean(AnomalyRecord::setInterim, IS_INTERIM);
-        PARSER.declareField(AnomalyRecord::setTimestamp, p -> {
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -97,6 +91,15 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
             }
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
         }, TIMESTAMP, ValueType.VALUE);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SEQUENCE_NUM);
+        PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
+        PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
+        PARSER.declareDouble(AnomalyRecord::setAnomalyScore, ANOMALY_SCORE);
+        PARSER.declareDouble(AnomalyRecord::setNormalizedProbability, NORMALIZED_PROBABILITY);
+        PARSER.declareDouble(AnomalyRecord::setInitialNormalizedProbability, INITIAL_NORMALIZED_PROBABILITY);
+        PARSER.declareInt(AnomalyRecord::setDetectorIndex, DETECTOR_INDEX);
+        PARSER.declareBoolean(AnomalyRecord::setInterim, IS_INTERIM);
         PARSER.declareString(AnomalyRecord::setByFieldName, BY_FIELD_NAME);
         PARSER.declareString(AnomalyRecord::setByFieldValue, BY_FIELD_VALUE);
         PARSER.declareString(AnomalyRecord::setCorrelatedByFieldValue, CORRELATED_BY_FIELD_VALUE);
@@ -114,7 +117,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     }
 
     private final String jobId;
-    private String id;
+    private final int sequenceNum;
     private int detectorIndex;
     private double probability;
     private String byFieldName;
@@ -139,21 +142,24 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
     private double initialNormalizedProbability;
 
-    private Date timestamp;
-    private long bucketSpan;
+    private final Date timestamp;
+    private final long bucketSpan;
 
     private List<Influence> influencers;
 
     private boolean hadBigNormalisedUpdate;
 
-    public AnomalyRecord(String jobId) {
+    public AnomalyRecord(String jobId, Date timestamp, long bucketSpan, int sequenceNum) {
         this.jobId = jobId;
+        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP.getPreferredName());
+        this.bucketSpan = bucketSpan;
+        this.sequenceNum = sequenceNum;
     }
 
     @SuppressWarnings("unchecked")
     public AnomalyRecord(StreamInput in) throws IOException {
         jobId = in.readString();
-        id = in.readOptionalString();
+        sequenceNum = in.readInt();
         detectorIndex = in.readInt();
         probability = in.readDouble();
         byFieldName = in.readOptionalString();
@@ -179,21 +185,18 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         anomalyScore = in.readDouble();
         normalizedProbability = in.readDouble();
         initialNormalizedProbability = in.readDouble();
-        if (in.readBoolean()) {
-            timestamp = new Date(in.readLong());
-        }
+        timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         if (in.readBoolean()) {
             influencers = in.readList(Influence::new);
         }
         hadBigNormalisedUpdate = in.readBoolean();
-
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeOptionalString(id);
+        out.writeInt(sequenceNum);
         out.writeInt(detectorIndex);
         out.writeDouble(probability);
         out.writeOptionalString(byFieldName);
@@ -225,11 +228,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         out.writeDouble(anomalyScore);
         out.writeDouble(normalizedProbability);
         out.writeDouble(initialNormalizedProbability);
-        boolean hasTimestamp = timestamp != null;
-        out.writeBoolean(hasTimestamp);
-        if (hasTimestamp) {
-            out.writeLong(timestamp.getTime());
-        }
+        out.writeLong(timestamp.getTime());
         out.writeLong(bucketSpan);
         boolean hasInfluencers = influencers != null;
         out.writeBoolean(hasInfluencers);
@@ -250,10 +249,9 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         builder.field(INITIAL_NORMALIZED_PROBABILITY.getPreferredName(), initialNormalizedProbability);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
+        builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(IS_INTERIM.getPreferredName(), isInterim);
-        if (timestamp != null) {
-            builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
-        }
+        builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
         if (byFieldName != null) {
             builder.field(BY_FIELD_NAME.getPreferredName(), byFieldName);
         }
@@ -305,15 +303,10 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     }
 
     /**
-     * Data store ID of this record.  May be null for records that have not been
-     * read from the data store.
+     * Data store ID of this record.
      */
     public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
+        return jobId + "_" + timestamp.getTime() + "_" + bucketSpan + "_" + sequenceNum;
     }
 
     public int getDetectorIndex() {
@@ -352,22 +345,11 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         return timestamp;
     }
 
-    public void setTimestamp(Date timestamp) {
-        this.timestamp = timestamp;
-    }
-
     /**
      * Bucketspan expressed in seconds
      */
     public long getBucketSpan() {
         return bucketSpan;
-    }
-
-    /**
-     * Bucketspan expressed in seconds
-     */
-    public void setBucketSpan(long bucketSpan) {
-        this.bucketSpan = bucketSpan;
     }
 
     public double getProbability() {
@@ -377,7 +359,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public void setProbability(double value) {
         probability = value;
     }
-
 
     public String getByFieldName() {
         return byFieldName;
@@ -509,14 +490,11 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        // ID is NOT included in the hash, so that a record from the data store
-        // will hash the same as a record representing the same anomaly that did
-        // not come from the data store
 
-        // hadBigNormalisedUpdate is also deliberately excluded from the hash
+        // hadBigNormalisedUpdate is deliberately excluded from the hash
 
-        return Objects.hash(detectorIndex, probability, anomalyScore, initialNormalizedProbability,
-                normalizedProbability, typical, actual,
+        return Objects.hash(jobId, detectorIndex, sequenceNum, bucketSpan, probability, anomalyScore,
+                normalizedProbability, initialNormalizedProbability, typical, actual,
                 function, functionDescription, fieldName, byFieldName, byFieldValue, correlatedByFieldValue,
                 partitionFieldName, partitionFieldValue, overFieldName, overFieldValue,
                 timestamp, isInterim, causes, influencers, jobId);
@@ -535,13 +513,11 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
         AnomalyRecord that = (AnomalyRecord) other;
 
-        // ID is NOT compared, so that a record from the data store will compare
-        // equal to a record representing the same anomaly that did not come
-        // from the data store
-
-        // hadBigNormalisedUpdate is also deliberately excluded from the test
+        // hadBigNormalisedUpdate is deliberately excluded from the test
         return Objects.equals(this.jobId, that.jobId)
                 && this.detectorIndex == that.detectorIndex
+                && this.sequenceNum == that.sequenceNum
+                && this.bucketSpan == that.bucketSpan
                 && this.probability == that.probability
                 && this.anomalyScore == that.anomalyScore
                 && this.normalizedProbability == that.normalizedProbability

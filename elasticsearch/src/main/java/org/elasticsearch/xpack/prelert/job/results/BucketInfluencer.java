@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -39,20 +40,16 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField IS_INTERIM = new ParseField("is_interim");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
+    public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
 
     public static final ConstructingObjectParser<BucketInfluencer, ParseFieldMatcherSupplier> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(), a -> new BucketInfluencer((String) a[0]));
+            new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(), a -> new BucketInfluencer((String) a[0],
+                    (Date) a[1], (long) a[2], (int) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareString((bucketInfluencer, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareString(BucketInfluencer::setInfluencerFieldName, INFLUENCER_FIELD_NAME);
-        PARSER.declareDouble(BucketInfluencer::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
-        PARSER.declareDouble(BucketInfluencer::setAnomalyScore, ANOMALY_SCORE);
-        PARSER.declareDouble(BucketInfluencer::setRawAnomalyScore, RAW_ANOMALY_SCORE);
-        PARSER.declareDouble(BucketInfluencer::setProbability, PROBABILITY);
-        PARSER.declareBoolean(BucketInfluencer::setIsInterim, IS_INTERIM);
-        PARSER.declareField(BucketInfluencer::setTimestamp, p -> {
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -60,6 +57,15 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
             }
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
         }, TIMESTAMP, ValueType.VALUE);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SEQUENCE_NUM);
+        PARSER.declareString((bucketInfluencer, s) -> {}, Result.RESULT_TYPE);
+        PARSER.declareString(BucketInfluencer::setInfluencerFieldName, INFLUENCER_FIELD_NAME);
+        PARSER.declareDouble(BucketInfluencer::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
+        PARSER.declareDouble(BucketInfluencer::setAnomalyScore, ANOMALY_SCORE);
+        PARSER.declareDouble(BucketInfluencer::setRawAnomalyScore, RAW_ANOMALY_SCORE);
+        PARSER.declareDouble(BucketInfluencer::setProbability, PROBABILITY);
+        PARSER.declareBoolean(BucketInfluencer::setIsInterim, IS_INTERIM);
     }
 
     private final String jobId;
@@ -69,21 +75,15 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     private double rawAnomalyScore;
     private double probability;
     private boolean isInterim;
-    private Date timestamp;
+    private final Date timestamp;
+    private final long bucketSpan;
+    private final int sequenceNum;
 
-    public BucketInfluencer(String jobId) {
+    public BucketInfluencer(String jobId, Date timestamp, long bucketSpan, int sequenceNum) {
         this.jobId = jobId;
-    }
-
-    public BucketInfluencer(BucketInfluencer prototype) {
-        jobId = prototype.jobId;
-        influenceField = prototype.influenceField;
-        initialAnomalyScore = prototype.initialAnomalyScore;
-        anomalyScore = prototype.anomalyScore;
-        rawAnomalyScore = prototype.rawAnomalyScore;
-        probability = prototype.probability;
-        isInterim = prototype.isInterim;
-        timestamp = prototype.timestamp;
+        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP.getPreferredName());
+        this.bucketSpan = bucketSpan;
+        this.sequenceNum = sequenceNum;
     }
 
     public BucketInfluencer(StreamInput in) throws IOException {
@@ -94,9 +94,9 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         rawAnomalyScore = in.readDouble();
         probability = in.readDouble();
         isInterim = in.readBoolean();
-        if (in.readBoolean()) {
-            timestamp = new Date(in.readLong());
-        }
+        timestamp = new Date(in.readLong());
+        bucketSpan = in.readLong();
+        sequenceNum = in.readInt();
     }
 
     @Override
@@ -108,11 +108,9 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         out.writeDouble(rawAnomalyScore);
         out.writeDouble(probability);
         out.writeBoolean(isInterim);
-        boolean hasTimestamp = timestamp != null;
-        out.writeBoolean(hasTimestamp);
-        if (hasTimestamp) {
-            out.writeLong(timestamp.getTime());
-        }
+        out.writeLong(timestamp.getTime());
+        out.writeLong(bucketSpan);
+        out.writeInt(sequenceNum);
     }
 
     @Override
@@ -127,14 +125,20 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(RAW_ANOMALY_SCORE.getPreferredName(), rawAnomalyScore);
         builder.field(PROBABILITY.getPreferredName(), probability);
-        if (timestamp != null) {
-            builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
-        }
+        builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
+        builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
+        builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(IS_INTERIM.getPreferredName(), isInterim);
         builder.endObject();
         return builder;
     }
 
+    /**
+     * Data store ID of this bucket influencer.
+     */
+    public String getId() {
+        return jobId + "_" + timestamp.getTime() + "_" + bucketSpan + "_" + sequenceNum;
+    }
 
     public String getJobId() {
         return jobId;
@@ -188,17 +192,14 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         return isInterim;
     }
 
-    public void setTimestamp(Date timestamp) {
-        this.timestamp = timestamp;
-    }
-
     public Date getTimestamp() {
         return timestamp;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(influenceField, initialAnomalyScore, anomalyScore, rawAnomalyScore, probability, isInterim, timestamp, jobId);
+        return Objects.hash(influenceField, initialAnomalyScore, anomalyScore, rawAnomalyScore, probability, isInterim, timestamp, jobId,
+                bucketSpan, sequenceNum);
     }
 
     @Override
@@ -220,6 +221,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         return Objects.equals(influenceField, other.influenceField) && Double.compare(initialAnomalyScore, other.initialAnomalyScore) == 0
                 && Double.compare(anomalyScore, other.anomalyScore) == 0 && Double.compare(rawAnomalyScore, other.rawAnomalyScore) == 0
                 && Double.compare(probability, other.probability) == 0 && Objects.equals(isInterim, other.isInterim)
-                && Objects.equals(timestamp, other.timestamp) && Objects.equals(jobId, other.jobId);
+                && Objects.equals(timestamp, other.timestamp) && Objects.equals(jobId, other.jobId) && bucketSpan == other.bucketSpan
+                && sequenceNum == other.sequenceNum;
     }
 }

@@ -81,35 +81,37 @@ setup:
        index:
         index:  prelertresults-foo
         type:   result
-        id:     "foo_1464825600000_1_record"
-        body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-06-02T00:00:00Z" }
+        id:     "foo_1464825600000_1_1"
+        body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-06-02T00:00:00Z", "bucket_span":1, "sequence_num":1 }
 
   - do:
        index:
          index:  prelertresults-foo
          type:   result
-         id:     "foo_1462060800000_1_record"
-         body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-05-01T00:00:00Z" }
+         id:     "foo_1462060800000_1_2"
+         body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-05-01T00:00:00Z", "bucket_span":1, "sequence_num":2 }
 
   - do:
       index:
         index:  prelertresults-foo
         type:   result
-        id:     "foo_1464825600000_1_influencer"
+        id:     "foo_1464825600000_1_3"
         body:   {
                   "job_id": "foo",
                   "result_type": "influencer",
                   "timestamp": "2016-06-02T00:00:00Z",
                   "influencer_field_name": "foo",
                   "influencer_field_value": "zoo",
-                  "anomaly_score": 50.0
+                  "anomaly_score": 50.0,
+                  "bucket_span": 1,
+                  "sequence_num": 3
                 }
 
   - do:
       index:
         index:  prelertresults-foo
         type:   result
-        id:     "foo_1462060800000_1_influencer"
+        id:     "foo_1462060800000_1_4"
         body:
            {
               "job_id": "foo",
@@ -117,7 +119,9 @@ setup:
               "timestamp": "2016-05-01T00:00:00Z",
               "influencer_field_name": "foo",
               "influencer_field_value": "zoo",
-              "anomaly_score": 50.0
+              "anomaly_score": 50.0,
+              "bucket_span": 1,
+              "sequence_num": 4
             }
 
   - do:

@@ -50,7 +50,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         bucket.setProcessingTimeMs(8888);
         bucket.setRecordCount(1);
 
-        BucketInfluencer bi = new BucketInfluencer(JOB_ID);
+        BucketInfluencer bi = new BucketInfluencer(JOB_ID, new Date(), 600, 1);
         bi.setAnomalyScore(14.15);
         bi.setInfluencerFieldName("biOne");
         bi.setInitialAnomalyScore(18.12);
@@ -59,7 +59,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         bucket.addBucketInfluencer(bi);
 
         // We are adding a record but it shouldn't be persisted as part of the bucket
-        AnomalyRecord record = new AnomalyRecord(JOB_ID);
+        AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600, 2);
         record.setAnomalyScore(99.8);
         bucket.setRecords(Arrays.asList(record));
 
@@ -94,14 +94,13 @@ public class JobResultsPersisterTests extends ESTestCase {
         Client client = clientBuilder.build();
 
         List<AnomalyRecord> records = new ArrayList<>();
-        AnomalyRecord r1 = new AnomalyRecord(JOB_ID);
+        AnomalyRecord r1 = new AnomalyRecord(JOB_ID, new Date(), 42, 1);
         records.add(r1);
         List<Double> actuals = new ArrayList<>();
         actuals.add(5.0);
         actuals.add(5.1);
         r1.setActual(actuals);
         r1.setAnomalyScore(99.8);
-        r1.setBucketSpan(42);
         r1.setByFieldName("byName");
         r1.setByFieldValue("byValue");
         r1.setCorrelatedByFieldValue("testCorrelations");
@@ -122,7 +121,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         r1.setTypical(typicals);
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
-        persister.bulkPersisterBuilder(JOB_ID).persistRecords(records, true).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistRecords(records).executeRequest();
         List<XContentBuilder> captured = captor.getAllValues();
         assertEquals(1, captured.size());
 
@@ -156,15 +155,14 @@ public class JobResultsPersisterTests extends ESTestCase {
         Client client = clientBuilder.build();
 
         List<Influencer> influencers = new ArrayList<>();
-        Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1");
+        Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600, 1);
         inf.setAnomalyScore(16);
-        inf.setId("infID");
         inf.setInitialAnomalyScore(55.5);
         inf.setProbability(0.4);
         influencers.add(inf);
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
-        persister.bulkPersisterBuilder(JOB_ID).persistInfluencers(influencers, true).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistInfluencers(influencers).executeRequest();
         List<XContentBuilder> captured = captor.getAllValues();
         assertEquals(1, captured.size());
 

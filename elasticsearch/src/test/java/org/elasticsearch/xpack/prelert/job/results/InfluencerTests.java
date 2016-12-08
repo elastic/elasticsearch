@@ -10,11 +10,14 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
 
+import java.util.Date;
+
 public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
 
     @Override
     protected Influencer createTestInstance() {
-        return new Influencer(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20));
+        return new Influencer(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
+                new Date(), randomPositiveLong(), randomIntBetween(1, 1000));
     }
 
     @Override

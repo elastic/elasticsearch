@@ -22,12 +22,12 @@ import org.mockito.InOrder;
 
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -114,13 +114,13 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        AnomalyRecord record1 = new AnomalyRecord("foo");
-        AnomalyRecord record2 = new AnomalyRecord("foo");
+        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123, 1);
+        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123, 2);
         List<AnomalyRecord> records = Arrays.asList(record1, record2);
         when(result.getRecords()).thenReturn(records);
         processor.processResult(context, result);
 
-        verify(bulkBuilder, times(1)).persistRecords(records, true);
+        verify(bulkBuilder, times(1)).persistRecords(records);
         verifyNoMoreInteractions(persister);
     }
 
@@ -134,16 +134,16 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", true, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        AnomalyRecord record1 = new AnomalyRecord("foo");
+        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123, 1);
         record1.setPartitionFieldValue("pValue");
-        AnomalyRecord record2 = new AnomalyRecord("foo");
+        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123, 2);
         record2.setPartitionFieldValue("pValue");
         List<AnomalyRecord> records = Arrays.asList(record1, record2);
         when(result.getRecords()).thenReturn(records);
         processor.processResult(context, result);
 
-        verify(bulkBuilder, times(1)).persistPerPartitionMaxProbabilities(any(PerPartitionMaxProbabilities.class), eq(true));
-        verify(bulkBuilder, times(1)).persistRecords(records, true);
+        verify(bulkBuilder, times(1)).persistPerPartitionMaxProbabilities(any(PerPartitionMaxProbabilities.class));
+        verify(bulkBuilder, times(1)).persistRecords(records);
         verifyNoMoreInteractions(persister);
     }
 
@@ -157,13 +157,13 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        Influencer influencer1 = new Influencer(JOB_ID, "infField", "infValue");
-        Influencer influencer2 = new Influencer(JOB_ID, "infField2", "infValue2");
+        Influencer influencer1 = new Influencer(JOB_ID, "infField", "infValue", new Date(123), 123, 1);
+        Influencer influencer2 = new Influencer(JOB_ID, "infField2", "infValue2", new Date(123), 123, 1);
         List<Influencer> influencers = Arrays.asList(influencer1, influencer2);
         when(result.getInfluencers()).thenReturn(influencers);
         processor.processResult(context, result);
 
-        verify(bulkBuilder, times(1)).persistInfluencers(influencers, true);
+        verify(bulkBuilder, times(1)).persistInfluencers(influencers);
         verifyNoMoreInteractions(persister);
     }
 

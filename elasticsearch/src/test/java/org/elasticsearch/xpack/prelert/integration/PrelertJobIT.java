@@ -226,9 +226,9 @@ public class PrelertJobIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '1'"));
 
-        addRecordResult("1", "1234");
-        addRecordResult("1", "1235");
-        addRecordResult("1", "1236");
+        addRecordResult("1", "1234", 1, 1);
+        addRecordResult("1", "1235", 1, 2);
+        addRecordResult("1", "1236", 1, 3);
         Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/records", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -259,7 +259,7 @@ public class PrelertJobIT extends ESRestTestCase {
                 Collections.singletonMap("refresh", "true"), new StringEntity(bucketResult));
     }
 
-    private Response addRecordResult(String jobId, String timestamp) throws Exception {
+    private Response addRecordResult(String jobId, String timestamp, long bucketSpan, int sequenceNum) throws Exception {
         try {
             client().performRequest("put", "prelertresults-" + jobId, Collections.emptyMap(), new StringEntity(RESULT_MAPPING));
         } catch (ResponseException e) {
@@ -268,10 +268,12 @@ public class PrelertJobIT extends ESRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
 
-        String bucketResult =
-                String.format(Locale.ROOT, "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"record\"}", jobId, timestamp);
+        String recordResult =
+                String.format(Locale.ROOT,
+                        "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"sequence_num\": %d, \"result_type\":\"record\"}",
+                        jobId, timestamp, bucketSpan, sequenceNum);
         return client().performRequest("put", "prelertresults-" + jobId + "/result/" + timestamp,
-                Collections.singletonMap("refresh", "true"), new StringEntity(bucketResult));
+                Collections.singletonMap("refresh", "true"), new StringEntity(recordResult));
     }
 
     private static String responseEntityToString(Response response) throws Exception {

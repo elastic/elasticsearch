@@ -22,13 +22,11 @@ public class GetInfluencersActionResponseTests extends AbstractStreamableTestCas
         List<Influencer> hits = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             Influencer influencer = new Influencer(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
-                    randomAsciiOfLengthBetween(1, 20));
+                    randomAsciiOfLengthBetween(1, 20), new Date(randomPositiveLong()), randomPositiveLong(), j + 1);
             influencer.setAnomalyScore(randomDouble());
             influencer.setInitialAnomalyScore(randomDouble());
             influencer.setProbability(randomDouble());
-            influencer.setId(randomAsciiOfLengthBetween(1, 20));
             influencer.setInterim(randomBoolean());
-            influencer.setTimestamp(new Date(randomLong()));
             hits.add(influencer);
         }
         QueryPage<Influencer> buckets = new QueryPage<>(hits, listSize, Influencer.RESULTS_FIELD);

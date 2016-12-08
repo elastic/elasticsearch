@@ -46,7 +46,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             int size = randomInt(10);
             records = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                AnomalyRecord record = new AnomalyRecord(jobId);
+                AnomalyRecord record = new AnomalyRecord(jobId, new Date(randomLong()), randomPositiveLong(), i + 1);
                 record.setProbability(randomDoubleBetween(0.0, 1.0, true));
                 records.add(record);
             }
@@ -56,7 +56,8 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             int size = randomInt(10);
             influencers = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                Influencer influencer = new Influencer(jobId, randomAsciiOfLength(10), randomAsciiOfLength(10));
+                Influencer influencer = new Influencer(jobId, randomAsciiOfLength(10), randomAsciiOfLength(10),
+                        new Date(randomLong()), randomPositiveLong(), i + 1);
                 influencer.setProbability(randomDoubleBetween(0.0, 1.0, true));
                 influencers.add(influencer);
             }

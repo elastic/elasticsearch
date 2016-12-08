@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 public class GetRecordsActionResponseTests extends AbstractStreamableTestCase<GetRecordsAction.Response> {
@@ -21,8 +22,7 @@ public class GetRecordsActionResponseTests extends AbstractStreamableTestCase<Ge
         List<AnomalyRecord> hits = new ArrayList<>(listSize);
         String jobId = randomAsciiOfLengthBetween(1, 20);
         for (int j = 0; j < listSize; j++) {
-            AnomalyRecord record = new AnomalyRecord(jobId);
-            record.setId(randomAsciiOfLengthBetween(1, 20));
+            AnomalyRecord record = new AnomalyRecord(jobId, new Date(), 600, j + 1);
             hits.add(record);
         }
         QueryPage<AnomalyRecord> snapshots = new QueryPage<>(hits, listSize, AnomalyRecord.RESULTS_FIELD);

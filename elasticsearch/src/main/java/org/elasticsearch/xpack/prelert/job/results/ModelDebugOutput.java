@@ -28,7 +28,12 @@ import java.util.Objects;
  * the restrictions on Elasticsearch mappings).
  */
 public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
-    public static final ParseField TYPE = new ParseField("model_debug_output");
+    /**
+     * Result type
+     */
+    public static final String RESULT_TYPE_VALUE = "model_debug_output";
+    public static final ParseField RESULTS_FIELD = new ParseField(RESULT_TYPE_VALUE);
+
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
     public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
@@ -43,10 +48,11 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
     public static final ParseField ACTUAL = new ParseField("actual");
 
     public static final ConstructingObjectParser<ModelDebugOutput, ParseFieldMatcherSupplier> PARSER =
-            new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new ModelDebugOutput((String) a[0]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ModelDebugOutput((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        PARSER.declareString((modelDebugOutput, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareField(ModelDebugOutput::setTimestamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -132,6 +138,7 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
+        builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         if (timestamp != null) {
             builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
         }

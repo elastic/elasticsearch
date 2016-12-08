@@ -230,8 +230,8 @@ public class JobResultsPersister extends AbstractComponent {
      * @param category The category to be persisted
      */
     public void persistCategoryDefinition(CategoryDefinition category) {
-        Persistable persistable = new Persistable(category.getJobId(), category, CategoryDefinition.TYPE::getPreferredName,
-                () -> String.valueOf(category.getCategoryId()), () -> toXContentBuilder(category));
+        Persistable persistable = new Persistable(category.getJobId(), category, CategoryDefinition.TYPE.getPreferredName(),
+                String.valueOf(category.getCategoryId()));
         persistable.persist();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
@@ -241,8 +241,8 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist the quantiles
      */
     public void persistQuantiles(Quantiles quantiles) {
-        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE::getPreferredName,
-                () -> Quantiles.QUANTILES_ID, () -> toXContentBuilder(quantiles));
+        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
+                Quantiles.QUANTILES_ID);
         if (persistable.persist()) {
             // Refresh the index when persisting quantiles so that previously
             // persisted results will be available for searching.  Do this using the
@@ -257,8 +257,8 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist a model snapshot description
      */
     public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
-        Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE::getPreferredName,
-                modelSnapshot::getSnapshotId, () -> toXContentBuilder(modelSnapshot));
+        Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
+                modelSnapshot.getSnapshotId());
         persistable.persist();
     }
 
@@ -268,11 +268,10 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistModelSizeStats(ModelSizeStats modelSizeStats) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE::getPreferredName,
-                ModelSizeStats.RESULT_TYPE_FIELD::getPreferredName, () -> toXContentBuilder(modelSizeStats));
+        Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(),
+                ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         persistable.persist();
-        persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE::getPreferredName,
-                () -> null, () -> toXContentBuilder(modelSizeStats));
+        persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(), null);
         persistable.persist();
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level
@@ -282,8 +281,7 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist model debug output
      */
     public void persistModelDebugOutput(ModelDebugOutput modelDebugOutput) {
-        Persistable persistable = new Persistable(modelDebugOutput.getJobId(), modelDebugOutput, ModelDebugOutput.TYPE::getPreferredName,
-                () -> null, () -> toXContentBuilder(modelDebugOutput));
+        Persistable persistable = new Persistable(modelDebugOutput.getJobId(), modelDebugOutput, Result.TYPE.getPreferredName(), null);
         persistable.persist();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
@@ -356,44 +354,38 @@ public class JobResultsPersister extends AbstractComponent {
     private class Persistable {
 
         private final String jobId;
-        private final Object object;
-        private final Supplier<String> typeSupplier;
-        private final Supplier<String> idSupplier;
-        private final Serialiser serialiser;
+        private final ToXContent object;
+        private final String type;
+        private final String id;
 
-        Persistable(String jobId, Object object, Supplier<String> typeSupplier, Supplier<String> idSupplier,
-                Serialiser serialiser) {
+        Persistable(String jobId, ToXContent object, String type, String id) {
             this.jobId = jobId;
             this.object = object;
-            this.typeSupplier = typeSupplier;
-            this.idSupplier = idSupplier;
-            this.serialiser = serialiser;
+            this.type = type;
+            this.id = id;
         }
 
         boolean persist() {
-            String type = typeSupplier.get();
-            String id = idSupplier.get();
-
             if (object == null) {
                 logger.warn("[{}] No {} to persist for job ", jobId, type);
                 return false;
             }
 
-            logCall(type, id);
+            logCall();
 
             try {
                 String indexName = getJobIndexName(jobId);
-                client.prepareIndex(indexName, type, idSupplier.get())
-                .setSource(serialiser.serialise())
+                client.prepareIndex(indexName, type, id)
+                .setSource(toXContentBuilder(object))
                 .execute().actionGet();
                 return true;
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, typeSupplier.get()}, e));
+                logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, type}, e));
                 return false;
             }
         }
 
-        private void logCall(String type, String id) {
+        private void logCall() {
             String indexName = getJobIndexName(jobId);
             if (id != null) {
                 logger.trace("[{}] ES API CALL: index type {} to index {} with ID {}", jobId, type, indexName, id);
@@ -401,9 +393,5 @@ public class JobResultsPersister extends AbstractComponent {
                 logger.trace("[{}] ES API CALL: index type {} to index {} with auto-generated ID", jobId, type, indexName);
             }
         }
-    }
-
-    private interface Serialiser {
-        XContentBuilder serialise() throws IOException;
     }
 }

@@ -91,7 +91,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(CategoryDefinition.TYPE.getPreferredName());
         overridden.add(Job.TYPE);
         overridden.add(ListDocument.TYPE.getPreferredName());
-        overridden.add(ModelDebugOutput.TYPE.getPreferredName());
         overridden.add(ModelState.TYPE.getPreferredName());
         overridden.add(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
@@ -138,11 +137,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         parseJson(parser, expected);
 
         builder = ElasticsearchMappings.dataCountsMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.modelDebugOutputMapping(null);
         inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);

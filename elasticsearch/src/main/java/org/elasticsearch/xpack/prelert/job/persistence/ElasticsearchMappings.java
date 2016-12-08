@@ -197,6 +197,20 @@ public class ElasticsearchMappings {
                                         .field(TYPE, DOUBLE)
                                     .endObject()
                                 .endObject()
+                            .endObject()
+
+                            // Model Debug Output
+                            .startObject(ModelDebugOutput.DEBUG_FEATURE.getPreferredName())
+                                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
+                            .endObject()
+                            .startObject(ModelDebugOutput.DEBUG_LOWER.getPreferredName())
+                                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                            .endObject()
+                            .startObject(ModelDebugOutput.DEBUG_UPPER.getPreferredName())
+                                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
+                            .endObject()
+                            .startObject(ModelDebugOutput.DEBUG_MEDIAN.getPreferredName())
+                                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
                             .endObject();
 
         addAnomalyRecordFieldsToMapping(builder);
@@ -610,67 +624,6 @@ public class ElasticsearchMappings {
                 .endObject();
 
         return builder;
-    }
-
-    /**
-     * Mapping for model debug output
-     *
-     * @param termFieldNames Optionally, other field names to include in the
-     *                       mappings.  Pass <code>null</code> if not required.
-     */
-    public static XContentBuilder modelDebugOutputMapping(Collection<String> termFieldNames) throws IOException {
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .startObject(ModelDebugOutput.TYPE.getPreferredName())
-                .startObject(ALL)
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(Job.ID.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(ES_TIMESTAMP)
-                .field(TYPE, DATE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(ModelDebugOutput.PARTITION_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ModelDebugOutput.OVER_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ModelDebugOutput.BY_FIELD_VALUE.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ModelDebugOutput.DEBUG_FEATURE.getPreferredName())
-                .field(TYPE, KEYWORD).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(ModelDebugOutput.DEBUG_LOWER.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(ModelDebugOutput.DEBUG_UPPER.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(ModelDebugOutput.DEBUG_MEDIAN.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject()
-                .startObject(ModelDebugOutput.ACTUAL.getPreferredName())
-                .field(TYPE, DOUBLE).field(INCLUDE_IN_ALL, false)
-                .endObject();
-
-        if (termFieldNames != null) {
-            ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
-            for (String fieldName : termFieldNames) {
-                reverser.add(fieldName, "");
-            }
-            for (Map.Entry<String, Object> entry : reverser.getMappingsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-        }
-
-        return builder
-                .endObject()
-                .endObject()
-                .endObject();
     }
 
     /**

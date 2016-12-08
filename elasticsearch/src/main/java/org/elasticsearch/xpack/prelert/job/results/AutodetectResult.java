@@ -41,7 +41,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSnapshot.PARSER, ModelSnapshot.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSizeStats.PARSER,
                 ModelSizeStats.RESULT_TYPE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelDebugOutput.PARSER, ModelDebugOutput.TYPE);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelDebugOutput.PARSER, ModelDebugOutput.RESULTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), CategoryDefinition.PARSER, CategoryDefinition.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), FlushAcknowledgement.PARSER, FlushAcknowledgement.TYPE);
     }
@@ -156,7 +156,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
         addNullableField(Quantiles.TYPE, quantiles, builder);
         addNullableField(ModelSnapshot.TYPE, modelSnapshot, builder);
         addNullableField(ModelSizeStats.RESULT_TYPE_FIELD, modelSizeStats, builder);
-        addNullableField(ModelDebugOutput.TYPE, modelDebugOutput, builder);
+        addNullableField(ModelDebugOutput.RESULTS_FIELD, modelDebugOutput, builder);
         addNullableField(CategoryDefinition.TYPE, categoryDefinition, builder);
         addNullableField(FlushAcknowledgement.TYPE, flushAcknowledgement, builder);
         builder.endObject();

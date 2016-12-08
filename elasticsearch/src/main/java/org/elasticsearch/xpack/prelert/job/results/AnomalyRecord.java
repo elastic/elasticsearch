@@ -519,7 +519,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
                 normalizedProbability, typical, actual,
                 function, functionDescription, fieldName, byFieldName, byFieldValue, correlatedByFieldValue,
                 partitionFieldName, partitionFieldValue, overFieldName, overFieldValue,
-                timestamp, isInterim, causes, influencers, jobId, RESULT_TYPE_VALUE);
+                timestamp, isInterim, causes, influencers, jobId);
     }
 
 

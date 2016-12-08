@@ -187,7 +187,6 @@ public class JobProvider {
             XContentBuilder quantilesMapping = ElasticsearchMappings.quantilesMapping();
             XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping();
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
-            XContentBuilder modelDebugMapping = ElasticsearchMappings.modelDebugOutputMapping(termFields);
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
 
             String jobId = job.getId();
@@ -200,7 +199,6 @@ public class JobProvider {
             createIndexRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
             createIndexRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
             createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
-            createIndexRequest.mapping(ModelDebugOutput.TYPE.getPreferredName(), modelDebugMapping);
             createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
 
             client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
@@ -853,16 +851,8 @@ public class JobProvider {
     }
 
     /**
-     * Returns a {@link BatchedDocumentsIterator} that allows querying
-     * and iterating over a number of ModelDebugOutputs of the given job
-     *
-     * @param jobId the id of the job for which model snapshots are requested
-     * @return a model snapshot {@link BatchedDocumentsIterator}
+     * Get the persisted quantiles state for the job
      */
-    public BatchedDocumentsIterator<ModelDebugOutput> newBatchedModelDebugOutputIterator(String jobId) {
-        return new ElasticsearchBatchedModelDebugOutputIterator(client, jobId, parseFieldMatcher);
-    }
-
     public Optional<Quantiles> getQuantiles(String jobId) {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
         try {

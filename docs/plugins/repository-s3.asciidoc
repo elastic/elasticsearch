@@ -139,6 +139,17 @@ signer to use.
 If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
 use `S3SignerType`, which is Signature Version 2.
 
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.s3.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
+
 [[repository-s3-repository]]
 ==== S3 Repository
 

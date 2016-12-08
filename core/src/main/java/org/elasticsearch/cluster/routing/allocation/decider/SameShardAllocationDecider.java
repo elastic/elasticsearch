@@ -67,7 +67,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         shardRouting.toString());
                 } else {
                     return allocation.decision(Decision.NO, NAME,
-                        "the shard cannot be allocated to the same node on which a copy of the shard [%s] already exists",
+                        "the shard cannot be allocated to the same node on which a copy of the shard already exists [%s]",
                         assignedShard.toString());
                 }
             }

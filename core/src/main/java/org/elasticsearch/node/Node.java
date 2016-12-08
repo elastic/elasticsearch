@@ -343,9 +343,8 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
             SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
-            ActionModule actionModule = new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
-                clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class));
+            ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
+                settingsModule.getClusterSettings(), threadPool, pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));

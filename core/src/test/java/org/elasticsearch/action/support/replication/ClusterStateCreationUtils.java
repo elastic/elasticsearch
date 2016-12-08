@@ -37,9 +37,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -201,6 +203,8 @@ public class ClusterStateCreationUtils {
         discoBuilder.masterNodeId(newNode(0).getId());
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
+        List<String> nodesList = new ArrayList<>(nodes);
+        int currentNodeToAssign = 0;
         for (String index : indices) {
             IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -215,7 +219,10 @@ public class ClusterStateCreationUtils {
                 ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 indexShardRoutingBuilder.addShard(
-                    TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED));
+                    TestShardRouting.newShardRouting(shardId, nodesList.get(currentNodeToAssign++), true, ShardRoutingState.STARTED));
+                if (currentNodeToAssign == nodesList.size()) {
+                    currentNodeToAssign = 0;
+                }
                 indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
             }
 

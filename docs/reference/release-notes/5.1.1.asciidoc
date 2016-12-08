@@ -1,20 +1,12 @@
 [[release-notes-5.1.1]]
 == 5.1.1 Release Notes
 
-Also see <<breaking-changes-5.0>>.
-
 [[breaking-5.1.1]]
 [float]
 === Breaking changes
 
 Aliases::
 * Validate alias names the same as index names {pull}20771[#20771] (issue: {issue}20748[#20748])
-
-CRUD::
-* Fixed naming inconsistency for fields/stored_fields in the APIs {pull}20166[#20166] (issues: {issue}18943[#18943], {issue}20155[#20155])
-
-Core::
-* Remove ignore system bootstrap checks {pull}20511[#20511]
 
 Discovery::
 * Remove pluggability of ElectMasterService {pull}21031[#21031]
@@ -23,18 +15,8 @@ Exceptions::
 * Remove `IndexTemplateAlreadyExistsException` and `IndexShardAlreadyExistsException` {pull}21539[#21539] (issue: {issue}21494[#21494])
 * Replace IndexAlreadyExistsException with ResourceAlreadyExistsException {pull}21494[#21494]
 
-Internal::
-* `_flush` should block by default {pull}20597[#20597] (issue: {issue}20569[#20569])
-
-Packaging::
-* Rename service.bat to elasticsearch-service.bat {pull}20496[#20496] (issue: {issue}17528[#17528])
-
-Plugin Lang Painless::
-* Remove all date 'now' methods from Painless {pull}20766[#20766] (issue: {issue}20762[#20762])
-
 REST::
 * Remove lenient stats parsing 5.x {pull}21576[#21576] (issues: {issue}20722[#20722], {issue}21410[#21410], {issue}21417[#21417])
-* Change separator for shards preference {pull}20786[#20786] (issues: {issue}20722[#20722], {issue}20769[#20769])
 
 
 
@@ -42,22 +24,17 @@ REST::
 [float]
 === Breaking Java changes
 
-Core::
-* Remove ability to plug-in TransportService {pull}20505[#20505]
-
 Exceptions::
 * Backport: Replace IndexAlreadyExistsException with ResourceAlreadyExistsException {pull}21601[#21601] (issue: {issue}21494[#21494])
 
 Internal::
 * Pass executor name to request interceptor to support async intercept calls {pull}21089[#21089]
-* Remove TransportService#registerRequestHandler leniency {pull}20469[#20469] (issue: {issue}20468[#20468])
 
 Network::
 * Unguice Transport and friends {pull}20526[#20526]
 
 Plugins::
 * Plugins: Remove support for onModule {pull}21416[#21416]
-* Cleanup sub fetch phase extension point {pull}20382[#20382]
 
 
 
@@ -99,9 +76,6 @@ Analysis::
 CAT API::
 * Provides a cat api endpoint for templates. {pull}20545[#20545] (issue: {issue}20467[#20467])
 
-Plugin Discovery File::
-* File-based discovery plugin {pull}20394[#20394] (issue: {issue}20323[#20323])
-
 Query DSL::
 * Add "all fields" execution mode to simple_query_string query {pull}21341[#21341] (issues: {issue}19784[#19784], {issue}20925[#20925])
 * Add support for `quote_field_suffix` to `simple_query_string`. {pull}21060[#21060] (issue: {issue}18641[#18641])
@@ -136,13 +110,8 @@ Cache::
 * Do not cache term queries. {pull}21566[#21566] (issues: {issue}16031[#16031], {issue}20116[#20116])
 * Parse alias filters on the coordinating node {pull}20916[#20916]
 
-Circuit Breakers::
-* Cluster Settings Updates should not trigger circuit breakers. {pull}20827[#20827]
-
 Cluster::
 * Cache successful shard deletion checks {pull}21438[#21438]
-* Skip shard management code when updating cluster state on client/tribe nodes {pull}20731[#20731]
-* Add clusterUUID to RestMainAction output {pull}20503[#20503]
 
 Core::
 * Reduce memory pressure when sending large terms queries. {pull}21776[#21776]
@@ -150,8 +119,6 @@ Core::
 * Log node ID on startup {pull}21673[#21673]
 * Ensure source filtering automatons are only compiled once {pull}20857[#20857] (issue: {issue}20839[#20839])
 * Improve scheduling fairness when batching cluster state changes with equal priority {pull}20775[#20775] (issue: {issue}20768[#20768])
-* Add production warning for pre-release builds {pull}20674[#20674]
-* Add serial collector bootstrap check {pull}20558[#20558]
 * Do not log full bootstrap checks exception {pull}19989[#19989]
 
 Exceptions::
@@ -160,13 +127,8 @@ Exceptions::
 Geo::
 * Optimize geo-distance sorting. {pull}20596[#20596] (issue: {issue}20450[#20450])
 
-Index APIs::
-* Add date-math support to `_rollover` {pull}20709[#20709]
-
 Ingest::
 * add `ignore_missing` option to SplitProcessor {pull}20982[#20982] (issues: {issue}19995[#19995], {issue}20840[#20840])
-* add ignore_missing option to convert,trim,lowercase,uppercase,grok,rename {pull}20194[#20194] (issue: {issue}19995[#19995])
-* introduce the JSON Processor {pull}20128[#20128] (issue: {issue}20052[#20052])
 
 Internal::
 * Rename ClusterState#lookupPrototypeSafe to `lookupPrototype` and remove "unsafe" unused variant {pull}21686[#21686]
@@ -175,7 +137,6 @@ Internal::
 * Remove special case in case no action filters are registered {pull}21251[#21251]
 * Use TimveValue instead of long for CacheBuilder methods {pull}20887[#20887]
 * Remove SearchContext#current and all it's threadlocals {pull}20778[#20778] (issue: {issue}19341[#19341])
-* Remove poor-mans compression in InternalSearchHit and friends {pull}20472[#20472]
 
 Java REST Client::
 * Provide error message when rest request path is null {pull}21233[#21233] (issue: {issue}21232[#21232])
@@ -183,9 +144,6 @@ Java REST Client::
 Logging::
 * Log failure to connect to node at info instead of debug {pull}21809[#21809] (issue: {issue}6468[#6468])
 * Truncate log messages from the end {pull}21609[#21609] (issue: {issue}21602[#21602])
-* Ensure logging is initialized in CLI tools {pull}20575[#20575]
-* Give useful error message if log config is missing {pull}20493[#20493]
-* Complete Elasticsearch logger names {pull}20457[#20457] (issue: {issue}20326[#20326])
 * Logging shutdown hack {pull}20389[#20389] (issue: {issue}20304[#20304])
 * Disable console logging {pull}20387[#20387]
 
@@ -197,13 +155,11 @@ Network::
 * Lazy resolve unicast hosts {pull}21630[#21630] (issues: {issue}14441[#14441], {issue}16412[#16412])
 * Fix handler name on message not fully read {pull}21478[#21478]
 * Handle rejected pings on shutdown gracefully {pull}20842[#20842]
-* Network: Allow to listen on virtual interfaces. {pull}19568[#19568] (issues: {issue}17473[#17473], {issue}19537[#19537])
 
 Packaging::
 * Add empty plugins dir for archive distributions {pull}21204[#21204] (issue: {issue}20342[#20342])
 * Make explicit missing settings for Windows service {pull}21200[#21200] (issue: {issue}18317[#18317])
 * Change permissions on config files {pull}20966[#20966]
-* Add quiet option to disable console logging {pull}20422[#20422] (issues: {issue}15315[#15315], {issue}16159[#16159], {issue}17220[#17220])
 
 Plugin Lang Painless::
 * Add Debug.explain to painless {pull}21723[#21723] (issue: {issue}20263[#20263])
@@ -212,8 +168,6 @@ Plugin Lang Painless::
 * Support decimal constants with trailing [dD] in painless {pull}21412[#21412] (issue: {issue}21116[#21116])
 * Implement reading from null safe dereferences {pull}21239[#21239]
 * Painless negative offsets {pull}21080[#21080] (issue: {issue}20870[#20870])
-* Remove more equivalents of the now method from the Painless whitelist. {pull}21047[#21047]
-* Disable regexes by default in painless {pull}20427[#20427] (issue: {issue}20397[#20397])
 
 Plugin Repository S3::
 * Make the default S3 buffer size depend on the available memory. {pull}21299[#21299]
@@ -224,8 +178,6 @@ Plugins::
 * Removing plugin that isn't installed shouldn't trigger usage information {pull}21272[#21272] (issue: {issue}21250[#21250])
 * Remove pluggability of ZenPing {pull}21049[#21049]
 * Make UnicastHostsProvider extension pull based {pull}21036[#21036]
-* Revert "Display plugins versions" {pull}20807[#20807] (issues: {issue}18683[#18683], {issue}20668[#20668])
-* Provide error message when plugin id is missing {pull}20660[#20660]
 
 Query DSL::
 * Using ObjectParser in MatchAllQueryBuilder and IdsQueryBuilder {pull}21273[#21273]
@@ -233,13 +185,7 @@ Query DSL::
 * Throw error if query element doesn't end with END_OBJECT {pull}20528[#20528] (issue: {issue}20515[#20515])
 * Remove `lowercase_expanded_terms` and `locale` from query-parser options. {pull}20208[#20208] (issue: {issue}9978[#9978])
 
-REST::
-* Add a REST spec for the create API {pull}20924[#20924]
-* Add response params to REST params did you mean {pull}20753[#20753] (issues: {issue}20722[#20722], {issue}20747[#20747])
-* Add did you mean to strict REST params {pull}20747[#20747] (issue: {issue}20722[#20722])
-
 Reindex API::
-* Add "simple match" support for reindex-from-remote whitelist {pull}21004[#21004]
 * Make reindex-from-remote ignore unknown fields {pull}20591[#20591] (issue: {issue}20504[#20504])
 
 Scripting::
@@ -256,9 +202,6 @@ Search::
 
 Search Templates::
 * Add profile and explain parameters to template API {pull}20451[#20451]
-
-Settings::
-* Add precise logging on unknown or invalid settings {pull}20951[#20951] (issue: {issue}20946[#20946])
 
 Snapshot/Restore::
 * Abort snapshots on a node that leaves the cluster {pull}21084[#21084] (issue: {issue}20876[#20876])
@@ -284,33 +227,18 @@ Aggregations::
 * Rewrite Queries/Filter in FilterAggregationBuilder and ensure client usage marks query as non-cachable {pull}21303[#21303] (issue: {issue}21301[#21301])
 * Percentiles bucket fails for 100th percentile {pull}21218[#21218]
 * Thread safety for scripted significance heuristics {pull}21113[#21113] (issue: {issue}18120[#18120])
-* Fixes bug preventing script sort working on top_hits aggregation {pull}21023[#21023] (issue: {issue}21022[#21022])
-* Fixed writeable name from range to geo_distance {pull}20860[#20860]
-* Fix date_range aggregation to not cache if now is used {pull}20740[#20740]
-* The `top_hits` aggregation should compile scripts only once. {pull}20738[#20738]
 
 Allocation::
 * Allow master to assign primary shard to node that has shard store locked during shard state fetching {pull}21656[#21656] (issue: {issue}19416[#19416])
-* Keep a shadow replicas' allocation id when it is promoted to primary {pull}20863[#20863] (issue: {issue}20650[#20650])
-* IndicesClusterStateService should clean local started when re-assigns an initializing shard with the same aid {pull}20687[#20687]
-* IndexRoutingTable.initializeEmpty shouldn't override supplied primary RecoverySource {pull}20638[#20638] (issue: {issue}20637[#20637])
-* Update incoming recoveries stats when shadow replica is reinitialized {pull}20612[#20612]
-* `index.routing.allocation.initial_recovery` limits replica allocation {pull}20589[#20589]
 
 Analysis::
 * Can load non-PreBuiltTokenFilter in Analyze API {pull}20396[#20396]
-* Named analyzer should close the analyzer that it wraps {pull}20197[#20197]
 
 CAT API::
 * Consume `full_id` request parameter early {pull}21270[#21270] (issue: {issue}21266[#21266])
 
-CRUD::
-* MultiGet should not fail entirely if alias resolves to many indices {pull}20858[#20858] (issue: {issue}20845[#20845])
-* Fixed date math expression support in multi get requests. {pull}20659[#20659] (issue: {issue}17957[#17957])
-
 Cache::
 * Fix the request cache keys to not hold references to the SearchContext. {pull}21284[#21284]
-* Prevent requests that use scripts or now() from being cached {pull}20750[#20750] (issue: {issue}20645[#20645])
 
 Circuit Breakers::
 * ClusterState publishing shouldn't trigger circuit breakers {pull}20986[#20986] (issues: {issue}20827[#20827], {issue}20960[#20960])
@@ -325,29 +253,21 @@ Core::
 * Protect BytesStreamOutput against overflows of the current number of written bytes. {pull}21174[#21174] (issue: {issue}21159[#21159])
 * Return target index name even if _rollover conditions are not met {pull}21138[#21138]
 * .es_temp_file remains after system crash, causing it not to start again {pull}21007[#21007] (issue: {issue}20992[#20992])
-* StoreStatsCache should also ignore AccessDeniedException when checking file size {pull}20790[#20790] (issue: {issue}17580[#17580])
 
 Dates::
 * Fix time zone rounding edge case for DST overlaps {pull}21550[#21550] (issue: {issue}20833[#20833])
-
-Discovery::
-* Add current cluster state version to zen pings and use them in master election {pull}20384[#20384] (issue: {issue}20348[#20348])
 
 Engine::
 * Die with dignity on the Lucene layer {pull}21721[#21721] (issue: {issue}19272[#19272])
 * Fix `InternalEngine#isThrottled` to not always return `false`. {pull}21592[#21592]
 * Retrying replication requests on replica doesn't call `onRetry` {pull}21189[#21189] (issue: {issue}20211[#20211])
-* Take refresh IOExceptions into account when catching ACE in InternalEngine {pull}20546[#20546] (issue: {issue}19975[#19975])
 
 Highlighting::
 * Fix FiltersFunctionScoreQuery highlighting {pull}21827[#21827]
 * Fix highlighting on a stored keyword field {pull}21645[#21645] (issue: {issue}21636[#21636])
-* Fix highlighting of MultiTermQuery within a FunctionScoreQuery {pull}20400[#20400] (issue: {issue}20392[#20392])
 
 Index APIs::
 * Validate the `_rollover` target index name early to also fail if dry_run=true {pull}21330[#21330] (issue: {issue}21149[#21149])
-* Only negate index expression on all indices with preceding wildcard {pull}20898[#20898] (issues: {issue}19800[#19800], {issue}20033[#20033])
-* Fix IndexNotFoundException in multi index search request. {pull}20188[#20188] (issue: {issue}3839[#3839])
 
 Index Templates::
 * Fix integer overflows when dealing with templates. {pull}21628[#21628] (issue: {issue}21622[#21622])
@@ -355,9 +275,6 @@ Index Templates::
 Ingest::
 * fix trace_match behavior for when there is only one grok pattern {pull}21413[#21413] (issue: {issue}21371[#21371])
 * Stored scripts and ingest node configurations should be included into a snapshot {pull}21227[#21227] (issue: {issue}21184[#21184])
-* make painless the default scripting language for ScriptProcessor {pull}20981[#20981] (issue: {issue}20943[#20943])
-* no null values in ingest configuration error messages {pull}20616[#20616]
-* JSON Processor was not properly added {pull}20613[#20613]
 
 Inner Hits::
 * Skip adding a parent field to nested documents. {pull}21522[#21522] (issue: {issue}21503[#21503])
@@ -366,10 +283,7 @@ Internal::
 * Rethrow ExecutionException from the loader to concurrent callers of Cache#computeIfAbsent {pull}21549[#21549]
 * Restore thread's original context before returning to the ThreadPool {pull}21411[#21411]
 * Fix NPE in SearchContext.toString() {pull}21069[#21069]
-* Prevent AbstractArrays from release bytes more than once {pull}20819[#20819]
 * Source filtering should treat dots in field names as sub objects. {pull}20736[#20736] (issue: {issue}20719[#20719])
-* IndicesAliasesRequest should not implement CompositeIndicesRequest {pull}20726[#20726]
-* Ensure elasticsearch doesn't start with unuspported indices {pull}20514[#20514] (issue: {issue}20512[#20512])
 
 Java API::
 * Transport client: Fix remove address to actually work {pull}21743[#21743]
@@ -377,7 +291,6 @@ Java API::
 * Fix InternalSearchHit#hasSource to return the proper boolean value {pull}21441[#21441] (issue: {issue}21419[#21419])
 * Null checked for source when calling sourceRef {pull}21431[#21431] (issue: {issue}19279[#19279])
 * ClusterAdminClient.prepareDeletePipeline method should accept pipeline id to delete {pull}21228[#21228]
-* fix IndexResponse#toString to print out shards info {pull}20562[#20562]
 
 Java REST Client::
 * Rest client: don't reuse the same HttpAsyncResponseConsumer across multiple retries {pull}21378[#21378]
@@ -386,21 +299,14 @@ Logging::
 * Do not prematurely shutdown Log4j {pull}21519[#21519] (issue: {issue}21514[#21514])
 * Assert status logger does not warn on Log4j usage {pull}21339[#21339]
 * Fix logger names for Netty {pull}21223[#21223] (issue: {issue}20457[#20457])
-* Fix logger when you can not create an azure storage client {pull}20670[#20670] (issues: {issue}20633[#20633], {issue}20669[#20669])
-* Avoid unnecessary creation of prefix loggers {pull}20571[#20571] (issue: {issue}20570[#20570])
-* Fix logging hierarchy configs {pull}20463[#20463]
-* Fix prefix logging {pull}20429[#20429]
 
 Mapping::
 * Fail to index fields with dots in field names when one of the intermediate objects is nested. {pull}21787[#21787] (issue: {issue}21726[#21726])
 * Uncommitted mapping updates should not efect existing indices {pull}21306[#21306] (issue: {issue}21189[#21189])
-* Allow position_gap_increment for fields in indices created prior to 5.0 {pull}20806[#20806] (issues: {issue}19510[#19510], {issue}20413[#20413])
 
 Network::
 * DiscoveryNode and TransportAddress should preserve host information {pull}21828[#21828]
 * Die with dignity on the network layer {pull}21720[#21720] (issue: {issue}19272[#19272])
-* Fix connection close header handling {pull}20956[#20956] (issue: {issue}20938[#20938])
-* Ensure port range is readable in the exception message {pull}20893[#20893]
 * Prevent double release in TcpTransport if send listener throws an exception {pull}20880[#20880]
 
 Packaging::
@@ -408,68 +314,36 @@ Packaging::
 * Export ES_JVM_OPTIONS for SysV init {pull}21445[#21445] (issue: {issue}21255[#21255])
 * Debian: configure start-stop-daemon to not go into background {pull}21343[#21343] (issues: {issue}12716[#12716], {issue}21300[#21300])
 * Generate POM files with non-wildcard excludes {pull}21234[#21234] (issue: {issue}21170[#21170])
-* [Packaging] Do not remove scripts directory on upgrade {pull}20452[#20452]
-* [Package] Remove bin/lib/modules directories on RPM uninstall/upgrade {pull}20448[#20448]
-
-Plugin Discovery EC2::
-* Fix ec2 discovery when used with IAM profiles. {pull}21048[#21048] (issue: {issue}21039[#21039])
-
-Plugin Ingest GeoIp::
-* [ingest-geoip] update geoip to not include null-valued results from  {pull}20455[#20455]
 
 Plugin Lang Painless::
 * Test fix for def equals in Painless {pull}21945[#21945] (issue: {issue}21801[#21801])
 * Fix a VerifyError bug in Painless {pull}21765[#21765]
 * Fix Lambdas in Painless to be Able to Use Top-Level Variables Such as params and doc {pull}21635[#21635] (issues: {issue}20869[#20869], {issue}21479[#21479])
-* Fix String Concatenation Bug In Painless {pull}20623[#20623]
 
 Plugin Mapper Attachment::
 * NPE is raised when defining a non existing type within attachments type {pull}21848[#21848]
-
-Plugin Repository S3::
-* Fixes leading forward slash in S3 repository base_path {pull}20861[#20861]
-
-Plugins::
-* Use sysprop like with es.path.home to pass conf dir {pull}18870[#18870] (issue: {issue}18689[#18689])
 
 Query DSL::
 * Fixes date range query using epoch with timezone {pull}21542[#21542] (issue: {issue}21501[#21501])
 * Allow overriding all-field leniency when `lenient` option is specified {pull}21504[#21504] (issues: {issue}20925[#20925], {issue}21341[#21341])
 * Max score should be updated when a rescorer is used {pull}20977[#20977] (issue: {issue}20651[#20651])
-* Fixes MultiMatchQuery so that it doesn't provide a null context {pull}20882[#20882]
-* Fix silently accepting malformed queries {pull}20515[#20515] (issue: {issue}20500[#20500])
-* Fix match_phrase_prefix query with single term on _all field {pull}20471[#20471] (issue: {issue}20470[#20470])
 
 REST::
 * Strict level parsing for indices stats {pull}21577[#21577] (issue: {issue}21024[#21024])
 * The routing query string param is supported by mget but was missing from the rest spec {pull}21357[#21357]
 * fix thread_pool_patterns path variable definition {pull}21332[#21332]
-* Read indices options in indices upgrade API {pull}21281[#21281] (issue: {issue}21099[#21099])
 * ensure the XContentBuilder is always closed in RestBuilderListener {pull}21124[#21124]
-* Add correct Content-Length on HEAD requests {pull}21123[#21123] (issue: {issue}21077[#21077])
-* Make sure HEAD / has 0 Content-Length {pull}21077[#21077] (issue: {issue}21075[#21075])
-* Whitelist node stats indices level parameter {pull}21024[#21024] (issue: {issue}20722[#20722])
-* Remove lenient URL parameter parsing {pull}20722[#20722] (issue: {issue}14719[#14719])
 * XContentBuilder: Avoid building self-referencing objects {pull}20550[#20550] (issues: {issue}19475[#19475], {issue}20540[#20540])
-
-Recovery::
-* Fix concurrency issues between cancelling a relocation and marking shard as relocated {pull}20443[#20443]
 
 Reindex API::
 * Ignore IllegalArgumentException with assertVersionSerializable {pull}21409[#21409] (issues: {issue}20767[#20767], {issue}21350[#21350])
 * Bump reindex-from-remote's buffer to 200mb {pull}21222[#21222] (issue: {issue}21185[#21185])
 * Fix reindex-from-remote for parent/child from <2.0 {pull}21070[#21070] (issue: {issue}21044[#21044])
 
-Scripting::
-* Add support for booleans in scripts {pull}20950[#20950] (issue: {issue}20949[#20949])
-* Native scripts should be created once per index, not per segment. {pull}20609[#20609]
-
 Search::
 * Fix match_phrase_prefix on boosted fields {pull}21623[#21623] (issue: {issue}21613[#21613])
 * Respect default search timeout {pull}21599[#21599] (issues: {issue}12211[#12211], {issue}21595[#21595])
 * Remove LateParsingQuery to prevent timestamp access after context is frozen {pull}21328[#21328] (issue: {issue}21295[#21295])
-* Make range queries round up upper bounds again. {pull}20582[#20582] (issues: {issue}20579[#20579], {issue}8889[#8889])
-* Throw error when trying to fetch fields from source and source is disabled {pull}20424[#20424] (issues: {issue}20093[#20093], {issue}20408[#20408])
 
 Search Templates::
 * SearchTemplateRequest to implement CompositeIndicesRequest {pull}21865[#21865] (issue: {issue}21747[#21747])
@@ -478,9 +352,6 @@ Settings::
 * Handle spaces in `action.auto_create_index` gracefully {pull}21790[#21790] (issue: {issue}21449[#21449])
 * Fix settings diff generation for affix and group settings {pull}21788[#21788]
 * Don't reset non-dynamic settings unless explicitly requested {pull}21646[#21646] (issue: {issue}21593[#21593])
-* Fix Setting.timeValue() method {pull}20696[#20696] (issue: {issue}20662[#20662])
-* Add a hard limit for `index.number_of_shard` {pull}20682[#20682]
-* Include complex settings in settings requests {pull}20622[#20622]
 
 Snapshot/Restore::
 * Fixes shard level snapshot metadata loading when index-N file is missing {pull}21813[#21813]
@@ -488,33 +359,11 @@ Snapshot/Restore::
 * Fixes get snapshot duplicates when asking for _all {pull}21340[#21340] (issue: {issue}21335[#21335])
 * Keep snapshot restore state and routing table in sync (5.x backport) {pull}21131[#21131] (issue: {issue}20836[#20836])
 
-Stats::
-* Remove output_uuid parameter from cluster stats {pull}21020[#21020] (issue: {issue}20722[#20722])
-* Fix FieldStats deserialization of `ip` field {pull}20522[#20522] (issue: {issue}20516[#20516])
-
 Task Manager::
 * Task cancellation command should wait for all child nodes to receive cancellation request before returning {pull}21397[#21397] (issue: {issue}21126[#21126])
 
 Tribe Node::
 * Add socket permissions for tribe nodes {pull}21546[#21546] (issues: {issue}16392[#16392], {issue}21122[#21122])
-
-
-
-[[regression-5.1.1]]
-[float]
-=== Regressions
-
-Highlighting::
-* Handle SynonymQuery extraction for the FastVectorHighlighter {pull}20829[#20829] (issue: {issue}20781[#20781])
-
-Plugin Discovery EC2::
-* Fix ec2 discovery when used with IAM profiles. {pull}21042[#21042] (issue: {issue}21039[#21039])
-
-Plugin Repository S3::
-* Fix s3 repository when used with IAM profiles {pull}21058[#21058] (issue: {issue}21048[#21048])
-
-Plugins::
-* Plugins: Add back user agent when downloading plugins {pull}20872[#20872]
 
 
 

@@ -63,7 +63,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error tailing C++ process logs", new Object[] { jobId }, e));
+                LOGGER.error(new ParameterizedMessage("[{}] Error tailing C++ process logs", new Object[] { jobId }), e);
             }
         });
     }

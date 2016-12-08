@@ -38,6 +38,8 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
             if (size == -1) { // that's a ping - we just ignore it.
                 return;
             } else {
+                // we have to make a copy here and limit it's size since the buffer might contain more
+                // data that will be processed later
                 ByteBufStreamInput byteBufStreamInput = new ByteBufStreamInput(in, size);
                 out.add(byteBufStreamInput);
             }

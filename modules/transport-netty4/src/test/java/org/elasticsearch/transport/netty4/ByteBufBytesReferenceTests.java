@@ -24,7 +24,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 public class ByteBufBytesReferenceTests extends AbstractBytesReferenceTestCase {
@@ -76,4 +78,12 @@ public class ByteBufBytesReferenceTests extends AbstractBytesReferenceTestCase {
         assertEquals(utf8ToString, byteBufBytesReference.utf8ToString());
     }
 
+    public void testConsumeFully() throws IOException {
+        BytesReference bytesReference = newBytesReference(randomIntBetween(10, 3 * PAGE_SIZE));
+        ByteBufStreamInput input = (ByteBufStreamInput)bytesReference.streamInput();
+        assertTrue(input.available() > 0);
+        input.consumeFully();
+        assertEquals(0, input.available());
+        expectThrows(IndexOutOfBoundsException.class, () -> input.readByte());
+    }
 }

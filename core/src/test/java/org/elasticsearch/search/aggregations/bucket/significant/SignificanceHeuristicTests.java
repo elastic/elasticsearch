@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
@@ -274,7 +273,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
                     "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
             QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
             stParser.nextToken();
-            new SignificantTermsParser(significanceHeuristicParserRegistry).parse("testagg", parseContext);
+            SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry).parse("testagg", parseContext);
             fail();
         } catch (ParsingException e) {
             assertThat(e.getCause().getMessage(), containsString(expectedError));
@@ -297,7 +296,8 @@ public class SignificanceHeuristicTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
         stParser.nextToken();
-        SignificantTermsAggregationBuilder aggregatorFactory = (SignificantTermsAggregationBuilder) new SignificantTermsParser(
+        SignificantTermsAggregationBuilder aggregatorFactory =
+                (SignificantTermsAggregationBuilder) SignificantTermsAggregationBuilder.getParser(
                 significanceHeuristicParserRegistry).parse("testagg", parseContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));

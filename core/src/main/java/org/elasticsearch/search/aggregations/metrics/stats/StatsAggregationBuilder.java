@@ -21,8 +21,11 @@ package org.elasticsearch.search.aggregations.metrics.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -31,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -38,6 +42,16 @@ import java.io.IOException;
 public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, StatsAggregationBuilder> {
     public static final String NAME = "stats";
     private static final Type TYPE = new Type(NAME);
+
+    private static final ObjectParser<StatsAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(StatsAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+    }
+
+    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new StatsAggregationBuilder(aggregationName), context);
+    }
 
     public StatsAggregationBuilder(String name) {
         super(name, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);

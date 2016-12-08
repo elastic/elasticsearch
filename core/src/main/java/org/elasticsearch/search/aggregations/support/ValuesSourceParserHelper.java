@@ -25,52 +25,41 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.joda.time.DateTimeZone;
 
-public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
-        implements Aggregator.Parser {
+public final class ValuesSourceParserHelper {
     static final ParseField TIME_ZONE = new ParseField("time_zone");
 
-    public abstract static class AnyValuesSourceParser extends AbstractValuesSourceParser<ValuesSource> {
+    private ValuesSourceParserHelper() {} // utility class, no instantiation
 
-        protected void addFields(
-                ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, QueryParseContext> objectParser,
-                boolean scriptable, boolean formattable) {
-            super.addFields(objectParser, scriptable, formattable, false, ValuesSourceType.ANY, null);
-        }
+    public static void declareAnyFields(
+            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, QueryParseContext> objectParser,
+            boolean scriptable, boolean formattable) {
+        declareFields(objectParser, scriptable, formattable, false, ValuesSourceType.ANY, null);
     }
 
-    public abstract static class NumericValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.Numeric> {
-
-        protected void addFields(
-                ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, QueryParseContext> objectParser,
-                boolean scriptable, boolean formattable, boolean timezoneAware) {
-            super.addFields(objectParser, scriptable, formattable, timezoneAware, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
-        }
+    public static void declareNumericFields(
+            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, QueryParseContext> objectParser,
+            boolean scriptable, boolean formattable, boolean timezoneAware) {
+        declareFields(objectParser, scriptable, formattable, timezoneAware, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
-    public abstract static class BytesValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.Bytes> {
-
-        protected void addFields(
-                ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, QueryParseContext> objectParser,
-                boolean scriptable, boolean formattable) {
-            super.addFields(objectParser, scriptable, formattable, false, ValuesSourceType.BYTES, ValueType.STRING);
-        }
+    public static void declareBytesFields(
+            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, QueryParseContext> objectParser,
+            boolean scriptable, boolean formattable) {
+        declareFields(objectParser, scriptable, formattable, false, ValuesSourceType.BYTES, ValueType.STRING);
     }
 
-    public abstract static class GeoPointValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.GeoPoint> {
-
-        protected void addFields(
-                ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, QueryParseContext> objectParser,
-                boolean scriptable, boolean formattable) {
-            super.addFields(objectParser, scriptable, formattable, false, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
-        }
-
+    public static void declareGeoFields(
+            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, QueryParseContext> objectParser,
+            boolean scriptable, boolean formattable) {
+        declareFields(objectParser, scriptable, formattable, false, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
-    private void addFields(ObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, QueryParseContext> objectParser,
+    private static <VS extends ValuesSource> void declareFields(
+            ObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, QueryParseContext> objectParser,
             boolean scriptable, boolean formattable, boolean timezoneAware, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
                 new ParseField("field"), ObjectParser.ValueType.STRING);
